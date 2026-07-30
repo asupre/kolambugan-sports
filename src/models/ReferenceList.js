@@ -1,0 +1,46 @@
+// src/models/ReferenceList.js
+// The list of known Kolambugan residents (from the voters' list via LYDO, or the
+// previous season's verified players). Each document = one resident on the list.
+// The verification engine checks submitted players against these records.
+// This list is REPLACED each time a new one is uploaded (it's a fresh snapshot).
+
+const mongoose = require('mongoose');
+
+const referenceListSchema = new mongoose.Schema(
+  {
+    firstName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    birthdate: {
+      type: Date,              // helps distinguish people with the same name
+    },
+    barangay: {
+      type: String,            // stored as text (from the uploaded list), not a ref
+      trim: true,
+    },
+    season: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Season',           // which season's upload this record belongs to
+      required: true,
+    },
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',             // which Super Admin uploaded this list
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Speeds up the name-matching lookups the verification engine does constantly.
+referenceListSchema.index({ lastName: 1, firstName: 1 });
+
+module.exports = mongoose.model('ReferenceList', referenceListSchema);

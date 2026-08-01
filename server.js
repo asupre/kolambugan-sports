@@ -12,6 +12,7 @@ app.set('trust proxy', 1);
 // Middleware
 app.use(cors());               // allows the React frontend to call this API
 app.use(express.json());       // lets the server read JSON request bodies
+app.use('/api/auth', require('./src/routes/auth'));   // ✓ not './routes/auth'
 
 // A simple test route so we can confirm the server is alive
 app.get('/', (req, res) => {

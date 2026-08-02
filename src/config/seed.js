@@ -11,6 +11,7 @@ const Sport = require('../models/Sport');
 const User = require('../models/User');
 const { hashPassword } = require('./password');
 const { barangays, sports } = require('./seedData');
+const Season = require('../models/Season');
 
 // Generates a random temporary password (letters + numbers, easy to distribute).
 function randomPassword(length = 10) {
@@ -31,6 +32,7 @@ async function seed() {
     await Barangay.deleteMany({});
     await Sport.deleteMany({});
     await User.deleteMany({});
+    await Season.deleteMany({});
     console.log('Cleared old barangays, sports, and users.');
 
     // 2. Insert barangays and sports

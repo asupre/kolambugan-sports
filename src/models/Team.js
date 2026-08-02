@@ -31,6 +31,12 @@ const teamSchema = new mongoose.Schema(
       enum: ['pending', 'verified', 'rejected'],
       default: 'pending',      // a newly submitted team starts as pending
     },
+    // Roster lifecycle, separate from verification status above.
+    // null = still a draft (editable); a date = submitted & locked.
+    submittedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

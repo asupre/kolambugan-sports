@@ -208,12 +208,13 @@ router.post('/:id/submit', authenticate, authorize('barangay_admin'),
     }
 
     team.submittedAt = new Date();
+    team.status = 'pending';        // ← add: resubmit clears a prior 'rejected'
     await team.save();
 
     // Automated residency pre-screen — sets each player's eligibilityStatus.
     const screening = await prescreenTeam(team);
 
-    res.json({ team, playerCount: count });
+    res.json({ team, playerCount: count, screening });   // ← add screening here
   } catch (err) {
     console.error('Submit roster error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

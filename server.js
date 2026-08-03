@@ -17,6 +17,7 @@ app.use('/api/seasons', require('./src/routes/season'));
 app.use('/api/teams', require('./src/routes/team'));
 app.use('/api', require('./src/routes/reference'));   // → /api/sports, /api/barangays
 app.use('/api/reference-list', require('./src/routes/referenceList'));
+app.use('/api/review', require('./src/routes/review'));
 
 // A simple test route so we can confirm the server is alive
 app.get('/', (req, res) => {

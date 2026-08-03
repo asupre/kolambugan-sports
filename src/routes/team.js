@@ -5,6 +5,7 @@ const TeamPlayer = require('../models/TeamPlayer');
 const Sport = require('../models/Sport');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
+const { prescreenTeam } = require('../services/prescreen');
 
 const router = express.Router();
 
@@ -209,8 +210,8 @@ router.post('/:id/submit', authenticate, authorize('barangay_admin'),
     team.submittedAt = new Date();
     await team.save();
 
-    // LATER: the reference-list auto pre-screen hooks in here — it sets each
-    // player's eligibilityStatus. For now, submit just locks the roster.
+    // Automated residency pre-screen — sets each player's eligibilityStatus.
+    const screening = await prescreenTeam(team);
 
     res.json({ team, playerCount: count });
   } catch (err) {

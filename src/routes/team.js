@@ -57,14 +57,31 @@ router.post('/', authenticate, authorize('barangay_admin'),
       return res.status(404).json({ message: 'Sport not found.' });
     }
 
-    // One team per barangay + sport + season.
-    const existing = await Team.findOne({
+    // Mobile Legends allows two teams per barangay (e.g. "Riverside 1", "Riverside 2");
+    // every other sport is one team per barangay.
+    const maxTeams = sport.name === 'Mobile Legends' ? 2 : 1;
+    const existing = await Team.find({
       barangay: req.user.barangay,
       sport: sportId,
       season: req.season._id,
     });
-    if (existing) {
-      return res.status(409).json({ message: `Your barangay already has a team for ${sport.name} this season.` });
+
+    if (existing.length >= maxTeams) {
+      return res.status(409).json({
+        message: maxTeams === 1
+          ? `Your barangay already has a team for ${sport.name} this season.`
+          : `Your barangay already has the maximum of ${maxTeams} teams for ${sport.name} this season.`,
+      });
+    }
+
+    // Within the same sport, the two teams can't share the exact same name.
+    const nameClash = existing.some(
+      (t) => t.teamName.trim().toLowerCase() === teamName.trim().toLowerCase()
+    );
+    if (nameClash) {
+      return res.status(409).json({
+        message: `Your barangay already has a ${sport.name} team named "${teamName.trim()}". Use a distinct name (e.g. add 1 or 2).`,
+      });
     }
 
     const team = await Team.create({

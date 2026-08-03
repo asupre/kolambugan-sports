@@ -33,7 +33,7 @@ async function seed() {
     await Sport.deleteMany({});
     await User.deleteMany({});
     await Season.deleteMany({});
-    console.log('Cleared old barangays, sports, and users.');
+    console.log('Cleared old barangays, sports, users, and seasons.');
 
     // 2. Insert barangays and sports
     const createdBarangays = await Barangay.insertMany(barangays);

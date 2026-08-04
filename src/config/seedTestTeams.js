@@ -7,7 +7,7 @@ const Sport = require('../models/Sport');
 const Barangay = require('../models/Barangay');
 const Season = require('../models/Season');
 
-const BARANGAYS = ['Poblacion', 'Baybay', 'Mukas', 'Caromatan']; // 4 ML teams
+const BARANGAYS = ['Poblacion', 'Baybay', 'Mukas', 'Caromatan', 'Libertad', 'Manga'];
 
 async function run() {
   await mongoose.connect(process.env.MONGO_URI);

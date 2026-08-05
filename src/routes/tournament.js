@@ -116,15 +116,14 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
   }
 });
 
-// POST /api/tournaments/matches/:matchId/result  { scoreA, scoreB }  — super admin or the assigned organizer.
+// POST /api/tournaments/matches/:matchId/result  { scoreA, scoreB }
 router.post('/matches/:matchId/result', authenticate, authorize('super_admin', 'organizer'), async (req, res) => {
   try {
     const match = await Match.findById(req.params.matchId);
     if (!match) return res.status(404).json({ message: 'Match not found.' });
     if (match.status === 'completed') return res.status(409).json({ message: 'This match already has a result.' });
-    if (!match.teamA || !match.teamB) return res.status(400).json({ message: 'This match is missing a team.' });
+    if (!match.teamA || !match.teamB) return res.status(400).json({ message: 'This match is missing a team (an earlier match may not be finished yet).' });
 
-    // Organizer may only score their assigned sport.
     if (req.user.role === 'organizer') {
       const t = await Tournament.findById(match.tournament);
       if (!t || String(req.user.assignedSport) !== String(t.sport)) {
@@ -138,7 +137,8 @@ router.post('/matches/:matchId/result', authenticate, authorize('super_admin', '
     }
     if (a === b) return res.status(400).json({ message: 'A Mobile Legends match cannot end in a tie.' });
 
-    const winner = a > b ? match.teamA : match.teamB; // winner derived from the score, never chosen
+    const winner = a > b ? match.teamA : match.teamB;
+    const loser = a > b ? match.teamB : match.teamA;
     match.games = [{ gameNumber: 1, scoreA: a, scoreB: b, winner }];
     match.seriesWinner = winner;
     match.status = 'completed';
@@ -146,7 +146,32 @@ router.post('/matches/:matchId/result', authenticate, authorize('super_admin', '
     match.enteredAt = new Date();
     await match.save();
 
-    res.json({ message: 'Result recorded.', matchId: match._id, winner });
+    // --- ADVANCEMENT (bracket matches only) ---
+    // Drop a team into the next match's first empty slot (teamA, then teamB).
+    const placeInto = async (nextId, teamId) => {
+      if (!nextId || !teamId) return;
+      const next = await Match.findById(nextId);
+      if (!next) return;
+      if (!next.teamA) next.teamA = teamId;
+      else if (!next.teamB) next.teamB = teamId;
+      await next.save();
+    };
+
+    let advanced = null;
+    if (match.bracket === 'winners' || match.bracket === 'losers' || match.bracket === 'final') {
+      await placeInto(match.nextMatchWin, winner);   // winner moves on
+      await placeInto(match.nextMatchLose, loser);   // loser drops (winners bracket → losers bracket)
+      advanced = { winnerTo: match.nextMatchWin, loserTo: match.nextMatchLose };
+
+      // Grand final has no nextMatch → its winner is the champion.
+      if (match.bracket === 'final') {
+        const t = await Tournament.findById(match.tournament);
+        if (t) { t.stage = 'completed'; await t.save(); }
+        advanced = { champion: String(winner) };
+      }
+    }
+
+    res.json({ message: 'Result recorded.', matchId: match._id, winner, advanced });
   } catch (err) {
     console.error('Enter result error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -386,4 +411,113 @@ router.post('/:id/tiebreakers', authenticate, authorize('super_admin'), async (r
   }
 });
 
+// Fisher–Yates shuffle for the random draw.
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// POST /api/tournaments/:id/bracket
+// Super admin: build the 8-team double-elimination bracket from qualified teams.
+// body: { teamIds: [8 ids] }  (the 8 qualifiers, e.g. gathered from /qualification)
+router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+
+    // Guard: don't build twice.
+    const existing = await Match.findOne({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final'] } });
+    if (existing) return res.status(409).json({ message: 'A bracket already exists for this tournament.' });
+
+    const teamIds = Array.isArray(req.body.teamIds) ? req.body.teamIds : [];
+    if (teamIds.length !== 8) {
+      return res.status(400).json({ message: `Double-elimination big 8 needs exactly 8 teams; received ${teamIds.length}.` });
+    }
+
+    const bestOf = tournament.sport ? 3 : 3; // ML big 8 = BO3 (physical sports set later)
+    const seeds = shuffle(teamIds); // random draw
+
+    // Helper to create a match shell and return its _id.
+    const mk = async (bracket, round, teamA = null, teamB = null) => {
+      const m = await Match.create({
+        tournament: tournament._id, bracket, round,
+        teamA, teamB, bestOf, status: 'scheduled',
+      });
+      return m._id;
+    };
+
+    // ---- WINNERS BRACKET ----
+    // Round 1 (quarterfinals): 4 matches, seeded pairs.
+    const wqf = [];
+    for (let i = 0; i < 4; i++) wqf.push(await mk('winners', 1, seeds[i * 2], seeds[i * 2 + 1]));
+    // Round 2 (winners semifinals): 2 matches, teams TBD.
+    const wsf = [await mk('winners', 2), await mk('winners', 2)];
+    // Round 3 (winners final): 1 match.
+    const wf = await mk('winners', 3);
+
+    // ---- LOSERS BRACKET ---- (standard 8-team layout)
+    // LB round 1: losers of WQF1&2, and WQF3&4 → 2 matches.
+    const lr1 = [await mk('losers', 1), await mk('losers', 1)];
+    // LB round 2: winners of lr1 vs losers of winners semis → 2 matches.
+    const lr2 = [await mk('losers', 2), await mk('losers', 2)];
+    // LB round 3 (losers semifinal): winners of lr2 meet → 1 match.
+    const lr3 = await mk('losers', 3);
+    // LB round 4 (losers final): winner of lr3 vs loser of winners final → 1 match.
+    const lf = await mk('losers', 4);
+
+    // ---- GRAND FINAL ---- (no reset)
+    const gf = await mk('final', 1);
+
+    // ---- WIRE THE ROUTING (winner→nextMatchWin, loser→nextMatchLose) ----
+    const wire = (id, win, lose) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win, nextMatchLose: lose } });
+
+    // Winners QF: winners advance to winners semis; losers drop to LB round 1.
+    await wire(wqf[0], wsf[0], lr1[0]);
+    await wire(wqf[1], wsf[0], lr1[0]);
+    await wire(wqf[2], wsf[1], lr1[1]);
+    await wire(wqf[3], wsf[1], lr1[1]);
+    // Winners semis: winners to winners final; losers drop to LB round 2.
+    await wire(wsf[0], wf, lr2[0]);
+    await wire(wsf[1], wf, lr2[1]);
+    // Winners final: winner to grand final; loser drops to losers final.
+    await wire(wf, gf, lf);
+    // LB round 1: winners advance to LB round 2 (paired with dropping WSF losers).
+    await wire(lr1[0], lr2[0], null);
+    await wire(lr1[1], lr2[1], null);
+    // LB round 2: winners meet in losers semifinal.
+    await wire(lr2[0], lr3, null);
+    await wire(lr2[1], lr3, null);
+    // LB semifinal: winner to losers final.
+    await wire(lr3, lf, null);
+    // Losers final: winner to grand final.
+    await wire(lf, gf, null);
+    // Grand final: no reset — winner is champion (nothing wired onward).
+
+    tournament.stage = 'elimination';
+    await tournament.save();
+
+    const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final'] } });
+    res.status(201).json({ message: 'Double-elimination bracket generated.', matches: total, bestOf });
+  } catch (err) {
+    console.error('Bracket generation error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// GET /api/tournaments/:id/bracket — public; the elimination matches, grouped by bracket/round.
+router.get('/:id/bracket', async (req, res) => {
+  try {
+    const matches = await Match.find({ tournament: req.params.id, bracket: { $in: ['winners', 'losers', 'final'] } })
+      .populate('teamA', 'teamName').populate('teamB', 'teamName').populate('seriesWinner', 'teamName')
+      .sort({ bracket: 1, round: 1, createdAt: 1 });
+    res.json({ matches });
+  } catch (err) {
+    console.error('Get bracket error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
 module.exports = router;

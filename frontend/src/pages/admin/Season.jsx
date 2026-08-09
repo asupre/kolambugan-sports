@@ -11,7 +11,6 @@ const superAdminMenu = [
   { label: "Accounts", path: "/admin/accounts", icon: "☺" },
 ];
 
-// The lifecycle, in order, with friendly labels and what "advance" does next.
 const STAGES = [
   { key: "setup", label: "Setup", next: "Open Registration" },
   { key: "registration_open", label: "Registration Open", next: "Move to Verification" },
@@ -31,11 +30,9 @@ function StageTimeline({ current }) {
           <div key={s.key} className="flex items-center gap-2">
             <div
               className={`px-3 py-1 rounded-full text-xs font-medium ${
-                active
-                  ? "bg-indigo-600 text-white"
-                  : done
-                  ? "bg-indigo-100 text-indigo-700"
-                  : "bg-slate-100 text-slate-400"
+                active ? "bg-indigo-600 text-white"
+                : done ? "bg-indigo-100 text-indigo-700"
+                : "bg-slate-100 text-slate-400"
               }`}
             >
               {s.label}
@@ -48,42 +45,79 @@ function StageTimeline({ current }) {
   );
 }
 
+// Reusable modal for creating a season.
+function CreateSeasonModal({ open, onClose, onCreate, busy, error }) {
+  const [name, setName] = useState("");
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+      {/* dim backdrop */}
+      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
+      {/* modal card */}
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <h3 className="text-slate-900 font-semibold text-lg mb-1">Create a season</h3>
+        <p className="text-slate-500 text-sm mb-4">It will start in the Setup stage.</p>
+        <label className="block text-slate-700 text-sm font-medium mb-1.5">Season name</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. 2026 Season"
+          autoFocus
+          className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition"
+        />
+        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
+        <div className="flex gap-2 mt-5">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium py-2.5 hover:bg-slate-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onCreate(name.trim())}
+            disabled={busy || !name.trim()}
+            className="flex-1 rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition"
+          >
+            {busy ? "Creating…" : "Create"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Season() {
   const [season, setSeason] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
 
   async function load() {
     setLoading(true);
-    setError("");
     try {
       const data = await api("/api/seasons/current");
       setSeason(data.season);
     } catch (e) {
-      // 404 = no season yet; that's a normal state, not an error to shout about.
-      setSeason(null);
+      setSeason(null); // no season yet
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
-  async function createSeason() {
-    if (!newName.trim()) return;
+  async function createSeason(name) {
+    if (!name) return;
     setBusy(true);
     setError("");
     try {
       const data = await api("/api/seasons", {
         method: "POST",
-        body: JSON.stringify({ name: newName.trim() }),
+        body: JSON.stringify({ name }),
       });
       setSeason(data.season);
-      setNewName("");
+      setModalOpen(false);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -112,30 +146,17 @@ export default function Season() {
       {loading ? (
         <p className="text-slate-500">Loading…</p>
       ) : !season ? (
-        // No season yet — offer to create one.
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm max-w-md">
           <h2 className="text-slate-800 font-semibold mb-1">No active season</h2>
-          <p className="text-slate-500 text-sm mb-4">
-            Create a season to begin. It will start in <span className="font-medium">Setup</span>.
-          </p>
-          <label className="block text-slate-700 text-sm font-medium mb-1.5">Season name</label>
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="e.g. 2026 Season"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition mb-3"
-          />
-          {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+          <p className="text-slate-500 text-sm mb-4">Create a season to begin the cycle.</p>
           <button
-            onClick={createSeason}
-            disabled={busy || !newName.trim()}
-            className="w-full rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition"
+            onClick={() => { setError(""); setModalOpen(true); }}
+            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition"
           >
-            {busy ? "Creating…" : "Create Season"}
+            + Create Season
           </button>
         </div>
       ) : (
-        // Season exists — show its state and the advance control.
         <div className="space-y-6">
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-start justify-between flex-wrap gap-3">
@@ -147,7 +168,6 @@ export default function Season() {
                 {currentStage?.label || season.status}
               </span>
             </div>
-
             <div className="mt-5">
               <p className="text-slate-500 text-xs mb-2">Lifecycle</p>
               <StageTimeline current={season.status} />
@@ -160,7 +180,7 @@ export default function Season() {
               <>
                 <p className="text-slate-500 text-sm mb-4">
                   Next step: <span className="font-medium text-slate-700">{currentStage.next}</span>.
-                  This moves the season forward and cannot be undone.
+                  This cannot be undone.
                 </p>
                 {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
                 <button
@@ -172,14 +192,30 @@ export default function Season() {
                 </button>
               </>
             ) : (
-              <p className="text-slate-500 text-sm">
-                This season is <span className="font-medium">completed</span> and archived. Create a
-                new season to start another cycle.
-              </p>
+              <>
+                <p className="text-slate-500 text-sm mb-4">
+                  This season is <span className="font-medium">completed</span> and archived. Start a
+                  new one to begin the next cycle.
+                </p>
+                <button
+                  onClick={() => { setError(""); setModalOpen(true); }}
+                  className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition"
+                >
+                  + Create New Season
+                </button>
+              </>
             )}
           </div>
         </div>
       )}
+
+      <CreateSeasonModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onCreate={createSeason}
+        busy={busy}
+        error={error}
+      />
     </AdminLayout>
   );
 }

@@ -75,7 +75,7 @@ async function loadStatus() {
 
   return (
     <AdminLayout title="Reference List" menu={superAdminMenu}>
-      <div className="max-w-2xl space-y-6">
+      <div className="max-w-5xl space-y-6">
         {/* Current status */}
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
           <h2 className="text-slate-800 font-semibold mb-1">Current reference list</h2>

@@ -38,39 +38,43 @@ async function prescreenTeam(team) {
 
   const summary = { eligible: 0, needs_document: 0, flagged: 0 };
 
-  for (const p of players) {
-    let status;
+ for (const p of players) {
+    let status, reason = "";
     const age = ageFrom(p.birthdate);
 
     if (age !== null && age < MINOR_AGE) {
-      status = 'needs_document';                    // minors always need parental consent
+      status = 'needs_document';
+      reason = `Under ${MINOR_AGE} — needs parental consent and documents`;
     } else {
       const fn = norm(p.firstName), ln = norm(p.lastName);
       let candidates = refs.filter((r) => norm(r.firstName) === fn && norm(r.lastName) === ln);
 
-      // Disambiguate same-name people by birthdate when both sides have one.
       if (candidates.length > 1 && p.birthdate) {
         const exact = candidates.filter((r) => r.birthdate && sameDay(r.birthdate, p.birthdate));
         if (exact.length) candidates = exact;
       }
 
       if (candidates.length === 0) {
-        status = 'needs_document';                  // not on the list → possible Dayo / new player
+        status = 'needs_document';
+        reason = "Not found on the reference list — needs a residency document";
       } else if (
         candidates.some((r) => teamBrgyName && norm(r.barangay) === teamBrgyName) ||
         !candidates.some((r) => r.barangay)
       ) {
-        // Their own barangay, OR the list carries no barangay info to check against.
         status = 'eligible';
       } else {
-        // Rostered on a barangay the list doesn't show as their home.
         const home = brgyByName[norm(candidates[0].barangay)];
-        status = home && home.allowsCrossBarangay ? 'eligible' : 'flagged';
+        if (home && home.allowsCrossBarangay) {
+          status = 'eligible';
+        } else {
+          status = 'flagged';
+          reason = `Listed under ${candidates[0].barangay}, not ${teamBarangay?.name || "this barangay"} — cross-barangay not allowed`;
+        }
       }
     }
 
-    if (p.eligibilityStatus !== status) {
-      await Player.updateOne({ _id: p._id }, { $set: { eligibilityStatus: status } });
+    if (p.eligibilityStatus !== status || p.flagReason !== reason) {
+      await Player.updateOne({ _id: p._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
     }
     summary[status]++;
   }

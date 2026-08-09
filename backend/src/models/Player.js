@@ -16,6 +16,7 @@ const playerSchema = new mongoose.Schema(
       enum: ['pending', 'eligible', 'needs_document', 'flagged'],
       default: 'pending',
     },
+    flagReason: { type: String, default: "" },
   },
   { timestamps: true }
 );

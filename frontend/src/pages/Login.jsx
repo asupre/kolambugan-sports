@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button, Card, Input, Label } from "../components/ui";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -45,7 +46,6 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        {/* Logo mark */}
         <div className="flex justify-center mb-6">
           <div className="h-12 w-12 rounded-xl bg-indigo-600 flex items-center justify-center">
             <span className="text-white font-bold text-lg">K</span>
@@ -57,47 +57,38 @@ export default function Login() {
           <p className="text-slate-500 text-sm mt-1">Sign in to the Kolambugan Sports admin</p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <Card className="p-6">
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-slate-700 text-sm font-medium mb-1.5">Username</label>
-              <input
+              <Label>Username</Label>
+              <Input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="e.g. sk_federation"
-                className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition"
                 autoComplete="username"
               />
             </div>
-
             <div>
-              <label className="block text-slate-700 text-sm font-medium mb-1.5">Password</label>
-              <input
+              <Label>Password</Label>
+              <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition"
                 autoComplete="current-password"
               />
             </div>
-
             {error && (
               <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
                 <p className="text-red-600 text-sm">{error}</p>
               </div>
             )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition"
-            >
+            <Button type="submit" disabled={loading} className="w-full">
               {loading ? "Signing in..." : "Sign in"}
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
 
         <p className="text-center text-slate-400 text-xs mt-6">
           Inter-Barangay Sports League · Municipality of Kolambugan

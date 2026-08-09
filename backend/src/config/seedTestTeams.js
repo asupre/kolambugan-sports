@@ -7,58 +7,49 @@ const Team = require('../models/Team');
 const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
 
+const BARANGAYS = ['Poblacion', 'Baybay', 'Mukas', 'Caromatan', 'Libertad', 'Manga', 'Titunod', 'Rebucon'];
+
 async function run() {
   await mongoose.connect(process.env.MONGO_URI);
 
   const season = await Season.findOne().sort({ createdAt: -1 });
   if (!season) { console.log('No season. Create one first.'); return process.exit(1); }
 
-  const barangay = await Barangay.findOne({ name: 'Poblacion' });
-  const sport = await Sport.findOne({ name: 'Basketball' });
-  if (!barangay || !sport) { console.log('Missing barangay or sport.'); return process.exit(1); }
+  const sport = await Sport.findOne({ name: 'Mobile Legends' });
+  if (!sport) { console.log('Mobile Legends sport not found.'); return process.exit(1); }
 
-  const existing = await Team.findOne({ teamName: 'Review Test Team', season: season._id });
-  if (existing) {
-    await TeamPlayer.deleteMany({ team: existing._id });
-    await Team.deleteOne({ _id: existing._id });
-    console.log('Cleared previous Review Test Team.');
-  }
+  const old = await Team.find({ sport: sport._id, season: season._id });
+  for (const t of old) await TeamPlayer.deleteMany({ team: t._id });
+  await Team.deleteMany({ sport: sport._id, season: season._id });
+  console.log(`Cleared ${old.length} existing ML team(s) for ${season.name}.`);
 
-  const team = await Team.create({
-    teamName: 'Review Test Team',
-    barangay: barangay._id,
-    sport: sport._id,
-    season: season._id,
-    status: 'pending',
-    submittedAt: new Date(),
-  });
+  for (const brgyName of BARANGAYS) {
+    const barangay = await Barangay.findOne({ name: brgyName });
+    if (!barangay) { console.log(`Barangay "${brgyName}" not found, skipping.`); continue; }
 
-  const roster = [
-    { status: 'eligible', reason: '' },
-    { status: 'eligible', reason: '' },
-    { status: 'eligible', reason: '' },
-    { status: 'eligible', reason: '' },
-    { status: 'eligible', reason: '' },
-    { status: 'eligible', reason: '' },
-    { status: 'eligible', reason: '' },
-    { status: 'eligible', reason: '' },
-    { status: 'flagged', reason: 'Listed under Baybay, not Poblacion — cross-barangay not allowed' },
-    { status: 'needs_document', reason: 'Not found on the reference list — needs a residency document' },
-  ];
-
-  for (let i = 0; i < roster.length; i++) {
-    const p = await Player.create({
-      firstName: `Player${i + 1}`,
-      lastName: 'Test',
-      birthdate: new Date('2000-01-01'),
-      age: 25,
-      eligibilityStatus: roster[i].status,
-      flagReason: roster[i].reason,
+    const team = await Team.create({
+      teamName: `${brgyName} Esports`,
+      barangay: barangay._id,
+      sport: sport._id,
+      season: season._id,
+      status: 'verified',
+      submittedAt: new Date(),
     });
-    await TeamPlayer.create({ player: p._id, team: team._id });
+
+    for (let i = 0; i < 10; i++) {
+      const p = await Player.create({
+        firstName: `P${i + 1}`,
+        lastName: brgyName,
+        birthdate: new Date('2000-01-01'),
+        age: 25,
+        eligibilityStatus: 'eligible',
+      });
+      await TeamPlayer.create({ player: p._id, team: team._id });
+    }
+    console.log(`Created verified ML team: ${team.teamName}`);
   }
 
-  console.log('Created "Review Test Team" with reasons on the flagged/needs-doc players.');
+  console.log('Done — verified Mobile Legends teams ready.');
   await mongoose.disconnect();
 }
 run().catch((e) => { console.error(e); process.exit(1); });

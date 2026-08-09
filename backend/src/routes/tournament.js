@@ -424,84 +424,84 @@ function shuffle(arr) {
 // POST /api/tournaments/:id/bracket
 // Super admin: build the 8-team double-elimination bracket from qualified teams.
 // body: { teamIds: [8 ids] }  (the 8 qualifiers, e.g. gathered from /qualification)
+// POST /api/tournaments/:id/bracket
+// ML = single-elimination (QF→SF→Final) + 3rd-place match.
+// Physical sports = double-elimination.
 router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, res) => {
   try {
-    const tournament = await Tournament.findById(req.params.id);
+    const tournament = await Tournament.findById(req.params.id).populate('sport', 'name');
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
 
-    // Guard: don't build twice.
-    const existing = await Match.findOne({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final'] } });
+    const existing = await Match.findOne({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } });
     if (existing) return res.status(409).json({ message: 'A bracket already exists for this tournament.' });
 
     const teamIds = Array.isArray(req.body.teamIds) ? req.body.teamIds : [];
     if (teamIds.length !== 8) {
-      return res.status(400).json({ message: `Double-elimination big 8 needs exactly 8 teams; received ${teamIds.length}.` });
+      return res.status(400).json({ message: `Big 8 needs exactly 8 teams; received ${teamIds.length}.` });
     }
 
-    const bestOf = tournament.sport ? 3 : 3; // ML big 8 = BO3 (physical sports set later)
-    const seeds = shuffle(teamIds); // random draw
+    const isML = tournament.sport?.name === 'Mobile Legends';
 
-    // Helper to create a match shell and return its _id.
-    const mk = async (bracket, round, teamA = null, teamB = null) => {
-      const m = await Match.create({
-        tournament: tournament._id, bracket, round,
-        teamA, teamB, bestOf, status: 'scheduled',
-      });
+    const shuffle = (arr) => {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+      return a;
+    };
+    const seeds = shuffle(teamIds);
+
+    const mk = async (bracket, round, bestOf, teamA = null, teamB = null) => {
+      const m = await Match.create({ tournament: tournament._id, bracket, round, teamA, teamB, bestOf, status: 'scheduled' });
       return m._id;
     };
-
-    // ---- WINNERS BRACKET ----
-    // Round 1 (quarterfinals): 4 matches, seeded pairs.
-    const wqf = [];
-    for (let i = 0; i < 4; i++) wqf.push(await mk('winners', 1, seeds[i * 2], seeds[i * 2 + 1]));
-    // Round 2 (winners semifinals): 2 matches, teams TBD.
-    const wsf = [await mk('winners', 2), await mk('winners', 2)];
-    // Round 3 (winners final): 1 match.
-    const wf = await mk('winners', 3);
-
-    // ---- LOSERS BRACKET ---- (standard 8-team layout)
-    // LB round 1: losers of WQF1&2, and WQF3&4 → 2 matches.
-    const lr1 = [await mk('losers', 1), await mk('losers', 1)];
-    // LB round 2: winners of lr1 vs losers of winners semis → 2 matches.
-    const lr2 = [await mk('losers', 2), await mk('losers', 2)];
-    // LB round 3 (losers semifinal): winners of lr2 meet → 1 match.
-    const lr3 = await mk('losers', 3);
-    // LB round 4 (losers final): winner of lr3 vs loser of winners final → 1 match.
-    const lf = await mk('losers', 4);
-
-    // ---- GRAND FINAL ---- (no reset)
-    const gf = await mk('final', 1);
-
-    // ---- WIRE THE ROUTING (winner→nextMatchWin, loser→nextMatchLose) ----
     const wire = (id, win, lose) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win, nextMatchLose: lose } });
 
-    // Winners QF: winners advance to winners semis; losers drop to LB round 1.
-    await wire(wqf[0], wsf[0], lr1[0]);
-    await wire(wqf[1], wsf[0], lr1[0]);
-    await wire(wqf[2], wsf[1], lr1[1]);
-    await wire(wqf[3], wsf[1], lr1[1]);
-    // Winners semis: winners to winners final; losers drop to LB round 2.
-    await wire(wsf[0], wf, lr2[0]);
-    await wire(wsf[1], wf, lr2[1]);
-    // Winners final: winner to grand final; loser drops to losers final.
-    await wire(wf, gf, lf);
-    // LB round 1: winners advance to LB round 2 (paired with dropping WSF losers).
-    await wire(lr1[0], lr2[0], null);
-    await wire(lr1[1], lr2[1], null);
-    // LB round 2: winners meet in losers semifinal.
-    await wire(lr2[0], lr3, null);
-    await wire(lr2[1], lr3, null);
-    // LB semifinal: winner to losers final.
-    await wire(lr3, lf, null);
-    // Losers final: winner to grand final.
-    await wire(lf, gf, null);
-    // Grand final: no reset — winner is champion (nothing wired onward).
+    if (isML) {
+      // SINGLE ELIMINATION + 3RD PLACE
+      // Quarterfinals (BO3): 4 matches, seeded pairs.
+      const qf = [];
+      for (let i = 0; i < 4; i++) qf.push(await mk('winners', 1, 3, seeds[i * 2], seeds[i * 2 + 1]));
+      // Semifinals (BO3): 2 matches.
+      const sf = [await mk('winners', 2, 3), await mk('winners', 2, 3)];
+      // Grand Final (BO5).
+      const gf = await mk('final', 3, 5);
+      // 3rd-place match (BO3) — for the two semifinal losers.
+      const third = await mk('third', 3, 3);
+
+      // QF: winners to semis; losers eliminated.
+      await wire(qf[0], sf[0], null);
+      await wire(qf[1], sf[0], null);
+      await wire(qf[2], sf[1], null);
+      await wire(qf[3], sf[1], null);
+      // Semis: winners to grand final; LOSERS to 3rd-place match.
+      await wire(sf[0], gf, third);
+      await wire(sf[1], gf, third);
+      // Grand final and 3rd-place are terminal (no next).
+    } else {
+      // DOUBLE ELIMINATION (physical sports).
+      const bestOf = 3;
+      const wqf = [];
+      for (let i = 0; i < 4; i++) wqf.push(await mk('winners', 1, bestOf, seeds[i * 2], seeds[i * 2 + 1]));
+      const wsf = [await mk('winners', 2, bestOf), await mk('winners', 2, bestOf)];
+      const wf = await mk('winners', 3, bestOf);
+      const lr1 = [await mk('losers', 1, bestOf), await mk('losers', 1, bestOf)];
+      const lr2 = [await mk('losers', 2, bestOf), await mk('losers', 2, bestOf)];
+      const lr3 = await mk('losers', 3, bestOf);
+      const lf = await mk('losers', 4, bestOf);
+      const gf = await mk('final', 1, bestOf);
+      await wire(wqf[0], wsf[0], lr1[0]); await wire(wqf[1], wsf[0], lr1[0]);
+      await wire(wqf[2], wsf[1], lr1[1]); await wire(wqf[3], wsf[1], lr1[1]);
+      await wire(wsf[0], wf, lr2[0]); await wire(wsf[1], wf, lr2[1]);
+      await wire(wf, gf, lf);
+      await wire(lr1[0], lr2[0], null); await wire(lr1[1], lr2[1], null);
+      await wire(lr2[0], lr3, null); await wire(lr2[1], lr3, null);
+      await wire(lr3, lf, null); await wire(lf, gf, null);
+    }
 
     tournament.stage = 'elimination';
     await tournament.save();
 
-    const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final'] } });
-    res.status(201).json({ message: 'Double-elimination bracket generated.', matches: total, bestOf });
+    const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } });
+    res.status(201).json({ message: 'Bracket generated.', matches: total, format: isML ? 'single_elimination' : 'double_elimination' });
   } catch (err) {
     console.error('Bracket generation error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -511,7 +511,7 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
 // GET /api/tournaments/:id/bracket — public; the elimination matches, grouped by bracket/round.
 router.get('/:id/bracket', async (req, res) => {
   try {
-    const matches = await Match.find({ tournament: req.params.id, bracket: { $in: ['winners', 'losers', 'final'] } })
+    const matches = await Match.find({ tournament: req.params.id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } })
       .populate('teamA', 'teamName').populate('teamB', 'teamName').populate('seriesWinner', 'teamName')
       .sort({ bracket: 1, round: 1, createdAt: 1 });
     res.json({ matches });

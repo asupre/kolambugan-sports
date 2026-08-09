@@ -9,7 +9,7 @@ async function run() {
   const u = await User.findOne({ username: 'sk_federation' });
   if (!u) { console.log('sk_federation not found'); return process.exit(1); }
   u.passwordHash = await hashPassword(newPw);
-  u.mustChangePassword = false;
+  u.mustChangePassword = true;
   await u.save();
   console.log(`sk_federation password is now: ${newPw}`);
   await mongoose.disconnect();

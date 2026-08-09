@@ -86,5 +86,19 @@ router.get('/status', authenticate, authorize('super_admin'), async (req, res) =
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
+// GET /api/reference-list — the current season's reference records (Super Admin).
+router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const season = await getCurrentSeason();
+    if (!season) return res.json({ records: [] });
+    const records = await ReferenceList.find({ season: season._id })
+      .sort({ lastName: 1, firstName: 1 })
+      .lean();
+    res.json({ records });
+  } catch (err) {
+    console.error('Reference list fetch error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
 
 module.exports = router;

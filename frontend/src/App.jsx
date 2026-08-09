@@ -3,6 +3,7 @@ import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import Season from "./pages/admin/Season";
+import ReferenceList from "./pages/admin/ReferenceList";
 
 // Temporary placeholder pages so routes resolve while we build the real ones.
 function Placeholder({ title }) {
@@ -21,7 +22,7 @@ export default function App() {
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/season" element={<Season />} />
-        <Route path="/admin/reference" element={<Placeholder title="Reference List (coming soon)" />} />
+        <Route path="/admin/reference" element={<ReferenceList />} />
         <Route path="/admin/review" element={<Placeholder title="Review Queue (coming soon)" />} />
         <Route path="/admin/tournaments" element={<Placeholder title="Tournaments (coming soon)" />} />
         <Route path="/admin/accounts" element={<Placeholder title="Accounts (coming soon)" />} />

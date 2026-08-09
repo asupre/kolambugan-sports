@@ -24,13 +24,10 @@ export default function Login() {
       } else {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-
-        // First-login users must change their password before anything else.
         if (data.mustChangePassword) {
           navigate("/change-password");
           return;
         }
-        // Otherwise, send each role to its home.
         const dest = {
           super_admin: "/admin",
           barangay_admin: "/barangay",
@@ -46,43 +43,65 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-bg flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-brand-card rounded-2xl p-6 shadow-lg">
-        <h1 className="text-brand-gold text-2xl font-bold text-center mb-1">
-          Kolambugan Sports
-        </h1>
-        <p className="text-slate-400 text-center text-sm mb-6">Admin Login</p>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        {/* Logo mark */}
+        <div className="flex justify-center mb-6">
+          <div className="h-12 w-12 rounded-xl bg-indigo-600 flex items-center justify-center">
+            <span className="text-white font-bold text-lg">K</span>
+          </div>
+        </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-slate-300 text-sm mb-1">Username</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-lg bg-brand-navy text-white px-3 py-2 outline-none focus:ring-2 focus:ring-brand-gold"
-              autoComplete="username"
-            />
-          </div>
-          <div>
-            <label className="block text-slate-300 text-sm mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg bg-brand-navy text-white px-3 py-2 outline-none focus:ring-2 focus:ring-brand-gold"
-              autoComplete="current-password"
-            />
-          </div>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-brand-gold text-brand-bg font-semibold py-2 hover:opacity-90 disabled:opacity-50 transition"
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
+        <div className="text-center mb-8">
+          <h1 className="text-slate-900 text-xl font-semibold">Welcome back</h1>
+          <p className="text-slate-500 text-sm mt-1">Sign in to the Kolambugan Sports admin</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-slate-700 text-sm font-medium mb-1.5">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. sk_federation"
+                className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition"
+                autoComplete="username"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-700 text-sm font-medium mb-1.5">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition"
+                autoComplete="current-password"
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition"
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+        </div>
+
+        <p className="text-center text-slate-400 text-xs mt-6">
+          Inter-Barangay Sports League · Municipality of Kolambugan
+        </p>
       </div>
     </div>
   );

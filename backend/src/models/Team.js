@@ -37,10 +37,12 @@ const teamSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    division: { type: String, enum: ['boys', 'girls', 'open'], default: 'open' },
   },
   {
     timestamps: true,
   }
+  
 );
 
 module.exports = mongoose.model('Team', teamSchema);

@@ -24,6 +24,13 @@ const sportSchema = new mongoose.Schema(
       // physical sports -> double_elimination
       // Mobile Legends  -> round_robin
     },
+    // Whether this sport runs separate boys' and girls' brackets this season.
+    // false = single "open" bracket; true = boys + girls, each its own bracket.
+    // Set by the Super Admin when opening registration.
+    isDivided: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

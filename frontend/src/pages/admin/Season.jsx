@@ -45,15 +45,12 @@ function StageTimeline({ current }) {
   );
 }
 
-// Reusable modal for creating a season.
 function CreateSeasonModal({ open, onClose, onCreate, busy, error }) {
   const [name, setName] = useState("");
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
-      {/* dim backdrop */}
       <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
-      {/* modal card */}
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
         <h3 className="text-slate-900 font-semibold text-lg mb-1">Create a season</h3>
         <p className="text-slate-500 text-sm mb-4">It will start in the Setup stage.</p>
@@ -67,18 +64,85 @@ function CreateSeasonModal({ open, onClose, onCreate, busy, error }) {
         />
         {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
         <div className="flex gap-2 mt-5">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium py-2.5 hover:bg-slate-50 transition"
-          >
+          <button onClick={onClose} className="flex-1 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium py-2.5 hover:bg-slate-50 transition">
             Cancel
           </button>
-          <button
-            onClick={() => onCreate(name.trim())}
-            disabled={busy || !name.trim()}
-            className="flex-1 rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition"
-          >
+          <button onClick={() => onCreate(name.trim())} disabled={busy || !name.trim()} className="flex-1 rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition">
             {busy ? "Creating…" : "Create"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modal shown when opening registration — pick which sports have boys/girls divisions.
+function DivisionModal({ open, onClose, onConfirm, busy, error }) {
+  const [sports, setSports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [divided, setDivided] = useState({});
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    api("/api/sports")
+      .then((data) => {
+        const list = data.sports || [];
+        setSports(list);
+        const init = {};
+        list.forEach((s) => { init[s._id] = !!s.isDivided; });
+        setDivided(init);
+      })
+      .catch(() => setSports([]))
+      .finally(() => setLoading(false));
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <h3 className="text-slate-900 font-semibold text-lg mb-1">Set up divisions</h3>
+        <p className="text-slate-500 text-sm mb-4">
+          Choose which sports run separate <span className="font-medium">boys' and girls'</span> brackets
+          this season. Divided sports let each barangay enter one boys' and one girls' team.
+        </p>
+
+        {loading ? (
+          <p className="text-slate-500 text-sm">Loading sports…</p>
+        ) : (
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {sports.map((s) => (
+              <div key={s._id} className="flex items-center justify-between py-2 px-3 rounded-lg border border-slate-200">
+                <span className="text-slate-700 text-sm">{s.name}</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setDivided({ ...divided, [s._id]: false })}
+                    className={`text-xs font-medium px-3 py-1 rounded-lg transition ${!divided[s._id] ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                  >
+                    Single
+                  </button>
+                  <button
+                    onClick={() => setDivided({ ...divided, [s._id]: true })}
+                    className={`text-xs font-medium px-3 py-1 rounded-lg transition ${divided[s._id] ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                  >
+                    Boys / Girls
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
+
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose} className="flex-1 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium py-2.5 hover:bg-slate-50 transition">
+            Cancel
+          </button>
+          <button onClick={() => onConfirm(divided)} disabled={busy || loading} className="flex-1 rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition">
+            {busy ? "Opening…" : "Save & Open Registration"}
           </button>
         </div>
       </div>
@@ -92,6 +156,7 @@ export default function Season() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [divisionModalOpen, setDivisionModalOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -99,7 +164,7 @@ export default function Season() {
       const data = await api("/api/seasons/current");
       setSeason(data.season);
     } catch (e) {
-      setSeason(null); // no season yet
+      setSeason(null);
     } finally {
       setLoading(false);
     }
@@ -112,10 +177,7 @@ export default function Season() {
     setBusy(true);
     setError("");
     try {
-      const data = await api("/api/seasons", {
-        method: "POST",
-        body: JSON.stringify({ name }),
-      });
+      const data = await api("/api/seasons", { method: "POST", body: JSON.stringify({ name }) });
       setSeason(data.season);
       setModalOpen(false);
     } catch (e) {
@@ -139,6 +201,22 @@ export default function Season() {
     }
   }
 
+  // Opening registration: save division settings, THEN advance.
+  async function confirmDivisionsAndAdvance(divided) {
+    setBusy(true);
+    setError("");
+    try {
+      await api("/api/sports/divisions", { method: "PATCH", body: JSON.stringify({ divisions: divided }) });
+      const data = await api(`/api/seasons/${season._id}/advance`, { method: "POST" });
+      setSeason(data.season);
+      setDivisionModalOpen(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const currentStage = season ? STAGES.find((s) => s.key === season.status) : null;
 
   return (
@@ -149,10 +227,7 @@ export default function Season() {
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm max-w-md">
           <h2 className="text-slate-800 font-semibold mb-1">No active season</h2>
           <p className="text-slate-500 text-sm mb-4">Create a season to begin the cycle.</p>
-          <button
-            onClick={() => { setError(""); setModalOpen(true); }}
-            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition"
-          >
+          <button onClick={() => { setError(""); setModalOpen(true); }} className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition">
             + Create Season
           </button>
         </div>
@@ -184,7 +259,15 @@ export default function Season() {
                 </p>
                 {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
                 <button
-                  onClick={advance}
+                  onClick={() => {
+                    // Opening registration → show the division setup modal first.
+                    if (season.status === "setup") {
+                      setError("");
+                      setDivisionModalOpen(true);
+                    } else {
+                      advance();
+                    }
+                  }}
                   disabled={busy}
                   className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition"
                 >
@@ -197,10 +280,7 @@ export default function Season() {
                   This season is <span className="font-medium">completed</span> and archived. Start a
                   new one to begin the next cycle.
                 </p>
-                <button
-                  onClick={() => { setError(""); setModalOpen(true); }}
-                  className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition"
-                >
+                <button onClick={() => { setError(""); setModalOpen(true); }} className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition">
                   + Create New Season
                 </button>
               </>
@@ -209,13 +289,8 @@ export default function Season() {
         </div>
       )}
 
-      <CreateSeasonModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onCreate={createSeason}
-        busy={busy}
-        error={error}
-      />
+      <CreateSeasonModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={createSeason} busy={busy} error={error} />
+      <DivisionModal open={divisionModalOpen} onClose={() => setDivisionModalOpen(false)} onConfirm={confirmDivisionsAndAdvance} busy={busy} error={error} />
     </AdminLayout>
   );
 }

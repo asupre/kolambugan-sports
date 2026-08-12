@@ -531,7 +531,7 @@ export default function Tournaments() {
                           <option key={n} value={n}>{n} groups</option>
                         ))}
                       </select>
-                      <p className="text-slate-400 text-xs mt-1">Top 2 of each group advance to the Big 8.</p>
+                      <p className="text-slate-400 text-xs mt-1">Top 2 of each group advance to the knockout.</p>
                     </div>
                   )}
 

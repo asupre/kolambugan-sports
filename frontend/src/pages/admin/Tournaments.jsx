@@ -165,8 +165,21 @@ function MatchesView({ tournamentId, onScored }) {
 function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [qualification, setQualification] = useState(null);
-  const [busy, setBusy] = useState(false);
+ const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [simulating, setSimulating] = useState(false);
+
+  async function simulateGroups() {
+    setSimulating(true);
+    try {
+      await api(`/api/tournaments/${tournamentId}/simulate-groups`, { method: "POST" });
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSimulating(false);
+    }
+  }
 
   async function loadQualification() {
     try {

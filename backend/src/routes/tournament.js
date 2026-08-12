@@ -422,10 +422,7 @@ function shuffle(arr) {
 }
 
 // POST /api/tournaments/:id/bracket
-// Super admin: build the 8-team double-elimination bracket from qualified teams.
-// body: { teamIds: [8 ids] }  (the 8 qualifiers, e.g. gathered from /qualification)
-// POST /api/tournaments/:id/bracket
-// ML = single-elimination (QF→SF→Final) + 3rd-place match.
+// ML = single-elimination (scales to any power-of-two N) + 3rd-place match.
 // Physical sports = double-elimination.
 router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, res) => {
   try {
@@ -436,8 +433,13 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
     if (existing) return res.status(409).json({ message: 'A bracket already exists for this tournament.' });
 
     const teamIds = Array.isArray(req.body.teamIds) ? req.body.teamIds : [];
-    if (teamIds.length !== 8) {
-      return res.status(400).json({ message: `Big 8 needs exactly 8 teams; received ${teamIds.length}.` });
+    const n = teamIds.length;
+    // Knockout needs a power of two (4, 8, 16, 32) so every round halves cleanly — no byes.
+    const isPowerOfTwo = n >= 4 && (n & (n - 1)) === 0;
+    if (!isPowerOfTwo) {
+      return res.status(400).json({
+        message: `The knockout needs a power-of-two team count (4, 8, 16, or 32); received ${n}. Adjust your group settings so a clean number advances.`,
+      });
     }
 
     const isML = tournament.sport?.name === 'Mobile Legends';
@@ -456,28 +458,40 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
     const wire = (id, win, lose) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win, nextMatchLose: lose } });
 
     if (isML) {
-      // SINGLE ELIMINATION + 3RD PLACE
-      // Quarterfinals (BO3): 4 matches, seeded pairs.
-      const qf = [];
-      for (let i = 0; i < 4; i++) qf.push(await mk('winners', 1, 3, seeds[i * 2], seeds[i * 2 + 1]));
-      // Semifinals (BO3): 2 matches.
-      const sf = [await mk('winners', 2, 3), await mk('winners', 2, 3)];
-      // Grand Final (BO5).
-      const gf = await mk('final', 3, 5);
-      // 3rd-place match (BO3) — for the two semifinal losers.
-      const third = await mk('third', 3, 3);
+      // SINGLE ELIMINATION + 3RD PLACE — scales to any power-of-two N (8/16/32).
+      const numRounds = Math.log2(n);                          // 16 teams → 4 rounds
+      const bestOfFor = (round) => (round === numRounds ? 5 : 3); // final BO5, rest BO3
 
-      // QF: winners to semis; losers eliminated.
-      await wire(qf[0], sf[0], null);
-      await wire(qf[1], sf[0], null);
-      await wire(qf[2], sf[1], null);
-      await wire(qf[3], sf[1], null);
-      // Semis: winners to grand final; LOSERS to 3rd-place match.
-      await wire(sf[0], gf, third);
-      await wire(sf[1], gf, third);
-      // Grand final and 3rd-place are terminal (no next).
+      const roundMatches = {};
+      for (let r = 1; r <= numRounds; r++) {
+        const matchesInRound = n / Math.pow(2, r);
+        const bracket = r === numRounds ? 'final' : 'winners';
+        roundMatches[r] = [];
+        for (let i = 0; i < matchesInRound; i++) {
+          if (r === 1) {
+            roundMatches[r].push(await mk('winners', r, bestOfFor(r), seeds[i * 2], seeds[i * 2 + 1]));
+          } else {
+            roundMatches[r].push(await mk(bracket, r, bestOfFor(r)));
+          }
+        }
+      }
+
+      // 3rd-place match (BO3) for the two semifinal losers.
+      const third = await mk('third', numRounds, 3);
+
+      // Wire winners advancement; semifinal losers → 3rd-place, earlier losers eliminated.
+      for (let r = 1; r < numRounds; r++) {
+        const thisRound = roundMatches[r];
+        const nextRound = roundMatches[r + 1];
+        const isSemifinal = r === numRounds - 1;
+        for (let i = 0; i < thisRound.length; i++) {
+          const winnerTo = nextRound[Math.floor(i / 2)];
+          const loserTo = isSemifinal ? third : null;
+          await wire(thisRound[i], winnerTo, loserTo);
+        }
+      }
     } else {
-      // DOUBLE ELIMINATION (physical sports).
+      // DOUBLE ELIMINATION (physical sports) — still hardcoded for 8 teams (arbitrary-N is next).
       const bestOf = 3;
       const wqf = [];
       for (let i = 0; i < 4; i++) wqf.push(await mk('winners', 1, bestOf, seeds[i * 2], seeds[i * 2 + 1]));
@@ -507,7 +521,6 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
-
 // GET /api/tournaments/:id/bracket — public; the elimination matches, grouped by bracket/round.
 router.get('/:id/bracket', async (req, res) => {
   try {
@@ -517,6 +530,50 @@ router.get('/:id/bracket', async (req, res) => {
     res.json({ matches });
   } catch (err) {
     console.error('Get bracket error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+// POST /api/tournaments/:id/simulate-groups — DEV ONLY: auto-score all group matches.
+// Assigns clean results that avoid cutoff ties, so testing can skip manual entry.
+// REMOVE BEFORE DEPLOYMENT.
+router.post('/:id/simulate-groups', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const matches = await Match.find({
+      tournament: req.params.id,
+      bracket: 'group',
+      status: { $ne: 'completed' },
+    });
+    if (matches.length === 0) {
+      return res.status(400).json({ message: 'No unscored group matches to simulate.' });
+    }
+
+    // To avoid cutoff ties, give each team a deterministic "strength" from its id,
+    // and let the stronger team win. Stable + tie-avoiding across a group.
+    const strength = (id) => {
+      const s = String(id);
+      let h = 0;
+      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100000;
+      return h;
+    };
+
+    let scored = 0;
+    for (const m of matches) {
+      if (!m.teamA || !m.teamB) continue;
+      const aStr = strength(m.teamA), bStr = strength(m.teamB);
+      const aWins = aStr >= bStr; // deterministic winner
+      const scoreA = aWins ? 1 : 0;
+      const scoreB = aWins ? 0 : 1;
+      const winner = aWins ? m.teamA : m.teamB;
+      m.games = [{ gameNumber: 1, scoreA, scoreB, winner }];
+      m.seriesWinner = winner;
+      m.status = 'completed';
+      await m.save();
+      scored++;
+    }
+
+    res.json({ message: `Simulated ${scored} group match(es).`, scored });
+  } catch (err) {
+    console.error('Simulate groups error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

@@ -224,6 +224,19 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
     }
   }
 
+  async function generateTiebreakers() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/tournaments/${tournamentId}/tiebreakers`, { method: "POST" });
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div>
       {stage === "elimination" || stage === "completed" ? (
@@ -245,9 +258,19 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
             <div className="mt-6 pt-6 border-t border-slate-200">
               <h3 className="text-slate-800 font-semibold mb-1">Group stage complete</h3>
               {anyNeedsTiebreaker ? (
-                <p className="text-amber-600 text-sm">
-                  Some groups have a tie for the last qualifying spot. Resolve tiebreakers first.
-                </p>
+                <div>
+                  <p className="text-amber-600 text-sm mb-3">
+                    Some groups have a tie for the last qualifying spot. Generate a round-robin playoff among the tied teams to resolve it.
+                  </p>
+                  {error && (
+                    <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3">
+                      <p className="text-red-600 text-sm">{error}</p>
+                    </div>
+                  )}
+                  <Button onClick={generateTiebreakers} disabled={busy}>
+                    {busy ? "Generating…" : "Generate Tiebreaker Playoff"}
+                  </Button>
+                </div>
               ) : (
                 <>
                   <p className="text-slate-500 text-sm mb-3">

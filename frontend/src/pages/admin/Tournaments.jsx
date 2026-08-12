@@ -230,8 +230,17 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
         <BracketView tournamentId={tournamentId} />
       ) : (
         <>
+        <div className="mb-4">
+            <button
+              onClick={simulateGroups}
+              disabled={simulating}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-dashed border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 transition"
+            >
+              {simulating ? "Simulating…" : "⚡ Dev: Auto-score all group matches"}
+            </button>
+          </div>
           <StandingsView tournamentId={tournamentId} key={`s-${refreshKey}`} />
-          <MatchesView tournamentId={tournamentId} onScored={() => setRefreshKey((k) => k + 1)} />
+          <MatchesView tournamentId={tournamentId} key={`m-${refreshKey}`} onScored={() => setRefreshKey((k) => k + 1)} />
           {allComplete && (
             <div className="mt-6 pt-6 border-t border-slate-200">
               <h3 className="text-slate-800 font-semibold mb-1">Group stage complete</h3>
@@ -250,7 +259,7 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
                     </div>
                   )}
                   <Button onClick={generateBracket} disabled={busy}>
-                    {busy ? "Generating…" : "Generate Big 8 Bracket"}
+                    {busy ? "Generating…" : `Generate Knockout Bracket (${qualifiedTeams.length} teams)`}
                   </Button>
                 </>
               )}
@@ -518,7 +527,7 @@ export default function Tournaments() {
                         onChange={(e) => setNumGroups(e.target.value)}
                         className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500"
                       >
-                        {[2, 3, 4, 5, 6].map((n) => (
+                        {[2, 3, 4, 6, 8, 16].map((n) => (
                           <option key={n} value={n}>{n} groups</option>
                         ))}
                       </select>

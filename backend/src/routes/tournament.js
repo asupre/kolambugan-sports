@@ -47,30 +47,31 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
     }
 
     const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified' });
-    if (teams.length < 2) {
-      return res.status(400).json({ message: `Need at least 2 verified teams; found ${teams.length}.` });
-    }
 
-    // Super Admin chooses the group count; default to 1 group (single pool) if omitted.
-    let numGroups = parseInt(req.body.numGroups, 10);
-    if (!Number.isInteger(numGroups) || numGroups < 1) numGroups = 1;
-    const maxGroups = Math.floor(teams.length / 2);
-    if (numGroups > Math.max(1, maxGroups)) {
+    // Knockout size drives everything: always 8 groups.
+    // Top 8  -> advance 1 per group.  Top 16 -> advance 2 per group.
+    const knockoutSize = parseInt(req.body.knockoutSize, 10);
+    if (![8, 16].includes(knockoutSize)) {
+      return res.status(400).json({ message: 'Knockout size must be 8 or 16.' });
+    }
+    // Need at least as many verified teams as the knockout size.
+    if (teams.length < knockoutSize) {
       return res.status(400).json({
-        message: `Too many groups for ${teams.length} teams. Each group needs at least 2 teams, so use at most ${Math.max(1, maxGroups)} group(s).`,
+        message: `A Top ${knockoutSize} knockout needs at least ${knockoutSize} verified teams; found ${teams.length}.`,
       });
     }
 
-    let advancePerGroup = parseInt(req.body.advancePerGroup, 10);
-    if (!Number.isInteger(advancePerGroup) || advancePerGroup < 1) advancePerGroup = 2;
+    const NUM_GROUPS = 8;
+    const advancePerGroup = knockoutSize / NUM_GROUPS; // 8 -> 1, 16 -> 2
 
-    // Shuffle then snake-distribute so groups are as even as possible (differ by ≤1).
+    // Shuffle then distribute as evenly as possible across the 8 groups
+    // (handles any team count, incl. odd numbers like 43 → groups differ by ≤1).
     const shuffled = [...teams].sort(() => Math.random() - 0.5);
     const LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    const groupNames = LABELS.slice(0, numGroups);
+    const groupNames = LABELS.slice(0, NUM_GROUPS);
     const buckets = {};
     groupNames.forEach((g) => { buckets[g] = []; });
-    shuffled.forEach((team, i) => { buckets[groupNames[i % numGroups]].push(team); });
+    shuffled.forEach((team, i) => { buckets[groupNames[i % NUM_GROUPS]].push(team); });
 
     const tournament = await Tournament.create({
       sport: sport._id,
@@ -79,6 +80,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
       stage: 'group_stage',
       groups: groupNames,
       advancePerGroup,
+      knockoutSize,
     });
 
     // Round-robin inside each group.
@@ -105,8 +107,9 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
     res.status(201).json({
       tournament,
       teams: teams.length,
-      numGroups,
+      numGroups: NUM_GROUPS,
       advancePerGroup,
+      knockoutSize,
       groupSizes,
       matches: docs.length,
     });

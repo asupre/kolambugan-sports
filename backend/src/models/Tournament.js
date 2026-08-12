@@ -35,6 +35,11 @@ const tournamentSchema = new mongoose.Schema(
       type: Number,            // how many teams advance from each group (e.g. 2)
       default: 2,
     },
+    knockoutSize: {
+      type: Number,            // 8 or 16 — the Top-N knockout the group stage funnels into
+      enum: [8, 16],
+      default: 16,
+    },
   },
   {
     timestamps: true,

@@ -410,7 +410,7 @@ export default function Tournaments() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [numGroups, setNumGroups] = useState(4);
+  const [knockoutSize, setKnockoutSize] = useState(16);
 
   // Load sports + existing tournaments once.
   async function loadAll() {
@@ -448,8 +448,7 @@ export default function Tournaments() {
     try {
       const body = { sportId: selectedSport._id };
       if (isMobileLegends) {
-        body.numGroups = Number(numGroups);
-        body.advancePerGroup = 2;
+        body.knockoutSize = Number(knockoutSize);
       }
       await api("/api/tournaments/generate", {
         method: "POST",
@@ -520,18 +519,28 @@ export default function Tournaments() {
                   {isMobileLegends && (
                     <div className="mb-4">
                       <label className="block text-slate-700 text-sm font-medium mb-1.5">
-                        Number of groups
+                        Knockout size
                       </label>
-                      <select
-                        value={numGroups}
-                        onChange={(e) => setNumGroups(e.target.value)}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500"
-                      >
-                        {[2, 3, 4, 6, 8, 16].map((n) => (
-                          <option key={n} value={n}>{n} groups</option>
+                      <div className="flex gap-2">
+                        {[8, 16].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setKnockoutSize(n)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                              Number(knockoutSize) === n
+                                ? "bg-indigo-600 text-white"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
+                          >
+                            Top {n}
+                          </button>
                         ))}
-                      </select>
-                      <p className="text-slate-400 text-xs mt-1">Top 2 of each group advance to the knockout.</p>
+                      </div>
+                      <p className="text-slate-400 text-xs mt-1">
+                        The system creates 8 groups and funnels down to the Top {knockoutSize}.
+                        Needs at least {knockoutSize} verified teams.
+                      </p>
                     </div>
                   )}
 

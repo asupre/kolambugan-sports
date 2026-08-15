@@ -25,6 +25,90 @@ function roundRobinRounds(ids) {
   }
   return rounds;
 }
+// Stable pseudo-random value from a team id — used to order tied teams for the
+// tiebreaker draw (byes). Same team always gets the same value, so byes stay
+// consistent across reloads. (Lifted to module scope so both the generator and
+// the qualification reader use one copy.)
+function seedOf(id) {
+  const s = String(id);
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 1000000007;
+  return h;
+}
+
+// Standard single-elim seed positions for a bracket of `size` slots (a power of
+// two). Returns 1-indexed seed numbers in slot order, arranged so seed 1 and
+// seed 2 meet only in the final — which also puts byes (the highest seed numbers,
+// absent when N < size) on the TOP seeds. e.g. seedOrder(8) -> [1,8,4,5,2,7,3,6]
+function seedOrder(size) {
+  let seeds = [1, 2];
+  while (seeds.length < size) {
+    const next = [];
+    const sum = seeds.length * 2 + 1;
+    for (const s of seeds) { next.push(s); next.push(sum - s); }
+    seeds = next;
+  }
+  return seeds;
+}
+
+// Build a per-group SINGLE-ELIMINATION tiebreaker among `orderedIds` (already
+// ordered by seedOf, so byes fall to the top of that order). Every match is
+// bracket:'group', isTiebreaker:true, round 100+ (100 = first round), wired via
+// nextMatchWin. Winner advances; loser is out. Returns the match count (N-1).
+async function generateGroupSingleElim(tournamentId, group, orderedIds) {
+  const N = orderedIds.length;
+  const B = 1 << Math.ceil(Math.log2(N));        // next power of two >= N
+  const numRounds = Math.log2(B);
+  const order = seedOrder(B);
+  const teamForSeed = (s) => (s <= N ? orderedIds[s - 1] : null); // seed > N = bye
+
+  const mk = async (round) => (await Match.create({
+    tournament: tournamentId,
+    bracket: 'group',
+    group,
+    round: 100 + round,   // 100 = first tiebreaker round, 101 = next, ...
+    bestOf: 1,            // decisive single game (bump to 3 here for BO3)
+    isTiebreaker: true,
+    status: 'scheduled',
+  }))._id;
+  const wire = (id, win) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win } });
+  const placeInto = async (id, teamId) => {
+    const m = await Match.findById(id);
+    if (!m) return;
+    if (!m.teamA) m.teamA = teamId; else if (!m.teamB) m.teamB = teamId;
+    await m.save();
+  };
+
+  // (1) Create an empty match for every slot in every round, then wire winners forward.
+  const roundIds = {};
+  for (let r = 1; r <= numRounds; r++) {
+    roundIds[r] = [];
+    const count = B / Math.pow(2, r);
+    for (let i = 0; i < count; i++) roundIds[r].push(await mk(r));
+  }
+  for (let r = 1; r < numRounds; r++) {
+    for (let i = 0; i < roundIds[r].length; i++) {
+      await wire(roundIds[r][i], roundIds[r + 1][Math.floor(i / 2)]);
+    }
+  }
+
+  // (2) Fill round 1. If a pair has one bye, the real team skips into round 2 and
+  //     the spurious round-1 match is deleted (leaving exactly N-1 real matches).
+  for (let p = 0; p < B / 2; p++) {
+    const ta = teamForSeed(order[2 * p]);
+    const tb = teamForSeed(order[2 * p + 1]);
+    const r1 = roundIds[1][p];
+    if (ta && tb) {
+      await Match.updateOne({ _id: r1 }, { $set: { teamA: ta, teamB: tb } });
+    } else {
+      const real = ta || tb;                                  // exactly one is a bye
+      await placeInto(roundIds[2][Math.floor(p / 2)], real);  // advance straight to R2
+      await Match.deleteOne({ _id: r1 });
+    }
+  }
+
+  return N - 1;
+}
 
 // POST /api/tournaments/generate
 // body: { sportId, numGroups?, advancePerGroup? }
@@ -160,10 +244,17 @@ router.post('/matches/:matchId/result', authenticate, authorize('super_admin', '
       await next.save();
     };
 
-    let advanced = null;
-    if (match.bracket === 'winners' || match.bracket === 'losers' || match.bracket === 'final') {
+   let advanced = null;
+    if (match.isTiebreaker) {
+      // Single-elim tiebreaker: only the winner advances (loser is eliminated).
+      // The last match has no nextMatchWin → its winner is the group's decider.
+      await placeInto(match.nextMatchWin, winner);
+      advanced = match.nextMatchWin
+        ? { winnerTo: match.nextMatchWin }
+        : { tiebreakerWinner: String(winner) };
+    } else if (match.bracket === 'winners' || match.bracket === 'losers' || match.bracket === 'final') {
       await placeInto(match.nextMatchWin, winner);   // winner moves on
-      await placeInto(match.nextMatchLose, loser);   // loser drops (winners bracket → losers bracket)
+      await placeInto(match.nextMatchLose, loser);   // loser drops (winners → losers)
       advanced = { winnerTo: match.nextMatchWin, loserTo: match.nextMatchLose };
 
       // Grand final has no nextMatch → its winner is the champion.
@@ -318,70 +409,57 @@ router.get('/:id/qualification', async (req, res) => {
 
     const out = {};
     for (const [g, gMatches] of Object.entries(byGroup)) {
-      let resolvedByDraw = false;
-
       const complete = groupGamesComplete(gMatches);
       const table = rankGroup(gMatches.filter((m) => !m.isTiebreaker), nameById);
-
-      // A cutoff tie = teams sharing the cutoff team's (wins, gameWinDiff), spanning the advance line.
-      let tiedAtCutoff = [];
-      if (complete && table.length > advance) {
-        const lastIn = table[advance - 1];
-        tiedAtCutoff = table.filter(
-          (t) => t.wins === lastIn.wins && t.gameWinDiff === lastIn.gameWinDiff
-        );
-        if (tiedAtCutoff.length < 2) tiedAtCutoff = [];
-      }
 
       const tb = gMatches.filter((m) => m.isTiebreaker);
       const tbResolved = tb.length > 0 && tb.every((m) => m.status === 'completed');
 
       let qualified = [];
-      if (complete && tiedAtCutoff.length === 0) {
-        // No cutoff tie — straightforward top-N.
-        qualified = table.slice(0, advance).map((t) => t.teamName);
-      } else if (tiedAtCutoff.length > 0 && tbResolved) {
-        // Teams clearly above the tie qualify outright.
-        const clearIn = table.filter(
-          (t) => t.wins > table[advance - 1].wins ||
-                 (t.wins === table[advance - 1].wins && t.gameWinDiff > table[advance - 1].gameWinDiff)
-        );
-        const spotsLeft = advance - clearIn.length;
+      let contestedNames = [];   // teams fighting in the tiebreaker (for display)
 
-        // Rank the tied teams by their PLAYOFF results.
-        let playoffRank = rankGroup(tb, nameById);
+      if (complete) {
+        if (table.length <= advance) {
+          qualified = table.map((t) => t.teamName);           // fewer teams than spots
+        } else {
+          const lastIn = table[advance - 1];
+          const tied = table.filter((t) => t.wins === lastIn.wins && t.gameWinDiff === lastIn.gameWinDiff);
+          const clearIn = table.filter((t) =>
+            t.wins > lastIn.wins || (t.wins === lastIn.wins && t.gameWinDiff > lastIn.gameWinDiff)
+          );
+          const spotsLeft = advance - clearIn.length;
 
-        // If the playoff STILL leaves a tie at the cutoff, break it with a stable random draw.
-        if (playoffRank.length > spotsLeft && spotsLeft > 0) {
-          const cut = playoffRank[spotsLeft - 1];
-          const clearlyRanked = playoffRank.filter(
-            (t) => t.wins > cut.wins || (t.wins === cut.wins && t.gameWinDiff > cut.gameWinDiff)
-          );
-          const stillTied = playoffRank.filter(
-            (t) => t.wins === cut.wins && t.gameWinDiff === cut.gameWinDiff
-          );
-          if (stillTied.length > 1) {
-            resolvedByDraw = true;
-            const drawnTied = [...stillTied].sort((x, y) => seedOf(x.teamId) - seedOf(y.teamId));
-            playoffRank = [...clearlyRanked, ...drawnTied];
+          if (tied.length < 2 || tied.length <= spotsLeft) {
+            qualified = table.slice(0, advance).map((t) => t.teamName); // no real contest
+          } else {
+            contestedNames = tied.map((t) => t.teamName);
+            if (tbResolved) {
+              const finalTb = tb.reduce((hi, m) => (!hi || m.round > hi.round ? m : hi), null);
+              let winnerIds = [];
+              if (spotsLeft === 1) {
+                // One spot: the bracket champion takes it.
+                if (finalTb && finalTb.seriesWinner) winnerIds = [String(finalTb.seriesWinner)];
+              } else {
+                // Two spots: BOTH finalists advance (reaching the final = qualifying).
+                winnerIds = [finalTb && finalTb.teamA, finalTb && finalTb.teamB].filter(Boolean).map(String);
+              }
+              qualified = [
+                ...clearIn.map((t) => t.teamName),
+                ...winnerIds.map((id) => nameById[id] || '?'),
+              ];
+            }
           }
         }
-
-        qualified = [
-          ...clearIn.map((t) => t.teamName),
-          ...playoffRank.slice(0, spotsLeft).map((t) => t.teamName),
-        ];
       }
 
       out[g] = {
         complete,
         standings: table,
         qualified,
-        tiedAtCutoff: (qualified.length ? [] : tiedAtCutoff.map((t) => t.teamName)),
-        needsTiebreaker: tiedAtCutoff.length > 0 && tb.length === 0,
+        tiedAtCutoff: qualified.length ? [] : contestedNames,
+        needsTiebreaker: contestedNames.length > 0 && tb.length === 0,
         tiebreakerGenerated: tb.length > 0,
         tiebreakerResolved: tbResolved,
-        resolvedByDraw,
       };
     }
 
@@ -392,7 +470,10 @@ router.get('/:id/qualification', async (req, res) => {
   }
 });
 
-// POST /api/tournaments/:id/tiebreakers — super admin; round-robin playoff among tied teams.
+// POST /api/tournaments/:id/tiebreakers — super admin.
+// For every group whose round-robin is complete and has MORE tied teams than open
+// spots, build a per-group SINGLE-ELIMINATION playoff (win or go home). Byes are
+// assigned by a stable draw (seedOf) since tied teams are equal on points.
 router.post('/:id/tiebreakers', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
@@ -408,38 +489,35 @@ router.post('/:id/tiebreakers', authenticate, authorize('super_admin'), async (r
     const byGroup = {};
     matches.forEach((m) => { const g = m.group || '-'; (byGroup[g] = byGroup[g] || []).push(m); });
 
-    const created = [];
+    let bracketsMade = 0, matchesMade = 0;
     for (const [g, gMatches] of Object.entries(byGroup)) {
       if (!groupGamesComplete(gMatches)) continue;
       if (gMatches.some((m) => m.isTiebreaker)) continue; // already generated
 
       const table = rankGroup(gMatches.filter((m) => !m.isTiebreaker), nameById);
       if (table.length <= advance) continue;
+
       const lastIn = table[advance - 1];
       const tied = table.filter((t) => t.wins === lastIn.wins && t.gameWinDiff === lastIn.gameWinDiff);
-      if (tied.length < 2) continue;
+      const clearIn = table.filter((t) =>
+        t.wins > lastIn.wins || (t.wins === lastIn.wins && t.gameWinDiff > lastIn.gameWinDiff)
+      );
+      const spotsLeft = advance - clearIn.length;
 
-      // ROUND-ROBIN among the tied teams — everyone plays everyone. Fair, no byes.
-      // Playoff rounds numbered 100+ to distinguish from the regular group rounds.
-      const rounds = roundRobinRounds(tied.map((t) => t.teamId));
-      rounds.forEach((pairs, ri) => pairs.forEach(([a, b]) => created.push({
-        tournament: tournament._id,
-        bracket: 'group',
-        group: g,
-        round: 100 + ri,
-        teamA: a,
-        teamB: b,
-        bestOf: 1,
-        isTiebreaker: true,
-        status: 'scheduled',
-      })));
+      // Only a real contest needs a playoff: more tied teams than open spots.
+      if (tied.length < 2 || tied.length <= spotsLeft) continue;
+
+      const ordered = [...tied]
+        .sort((x, y) => seedOf(x.teamId) - seedOf(y.teamId)) // stable draw → byes to the top
+        .map((t) => t.teamId);
+      matchesMade += await generateGroupSingleElim(tournament._id, g, ordered);
+      bracketsMade++;
     }
 
-    if (!created.length) {
+    if (!bracketsMade) {
       return res.status(400).json({ message: 'No unresolved cutoff ties found. Either no ties, groups incomplete, or tiebreakers already exist.' });
     }
-    await Match.insertMany(created);
-    res.status(201).json({ message: 'Tiebreaker playoff generated.', matches: created.length });
+    res.status(201).json({ message: 'Single-elimination tiebreaker(s) generated.', brackets: bracketsMade, matches: matchesMade });
   } catch (err) {
     console.error('Generate tiebreakers error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

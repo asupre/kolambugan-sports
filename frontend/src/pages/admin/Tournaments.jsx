@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { Button, Card } from "../../components/ui";
+
 
 const superAdminMenu = [
   { label: "Dashboard", path: "/admin", icon: "▦" },
@@ -294,9 +295,80 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
   );
 }
 
+function MatchBox({ m, onScored, innerRef }) {
+  const [a, setA] = useState("");
+  const [b, setB] = useState("");
+  const [busy, setBusy] = useState(false);
+  const done = m.status === "completed";
+  const ready = m.teamA && m.teamB && !done;
+  const winnerId = m.seriesWinner?._id || m.seriesWinner;
+  const aName = m.teamA?.teamName || "TBD";
+  const bName = m.teamB?.teamName || "TBD";
+  const aWin = done && String(winnerId) === String(m.teamA?._id);
+  const bWin = done && String(winnerId) === String(m.teamB?._id);
+  const g0 = (m.games && m.games[0]) || null;
+  const aScore = g0 ? g0.scoreA : 0;
+  const bScore = g0 ? g0.scoreB : 0;
+
+  async function save() {
+    if (a === "" || b === "") return;
+    setBusy(true);
+    try {
+      await api(`/api/tournaments/matches/${m._id}/result`, {
+        method: "POST",
+        body: JSON.stringify({ scoreA: Number(a), scoreB: Number(b) }),
+      });
+      onScored && onScored();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div ref={innerRef} className="border border-slate-200 rounded-lg overflow-hidden text-sm w-56 shrink-0 bg-white">
+      <div className={`flex items-center gap-2 px-3 py-2 ${aWin ? "bg-green-50 font-semibold" : ""}`}>
+        <span className="truncate text-slate-700 flex-1">{aName}</span>
+        {done ? (
+          <span className="text-slate-600 font-medium w-6 text-center">{aScore}</span>
+        ) : ready ? (
+          <input type="number" min="0" value={a} onChange={(e) => setA(e.target.value)}
+            className="w-8 rounded border border-slate-300 px-1 py-0.5 text-center text-xs" />
+        ) : (
+          <span className="w-6" />
+        )}
+      </div>
+      <div className="border-t border-slate-100" />
+      <div className={`flex items-center gap-2 px-3 py-2 ${bWin ? "bg-green-50 font-semibold" : ""}`}>
+        <span className="truncate text-slate-700 flex-1">{bName}</span>
+        {done ? (
+          <span className="text-slate-600 font-medium w-6 text-center">{bScore}</span>
+        ) : ready ? (
+          <input type="number" min="0" value={b} onChange={(e) => setB(e.target.value)}
+            className="w-8 rounded border border-slate-300 px-1 py-0.5 text-center text-xs" />
+        ) : (
+          <span className="w-6" />
+        )}
+      </div>
+      {ready && (
+        <div className="px-2 py-1.5 bg-slate-50 border-t border-slate-100 flex justify-end">
+          <button onClick={save} disabled={busy}
+            className="text-xs font-medium px-3 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+            {busy ? "…" : "Save"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BracketView({ tournamentId }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [wires, setWires] = useState([]);
+  const stageRef = useRef(null);
+  const boxRefs = useRef({});
 
   async function load() {
     setLoading(true);
@@ -312,116 +384,120 @@ function BracketView({ tournamentId }) {
 
   useEffect(() => { load(); }, [tournamentId]);
 
+  const hasLosers = matches.some((m) => m.bracket === "losers");
+
+  // Measure each match box and draw an elbow to the match its winner feeds.
+  useLayoutEffect(() => {
+    if (hasLosers) { setWires([]); return; }
+    function measure() {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const base = stage.getBoundingClientRect();
+      const ws = [];
+      matches.forEach((m) => {
+        if (m.bracket !== "winners" && m.bracket !== "final") return;
+        const from = boxRefs.current[m._id];
+        const toId = m.nextMatchWin && (m.nextMatchWin._id || m.nextMatchWin);
+        const to = toId && boxRefs.current[String(toId)];
+        if (!from || !to) return;
+        const a = from.getBoundingClientRect();
+        const b = to.getBoundingClientRect();
+        const x1 = a.right - base.left, y1 = a.top - base.top + a.height / 2;
+        const x2 = b.left - base.left, y2 = b.top - base.top + b.height / 2;
+        const mx = (x1 + x2) / 2;
+        ws.push(`M ${x1} ${y1} H ${mx} V ${y2} H ${x2}`);
+      });
+      setWires(ws);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [matches, hasLosers]);
+
   if (loading) return <p className="text-slate-500 text-sm">Loading bracket…</p>;
   if (matches.length === 0) return <p className="text-slate-500 text-sm">No bracket yet.</p>;
 
-  // Group matches by bracket, then by round.
-  const sections = [
-    { key: "winners", label: "Bracket" },
-    { key: "losers", label: "Losers Bracket" },
-    { key: "final", label: "Grand Final" },
-    { key: "third", label: "3rd Place Match" },
-  ];
-
- function MatchBox({ m, onScored }) {
-    const [a, setA] = useState("");
-    const [b, setB] = useState("");
-    const [busy, setBusy] = useState(false);
-    const done = m.status === "completed";
-    const ready = m.teamA && m.teamB && !done;
-    const winnerId = m.seriesWinner?._id || m.seriesWinner;
-    const aName = m.teamA?.teamName || "TBD";
-    const bName = m.teamB?.teamName || "TBD";
-    const aWin = done && String(winnerId) === String(m.teamA?._id);
-    const bWin = done && String(winnerId) === String(m.teamB?._id);
-    // Show the actual score entered (stored as a single game with scoreA/scoreB),
-    // not a count of games won.
-    const g0 = (m.games && m.games[0]) || null;
-    const aScore = g0 ? g0.scoreA : 0;
-    const bScore = g0 ? g0.scoreB : 0;
-    async function save() {
-      if (a === "" || b === "") return;
-      setBusy(true);
-      try {
-        await api(`/api/tournaments/matches/${m._id}/result`, {
-          method: "POST",
-          body: JSON.stringify({ scoreA: Number(a), scoreB: Number(b) }),
-        });
-        onScored && onScored();
-      } catch (e) {
-        alert(e.message);
-      } finally {
-        setBusy(false);
-      }
-    }
-
+  // Double-elimination (physical sports): keep the stacked-section layout for now.
+  if (hasLosers) {
+    const sections = [
+      { key: "winners", label: "Winners Bracket" },
+      { key: "losers", label: "Losers Bracket" },
+      { key: "final", label: "Grand Final" },
+      { key: "third", label: "3rd Place Match" },
+    ];
     return (
-      <div className="border border-slate-200 rounded-lg overflow-hidden text-sm w-56 shrink-0">
-        {/* Team A row */}
-        <div className={`flex items-center gap-2 px-3 py-2 ${aWin ? "bg-green-50 font-semibold" : ""}`}>
-          <span className="truncate text-slate-700 flex-1">{aName}</span>
-          {done ? (
-            <span className="text-slate-600 font-medium w-6 text-center">{aScore}</span>
-          ) : ready ? (
-            <input type="number" min="0" value={a} onChange={(e) => setA(e.target.value)}
-              className="w-8 rounded border border-slate-300 px-1 py-0.5 text-center text-xs" />
-          ) : (
-            <span className="w-6" />
-          )}
-        </div>
-
-        <div className="border-t border-slate-100" />
-
-        {/* Team B row */}
-        <div className={`flex items-center gap-2 px-3 py-2 ${bWin ? "bg-green-50 font-semibold" : ""}`}>
-          <span className="truncate text-slate-700 flex-1">{bName}</span>
-          {done ? (
-            <span className="text-slate-600 font-medium w-6 text-center">{bScore}</span>
-          ) : ready ? (
-            <input type="number" min="0" value={b} onChange={(e) => setB(e.target.value)}
-              className="w-8 rounded border border-slate-300 px-1 py-0.5 text-center text-xs" />
-          ) : (
-            <span className="w-6" />
-          )}
-        </div>
-
-        {/* Save button row — only when ready to score */}
-        {ready && (
-          <div className="px-2 py-1.5 bg-slate-50 border-t border-slate-100 flex justify-end">
-            <button onClick={save} disabled={busy}
-              className="text-xs font-medium px-3 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-              {busy ? "…" : "Save"}
-            </button>
-          </div>
-        )}
+      <div className="space-y-8">
+        {sections.map((section) => {
+          const secMatches = matches.filter((m) => m.bracket === section.key);
+          if (secMatches.length === 0) return null;
+          const rounds = [...new Set(secMatches.map((m) => m.round))].sort((a, b) => a - b);
+          return (
+            <div key={section.key}>
+              <h3 className="text-slate-800 font-semibold mb-3">{section.label}</h3>
+              <div className="overflow-x-auto">
+                <div className="flex gap-6 min-w-min pb-2">
+                  {rounds.map((r) => (
+                    <div key={r} className="flex flex-col">
+                      <p className="text-slate-400 text-xs font-medium mb-2">Round {r}</p>
+                      <div className="flex-1 flex flex-col justify-around gap-3">
+                        {secMatches.filter((m) => m.round === r).map((m) => (
+                          <MatchBox key={m._id} m={m} onScored={load} innerRef={(el) => (boxRefs.current[m._id] = el)} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }
 
+  // Single-elimination (Mobile Legends): one continuous bracket + a detached 3rd-place card.
+  const linear = matches.filter((m) => m.bracket === "winners" || m.bracket === "final");
+  const rounds = [...new Set(linear.map((m) => m.round))].sort((a, b) => a - b);
+  const lastRound = rounds[rounds.length - 1];
+  const columns = rounds.map((r, idx) => ({
+    round: r,
+    label:
+      r === lastRound ? "Grand final"
+      : idx === rounds.length - 2 ? "Semifinals"
+      : `Round ${r}`,
+    matches: linear.filter((m) => m.round === r),
+  }));
+  const thirdMatch = matches.find((m) => m.bracket === "third");
+
   return (
-    <div className="space-y-8">
-      {sections.map((section) => {
-        const secMatches = matches.filter((m) => m.bracket === section.key);
-        if (secMatches.length === 0) return null;
-        const rounds = [...new Set(secMatches.map((m) => m.round))].sort((a, b) => a - b);
-        return (
-          <div key={section.key}>
-            <h3 className="text-slate-800 font-semibold mb-3">{section.label}</h3>
-            <div className="overflow-x-auto">
-              <div className="flex gap-6 min-w-min pb-2">
-                {rounds.map((r) => (
-                  <div key={r} className="flex flex-col gap-3 justify-around">
-                    <p className="text-slate-400 text-xs font-medium">Round {r}</p>
-                    {secMatches.filter((m) => m.round === r).map((m) => (
-                      <MatchBox key={m._id} m={m} onScored={load} />
-                    ))}
-                  </div>
+    <div>
+      <h3 className="text-slate-800 font-semibold mb-3">Knockout bracket</h3>
+      <div className="overflow-x-auto pb-2">
+        <div ref={stageRef} className="relative flex gap-12 min-w-min">
+          <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
+            {wires.map((d, i) => (
+              <path key={i} d={d} stroke="#cbd5e1" strokeWidth="2" fill="none" />
+            ))}
+          </svg>
+          {columns.map((col) => (
+            <div key={col.round} className="relative z-10 flex flex-col">
+              <p className="text-slate-400 text-xs font-medium mb-2">{col.label}</p>
+              <div className="flex-1 flex flex-col justify-around">
+                {col.matches.map((m) => (
+                  <MatchBox key={m._id} m={m} onScored={load} innerRef={(el) => (boxRefs.current[m._id] = el)} />
                 ))}
               </div>
             </div>
-          </div>
-        );
-      })}
+          ))}
+        </div>
+      </div>
+
+      {thirdMatch && (
+        <div className="mt-5">
+          <p className="text-slate-400 text-xs font-medium mb-2">Third place</p>
+          <MatchBox m={thirdMatch} onScored={load} innerRef={() => {}} />
+        </div>
+      )}
     </div>
   );
 }

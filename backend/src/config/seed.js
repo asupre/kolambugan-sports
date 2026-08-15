@@ -69,22 +69,18 @@ async function seed() {
       credentials.push({ username, role: 'barangay_admin', password: pw });
     }
 
-    // 5. Create Organizer accounts (one per sport; two for Mobile Legends = 8 total)
+    // 5. Create Organizer accounts (one per sport)
     for (const sport of createdSports) {
-      const count = sport.name === 'Mobile Legends' ? 2 : 1;
-      for (let i = 1; i <= count; i++) {
-        const suffix = count > 1 ? `_${i}` : '';
-        const username = 'org_' + sport.name.toLowerCase().replace(/\s+/g, '_') + suffix;
-        const pw = randomPassword();
-        await User.create({
-          username,
-          passwordHash: await hashPassword(pw),
-          role: 'organizer',
-          assignedSport: sport._id,
-          mustChangePassword: true,
-        });
-        credentials.push({ username, role: 'organizer', password: pw });
-      }
+      const username = 'org_' + sport.name.toLowerCase().replace(/\s+/g, '_');
+      const pw = randomPassword();
+      await User.create({
+        username,
+        passwordHash: await hashPassword(pw),
+        role: 'organizer',
+        assignedSport: sport._id,
+        mustChangePassword: true,
+      });
+      credentials.push({ username, role: 'organizer', password: pw });
     }
 
     // 6. Print all credentials so the Super Admin can distribute them

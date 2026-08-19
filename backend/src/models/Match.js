@@ -29,9 +29,9 @@ const matchSchema = new mongoose.Schema(
       required: true,
     },
     // Which bracket this match belongs to (for double-elimination).
-    bracket: {
+        bracket: {
       type: String,
-      enum: ['winners', 'losers', 'final', 'group', 'third'],
+      enum: ['winners', 'losers', 'final', 'group', 'third', 'knockout', 'ko_final', 'ko_third'],
       default: 'group',
     },
     round: { type: Number },              // round number within the bracket/stage

@@ -395,21 +395,20 @@ router.post('/matches/:matchId/result', authenticate, authorize('super_admin', '
       await next.save();
     };
 
-   let advanced = null;
+       let advanced = null;
     if (match.isTiebreaker) {
-      // Single-elim tiebreaker: only the winner advances (loser is eliminated).
-      // The last match has no nextMatchWin → its winner is the group's decider.
-      await placeInto(match.nextMatchWin, winner);
+      // ... unchanged ...
       advanced = match.nextMatchWin
         ? { winnerTo: match.nextMatchWin }
         : { tiebreakerWinner: String(winner) };
-    } else if (match.bracket === 'winners' || match.bracket === 'losers' || match.bracket === 'final') {
-      await placeInto(match.nextMatchWin, winner);   // winner moves on
-      await placeInto(match.nextMatchLose, loser);   // loser drops (winners → losers)
+    } else if (
+      match.bracket === 'winners' || match.bracket === 'losers' || match.bracket === 'final' ||
+      match.bracket === 'knockout' || match.bracket === 'ko_final'
+    ) {
+      await placeInto(match.nextMatchWin, winner);
+      await placeInto(match.nextMatchLose, loser);
       advanced = { winnerTo: match.nextMatchWin, loserTo: match.nextMatchLose };
-
-      // Grand final has no nextMatch → its winner is the champion.
-      if (match.bracket === 'final') {
+      if (match.bracket === 'final' || match.bracket === 'ko_final') {
         const t = await Tournament.findById(match.tournament);
         if (t) { t.stage = 'completed'; await t.save(); }
         advanced = { champion: String(winner) };
@@ -788,7 +787,7 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
 // GET /api/tournaments/:id/bracket — public; the elimination matches, grouped by bracket/round.
 router.get('/:id/bracket', async (req, res) => {
   try {
-    const matches = await Match.find({ tournament: req.params.id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } })
+    const matches = await Match.find({ tournament: req.params.id, bracket: { $in: ['winners', 'losers', 'final', 'third', 'knockout', 'ko_final', 'ko_third'] } })
       .populate('teamA', 'teamName').populate('teamB', 'teamName').populate('seriesWinner', 'teamName')
       .sort({ bracket: 1, round: 1, createdAt: 1 });
     res.json({ matches });
@@ -851,6 +850,141 @@ router.post('/:id/test-de', authenticate, authorize('super_admin'), async (req, 
     res.status(201).json({ message: 'Double-elim group generated.', ...result });
   } catch (err) {
     console.error('test-de error:', err); res.status(500).json({ message: err.message });
+  }
+});
+// GET /api/tournaments/:id/de-qualification — physical sports (double-elim groups).
+// Per group: the 2 qualifiers, tagged with rank (1 = upper-bracket winner,
+// 2 = lower-bracket winner). Item 3 uses these tags for standard Top 8 seeding.
+router.get('/:id/de-qualification', async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+
+    const matches = await Match.find({ tournament: tournament._id })
+      .populate('teamA', 'teamName').populate('teamB', 'teamName').populate('seriesWinner', 'teamName');
+
+    // group -> its winners/losers matches
+    const byGroup = {};
+    matches.forEach((m) => {
+      if (m.bracket !== 'winners' && m.bracket !== 'losers') return;
+      const g = m.group || '-';
+      (byGroup[g] = byGroup[g] || []).push(m);
+    });
+
+    const out = {};
+    let allComplete = Object.keys(byGroup).length > 0;
+
+    for (const [g, gm] of Object.entries(byGroup)) {
+      const complete = gm.every((m) => m.status === 'completed');
+      if (!complete) allComplete = false;
+
+      // Upper final = the 'winners' match with no nextMatchWin. Lower final = the
+      // 'losers' match with no nextMatchWin. (2-team edge case: one match is both.)
+      const upperFinal = gm.find((m) => m.bracket === 'winners' && !m.nextMatchWin);
+      const lowerFinal = gm.find((m) => m.bracket === 'losers' && !m.nextMatchWin);
+
+      const qualifiers = [];
+      if (upperFinal && upperFinal.seriesWinner) {
+        qualifiers.push({ seed: 1, teamId: String(upperFinal.seriesWinner._id), teamName: upperFinal.seriesWinner.teamName });
+      }
+      if (lowerFinal && lowerFinal.seriesWinner) {
+        qualifiers.push({ seed: 2, teamId: String(lowerFinal.seriesWinner._id), teamName: lowerFinal.seriesWinner.teamName });
+      } else if (!lowerFinal && upperFinal && upperFinal.status === 'completed') {
+        // 2-team group: the single decider's loser is the #2 qualifier.
+        const loserId = String(upperFinal.seriesWinner._id) === String(upperFinal.teamA?._id)
+          ? upperFinal.teamB : upperFinal.teamA;
+        if (loserId) qualifiers.push({ seed: 2, teamId: String(loserId._id), teamName: loserId.teamName });
+      }
+
+      out[g] = { complete, qualifiers };
+    }
+
+    res.json({ allComplete, qualifierCount: Object.values(out).reduce((n, x) => n + x.qualifiers.length, 0), groups: out });
+  } catch (err) {
+    console.error('DE qualification error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+// POST /api/tournaments/:id/de-bracket — physical sports.
+// Reads the 8 group qualifiers (2 per group, tagged by seed) and builds the
+// Top 8 single-elimination knockout with STANDARD seeding (group winners kept
+// apart from same-group runners-up) + a 3rd-place match. Reuses the same
+// single-elim structure as Mobile Legends, but seeded (not shuffled).
+router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+
+    // Don't double-build the finals.
+    const existing = await Match.findOne({ tournament: tournament._id, bracket: 'final' });
+    if (existing) return res.status(409).json({ message: 'A knockout bracket already exists for this tournament.' });
+
+    // Pull the 2 qualifiers per group, tagged seed 1 (upper) / seed 2 (lower).
+    const matches = await Match.find({ tournament: tournament._id });
+    const byGroup = {};
+    matches.forEach((m) => {
+      if (m.bracket !== 'winners' && m.bracket !== 'losers') return;
+      const g = m.group || '-';
+      (byGroup[g] = byGroup[g] || []).push(m);
+    });
+
+    const q = {}; // e.g. q['A1'] = teamId
+    let ready = true;
+    for (const [g, gm] of Object.entries(byGroup)) {
+      if (!gm.every((m) => m.status === 'completed')) { ready = false; break; }
+      const upperFinal = gm.find((m) => m.bracket === 'winners' && !m.nextMatchWin);
+      const lowerFinal = gm.find((m) => m.bracket === 'losers' && !m.nextMatchWin);
+      if (upperFinal && upperFinal.seriesWinner) q[`${g}1`] = String(upperFinal.seriesWinner);
+      if (lowerFinal && lowerFinal.seriesWinner) q[`${g}2`] = String(lowerFinal.seriesWinner);
+      else if (!lowerFinal && upperFinal && upperFinal.status === 'completed') {
+        q[`${g}2`] = String(upperFinal.seriesWinner) === String(upperFinal.teamA) ? String(upperFinal.teamB) : String(upperFinal.teamA);
+      }
+    }
+
+    // Standard 8-seed order: same-group teams apart, group winners spread out.
+    const order = ['A1', 'B2', 'C1', 'D2', 'B1', 'A2', 'D1', 'C2'];
+    if (!ready || order.some((k) => !q[k])) {
+      return res.status(400).json({ message: 'All 4 groups must be fully played and produce 8 qualifiers first.' });
+    }
+    const seeds = order.map((k) => q[k]); // seeded team ids, in bracket slot order
+
+    // --- build single-elim Top 8 + 3rd place (same structure as ML) ---
+    const mk = async (bracket, round, bestOf, teamA = null, teamB = null) => {
+      const m = await Match.create({ tournament: tournament._id, bracket, round, teamA, teamB, bestOf, status: 'scheduled' });
+      return m._id;
+    };
+    const wire = (id, win, lose) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win, nextMatchLose: lose } });
+
+    const n = 8, numRounds = 3;                    // 8 → QF, SF, Final
+    const bestOfFor = (r) => (r === numRounds ? 5 : 3); // final BO5, rest BO3
+
+    const roundMatches = {};
+    for (let r = 1; r <= numRounds; r++) {
+      const cnt = n / Math.pow(2, r);
+      const bracket = r === numRounds ? 'final' : 'winners';
+      roundMatches[r] = [];
+      for (let i = 0; i < cnt; i++) {
+        if (r === 1) roundMatches[r].push(await mk('winners', r, bestOfFor(r), seeds[i * 2], seeds[i * 2 + 1]));
+        else roundMatches[r].push(await mk(bracket, r, bestOfFor(r)));
+      }
+    }
+    const third = await mk('third', numRounds, 3);
+
+    for (let r = 1; r < numRounds; r++) {
+      const isSemi = r === numRounds - 1;
+      for (let i = 0; i < roundMatches[r].length; i++) {
+        await wire(roundMatches[r][i], roundMatches[r + 1][Math.floor(i / 2)], isSemi ? third : null);
+      }
+    }
+
+    tournament.stage = 'elimination';
+    await tournament.save();
+
+    const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['winners', 'final', 'third'] } });
+    res.status(201).json({ message: 'Top 8 knockout generated (standard seeding + 3rd place).', matches: total });
+  } catch (err) {
+    console.error('DE bracket error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
   }
 });
 module.exports = router;

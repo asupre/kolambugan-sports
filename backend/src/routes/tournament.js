@@ -110,6 +110,101 @@ async function generateGroupSingleElim(tournamentId, group, orderedIds) {
   return N - 1;
 }
 
+// Build one group's DOUBLE-ELIMINATION bracket (upper + lower, byes handled).
+// No in-group grand final: the upper-bracket winner qualifies #1 (0 losses) and
+// the lower-bracket winner qualifies #2 (1 loss); both advance to the Top 8.
+// orderedIds = the group's team ids, already ordered (byes fall to the top seeds).
+async function generateGroupDoubleElim(tournamentId, group, orderedIds) {
+  const N = orderedIds.length;
+  if (N < 2) return { matches: 0, upperFinal: null, lowerFinal: null };
+  const B = 1 << Math.ceil(Math.log2(N));   // next power of two >= N
+  const U = Math.log2(B);
+
+  // ---------- PLAN the full B-slot skeleton in memory (proven construction) ----------
+  let sid = 0;
+  const S = {};
+  const node = (bracket, round) => {
+    const n = { id: sid++, bracket, round, winTo: null, loseTo: null, A: null, B: null };
+    S[n.id] = n; return n.id;
+  };
+
+  // Upper bracket (single-elim); winners feed forward.
+  const UR = {};
+  for (let r = 1; r <= U; r++) { UR[r] = []; const c = B / 2 ** r; for (let i = 0; i < c; i++) UR[r].push(node('winners', r)); }
+  for (let r = 1; r < U; r++) for (let i = 0; i < UR[r].length; i++)
+    S[UR[r][i]].winTo = { m: UR[r + 1][Math.floor(i / 2)], slot: i % 2 === 0 ? 'A' : 'B' };
+
+  // Lower bracket (wave construction): minor, then (major, minor) pairs; last major = lower final.
+  const lb = [];
+  let surv = B / 2;
+  { const c = surv / 2, ids = []; for (let i = 0; i < c; i++) ids.push(node('losers', lb.length + 1)); lb.push({ type: 'minor', ids }); surv = c; }
+  for (let k = 2; k <= U; k++) {
+    const ids = []; for (let i = 0; i < surv; i++) ids.push(node('losers', lb.length + 1)); lb.push({ type: 'major', ids, wave: k });
+    if (k < U) { const c2 = surv / 2, ids2 = []; for (let i = 0; i < c2; i++) ids2.push(node('losers', lb.length + 1)); lb.push({ type: 'minor', ids: ids2 }); surv = c2; }
+  }
+  for (let ri = 0; ri < lb.length - 1; ri++) {
+    const cur = lb[ri].ids, nxt = lb[ri + 1];
+    if (nxt.type === 'minor') for (let i = 0; i < cur.length; i++) S[cur[i]].winTo = { m: nxt.ids[Math.floor(i / 2)], slot: i % 2 === 0 ? 'A' : 'B' };
+    else for (let i = 0; i < cur.length; i++) S[cur[i]].winTo = { m: nxt.ids[i], slot: 'A' };
+  }
+  const upperFinal = UR[U][0];
+  const lowerFinal = lb[lb.length - 1].ids[0];
+
+  // Route upper-bracket losers down into the lower bracket.
+  const r1 = lb[0].ids;
+  for (let i = 0; i < UR[1].length; i++) S[UR[1][i]].loseTo = { m: r1[Math.floor(i / 2)], slot: i % 2 === 0 ? 'A' : 'B' };
+  for (let k = 2; k <= U; k++) { const maj = lb.find((r) => r.type === 'major' && r.wave === k); for (let i = 0; i < UR[k].length; i++) S[UR[k][i]].loseTo = { m: maj.ids[i], slot: 'B' }; }
+
+  // Seat real teams + phantoms (byes) by seed order.
+  const order = seedOrder(B);
+  const teamForSeed = (s) => (s <= N ? orderedIds[s - 1] : null);
+  for (let p = 0; p < UR[1].length; p++) { S[UR[1][p]].A = teamForSeed(order[2 * p]); S[UR[1][p]].B = teamForSeed(order[2 * p + 1]); }
+
+  // Propagate which slots become REAL; find the matches actually played + bye advances.
+  const slotReal = {};
+  for (const id of UR[1]) { slotReal[id + 'A'] = S[id].A !== null; slotReal[id + 'B'] = S[id].B !== null; }
+  const byeWin = {};
+  const ordered = Object.values(S).sort((a, b) => a.id - b.id);
+  for (const m of ordered) {
+    const aR = !!slotReal[m.id + 'A'], bR = !!slotReal[m.id + 'B'];
+    if (aR && !bR) byeWin[m.id] = m.A; else if (bR && !aR) byeWin[m.id] = m.B;
+    if (m.winTo) slotReal[m.winTo.m + m.winTo.slot] = aR || bR;
+    if (m.loseTo) slotReal[m.loseTo.m + m.loseTo.slot] = aR && bR;
+  }
+  const kept = new Set(ordered.filter((m) => slotReal[m.id + 'A'] && slotReal[m.id + 'B']).map((m) => m.id));
+  const follow = (ref) => { while (ref && !kept.has(ref.m)) ref = S[ref.m].winTo; return ref || null; };
+
+  // ---------- PERSIST only the real matches, then wire them ----------
+  const idMap = {};
+  for (const id of kept) {
+    const m = S[id];
+    idMap[id] = (await Match.create({
+      tournament: tournamentId, bracket: m.bracket, group, round: m.round,
+      bestOf: 3, status: 'scheduled',
+      teamA: UR[1].includes(id) ? m.A : null,
+      teamB: UR[1].includes(id) ? m.B : null,
+    }))._id;
+  }
+  // Pre-place bye-advanced teams into their real destination slot.
+  for (const m of ordered) {
+    if (kept.has(m.id)) continue;
+    const t = byeWin[m.id]; if (!t) continue;
+    const dest = follow(m.winTo); if (!dest || !idMap[dest.m]) continue;
+    await Match.updateOne({ _id: idMap[dest.m] }, { $set: dest.slot === 'A' ? { teamA: t } : { teamB: t } });
+  }
+  // Wire winner/loser routing between real matches.
+  for (const id of kept) {
+    const m = S[id];
+    const w = follow(m.winTo), l = follow(m.loseTo);
+    await Match.updateOne({ _id: idMap[id] }, { $set: {
+      nextMatchWin: w ? idMap[w.m] : null,
+      nextMatchLose: l ? idMap[l.m] : null,
+    } });
+  }
+
+  return { matches: kept.size, upperFinal: idMap[upperFinal], lowerFinal: idMap[lowerFinal] };
+}
+
 // POST /api/tournaments/generate
 // body: { sportId, numGroups?, advancePerGroup? }
 // Super admin builds a grouped round-robin from the verified teams.
@@ -688,6 +783,18 @@ router.post('/:id/simulate-groups', authenticate, authorize('super_admin'), asyn
   } catch (err) {
     console.error('Simulate groups error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// TEMP DEV ROUTE — test one group's double-elim generation. REMOVE before deploy.
+router.post('/:id/test-de', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body.teamIds) ? req.body.teamIds : [];
+    if (ids.length < 2) return res.status(400).json({ message: 'Need at least 2 team ids.' });
+    const result = await generateGroupDoubleElim(req.params.id, req.body.group || 'A', ids);
+    res.status(201).json({ message: 'Double-elim group generated.', ...result });
+  } catch (err) {
+    console.error('test-de error:', err); res.status(500).json({ message: err.message });
   }
 });
 module.exports = router;

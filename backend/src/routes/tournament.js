@@ -916,7 +916,7 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
 
     // Don't double-build the finals.
-    const existing = await Match.findOne({ tournament: tournament._id, bracket: 'final' });
+    const existing = await Match.findOne({ tournament: tournament._id, bracket: 'ko_final' });
     if (existing) return res.status(409).json({ message: 'A knockout bracket already exists for this tournament.' });
 
     // Pull the 2 qualifiers per group, tagged seed 1 (upper) / seed 2 (lower).
@@ -961,14 +961,14 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
     const roundMatches = {};
     for (let r = 1; r <= numRounds; r++) {
       const cnt = n / Math.pow(2, r);
-      const bracket = r === numRounds ? 'final' : 'winners';
+      const bracket = r === numRounds ? 'ko_final' : 'knockout';
       roundMatches[r] = [];
       for (let i = 0; i < cnt; i++) {
-        if (r === 1) roundMatches[r].push(await mk('winners', r, bestOfFor(r), seeds[i * 2], seeds[i * 2 + 1]));
+        if (r === 1) roundMatches[r].push(await mk('knockout', r, bestOfFor(r), seeds[i * 2], seeds[i * 2 + 1]));
         else roundMatches[r].push(await mk(bracket, r, bestOfFor(r)));
       }
     }
-    const third = await mk('third', numRounds, 3);
+    const third = await mk('ko_third', numRounds, 3);
 
     for (let r = 1; r < numRounds; r++) {
       const isSemi = r === numRounds - 1;
@@ -980,7 +980,7 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
     tournament.stage = 'elimination';
     await tournament.save();
 
-    const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['winners', 'final', 'third'] } });
+    const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['knockout', 'ko_final', 'ko_third'] } });
     res.status(201).json({ message: 'Top 8 knockout generated (standard seeding + 3rd place).', matches: total });
   } catch (err) {
     console.error('DE bracket error:', err);

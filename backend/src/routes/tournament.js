@@ -115,8 +115,17 @@ async function generateGroupSingleElim(tournamentId, group, orderedIds) {
 // the lower-bracket winner qualifies #2 (1 loss); both advance to the Top 8.
 // orderedIds = the group's team ids, already ordered (byes fall to the top seeds).
 async function generateGroupDoubleElim(tournamentId, group, orderedIds) {
-  const N = orderedIds.length;
+    const N = orderedIds.length;
   if (N < 2) return { matches: 0, upperFinal: null, lowerFinal: null };
+  if (N === 2) {
+    // Degenerate group: only 2 teams, so both qualify. One decider match records
+    // the group winner (qualifier #1); the loser is qualifier #2. No lower bracket.
+    const m = await Match.create({
+      tournament: tournamentId, bracket: 'winners', group, round: 1,
+      bestOf: 3, status: 'scheduled', teamA: orderedIds[0], teamB: orderedIds[1],
+    });
+    return { matches: 1, upperFinal: m._id, lowerFinal: m._id };
+  }
   const B = 1 << Math.ceil(Math.log2(N));   // next power of two >= N
   const U = Math.log2(B);
 
@@ -220,10 +229,57 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
       return res.status(409).json({ message: 'A tournament for this sport already exists this season. Delete it to regenerate.' });
     }
 
-    const isRoundRobin = sport.name === 'Mobile Legends' || sport.tournamentFormat === 'round_robin';
+        const isRoundRobin = sport.name === 'Mobile Legends' || sport.tournamentFormat === 'round_robin';
+
+    // ---- PHYSICAL SPORTS: 4 groups, double-elimination within each group ----
     if (!isRoundRobin) {
-      return res.status(400).json({ message: 'Grouped round-robin is available now; double-elimination is the next block.' });
+      const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified' });
+      const NUM_GROUPS = 4;
+      // Need at least 2 per group so every group can produce 2 qualifiers → a real Top 8.
+            if (teams.length < NUM_GROUPS * 3) {
+        return res.status(400).json({
+          message: `Double-elimination needs at least ${NUM_GROUPS * 3} verified teams (3 per group across ${NUM_GROUPS} groups); found ${teams.length}.`,
+        });
+      }
+
+      // Shuffle, then distribute as evenly as possible across the 4 groups.
+      const shuffled = [...teams].sort(() => Math.random() - 0.5);
+      const groupNames = ['A', 'B', 'C', 'D'];
+      const buckets = { A: [], B: [], C: [], D: [] };
+      shuffled.forEach((team, i) => { buckets[groupNames[i % NUM_GROUPS]].push(team); });
+
+      const tournament = await Tournament.create({
+        sport: sport._id,
+        season: season._id,
+        format: 'double_elimination',
+        stage: 'group_stage',
+        groups: groupNames,
+        advancePerGroup: 2,           // upper-bracket winner + lower-bracket winner
+        knockoutSize: 8,              // 4 groups × 2 → Top 8
+      });
+
+      // Build one double-elim bracket per group (byes handled inside the generator).
+      let totalMatches = 0;
+      const groupInfo = {};
+      for (const g of groupNames) {
+        const ids = buckets[g].map((t) => t._id.toString());
+        const result = await generateGroupDoubleElim(tournament._id, g, ids);
+        totalMatches += result.matches;
+        groupInfo[g] = { teams: ids.length, matches: result.matches, upperFinal: result.upperFinal, lowerFinal: result.lowerFinal };
+      }
+
+      return res.status(201).json({
+        tournament,
+        format: 'double_elimination',
+        teams: teams.length,
+        numGroups: NUM_GROUPS,
+        advancePerGroup: 2,
+        knockoutSize: 8,
+        groups: groupInfo,
+        matches: totalMatches,
+      });
     }
+    // ---- else: MOBILE LEGENDS round-robin (unchanged below) ----
 
     const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified' });
 

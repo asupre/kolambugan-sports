@@ -146,17 +146,32 @@ TWO different formats depending on sport.
   advance count minus clearly-qualified teams (usually 1; both finalists
   advance if 2 spots contested). This is the NEXT build.
 
-**Physical sports (6): DOUBLE ELIMINATION. — IN SCOPE, not yet built for
-arbitrary N.**
-- Straight to a double-elimination bracket from the verified teams (NO
-  group stage for physical sports). Win 3 / lose 2 style: one loss drops
-  you to the losers bracket, a second loss eliminates you.
-- Bracket team count is NOT fixed at 8 — depends on how many teams register
-  (one team per barangay per division). The generator must handle arbitrary
-  N (byes + losers-bracket wiring). This is the HARDEST remaining algorithm.
-  The current else-branch of POST /:id/bracket is still HARDCODED for 8 teams.
-- Ties for advancement broken by a PLAYOFF match (NOT point difference) —
-  system detects the tie; organizer schedules the tiebreaker.
+**Physical sports (5 live-scored): 4 GROUPS -> DOUBLE-ELIM PER GROUP -> TOP 8
+KNOCKOUT. — GROUP GENERATOR BUILT/TESTED (Aug 2026); integration next.**
+(CONFIRMED by stakeholder: 4 groups, "win 3 -> Big 8, lose 2 -> out". This
+SUPERSEDES the earlier "no group stage / one straight double-elim bracket" note,
+which contradicted the meeting notes.)
+- Phase 1 — Group stage: verified teams (per division) are split into 4 groups
+  (A/B/C/D), distributed as evenly as possible. Each group runs its OWN
+  DOUBLE-ELIMINATION bracket: one loss drops you to the losers bracket, a second
+  loss eliminates you.
+- Two qualifiers per group: the UPPER-bracket winner (0 losses) and the
+  LOWER-bracket winner (1 loss). They do NOT play an in-group grand final —
+  both advance. Win-count to qualify FLEXES with group size (byes for
+  non-power-of-2 groups); the literal "3 wins" is descriptive, not hardcoded.
+- 4 groups x 2 qualifiers = 8 -> Phase 2.
+- Phase 2 — Knockout (a.k.a. elimination round): the 8 qualifiers play the SAME
+  scaling SINGLE-ELIMINATION Top 8 bracket ML uses (reused, not rebuilt) ->
+  champion.
+- Generator: generateGroupDoubleElim(tournamentId, group, orderedIds) builds one
+  group's upper+lower brackets with byes and nextMatchWin/nextMatchLose wiring,
+  returns { matches, upperFinal, lowerFinal }. Proven by simulation (5000+ random
+  playthroughs, N=3..16, always exactly 2 correct qualifiers) and tested live via
+  the temp POST /:id/test-de route (7-team group -> 11 matches -> clean 2-qualifier
+  finish). Result route already advances winners/losers correctly.
+- Billiards is scored per match as a plain win (organizer enters the score,
+  winner advances) — no live per-point tapping.
+- Ties for advancement broken by a PLAYOFF match (NOT point difference).
 
 **Advancement is SCORE-DRIVEN, never organizer-chosen (integrity):**
 - The bracket SKELETON is generated and LOCKED at draw time — every slot and
@@ -517,44 +532,32 @@ React + Tailwind; port 5173; proxy /api -> localhost:5000). Hand-rolled
 Tailwind with a small shared component set (frontend/src/components/ui.jsx:
 Button/Card/Input/Label/Pill); shadcn/ui deferred to one restyle pass later.
 
-## DONE + TESTED
-- Auth: JWT login, role routing, forced first-login password change, Super
-  Admin password reset.
-- Season lifecycle: model + states, create/advance routes, state guards.
-- Registration/rosters: create team, add/remove players, submit (10-15
-  enforced), "2 teams per barangay" (ML), division field on Team.
-- Verification: reference-list CSV upload, auto pre-screen (eligible /
-  flagged / needs_document) with flagReason, review queue (approve / reject
-  / verify), reject reopens roster + verify locks the team.
-- Divisions config: isDivided on Sport, PATCH /api/sports/divisions, and the
-  division-setup modal on "Open Registration" (Season page).
-- Mobile Legends tournament: group stage; knockout-size picker (Top 8/Top 16
-  -> always 8 groups); scaling single-elim knockout (8/16/32) + 3rd place;
-  score-driven advancement; tiebreaker system (round-robin playoff +
-  random-draw fallback), tested to 52-team scale.
-- Super Admin frontend: Dashboard, Season, Reference List, Review Queue,
-  Tournaments (sport picker, standings, match entry, knockout generation,
-  bracket display, tiebreaker button).
+## DONE + TESTED (added this session, Aug 2026)
+- Per-group SINGLE-ELIMINATION tiebreaker (replaced round-robin playoff):
+  generation with random byes + nextMatchWin wiring; result route advances
+  isTiebreaker matches; qualification reads the bracket winner(s). Tested.
+- Accounts module: provisioning panel (list by role, provision-all, add-single,
+  reset, guarded delete), passwords shown once (bcrypt one-way), copy-password.
+  Backend routes + Accounts.jsx. Tested end-to-end.
+- Double-elim GROUP GENERATOR (generateGroupDoubleElim) for arbitrary N with
+  byes -> 2 qualifiers. Proven + live-tested. (The old hardcoded-8 else-branch of
+  POST /:id/bracket is now superseded and slated for removal.)
 
 ## IN PROGRESS / NEXT (priority order)
-1. Replace the ML tiebreaker with PER-GROUP SINGLE-ELIMINATION (user's
-   decision). Standard single-elim among a group's tied teams; RANDOM byes
-   for non-power-of-2 counts; winner takes the spot (both finalists if 2
-   spots contested); each group independent. THREE parts: (a) generation
-   with byes + nextMatchWin wiring, (b) result route must advance tiebreaker
-   matches through rounds (today it only advances winners/losers/final; the
-   tiebreaker matches are bracket:'group', isTiebreaker:true, round 100+),
-   (c) qualification reads the bracket winner(s).
-2. Physical-sports DOUBLE ELIMINATION for arbitrary N (byes + losers-bracket
-   wiring). The else-branch of POST /:id/bracket is still hardcoded for 8.
-3. Divided bracket generation — volleyball -> two brackets (boys + girls).
-4. Barangay Admin frontend (roster form + document upload / GridFS).
-5. Organizer scoring screen (per-player points/fouls/MVP — the PRIMARY
-   courtside scoring UI; Super Admin scoring on the tournament page was for
-   testing + is a legit override).
-6. Public Viewer (dark R7 theme, reuse the bracket display styled dark).
-7. Accounts section, champions archive (write on season complete), forfeit
-   handling, cosmetic bug fixes, polish, deploy.
+1. Wire generateGroupDoubleElim into POST /generate for physical sports: split
+   verified teams into 4 groups, build a double-elim per group. Remove the old
+   hardcoded-8 double-elim else-branch. Remove temp /:id/test-de route.
+2. Double-elim QUALIFICATION reader: per group, report upper-final winner +
+   lower-final winner as the 2 qualifiers (the round-robin qualification route
+   does not apply to double-elim groups).
+3. Feed the 8 qualifiers into the existing Top 8 single-elim knockout.
+4. Divided bracket generation (volleyball boys/girls; badminton/pickleball
+   singles/doubles x boys/girls) — one bracket per (sport, format, division).
+5. Barangay Admin frontend (roster form + document upload / GridFS).
+6. Organizer LIVE scoring screen (per-player points/fouls/MVP for basketball,
+   badminton, pickleball; side scoring for volleyball; scoped to assignedSport).
+7. Public Viewer (dark R7 theme). Accounts DONE. Champions archive, forfeit,
+   cosmetic bugs, polish, deploy.
 
 ## KNOWN COSMETIC BUGS (low priority)
 - After a tiebreaker runs, the group standings DISPLAY shows combined

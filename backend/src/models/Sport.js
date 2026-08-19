@@ -27,9 +27,25 @@ const sportSchema = new mongoose.Schema(
     // Whether this sport runs separate boys' and girls' brackets this season.
     // false = single "open" bracket; true = boys + girls, each its own bracket.
     // Set by the Super Admin when opening registration.
-    isDivided: {
+        isDivided: {
       type: Boolean,
       default: false,
+    },
+    // Which divisions this sport runs THIS SEASON (set by Super Admin when opening
+    // registration). e.g. Basketball ['under17','under30']; Volleyball ['boys','girls'];
+    // Billiards/ML ['open']. Drives one bracket per division.
+    divisions: {
+      type: [String],
+      default: ['open'],
+    },
+    // The entry format this sport runs THIS SEASON:
+    //   'team'    -> squad sports
+    //   'singles' -> badminton if the admin picks singles; billiards
+    //   'doubles' -> badminton if the admin picks doubles; pickleball (always)
+    entryFormat: {
+      type: String,
+      enum: ['team', 'singles', 'doubles'],
+      default: 'team',
     },
   },
   {

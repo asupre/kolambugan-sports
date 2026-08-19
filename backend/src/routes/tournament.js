@@ -225,15 +225,16 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
     const sport = await Sport.findById(req.body.sportId);
     if (!sport) return res.status(404).json({ message: 'Sport not found.' });
 
-    if (await Tournament.findOne({ sport: sport._id, season: season._id })) {
-      return res.status(409).json({ message: 'A tournament for this sport already exists this season. Delete it to regenerate.' });
+        const division = req.body.division || 'open';
+    if (await Tournament.findOne({ sport: sport._id, season: season._id, division })) {
+      return res.status(409).json({ message: `A ${division} tournament for this sport already exists this season. Delete it to regenerate.` });
     }
 
         const isRoundRobin = sport.name === 'Mobile Legends' || sport.tournamentFormat === 'round_robin';
 
     // ---- PHYSICAL SPORTS: 4 groups, double-elimination within each group ----
     if (!isRoundRobin) {
-      const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified' });
+            const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified', division });
       const NUM_GROUPS = 4;
       // Need at least 2 per group so every group can produce 2 qualifiers → a real Top 8.
             if (teams.length < NUM_GROUPS * 3) {
@@ -251,6 +252,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
       const tournament = await Tournament.create({
         sport: sport._id,
         season: season._id,
+        division,
         format: 'double_elimination',
         stage: 'group_stage',
         groups: groupNames,

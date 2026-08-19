@@ -12,6 +12,12 @@ const router = express.Router();
 const MIN_PLAYERS = 10;
 const MAX_PLAYERS = 15;
 
+const ROSTER_LIMITS = {
+  team:    { min: 10, max: 15 },
+  singles: { min: 1,  max: 1  },
+  doubles: { min: 2,  max: 2  },
+};
+
 // Age from birthdate.
 function computeAge(birthdate) {
   const d = new Date(birthdate);
@@ -57,19 +63,23 @@ router.post('/', authenticate, authorize('barangay_admin'),
       return res.status(404).json({ message: 'Sport not found.' });
     }
 
-    // Mobile Legends allows two teams per barangay (e.g. "Riverside 1", "Riverside 2");
-    // every other sport is one team per barangay.
+        const division = req.body.division || 'open';
+    const format = req.body.format || sport.entryFormat || 'team';
+
+    // Mobile Legends allows two teams per barangay; every other sport is one team
+    // per barangay PER DIVISION (so a barangay can enter both u17 and u30).
     const maxTeams = sport.name === 'Mobile Legends' ? 2 : 1;
     const existing = await Team.find({
       barangay: req.user.barangay,
       sport: sportId,
       season: req.season._id,
+      division,
     });
 
-    if (existing.length >= maxTeams) {
+        if (existing.length >= maxTeams) {
       return res.status(409).json({
         message: maxTeams === 1
-          ? `Your barangay already has a team for ${sport.name} this season.`
+          ? `Your barangay already has a ${division} team for ${sport.name} this season.`
           : `Your barangay already has the maximum of ${maxTeams} teams for ${sport.name} this season.`,
       });
     }
@@ -89,6 +99,8 @@ router.post('/', authenticate, authorize('barangay_admin'),
       barangay: req.user.barangay,
       sport: sportId,
       season: req.season._id,
+      division,
+      format,
     });
 
     res.status(201).json({ team });
@@ -131,9 +143,10 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
       return res.status(409).json({ message: 'This roster is already submitted and can no longer be edited.' });
     }
 
+        const limits = ROSTER_LIMITS[team.format] || ROSTER_LIMITS.team;
     const count = await TeamPlayer.countDocuments({ team: team._id });
-    if (count >= MAX_PLAYERS) {
-      return res.status(409).json({ message: `A roster can have at most ${MAX_PLAYERS} players.` });
+    if (count >= limits.max) {
+      return res.status(409).json({ message: `A ${team.format} roster can have at most ${limits.max} player(s).` });
     }
 
     const { firstName, middleName, lastName, birthdate, address, jerseyNumber } = req.body;
@@ -217,10 +230,11 @@ router.post('/:id/submit', authenticate, authorize('barangay_admin'),
       return res.status(409).json({ message: 'This roster has already been submitted.' });
     }
 
+        const limits = ROSTER_LIMITS[team.format] || ROSTER_LIMITS.team;
     const count = await TeamPlayer.countDocuments({ team: team._id });
-    if (count < MIN_PLAYERS || count > MAX_PLAYERS) {
+    if (count < limits.min || count > limits.max) {
       return res.status(400).json({
-        message: `A roster must have between ${MIN_PLAYERS} and ${MAX_PLAYERS} players. Yours has ${count}.`,
+        message: `A ${team.format} roster must have between ${limits.min} and ${limits.max} players. Yours has ${count}.`,
       });
     }
 

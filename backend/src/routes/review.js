@@ -3,6 +3,7 @@ const Team = require('../models/Team');
 const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
 const Document = require('../models/Document');
+const { deleteFile } = require('../config/gridfs');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 
@@ -71,12 +72,19 @@ router.get('/teams/:teamId', async (req, res) => {
 });
 
 // POST /api/review/teams/:teamId/players/:playerId/approve — mark a player eligible.
+// Their pending documents are approved in the same action (the Super Admin has
+// reviewed the person; the documents were the evidence).
 router.post('/teams/:teamId/players/:playerId/approve', async (req, res) => {
   try {
     const link = await TeamPlayer.findOne({ team: req.params.teamId, player: req.params.playerId });
     if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
 
     await Player.updateOne({ _id: req.params.playerId }, { $set: { eligibilityStatus: 'eligible' } });
+    await Document.updateMany(
+      { player: req.params.playerId, verifyStatus: 'pending' },
+      { $set: { verifyStatus: 'approved', reviewedBy: req.user.id, reviewedAt: new Date() } }
+    );
+
     res.json({ message: 'Player approved.', playerId: req.params.playerId, eligibilityStatus: 'eligible' });
   } catch (err) {
     console.error('Approve player error:', err);
@@ -85,7 +93,8 @@ router.post('/teams/:teamId/players/:playerId/approve', async (req, res) => {
 });
 
 // POST /api/review/teams/:teamId/players/:playerId/reject
-// Removes the player and reopens the roster so the Barangay Admin can replace them.
+// Removes the player and EVERYTHING attached (documents + their GridFS files,
+// photo file), then reopens the roster so the Barangay Admin can replace them.
 router.post('/teams/:teamId/players/:playerId/reject', async (req, res) => {
   try {
     const team = await Team.findById(req.params.teamId);
@@ -94,18 +103,25 @@ router.post('/teams/:teamId/players/:playerId/reject', async (req, res) => {
     const link = await TeamPlayer.findOneAndDelete({ team: team._id, player: req.params.playerId });
     if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
 
-    // No other team uses this player → remove the record entirely.
-    const otherLinks = await TeamPlayer.countDocuments({ player: req.params.playerId });
-    if (otherLinks === 0) await Player.findByIdAndDelete(req.params.playerId);
+    // Only purge the person if no other team still uses them.
+        const otherLinks = await TeamPlayer.countDocuments({ player: req.params.playerId });
+    if (otherLinks === 0) {
+      const player = await Player.findById(req.params.playerId);
+      const docs = await Document.find({ player: req.params.playerId });
+      for (const d of docs) await deleteFile('documents', d.file);
+      await Document.deleteMany({ player: req.params.playerId });
+      if (player?.photo) await deleteFile('photos', player.photo);
+      await Player.findByIdAndDelete(req.params.playerId);
+    }
 
-    // Reopen the roster: clears the lock and flags it back to the Barangay Admin.
+    // Reopen the roster.
     team.submittedAt = null;
     team.status = 'rejected';
     await team.save();
 
     const remaining = await TeamPlayer.countDocuments({ team: team._id });
     res.json({
-      message: 'Player rejected and removed. The roster has been reopened for the Barangay Admin to add a replacement.',
+      message: 'Player rejected and removed, along with their documents and photo. The roster has been reopened.',
       teamStatus: team.status,
       remainingPlayers: remaining,
     });

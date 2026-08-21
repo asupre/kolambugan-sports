@@ -41,7 +41,10 @@ const uploadDoc = multer({
 // Write a buffer into a bucket; resolves with the new file's id.
 function putFile(bucketName, buffer, filename, contentType, metadata = {}) {
   return new Promise((resolve, reject) => {
-    const stream = bucket(bucketName).openUploadStream(filename, { contentType, metadata });
+    const stream = bucket(bucketName).openUploadStream(filename, {
+      contentType,
+      metadata: { ...metadata, contentType },   // belt and braces
+    });
     stream.on('error', reject);
     stream.on('finish', () => resolve(stream.id));
     stream.end(buffer);
@@ -54,7 +57,8 @@ async function sendFile(bucketName, id, res) {
   try { _id = new ObjectId(String(id)); } catch { return res.status(400).json({ message: 'Bad file id.' }); }
   const files = await bucket(bucketName).find({ _id }).toArray();
   if (!files.length) return res.status(404).json({ message: 'File not found.' });
-  res.set('Content-Type', files[0].contentType || 'application/octet-stream');
+  const type = files[0].contentType || files[0].metadata?.contentType || 'application/octet-stream';
+  res.set('Content-Type', type);
   res.set('Cache-Control', 'public, max-age=86400');
   bucket(bucketName).openDownloadStream(_id).pipe(res);
 }

@@ -18,12 +18,23 @@ const DOC_LABEL = {
   parental_consent: "Parental Consent",
 };
 
+function Lightbox({ src, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
+      <img src={src} alt="" className="max-h-full max-w-full object-contain rounded" onClick={(e) => e.stopPropagation()} />
+      <button onClick={onClose} className="absolute top-4 right-5 text-white text-3xl leading-none">×</button>
+    </div>
+  );
+}
+
 // Documents are super-admin-only, so a plain <img src> can't fetch them (no auth
 // header). We fetch with the token and turn the response into a blob URL.
-function DocumentView({ doc }) {
+function DocumentView({ doc, large }) {
   const [url, setUrl] = useState(null);
   const [type, setType] = useState("");
   const [err, setErr] = useState("");
+  const [zoom, setZoom] = useState(false);
+  
 
   useEffect(() => {
     let revoked = null;
@@ -55,17 +66,22 @@ function DocumentView({ doc }) {
           : "bg-slate-200 text-slate-600"
         }`}>{doc.verifyStatus}</span>
       </div>
-      {err && <p className="text-xs text-red-600">{err}</p>}
+                        {err && <p className="text-xs text-red-600">{err}</p>}
       {!url && !err && <p className="text-xs text-slate-400">Loading…</p>}
-      {url && type.startsWith("image/") && (
-        <a href={url} target="_blank" rel="noreferrer">
-          <img src={url} alt="" className="max-h-48 rounded border border-slate-200" />
-        </a>
-      )}
-      {url && type === "application/pdf" && (
-        <a href={url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline">
-          Open PDF in a new tab
-        </a>
+      {url && (
+        <>
+          {type.startsWith("image/") ? (
+            <>
+              <img src={url} alt="" onClick={() => setZoom(true)}
+                className={`cursor-zoom-in ${large ? "max-h-[26rem] w-full object-contain rounded border border-slate-200" : "max-h-48 rounded border border-slate-200"}`} />
+              {zoom && <Lightbox src={url} onClose={() => setZoom(false)} />}
+            </>
+          ) : (
+            <a href={url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline">
+              Open file in a new tab
+            </a>
+          )}
+        </>
       )}
     </div>
   );
@@ -91,6 +107,110 @@ function StatusPill({ status }) {
   );
 }
 
+function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
+  const [tab, setTab] = useState("info");
+  const p = player;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:p-8"
+         onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-auto" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b border-slate-100">
+          <div>
+            <h2 className="text-slate-900 font-semibold text-lg">{p.lastName}, {p.firstName} {p.middleName || ""}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <StatusPill status={p.eligibilityStatus} />
+              {p.flagReason && <span className="text-xs text-slate-500">{p.flagReason}</span>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 px-6 pt-3">
+          {[["info", "Information"], ["docs", `Documents${p.documents?.length ? ` (${p.documents.length})` : ""}`]].map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${
+                tab === k ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:text-slate-700"
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 min-h-[18rem]">
+          {tab === "info" ? (
+            <div className="flex flex-col sm:flex-row gap-6">
+              <dl className="flex-1 space-y-3 text-sm order-2 sm:order-1">
+                <Field label="Full name" value={`${p.firstName} ${p.middleName || ""} ${p.lastName}`.replace(/\s+/g, " ")} />
+                <Field label="Birthdate" value={p.birthdate ? new Date(p.birthdate).toLocaleDateString() : "—"} />
+                <Field label="Age" value={p.age ?? "—"} />
+                <Field label="Address" value={p.address || "—"} />
+                <Field label="Jersey number" value={p.jerseyNumber ?? "—"} />
+                <Field label="Eligibility" value={p.eligibilityStatus?.replace("_", " ")} />
+                {p.flagReason && <Field label="Flag reason" value={p.flagReason} />}
+              </dl>
+
+              <div className="order-1 sm:order-2 shrink-0">
+                {p.photo ? (
+                  <img src={`/api/teams/players/${p._id}/photo`} alt=""
+                    className="w-48 h-48 rounded-xl object-cover bg-slate-100 border border-slate-200" />
+                ) : (
+                  <div className="w-48 h-48 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-sm">
+                    No photo
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {!p.documents?.length ? (
+                <p className="text-slate-500 text-sm">
+                  No documents uploaded. The Barangay Admin submits these from their
+                  Document Submission page.
+                </p>
+              ) : (
+                p.documents.map((d) => <DocumentView key={d._id} doc={d} large />)
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-slate-500">
+            Approving also marks this player's pending documents as approved.
+            Rejecting removes the player and their files, and reopens the roster.
+          </p>
+          {p.eligibilityStatus !== "eligible" && (
+            <div className="flex gap-2 shrink-0">
+              <button onClick={() => onApprove(teamId, p._id)} disabled={busy}
+                className="text-sm font-medium px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
+                Approve
+              </button>
+              <button onClick={() => onReject(teamId, p._id)} disabled={busy}
+                className="text-sm font-medium px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                Reject
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value }) {
+  return (
+    <div>
+      <dt className="text-slate-400 text-xs">{label}</dt>
+      <dd className="text-slate-700">{value}</dd>
+    </div>
+  );
+}
+
 export default function ReviewQueue() {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,6 +219,7 @@ export default function ReviewQueue() {
   const [playersLoading, setPlayersLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [modalPlayer, setModalPlayer] = useState(null);
 
   async function loadQueue() {
     setLoading(true);
@@ -211,53 +332,31 @@ export default function ReviewQueue() {
                       {msg && <p className="text-sm text-slate-600 mb-3 bg-slate-50 rounded px-3 py-2">{msg}</p>}
                       <div className="space-y-2">
                         {players.map((p) => (
-                          <div key={p._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-2 border-b border-slate-50 last:border-0">
-                                                        <div className="min-w-0 flex gap-3">
-                              {p.photo ? (
-                                <img src={`/api/teams/players/${p._id}/photo`} alt=""
-                                  className="h-12 w-12 rounded-full object-cover bg-slate-100 shrink-0" />
-                              ) : (
-                                <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs shrink-0">
-                                  {p.lastName?.[0]}{p.firstName?.[0]}
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-slate-700 text-sm">{p.lastName}, {p.firstName}</span>
-                                  <StatusPill status={p.eligibilityStatus} />
-                                </div>
-                                {p.flagReason && (
-                                  <p className="text-xs text-slate-500 mt-0.5">{p.flagReason}</p>
-                                )}
-                                {p.documents?.length > 0 && (
-                                  <div className="mt-2 space-y-2 max-w-xs">
-                                    {p.documents.map((d) => <DocumentView key={d._id} doc={d} />)}
-                                  </div>
-                                )}
-                                {p.eligibilityStatus === "needs_document" && !p.documents?.length && (
-                                  <p className="text-xs text-amber-600 mt-0.5">No document uploaded yet.</p>
-                                )}
-                              </div>
-                            </div>
-                            {p.eligibilityStatus !== "eligible" && (
-                              <div className="flex gap-2 shrink-0">
-                                <button
-                                  onClick={() => approve(t.teamId, p._id)}
-                                  disabled={busy}
-                                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  onClick={() => reject(t.teamId, p._id)}
-                                  disabled={busy}
-                                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition"
-                                >
-                                  Reject
-                                </button>
+                                                    <button
+                            key={p._id}
+                            onClick={() => setModalPlayer(p)}
+                            className="w-full flex items-center gap-3 py-2 border-b border-slate-50 last:border-0 text-left hover:bg-slate-50 rounded-lg px-2 transition"
+                          >
+                            {p.photo ? (
+                              <img src={`/api/teams/players/${p._id}/photo`} alt=""
+                                className="h-10 w-10 rounded-full object-cover bg-slate-100 shrink-0" />
+                            ) : (
+                              <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs shrink-0">
+                                {p.lastName?.[0]}{p.firstName?.[0]}
                               </div>
                             )}
-                          </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-slate-700 text-sm">{p.lastName}, {p.firstName}</span>
+                                <StatusPill status={p.eligibilityStatus} />
+                                {p.documents?.length > 0 && (
+                                  <span className="text-xs text-slate-400">{p.documents.length} doc{p.documents.length > 1 ? "s" : ""}</span>
+                                )}
+                              </div>
+                              {p.flagReason && <p className="text-xs text-slate-500 mt-0.5">{p.flagReason}</p>}
+                            </div>
+                            <span className="text-slate-300 text-xs shrink-0">View →</span>
+                          </button>
                         ))}
                       </div>
 
@@ -281,7 +380,19 @@ export default function ReviewQueue() {
             </div>
           ))}
         </div>
+        
       )}
+ {modalPlayer && (
+        <PlayerModal
+          player={modalPlayer}
+          teamId={openTeam}
+          busy={busy}
+          onClose={() => setModalPlayer(null)}
+          onApprove={async (tid, pid) => { await approve(tid, pid); setModalPlayer(null); }}
+          onReject={async (tid, pid) => { await reject(tid, pid); setModalPlayer(null); }}
+        />
+      )}
+           
     </AdminLayout>
   );
 }

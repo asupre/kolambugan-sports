@@ -7,6 +7,7 @@ import ReferenceList from "./pages/admin/ReferenceList";
 import ReviewQueue from "./pages/admin/ReviewQueue";
 import Tournaments from "./pages/admin/Tournaments";
 import Accounts from "./pages/admin/Accounts";
+import BrgyDashboard from "./pages/brgy/BrgyDashboard";
 // Temporary placeholder pages so routes resolve while we build the real ones.
 function Placeholder({ title }) {
   return (
@@ -28,7 +29,7 @@ export default function App() {
         <Route path="/admin/review" element={<ReviewQueue />} />
         <Route path="/admin/tournaments" element={<Tournaments />} />
         <Route path="/admin/accounts" element={<Accounts />} />
-        <Route path="/barangay" element={<Placeholder title="Barangay Admin (coming soon)" />} />
+        <Route path="/brgy" element={<BrgyDashboard />} />
         <Route path="/organizer" element={<Placeholder title="Organizer (coming soon)" />} />
         <Route path="/" element={<Placeholder title="Public Viewer (coming soon)" />} />
         <Route path="*" element={<Navigate to="/login" replace />} />

@@ -31,7 +31,7 @@ export default function Login() {
         }
         const dest = {
           super_admin: "/admin",
-          barangay_admin: "/barangay",
+          barangay_admin: "/brgy",
           organizer: "/organizer",
         }[data.user.role] || "/";
         navigate(dest);

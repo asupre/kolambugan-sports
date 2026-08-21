@@ -6,6 +6,7 @@ const Sport = require('../models/Sport');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
 const { prescreenTeam } = require('../services/prescreen');
+const { uploadPhoto, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
 const router = express.Router();
 
@@ -248,6 +249,65 @@ router.post('/:id/submit', authenticate, authorize('barangay_admin'),
     res.json({ team, playerCount: count, screening });   // ← add screening here
   } catch (err) {
     console.error('Submit roster error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/teams/:id/players/:playerId/photo — barangay admin uploads a player's
+// headshot. Multipart, field name "photo". Replaces any existing photo.
+router.post('/:id/players/:playerId/photo', authenticate, authorize('barangay_admin'),
+  uploadPhoto.single('photo'), async (req, res) => {
+  try {
+    const team = await loadOwnedTeam(req, res);
+    if (!team) return;
+    if (!req.file) return res.status(400).json({ message: 'No photo uploaded.' });
+
+    // The player must actually be on this team.
+    const link = await TeamPlayer.findOne({ team: team._id, player: req.params.playerId });
+    if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
+
+    const player = await Player.findById(req.params.playerId);
+    if (!player) return res.status(404).json({ message: 'Player not found.' });
+
+    const oldPhoto = player.photo;
+    player.photo = await putFile('photos', req.file.buffer, `player-${player._id}`, req.file.mimetype, {
+      player: String(player._id),
+    });
+    await player.save();
+    if (oldPhoto) await deleteFile('photos', oldPhoto);   // clean up the replaced one
+
+    res.status(201).json({ message: 'Photo uploaded.', photo: String(player.photo) });
+  } catch (err) {
+    console.error('Photo upload error:', err);
+    res.status(400).json({ message: err.message || 'Could not upload the photo.' });
+  }
+});
+
+// GET /api/players/:playerId/photo — PUBLIC; serves the headshot for team rosters.
+router.get('/players/:playerId/photo', async (req, res) => {
+  try {
+    const player = await Player.findById(req.params.playerId).select('photo');
+    if (!player || !player.photo) return res.status(404).json({ message: 'No photo.' });
+    await sendFile('photos', player.photo, res);
+  } catch (err) {
+    console.error('Photo fetch error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// DELETE /api/teams/:id/players/:playerId/photo — remove a player's photo.
+router.delete('/:id/players/:playerId/photo', authenticate, authorize('barangay_admin'), async (req, res) => {
+  try {
+    const team = await loadOwnedTeam(req, res);
+    if (!team) return;
+    const link = await TeamPlayer.findOne({ team: team._id, player: req.params.playerId });
+    if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
+
+    const player = await Player.findById(req.params.playerId);
+    if (player?.photo) { await deleteFile('photos', player.photo); player.photo = null; await player.save(); }
+    res.json({ message: 'Photo removed.' });
+  } catch (err) {
+    console.error('Photo delete error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

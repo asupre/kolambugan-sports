@@ -43,7 +43,7 @@ export default function ChangePassword() {
         // Success — they're already logged in, send them to their dashboard.
         const dest = {
           super_admin: "/admin",
-          barangay_admin: "/barangay",
+          barangay_admin: "/brgy",
           organizer: "/organizer",
         }[user?.role] || "/";
         navigate(dest);

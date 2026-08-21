@@ -4,8 +4,8 @@ import { api } from "../../api";
 import { Button, Card } from "../../components/ui";
 
 const brgyMenu = [
-  
-  { label: "My Teams", path: "/brgy", icon: "⛃" }
+  { label: "My Teams", path: "/brgy", icon: "⛃" },
+  { label: "Documents", path: "/brgy/documents", icon: "🗎" },
 ];
 
 const ROSTER_LIMITS = {
@@ -146,7 +146,7 @@ function RosterEditor({ team, sports, onClose }) {
                   <p className="text-slate-400 text-xs mb-2">
             Player photos: close-up headshot, face clearly visible, plain background if possible.
             JPEG or PNG, max 3&nbsp;MB. Photos appear on the public team roster.
-          </p>
+          </p>  
           {/* Player list */}
           <div className="space-y-1.5 mb-4">
             {players.length === 0 && <p className="text-slate-500 text-sm">No players yet.</p>}

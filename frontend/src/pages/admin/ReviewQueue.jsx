@@ -11,6 +11,65 @@ const superAdminMenu = [
   { label: "Accounts", path: "/admin/accounts", icon: "☺" },
 ];
 
+const DOC_LABEL = {
+  birth_certificate: "Birth Certificate",
+  voters_id: "Voter's ID",
+  barangay_clearance: "Barangay Clearance",
+  parental_consent: "Parental Consent",
+};
+
+// Documents are super-admin-only, so a plain <img src> can't fetch them (no auth
+// header). We fetch with the token and turn the response into a blob URL.
+function DocumentView({ doc }) {
+  const [url, setUrl] = useState(null);
+  const [type, setType] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let revoked = null;
+    (async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/teams/documents/${doc._id}/file`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Could not load document.");
+        const blob = await res.blob();
+        revoked = URL.createObjectURL(blob);
+        setType(blob.type);
+        setUrl(revoked);
+      } catch (e) {
+        setErr(e.message);
+      }
+    })();
+    return () => { if (revoked) URL.revokeObjectURL(revoked); };
+  }, [doc._id]);
+
+  return (
+    <div className="border border-slate-200 rounded-lg p-2 bg-slate-50">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-xs font-medium text-slate-600">{DOC_LABEL[doc.docType] || doc.docType}</span>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${
+          doc.verifyStatus === "approved" ? "bg-green-100 text-green-700"
+          : doc.verifyStatus === "rejected" ? "bg-red-100 text-red-700"
+          : "bg-slate-200 text-slate-600"
+        }`}>{doc.verifyStatus}</span>
+      </div>
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      {!url && !err && <p className="text-xs text-slate-400">Loading…</p>}
+      {url && type.startsWith("image/") && (
+        <a href={url} target="_blank" rel="noreferrer">
+          <img src={url} alt="" className="max-h-48 rounded border border-slate-200" />
+        </a>
+      )}
+      {url && type === "application/pdf" && (
+        <a href={url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline">
+          Open PDF in a new tab
+        </a>
+      )}
+    </div>
+  );
+}
 // Colored pill for a player's eligibility status.
 function StatusPill({ status }) {
   const styles = {
@@ -153,14 +212,32 @@ export default function ReviewQueue() {
                       <div className="space-y-2">
                         {players.map((p) => (
                           <div key={p._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-2 border-b border-slate-50 last:border-0">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-slate-700 text-sm">{p.lastName}, {p.firstName}</span>
-                                <StatusPill status={p.eligibilityStatus} />
-                              </div>
-                              {p.flagReason && (
-                                <p className="text-xs text-slate-500 mt-0.5">{p.flagReason}</p>
+                                                        <div className="min-w-0 flex gap-3">
+                              {p.photo ? (
+                                <img src={`/api/teams/players/${p._id}/photo`} alt=""
+                                  className="h-12 w-12 rounded-full object-cover bg-slate-100 shrink-0" />
+                              ) : (
+                                <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs shrink-0">
+                                  {p.lastName?.[0]}{p.firstName?.[0]}
+                                </div>
                               )}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-slate-700 text-sm">{p.lastName}, {p.firstName}</span>
+                                  <StatusPill status={p.eligibilityStatus} />
+                                </div>
+                                {p.flagReason && (
+                                  <p className="text-xs text-slate-500 mt-0.5">{p.flagReason}</p>
+                                )}
+                                {p.documents?.length > 0 && (
+                                  <div className="mt-2 space-y-2 max-w-xs">
+                                    {p.documents.map((d) => <DocumentView key={d._id} doc={d} />)}
+                                  </div>
+                                )}
+                                {p.eligibilityStatus === "needs_document" && !p.documents?.length && (
+                                  <p className="text-xs text-amber-600 mt-0.5">No document uploaded yet.</p>
+                                )}
+                              </div>
                             </div>
                             {p.eligibilityStatus !== "eligible" && (
                               <div className="flex gap-2 shrink-0">

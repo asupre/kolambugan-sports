@@ -3,10 +3,11 @@ const Team = require('../models/Team');
 const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
 const Sport = require('../models/Sport');
+const Document = require('../models/Document');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
 const { prescreenTeam } = require('../services/prescreen');
-const { uploadPhoto, putFile, sendFile, deleteFile } = require('../config/gridfs');
+const { uploadPhoto, uploadDoc, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
 const router = express.Router();
 
@@ -308,6 +309,90 @@ router.delete('/:id/players/:playerId/photo', authenticate, authorize('barangay_
     res.json({ message: 'Photo removed.' });
   } catch (err) {
     console.error('Photo delete error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// GET /api/teams/needs-documents — barangay admin; players on their teams who still
+// need a residency document, across all their teams this season.
+router.get('/needs-documents', authenticate, authorize('barangay_admin'), async (req, res) => {
+  try {
+    const season = await getCurrentSeason();
+    if (!season) return res.json({ players: [] });
+
+    const teams = await Team.find({ barangay: req.user.barangay, season: season._id }).populate('sport', 'name');
+    const out = [];
+    for (const t of teams) {
+      const links = await TeamPlayer.find({ team: t._id }).populate('player');
+      for (const l of links) {
+        const p = l.player;
+        if (!p) continue;
+        if (p.eligibilityStatus !== 'needs_document' && p.eligibilityStatus !== 'flagged') continue;
+        const docs = await Document.find({ player: p._id }).select('docType verifyStatus createdAt');
+        out.push({
+          playerId: String(p._id),
+          name: `${p.lastName}, ${p.firstName}`,
+          age: p.age,
+          eligibilityStatus: p.eligibilityStatus,
+          flagReason: p.flagReason || '',
+          teamId: String(t._id),
+          teamName: t.teamName,
+          sport: t.sport?.name,
+          documents: docs,
+        });
+      }
+    }
+    res.json({ players: out });
+  } catch (err) {
+    console.error('Needs-documents error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/teams/:id/players/:playerId/documents — upload a residency document.
+// Multipart: field "document", plus docType in the body.
+const DOC_TYPES = ['birth_certificate', 'voters_id', 'barangay_clearance', 'parental_consent'];
+
+router.post('/:id/players/:playerId/documents', authenticate, authorize('barangay_admin'),
+  uploadDoc.single('document'), async (req, res) => {
+  try {
+    const team = await loadOwnedTeam(req, res);
+    if (!team) return;
+    if (!req.file) return res.status(400).json({ message: 'No document uploaded.' });
+    if (!DOC_TYPES.includes(req.body.docType)) {
+      return res.status(400).json({ message: `docType must be one of: ${DOC_TYPES.join(', ')}.` });
+    }
+
+    const link = await TeamPlayer.findOne({ team: team._id, player: req.params.playerId });
+    if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
+
+    const fileId = await putFile('documents', req.file.buffer, `doc-${req.params.playerId}`, req.file.mimetype, {
+      player: String(req.params.playerId),
+    });
+
+    const doc = await Document.create({
+      player: req.params.playerId,
+      docType: req.body.docType,
+      file: fileId,
+      verifyStatus: 'pending',
+    });
+
+    res.status(201).json({ message: 'Document uploaded. The SK Federation will review it.', document: doc });
+  } catch (err) {
+    console.error('Document upload error:', err);
+    res.status(400).json({ message: err.message || 'Could not upload the document.' });
+  }
+});
+
+// GET /api/teams/documents/:docId/file — SUPER ADMIN ONLY. Residency documents are
+// private (IDs, birth certificates) — never public, unlike player photos.
+router.get('/documents/:docId/file', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const doc = await Document.findById(req.params.docId);
+    if (!doc) return res.status(404).json({ message: 'Document not found.' });
+    await sendFile('documents', doc.file, res);
+  } catch (err) {
+    console.error('Document fetch error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

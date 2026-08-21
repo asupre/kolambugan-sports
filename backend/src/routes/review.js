@@ -2,6 +2,7 @@ const express = require('express');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
+const Document = require('../models/Document');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 
@@ -43,7 +44,8 @@ router.get('/queue', async (req, res) => {
   }
 });
 
-// GET /api/review/teams/:teamId — full roster with each player's status for review.
+// GET /api/review/teams/:teamId — full roster with each player's status, photo,
+// and any residency documents they've uploaded, for review.
 router.get('/teams/:teamId', async (req, res) => {
   try {
     const team = await Team.findById(req.params.teamId)
@@ -52,7 +54,14 @@ router.get('/teams/:teamId', async (req, res) => {
     if (!team) return res.status(404).json({ message: 'Team not found.' });
 
     const links = await TeamPlayer.find({ team: team._id }).populate('player');
-    const players = links.map((l) => l.player).filter(Boolean);
+    const players = await Promise.all(
+      links.map((l) => l.player).filter(Boolean).map(async (p) => {
+        const docs = await Document.find({ player: p._id })
+          .select('docType verifyStatus createdAt')
+          .sort({ createdAt: 1 });
+        return { ...p.toObject(), documents: docs };
+      })
+    );
 
     res.json({ team, players });
   } catch (err) {

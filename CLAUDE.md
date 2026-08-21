@@ -23,7 +23,7 @@ score tallying, no public visibility, records lost every season.
 
 ## Stack
 
-- **MongoDB** (Atlas) — primary database. Document storage via **GridFS**.
+- **MongoDB** (Atlas) — primary database. File storage via **GridFS**.
 - **Express.js** — REST API
 - **React.js** — frontend
 - **Node.js** — server
@@ -36,31 +36,40 @@ score tallying, no public visibility, records lost every season.
 
 | Role | Who | What they do |
 |---|---|---|
-| **Super Admin** | SK Federation (1) | Uploads reference list, reviews/approves documents, provisions accounts, sets up tournaments, generates schedules/brackets |
-| **Barangay Admin** | SK Chairperson per barangay (26) | Submits their barangay's team roster + uploads residency documents for players who need them. Does NOT score games. |
-| **Organizer** | Game-day official, **one per sport** (currently 7; count grows if sports are added) | Encodes live scores (+1/+2/+3), fouls, match status. Only for their assigned sport. |
+| **Super Admin** | SK Federation + Head of LYDO (2) | Uploads reference list, reviews/approves documents, provisions accounts, sets up tournaments, generates brackets |
+| **Barangay Admin** | SK Chairperson per barangay (26) | Submits their barangay's team rosters + uploads player photos and residency documents. Does NOT score games. |
+| **Organizer** | Game-day official, **one per sport** (7) | Encodes live scores, fouls, match status. Only for their assigned sport. |
 | **Public Viewer** | Everyone | Read-only. No login. Live scores, standings, brackets, schedules, team lineups, champions archive. |
 
 ---
 
 ## Roster & player rules (CONFIRMED)
 
-- Team size: **minimum 10, maximum 15** players. Enforce on submission.
+- Roster size depends on the sport's **entry format** (see Divisions below):
+  - `team` → **10–15 players** (basketball, volleyball, Mobile Legends)
+  - `doubles` → **exactly 2** (pickleball always; badminton when the season runs doubles)
+  - `singles` → **exactly 1** (billiards, chess; badminton when the season runs singles)
+  Enforced on add-player and on submit (`ROSTER_LIMITS` in routes/team.js).
 - New players / under 15: require **parental consent + supporting documents**.
-- Player fields collected: full name, age, birthdate, **photo**, address.
-  (Photo stored in GridFS. Address is collected but NEVER shown on public
-  routes — public lineups remain surname + age + jersey + stats only.)
+- Player fields collected: full name, birthdate (age derived), **photo**, address,
+  jersey number.
+- **Player photos ARE PUBLIC** (changed Aug 2026 — see CHANGES.md). They appear on
+  the public team roster so viewers can see who plays for a barangay. Standard:
+  **close-up headshot, face clearly visible, plain background**; JPEG/PNG/WebP,
+  max 3 MB. The standard is enforced by UI guidance + Super Admin review, not
+  automatically. Address and birthdate remain PRIVATE — never on public routes.
 - One athlete may join **multiple sports** in a season (schedule permitting)
-  → players↔teams is many-to-many (see team_players).
+  → players↔teams is many-to-many (TeamPlayer).
 - There is a **registration deadline**; teams cannot freely add players
-  mid-tournament (confirm exact deadline handling).
+  mid-tournament (exact deadline handling still open).
 
 ## Super Admin = two parties (CONFIRMED)
 
 The Super Admin role is held by BOTH the **SK Federation** and the
 **Head of LYDO** (Local Youth Development Office). LYDO handles the
 municipality's sports program and is the only body that can obtain the
-COMELEC voters' list. Provision Super Admin accounts accordingly.
+COMELEC voters' list. Both accounts are provisioned (`sk_federation`,
+`lydo_head`).
 
 ## CRITICAL: the verification rule (CONFIRMED by stakeholder)
 
@@ -72,201 +81,237 @@ COMELEC voters' list. Provision Super Admin accounts accordingly.
   Small Banisilon, Matampay, Bubong, Pantaon, Inudaran, San Roque,
   Palao, Sto. Niño, Sucodan, Lumbac.
   Players from the larger barangays play for their OWN barangay.
-  (Store an `allows_cross_barangay` boolean on the barangays collection.)
+  (`allowsCrossBarangay` boolean on the barangays collection.)
 - **Verification is DOCUMENT-based** (confirmed): each player proves
   Kolambugan residency with a Valid ID, Voter's Certification, or Birth
   Certificate. New players / those under 15 also need PARENTAL CONSENT
   plus supporting documents.
 - The COMELEC voters' list can power an automatic pre-check, but it can
-  only be obtained through the **LYDO** (Local Youth Development Office),
-  who handles the sports program and is the only body that can request
-  it from COMELEC. Until/unless obtained, verification runs on uploaded
-  documents + Super Admin review.
+  only be obtained through the **LYDO**. **Still EXPECTED, not in hand**
+  (Aug 2026). Until then, verification runs on the SK Federation's own
+  reference list + uploaded documents + Super Admin review. When the
+  voters' list arrives it drops into the SAME reference-list upload (it is
+  just another CSV) — no code change anticipated beyond column mapping.
+  NOTE: a voters' file is real personal data of real residents. Never commit
+  it, never expose it on public routes, use anonymised data for testing.
 - Super Admin gives the official verdict; approvals persist in
   verified_residents (never overwrite the reference source).
-- The reference list is whatever the SK Federation provides (e.g. last
-  tournament's verified player list) — NOT a COMELEC voters' file and NOT
-  a civil registry. It is uploaded by the Super Admin (CSV) and **replaces**
+- The reference list is uploaded by the Super Admin (CSV) and **replaces**
   the previous list (snapshot semantics).
 - Verification flow:
-  1. Barangay Admin uploads roster → system **auto pre-screens** each player
-     against the reference list immediately (preliminary status shown to
-     the Barangay Admin: eligible / needs document / flagged).
-  2. Players NOT on the list (minors, new players) must upload a residency
-     document (barangay clearance, voter's ID, birth certificate).
+  1. Barangay Admin submits roster → system **auto pre-screens** each player
+     against the reference list immediately (eligible / needs_document / flagged,
+     with `flagReason`).
+  2. Players NOT on the list (minors, new players) upload a residency
+     document via the Barangay Admin's **Document Submission** page.
      Documents are the EXCEPTION, not required for everyone.
-  3. **Super Admin reviews flagged/document cases and gives the official
-     verdict.** Automation assists; the Federation decides.
-  4. Approved players are written to a separate **verified_residents**
-     collection (player, barangay, document ref, approved_by, approved_at).
-     This collection PERSISTS across seasons and is checked alongside the
-     reference list. NEVER write approvals into the reference list itself.
+  3. **Super Admin reviews in the Review Queue** — sees the player's photo and
+     the uploaded document inline — and gives the official verdict
+     (approve / reject). Reject removes the player and REOPENS the roster.
+  4. Verify locks the team (`status: 'verified'`); only verified teams enter
+     tournaments.
+  5. (PENDING) Approved players written to **verified_residents**, which
+     persists across seasons and is checked alongside the reference list.
+     NEVER write approvals into the reference list itself.
 
 ---
 
 ## Tournament format (CONFIRMED by stakeholder + BUILT/TESTED as of Aug 2026)
 
-TWO different formats depending on sport.
+TWO formats, both ending in a single-elimination knockout.
 
-**Mobile Legends (1): GROUP ROUND-ROBIN -> SCALING SINGLE-ELIM + 3RD PLACE.**
-(BUILT AND TESTED end-to-end, including a full 52-team funnel.)
+### Mobile Legends: GROUP ROUND-ROBIN → SCALING SINGLE-ELIM + 3RD PLACE
+**BUILT AND TESTED end-to-end, including a full 52-team funnel.**
 - Phase 1 — Group stage: the Super Admin picks a KNOCKOUT SIZE (Top 8 or
   Top 16), NOT a number of groups. The system ALWAYS makes 8 groups and
   derives how many advance per group:
-    - Top 8  -> 8 groups, top 1 advances each
-    - Top 16 -> 8 groups, top 2 advance each
+    - Top 8  → 8 groups, top 1 advances each
+    - Top 16 → 8 groups, top 2 advance each
   Teams are distributed as evenly as possible across the 8 groups, so ANY
   registration count works (43, 52, odd numbers): the group stage absorbs
   the uneven numbers and the knockout stays a clean power of 2 (NO byes in
-  the knockout, ever). `knockoutSize` (enum [8,16]) stored on the Tournament
-  model. Requires >= knockoutSize verified teams. Round-robin within each
-  group, every pairing once, best-of-1.
-  (This replaced an older "number of groups" dropdown that could produce
-  invalid non-power-of-2 qualifier counts, e.g. 6 groups x top 2 = 12.)
+  the knockout, ever). `knockoutSize` (enum [8,16]) on the Tournament model.
+  Round-robin within each group, every pairing once, best-of-1.
 - Phase 2 — Knockout: SINGLE-ELIMINATION, scales to any power of 2 (8/16/32).
-  Round of N -> ... -> Semifinals -> Grand Final, plus a 3rd-place match.
+  Round of N → … → Semifinals → Grand Final, plus a 3rd-place match.
   Final = BO5; earlier rounds = BO3; 3rd place = BO3 (the two SF losers).
-  Generator computes numRounds = log2(N), builds each round, wires
-  nextMatchWin so winners advance and SF losers route to the 3rd-place match.
+  `numRounds = log2(N)`; wires `nextMatchWin` so winners advance and SF losers
+  route to the 3rd-place match.
 - ML is OPEN division (mixed gender); a barangay MAY field 2 teams.
 
-**Tiebreakers (ML group stage):**
+### ML group-stage tiebreakers — DONE (per-group single-elimination)
 - A cutoff tie = teams sharing the same (wins, gameWinDiff) that spans a
   group's advance line. Ties are ALWAYS resolved WITHIN a group, never
-  across groups (each group advances its own top N; 4 tied groups = 4
-  independent tiebreakers, no shared pool).
-- CURRENT (built + tested to 52-team scale): round-robin playoff among the
-  tied teams; if the playoff itself stays tied, a stable random-draw
-  fallback (hash of team id, consistent across reloads, flagged
-  `resolvedByDraw`) resolves it. Guarantees resolution.
-- DECISION (in progress): REPLACE the round-robin with per-group
-  SINGLE-ELIMINATION (decisive "win or go home"), RANDOM byes for
-  non-power-of-2 tied counts (fair — teams are equal on points). Points
-  decide who is tied; wins decide the tiebreaker. Spots filled = group
-  advance count minus clearly-qualified teams (usually 1; both finalists
-  advance if 2 spots contested). This is the NEXT build.
+  across groups (4 tied groups = 4 independent tiebreakers, no shared pool).
+- **Per-group SINGLE-ELIMINATION playoff** ("win or go home"), replacing the
+  earlier round-robin + random-draw approach. Points decide who is tied;
+  WINS decide the tiebreaker. Byes for non-power-of-2 tied counts are assigned
+  by a stable hash of the team id (`seedOf`) so they survive reloads — teams are
+  equal on points, so the draw is fair.
+- Spots filled = group advance count − clearly-qualified teams (usually 1;
+  if 2 spots are contested, BOTH finalists advance).
+- Tiebreaker matches: `bracket:'group'`, `isTiebreaker:true`, `round 100+`.
+  The result route advances them through rounds; qualification reads the
+  bracket winner(s). Single-elim always resolves, so `resolvedByDraw` is gone.
 
-**Physical sports (5 live-scored): 4 GROUPS -> DOUBLE-ELIM PER GROUP -> TOP 8
-KNOCKOUT. — GROUP GENERATOR BUILT/TESTED (Aug 2026); integration next.**
-(CONFIRMED by stakeholder: 4 groups, "win 3 -> Big 8, lose 2 -> out". This
+### Physical sports (Basketball, Volleyball, Badminton, Pickleball, Billiards):
+### 4 GROUPS → DOUBLE-ELIM PER GROUP → TOP 8 KNOCKOUT — **BUILT AND TESTED**
+(CONFIRMED by stakeholder: 4 groups, "win 3 → Big 8, lose 2 → out". This
 SUPERSEDES the earlier "no group stage / one straight double-elim bracket" note,
 which contradicted the meeting notes.)
-- Phase 1 — Group stage: verified teams (per division) are split into 4 groups
-  (A/B/C/D), distributed as evenly as possible. Each group runs its OWN
-  DOUBLE-ELIMINATION bracket: one loss drops you to the losers bracket, a second
-  loss eliminates you.
-- Two qualifiers per group: the UPPER-bracket winner (0 losses) and the
-  LOWER-bracket winner (1 loss). They do NOT play an in-group grand final —
-  both advance. Win-count to qualify FLEXES with group size (byes for
-  non-power-of-2 groups); the literal "3 wins" is descriptive, not hardcoded.
-- 4 groups x 2 qualifiers = 8 -> Phase 2.
-- Phase 2 — Knockout (a.k.a. elimination round): the 8 qualifiers play the SAME
-  scaling SINGLE-ELIMINATION Top 8 bracket ML uses (reused, not rebuilt) ->
-  champion.
-- Generator: generateGroupDoubleElim(tournamentId, group, orderedIds) builds one
-  group's upper+lower brackets with byes and nextMatchWin/nextMatchLose wiring,
-  returns { matches, upperFinal, lowerFinal }. Proven by simulation (5000+ random
-  playthroughs, N=3..16, always exactly 2 correct qualifiers) and tested live via
-  the temp POST /:id/test-de route (7-team group -> 11 matches -> clean 2-qualifier
-  finish). Result route already advances winners/losers correctly.
+- Phase 1 — Group stage: verified teams **of one division** are split into 4
+  groups (A/B/C/D), as evenly as possible. Minimum 12 verified teams (3 per
+  group). Each group runs its OWN DOUBLE-ELIMINATION bracket: one loss drops you
+  to the losers bracket, a second loss eliminates you.
+- Two qualifiers per group: the UPPER-bracket winner (0 losses, **seed 1**) and
+  the LOWER-bracket winner (1 loss, **seed 2**). They do NOT play an in-group
+  grand final — both advance. Win-count to qualify FLEXES with group size (byes
+  for non-power-of-2 groups); the literal "3 wins" is descriptive, not hardcoded.
+- 4 groups × 2 qualifiers = 8 → Phase 2.
+- Phase 2 — Knockout ("elimination round"): single-elimination Top 8 + 3rd place,
+  with **STANDARD SEEDING** so same-group teams cannot meet before the final and
+  the four group winners are spread across the bracket:
+  **A1–B2, C1–D2, B1–A2, D1–C2**.
 - Billiards is scored per match as a plain win (organizer enters the score,
-  winner advances) — no live per-point tapping.
+  winner advances) — no live per-point tapping. It still uses the full bracket.
 - Ties for advancement broken by a PLAYOFF match (NOT point difference).
+
+**Key routes / functions (backend/src/routes/tournament.js):**
+- `generateGroupDoubleElim(tournamentId, group, orderedIds)` — builds one group's
+  upper+lower brackets with byes and win/lose wiring; returns
+  `{ matches, upperFinal, lowerFinal }`. Proven by simulation (5000+ random
+  playthroughs, N=3..16, always exactly 2 correct qualifiers) and live-tested
+  (24 teams → 4 groups → played out → 8 qualifiers → Top 8 → champion + 3rd).
+  A 2-team group is a special case: one decider match, both teams qualify.
+- `POST /generate` — body `{ sportId, division }`. Physical branch: 4 groups +
+  double-elim per group. ML branch: 8 groups + round-robin. One tournament per
+  **(sport, season, division)**.
+- `GET /:id/de-qualification` — per group, the 2 qualifiers tagged with seed.
+- `POST /:id/de-bracket` — reads those 8 and builds the standard-seeded Top 8.
+- `GET /:id/qualification` + `POST /:id/tiebreakers` — the ML (round-robin) path.
+
+**BRACKET LABELS (important — they are NOT interchangeable):**
+- Group stage: `winners` / `losers` (double-elim), `group` (ML round-robin and
+  tiebreakers)
+- Finals: `knockout` / `ko_final` / `ko_third` (physical sports Top 8)
+- ML knockout still uses `winners` / `final` / `third`
+This separation exists because group-stage upper brackets and the Top 8 both used
+to be `winners`, which broke match counts and made the two indistinguishable.
 
 **Advancement is SCORE-DRIVEN, never organizer-chosen (integrity):**
 - The bracket SKELETON is generated and LOCKED at draw time — every slot and
-  the routing (nextMatchWin / nextMatchLose) is predetermined by structure.
-- The Organizer enters ONLY the match score. The system derives the winner
-  (score_a vs score_b) and routes BOTH teams automatically. The Organizer
-  never picks who advances.
-- All results appear on the public dashboard + audit trail (who entered each
-  score, when). Prevents a dishonest organizer from advancing the wrong team.
-- NOTE: the result route currently advances only bracket in
-  [winners, losers, final]. Tiebreaker matches use bracket:'group'
-  (isTiebreaker:true, round 100+) — the single-elim tiebreaker rebuild must
-  handle advancing them through rounds.
+  the routing (`nextMatchWin` / `nextMatchLose`) is predetermined by structure.
+- The Organizer enters ONLY the match score. The system derives the winner and
+  routes BOTH teams automatically. The Organizer never picks who advances.
+- All results appear on the public dashboard + audit trail (`enteredBy`,
+  `enteredAt`). Prevents a dishonest organizer from advancing the wrong team.
+- The result route advances: `isTiebreaker` matches (winner only), and
+  `winners` / `losers` / `final` / `knockout` / `ko_final`. `final` and
+  `ko_final` also mark the tournament completed and name the champion.
 
-**Per-match best_of:** dropdown set by Organizer (1/3/5/7), default 1.
-matches hold a games[] array + series_winner. ML knockouts use BO3/5.
+**Per-match best_of:** 1/3/5/7, default 1. Matches hold a `games[]` array +
+`seriesWinner`. ML knockouts use BO3/BO5.
 
-**Unavailable team = FORFEIT** (confirmed). No reschedule/re-pair; a
-no-show forfeits the match. (There is a registration deadline.)
+**Unavailable team = FORFEIT** (confirmed). No reschedule/re-pair.
 
-**Also recorded per match:** fouls, individual player points, MVP.
-
-**Divisions (boys/girls) — partly built.**
-Some sports run SEPARATE boys' and girls' brackets (volleyball confirmed
-divided; the rest single/open). Modeled with `isDivided` (Boolean) on the
-Sport model + a `division` field (boys/girls/open) on Team. PATCH
-/api/sports/divisions (super_admin) sets it; surfaced via a modal when the
-Super Admin clicks "Open Registration" (global setting, shown at that
-moment). STILL PENDING: registration picks division for divided sports
-(needs the Barangay frontend); divided bracket generation (two brackets per
-divided sport, filtered by division).
-
-## Data model (MongoDB collections)
-
-```
-seasons            _id, name ("2026 Season"), status ∈ {setup,
-                   registration_open, verification, ongoing, completed},
-                   opened_by, opened_at, closed_at
-champions_archive  _id, season_id, sport_id, champion_team_id,
-                   runner_up_team_id, final_standings_snapshot
-barangays          _id, name, allows_cross_barangay (bool)
-users              _id, barangay_id(FK, nullable), username, password_hash,
-                   role ∈ {super_admin, barangay_admin, organizer},
-                   assigned_sport(FK, for organizers), must_change_password
-sports             _id, name, category
-teams              _id, barangay_id, sport_id, team_name, status
-players            _id, first_name, last_name, birthdate, age,
-                   photo_gridfs_id, address, eligibility_status
-team_players       _id, player_id(FK), team_id(FK)   ← MANY-TO-MANY:
-                   one athlete may play multiple sports/teams in a season
-                   (confirmed: "depends on his/her schedule")
-documents          _id, player_id, doc_type, gridfs_file_id, verify_status,
-                   reviewed_by, reviewed_at
-reference_list     _id, first_name, last_name, birthdate?, barangay,
-                   season, uploaded_by, uploaded_at   ← replaced per upload
-verified_residents _id, first_name, last_name, barangay, document_id,
-                   approved_by, approved_at           ← persists forever
-tournaments        _id, sport_id, season, stage ∈ {round_robin, elimination},
-                   groups (e.g. [A,B,C,D]), advance_per_group, format_notes
-matches            _id, tournament_id, stage, round, bracket
-                   (winners|losers|final, for double-elim), group(nullable),
-                   team_a_id, team_b_id, organizer_id,
-                   best_of (1|3|5|7, default 1),
-                   games: [ {game_no, score_a, score_b, fouls_a, fouls_b,
-                             winner} ],
-                   series_winner(nullable), mvp_player_id(nullable),
-                   next_slot_win(FK match), next_slot_lose(FK match),
-                   match_status ∈ {scheduled, ongoing, completed, forfeited},
-                   is_tiebreaker(bool), schedule,
-                   entered_by, entered_at   ← audit trail
-player_match_stats _id, match_id, player_id, points, fouls
-```
-
-RESOLVED: one athlete CAN be on teams in multiple sports the same season
-(schedule permitting) → players↔teams is the many-to-many team_players
-collection above.
+**Also recorded per match:** fouls, individual player points, MVP
+(PlayerMatchStats — model exists, nothing writes to it yet).
 
 ---
 
-## Accounts & authentication (decided)
+## Divisions & entry formats (BUILT Aug 2026)
 
-- **No self-registration anywhere.** All accounts are seeded/provisioned.
-- Super Admin panel lists all accounts (26 barangay + 7 organizer) with their
-  credentials so the Super Admin can distribute them via Messenger/text.
-- Initial passwords are **randomly generated per account** — NEVER a
-  predictable pattern like the barangay name. Usernames may be the barangay
-  name (usernames are not secrets).
-- **Force password change on first login** (`must_change_password` flag).
-- Super Admin can **reset any account's password** from the panel.
-- Login page is a separate, unlinked route (e.g. /admin/login) — there is
-  NO login/register button on the public viewer. Treat the hidden route as
-  UX, not security: real security = JWT, RBAC middleware, bcrypt, and
-  **rate-limiting on the login endpoint**.
-- Public routes require no auth token. Private data (documents, player
-  personal info beyond surname/age) must never appear on public routes.
+Each sport runs **one bracket per division**, and a division's roster size comes
+from the sport's **entry format**. Both are per-season settings the Super Admin
+decides (currently seeded by `src/config/seedSportConfig.js` — the config UI is
+still to build).
+
+**Sport model:** `divisions: [String]` (which divisions run this season) and
+`entryFormat: 'team' | 'singles' | 'doubles'`.
+**Team model:** `division` (`open` | `boys` | `girls` | `under17` | `under30`)
+and `format` (`team` | `singles` | `doubles`).
+**Tournament model:** `division` — one tournament per (sport, season, division).
+
+| Sport | Divisions | Entry format | Brackets |
+|---|---|---|---|
+| Basketball | under17, under30 | team | 2 |
+| Volleyball | boys, girls | team | 2 |
+| Badminton | boys, girls | **singles OR doubles — Super Admin picks per season** | 2 |
+| Pickleball | boys, girls | doubles (always) | 2 |
+| Billiards | open | singles (1 player per barangay) | 1 |
+| Chess | open | singles | 1 |
+| Mobile Legends | open | team (up to 2 teams per barangay) | 1 |
+
+- Basketball's split is by **age**, not gender. Badminton runs **one** format per
+  season (not both simultaneously). Pickleball is doubles-only.
+- Registration rule: **one team per (barangay, sport, season, division)** — so a
+  barangay can enter both under17 and under30. ML still allows 2 teams.
+- A division only becomes a bracket if enough barangays entered it.
+
+---
+
+## Data model (actual Mongoose fields — camelCase)
+
+```
+Season         name, status ∈ {setup, registration_open, verification,
+               ongoing, completed}, openedBy, openedAt, closedAt
+Barangay       name, allowsCrossBarangay
+User           username, passwordHash, role ∈ {super_admin, barangay_admin,
+               organizer}, barangay(FK|null), assignedSport(FK|null),
+               mustChangePassword
+Sport          name, category ∈ {physical, esports}, tournamentFormat,
+               isDivided, divisions[], entryFormat
+Team           teamName, barangay, sport, season, status ∈ {pending, verified,
+               rejected}, submittedAt, division, format
+Player         firstName, middleName, lastName, birthdate, age, photo(GridFS id),
+               address, jerseyNumber, eligibilityStatus ∈ {pending, eligible,
+               needs_document, flagged}, flagReason
+TeamPlayer     team, player            ← many-to-many, unique(team, player)
+Document       player, docType ∈ {birth_certificate, voters_id,
+               barangay_clearance, parental_consent}, file(GridFS id),
+               verifyStatus ∈ {pending, approved, rejected}, reviewedBy,
+               reviewedAt
+ReferenceList  (replaced per upload — snapshot semantics)
+Tournament     sport, season, division, stage ∈ {group_stage, elimination,
+               completed}, format ∈ {double_elimination, round_robin},
+               groups[], advancePerGroup, knockoutSize ∈ {8,16}
+Match          tournament, bracket ∈ {winners, losers, final, group, third,
+               knockout, ko_final, ko_third}, round, group, teamA, teamB,
+               organizer, bestOf ∈ {1,3,5,7}, games[{gameNumber, scoreA,
+               scoreB, winner}], seriesWinner, nextMatchWin, nextMatchLose,
+               isTiebreaker, status ∈ {scheduled, ongoing, completed,
+               forfeited}, schedule, enteredBy, enteredAt
+PlayerMatchStats  match, player, points, fouls   ← unique(match, player);
+                  NOTHING WRITES TO THIS YET (organizer screen pending)
+```
+
+GridFS buckets: **`photos`** (public) and **`documents`** (super-admin only).
+Kept separate on purpose so a bug in one route cannot expose the other.
+
+---
+
+## Accounts & authentication (BUILT)
+
+- **No self-registration anywhere.** All accounts are provisioned.
+- Super Admin **Accounts panel**: lists all accounts by role with their
+  password status; "Provision all" fills any missing barangay-admin /
+  organizer accounts; "Add an account" for anything else (e.g. a second
+  super admin); per-account "Reset password"; guarded delete.
+- **Temp passwords are shown exactly ONCE**, at creation or reset — bcrypt is
+  one-way, so they cannot be retrieved later. The Super Admin copies and
+  distributes them (Messenger/text). Copy button copies the password only.
+- Passwords are **randomly generated per account** — never a predictable
+  pattern. Usernames may be the barangay/sport name (usernames are not secrets).
+- **Force password change on first login** (`mustChangePassword`).
+- **Delete is guarded**: refuses if the account has entered any match result
+  (would orphan the `enteredBy` audit trail) and refuses to delete the last
+  super admin.
+- Real security = JWT + RBAC middleware + bcrypt + **rate-limited login**.
+  The frontend has no route guards yet (a role guard is a small polish item) —
+  but the API rejects unauthorized calls, so no data leaks; an unauthorized
+  user just sees an empty shell. Verified by testing.
+- Token expiry is 8h; an expired token currently shows "Authentication required"
+  instead of redirecting to login (polish item).
 
 ---
 
@@ -276,17 +321,18 @@ collection above.
 - Deep navy background (#0A1628-ish; brand navy #0E2340, gold #F5A524)
 - Solid dark cards (#111C2E) — NO backdrop-blur/glassmorphism (low-end phones)
 - Thin colored accent line per card, color-coded BY SPORT
-- Display font: Chakra Petch or Orbitron (Google Fonts) for headings/scores;
-  Inter for body
+- Display font: Chakra Petch or Orbitron for headings/scores; Inter for body
 - Status pill badges with dot indicators (● LIVE, ● 26 BARANGAYS)
 - Minimal animation — at most a subtle transition on live score updates
 - NEVER use Mobile Legends / Moonton art or any copyrighted game assets.
-  Background: darkened photo of a local venue or a geometric pattern.
-- Public lineups show **surname + age + jersey + stats only**. No birthdate,
-  no address, no documents.
+- Public lineups show **surname, age, jersey, stats, and photo**. NO birthdate,
+  NO address, NO documents.
 
 **Admin pages (Super Admin, Barangay Admin, Organizer) — shadcn/ui style:**
-- Clean, light, functional dashboard components (shadcn/ui with Tailwind)
+- Clean, light, functional dashboard components
+- Currently hand-rolled Tailwind + `components/ui.jsx`
+  (Button/Card/Input/Label/Pill) and a generic `AdminLayout` that takes a
+  `menu` prop. shadcn/ui restyle deferred to one pass later.
 - Organizer's scoring screen is tablet/phone-first (big touch targets)
 
 Everything mobile-first and responsive. Public users are on phones.
@@ -295,29 +341,27 @@ Everything mobile-first and responsive. Public users are on phones.
 
 ## Feature priorities (MoSCoW)
 
-**Must:** auto pre-screen verification vs reference list + Super Admin
-review/approval queue; roster submission w/ conditional document upload;
-round-robin generator + elimination bracket seeding; real-time live scoring;
-public dashboard (scores, standings, brackets, schedules, lineups, champions
-archive); account provisioning panel; in-app first-login instruction modal
-(promised in the thesis — REQUIRED).
+**Must:** auto pre-screen verification + Super Admin review queue ✅; roster
+submission w/ conditional document upload ✅; bracket generation ✅; real-time
+live scoring ⬜; public dashboard ⬜; account provisioning panel ✅; in-app
+first-login instruction modal ⬜ (promised in the thesis — REQUIRED).
 
-**Should:** RBAC across all roles; permanent champions/history archive;
-password reset from Super Admin panel; reschedule with audit trail.
+**Should:** RBAC across all roles ✅ (API) / ⬜ (frontend guards); permanent
+champions archive ⬜; password reset from Super Admin panel ✅; reschedule with
+audit trail ⬜.
 
 **Could:** PDF exports, municipal branding, announcement banners.
 
-**Won't (do not build):** player self-registration, payments, native mobile
-apps.
+**Won't (do not build):** player self-registration, payments, native mobile apps.
 
 ## The 7 sports
 Basketball, Volleyball, Badminton, Mobile Legends, Billiards, Chess, Pickleball.
 
 ## Conventions
 - Never commit secrets (.env, gitignored). Never seed real resident names
-  into the repo.
+  into the repo. A `dev-setup.ps1` holding a password must be gitignored.
 - Residency documents live in GridFS, served only through authenticated,
-  role-checked routes.
+  role-checked routes. Player photos are public by decision (Aug 2026).
 - Log deviations from the thesis document in CHANGES.md as you build —
   the document gets trued-up in early September.
 
@@ -333,7 +377,6 @@ Timeline: started Jan 2026; proposal defense Mar 2026; revisions Apr–Jul;
 development Jul–Aug; testing Aug–Sep; ONLINE evaluation Sep (~33
 respondents); deployment Sep–Oct; FINAL DEFENSE OCTOBER 2026.)
 
-
 ## 1. Thesis document work (COMPLETED)
 
 - Rebuilt Chapter 3 to match the professor's PPT guide:
@@ -344,9 +387,8 @@ respondents); deployment Sep–Oct; FINAL DEFENSE OCTOBER 2026.)
   - Filled Evaluation gaps: **Research Instrument, Data Collection,
     Validity & Reliability** (expert validation + Cronbach's alpha >= .70
     via pilot test).
-  - Fixed stale two-role wording ("SK Federation and Table Officials")
-    to the four-role model; Design section now names all diagrams and
-    states draw.io as the tool.
+  - Fixed stale two-role wording to the four-role model; Design section now
+    names all diagrams and states draw.io as the tool.
 - **Data Collection rewritten for ONLINE evaluation**: system deployed
   first; per-role accounts; credentials + Google Forms link distributed
   via SK Federation channels; in-app instruction modal orients users
@@ -355,244 +397,246 @@ respondents); deployment Sep–Oct; FINAL DEFENSE OCTOBER 2026.)
 - Course name swept to **BSCS / Computer Science** everywhere (the only
   "Information Technology" strings left are journal titles in references
   — correct, do not change).
-- Gantt chart finalized (Jan–Oct 2026, Thesis 1 blue / Thesis 2 green /
-  continuous orange). Logic order enforced: Testing overlaps Dev;
-  Evaluation AFTER Testing; Ch. 4–5 AFTER Evaluation (can't write
-  results before results exist); Final Defense Oct.
+- Gantt chart finalized (Jan–Oct 2026). Testing overlaps Dev; Evaluation
+  AFTER Testing; Ch. 4–5 AFTER Evaluation; Final Defense Oct.
   Files: gantt_final.png / gantt_fixed.xlsx / gantt_final.pdf.
   User must paste PNG over the placeholder in Scheduling section.
 
-## 2. Diagrams (mostly COMPLETED)
+## 2. Diagrams
 
 - Delivered as PNG+PDF: **Use-Case** (4 actors), **ERD** (crow's foot),
-  **DFD Level 0 (Context)**, **DFD Level 1** (5 processes, 6 stores;
-  geometrically audited; one line-hop; fixed a store→store violation).
-- Old pre-Organizer diagrams from the user (flowchart, 2 HIPOs, ERD,
-  DFDs) still need updating to 4 roles. **HIPO now needs a 3rd chart
-  (Organizer)** — still PENDING.
-- Teaching points covered: use-case include/extend; DFD golden rule
-  (every flow touches a process); Level 0 vs Level 1; ERD = logical
-  model even though MongoDB is document-based.
+  **DFD Level 0 (Context)**, **DFD Level 1** (5 processes, 6 stores).
+- **HIPO charts: ALL THREE DONE** (Super Admin, Barangay Admin, Organizer) —
+  the missing Organizer chart has been drawn.
+- HIPO items that do NOT match the built system (fix the charts or the code):
+  - Barangay Admin "Team Registration" has no **Select Division** step, but
+    division choice is now required (basketball u17/u30, badminton boys/girls…).
+  - Barangay Admin "Attach Official Roster File" — no such feature exists.
+  - Super Admin "Upload Voters Masterlist" — currently the SK Federation's own
+    reference list (voters' list still pending via LYDO).
+  - Super Admin "Select Format (Double Elim / Round Robin)" — now automatic,
+    derived from the sport, not a choice.
+- Old pre-Organizer diagrams (flowchart, ERD, DFDs) still need updating to 4 roles.
 
 ## 3. Stakeholder engagement (IN PROGRESS)
 
-- User initially admitted NO real LGU contact despite Ch.3 claims.
-  Chose "Path A": make the claims true by actually meeting stakeholders.
-- DM'd SK Federation President **Hon. Jay Ann Reserva**; meeting at her
-  house, letter dated **July 20, 2026**.
-- Delivered for the meeting:
-  - **Permission-Letter-FINAL.docx** — user's version (school logo,
-    BSCS) + edit for ONLINE evaluation wording. One page. She signs
-    "APPROVED/CONFORME"; group + adviser sign; print 2 copies.
-  - **Interview-Guide.docx** (5 pp, checkboxes) + a trimmed question
-    list; critical asks: what reference list exists; confirm Dayo rule;
-    round robin advance-count & tie-breaks; September respondents
-    commitment; signature; contact/group-chat access.
-  - **TAM-Evaluation-Questionnaire.docx** — consent, role-only ID
-    (anonymous), 17 Likert items (Usefulness 6 / Ease of Use 6 /
-    Trust & Security 5), comments. Needs adviser content validation
-    before September. Will become a Google Form (role dropdown,
-    required items, 5→1 scale).
-- **MEETING DONE (July 20, 2026). Hon. Reserva validated the system,
-  will sign, and will endorse the Sept online evaluation in the group
-  chat.** Key answers:
+- **MEETING DONE (July 20, 2026)** with SK Federation President
+  **Hon. Jay Ann Reserva**. She validated the system, will sign the permission
+  letter, and will endorse the Sept online evaluation in the group chat.
+  Key answers:
   - Verification is DOCUMENT-based (Valid ID / Voter's Certification /
     Birth Cert per player); under-15/new also need parental consent.
   - Cross-barangay play allowed ONLY for a whitelist of small/remote
-    barangays (see verification section). Dayo = outside Kolambugan.
-  - Voters' list can only be obtained via **LYDO** (handles sports;
-    can request from COMELEC). Need to present the system to LYDO.
-  - Physical sports = DOUBLE ELIMINATION (win 3 → Big 8; lose 2 → out).
-    Mobile Legends = grouped round robin. Ties → playoff match.
-  - Split into groups. Unavailable team = forfeit.
-  - Roster 10–15 players. Multi-sport players allowed. Registration
-    deadline exists. Collect name/age/birthdate/photo/address.
-  - Record fouls, player points, MVP.
+    barangays. Dayo = outside Kolambugan.
+  - Voters' list only via **LYDO**. Need to present the system to LYDO.
+  - Physical sports = DOUBLE ELIMINATION (win 3 → Big 8; lose 2 → out),
+    **split into groups**. ML = grouped round robin. Ties → playoff match.
+  - Roster 10–15 players (team sports). Multi-sport players allowed.
+    Registration deadline exists. Collect name/age/birthdate/photo/address.
+  - Record fouls, player points, MVP. Unavailable team = forfeit.
   - Super Admin = SK Fed + Head of LYDO.
-  - NEW ACTION: prepare a **separate permission letter for LYDO** to
-    present the system and request the voters' list.
+- Documents prepared: Permission-Letter-FINAL.docx, Interview-Guide.docx,
+  TAM-Evaluation-Questionnaire.docx (17 Likert items; needs adviser content
+  validation, then becomes a Google Form).
+- **NEXT ACTION: separate permission letter for LYDO** to present the system
+  and request the voters' list.
 
 ## 4. Prototype (COMPLETED, for demo)
 
-- 4-page offline HTML prototype in "PROTOTYPE PROPOSAL" folder:
-  viewer / brgy-admin / organizer / super-admin + shared.css +
-  shared.js + sample-roster-baybay.csv + sample-voters-masterlist.csv.
-- REAL logic, not fake: CSV parsing, masterlist upload, cross-check,
-  conditional flags, localStorage state shared across pages (score
-  tapped in Organizer appears in Public Viewer), Reset demo buttons.
+- 4-page offline HTML prototype in "PROTOTYPE PROPOSAL" folder with REAL logic
+  (CSV parsing, cross-check, localStorage state shared across pages).
 - KNOWN STALE RULE: prototype flags by barangay mismatch; real rule is
   municipality-level. Demo disclaimer prepared.
-- User later redesigned/extended it himself (works, his version).
-  Claude Design mockups (Kolambugan_Sports_Portal.pptx) reviewed: good,
-  3 fixes noted (invented "civil registry 28,545", "address mismatch"
-  flag reason, "proof of billing" doc type — none exist in our design).
+- Never let Claude Code touch the prototype folder.
 
 ## 5. Core domain decisions and WHY (the important part)
 
-- **Dayo rule is MUNICIPALITY-level.** Players from any Kolambugan
-  barangay may play for any other barangay (allowed, no per-team
-  limits). Only players from OUTSIDE Kolambugan are ineligible.
-  (Corrected mid-project — earlier barangay-level design was wrong.)
-- **Reference list = SK Federation's own list** (e.g. last tournament's
-  verified players) — NOT COMELEC, NOT civil registry (unobtainable).
-  Uploaded by Super Admin; REPLACES prior list (snapshot semantics).
-- **Verification = automated pre-screen + human verdict.** Auto-check
-  runs on roster upload (instant preliminary status for the barangay);
-  Super Admin gives official verdict. Defense line: "the system
-  automates verification; the Federation's review is governance."
-  Documents are the EXCEPTION — only for players not on the list
-  (minors, new players). Approvals persist in **verified_residents**
-  (separate collection; NEVER write into the reference list, which
-  gets replaced and would erase approvals; also keeps the official
-  list clean + gives audit trail: who approved, when, on what doc).
+- **Dayo rule is MUNICIPALITY-level.** Only players from OUTSIDE Kolambugan
+  are ineligible. (Corrected mid-project — barangay-level was wrong.)
+- **Reference list = SK Federation's own list**, uploaded by Super Admin,
+  REPLACES prior list. Voters' list expected via LYDO but not in hand.
+- **Verification = automated pre-screen + human verdict.** Defense line:
+  "the system automates verification; the Federation's review is governance."
+  Documents are the EXCEPTION — only for players not on the list.
+  Approvals persist in **verified_residents** (separate collection; NEVER
+  write into the reference list, which gets replaced and would erase them).
 - **Storing the list in MongoDB is MORE secure** than the current
   Messenger/USB practice (auth-gated, HTTPS, Atlas encryption, audit).
-  Never on public routes; never seeded into the repo.
-- **Public lineups show surname + age + jersey + stats ONLY.**
-  Stakeholder wanted lineups; privacy concern (minors) resolved by
-  excluding birthdate/address/documents from public routes.
-- **Accounts are provisioned, never self-registered.** 26 barangay +
-  7 organizer accounts seeded; listed on Super Admin panel for manual
-  distribution (Messenger/text). Random per-account passwords (NOT
-  barangay-name patterns — one formula cracks all 26), forced change
-  on first login, Super Admin reset button. Hidden /admin/login route
-  is UX not security; real security = JWT + RBAC + bcrypt +
-  rate-limited login. No login button on the public viewer.
-- **Organizer count is dynamic**: one per sport (7 now, grows).
+- **Player photos are PUBLIC** (Aug 2026 decision, changed from the original
+  "surname + age + jersey + stats only" rule). Rationale: public viewers want
+  to see who plays for their barangay, and photos double as identity
+  verification for the Federation. Mitigation: a headshot standard (close-up
+  face only), and address/birthdate/documents remain private. **This reverses
+  a privacy decision originally made with minors in mind — worth confirming
+  with Hon. Reserva, and it must be trued up in the thesis document.**
+- **Documents stay PRIVATE** — super-admin-only route, separate GridFS bucket.
+  A plain `<img src>` cannot fetch them (no auth header), so the Review Queue
+  fetches with the token and renders a blob URL.
+- **Accounts are provisioned, never self-registered.** Random per-account
+  passwords, forced change on first login, shown once, Super Admin reset.
+- **Organizer count is dynamic**: one per sport (7). An earlier seed created
+  two ML organizers; corrected to one — `assignedSport` is a single sport, and
+  provisioning enforces one organizer per sport.
 - **Season lifecycle**: ONE season covers all 7 sports.
   setup → registration_open → verification → ongoing → completed.
-  Only Super Admin advances state. Gate features in BACKEND middleware;
-  always allow login (waiting screen otherwise). completed = read-only
-  "aftermath" public view + writes champions_archive (Objective #4).
-- **Tournament format** (UPDATED Aug 2026 — see the full "Tournament format"
-  section above for the authoritative version):
-  - Mobile Legends: group round-robin -> SCALING single-elim knockout
-    (Top 8 or Top 16, chosen via a knockout-size picker; always 8 groups)
-    + a 3rd-place match. BUILT AND TESTED (incl. a 52-team funnel).
-    Per-match best_of dropdown (1/3/5/7); ML knockouts use BO3/BO5.
-  - Physical sports (6): DOUBLE ELIMINATION — now IN SCOPE and the next big
-    build (arbitrary-N generator with byes + losers-bracket wiring). This
-    SUPERSEDES the earlier "double elimination OUT OF SCOPE" note.
-  - Group-stage ties resolved WITHIN each group (round-robin playoff +
-    random-draw fallback today; per-group single-elim is the next rebuild).
-- **Design system is split**: Public Viewer = R7-inspired dark sports
-  theme (deep navy bg ~#0A1628, brand #0E2340 + gold #F5A524, solid
-  dark cards #111C2E — NO glassmorphism for low-end phones, per-sport
-  accent lines, Chakra Petch/Orbitron + Inter, pill badges, minimal
-  animation, NEVER Moonton/MLBB art). Admin pages = shadcn/ui style,
-  light and functional. Everything mobile-first (in the thesis).
-- **Scope discipline**: MoSCoW governs additions. Stakeholder-requested
-  => add + update doc. "Cool idea while coding" => Future Enhancements
-  list (feeds Ch.5). Won't-haves stay out: self-registration, payments,
-  native apps.
+  Only Super Admin advances state; gates enforced in BACKEND middleware.
+- **Physical-sport structure took several passes to pin down.** The spec once
+  said "no group stage, one straight double-elim bracket" while the meeting
+  notes said "split into groups, win 3 → Big 8." The meeting notes were right.
+  Final: 4 groups → double-elim per group → 2 qualifiers each → Top 8.
+- **Top 8 uses standard seeding, not a random draw**, so two teams from the
+  same group cannot rematch in round 1 and the four group winners don't
+  eliminate each other early. Defense line: "group winners are seeded against
+  other groups' runners-up."
+- **Scope discipline**: MoSCoW governs additions. Stakeholder-requested =>
+  add + update doc. "Cool idea while coding" => Future Enhancements (Ch.5).
 
 ## 6. Ways of working (agreed)
 
-- **Backend first**, then frontend against the real API.
-- User writes code WITH this chat (wants to understand every line for
-  the defense); **Claude Code = bug fixer / frontend scaffolder**,
-  briefed via CLAUDE.md (it has NO access to this conversation).
-  Feed it CLAUDE.md + mockup images + specific instructions; one page
-  or module at a time; never let it touch the demo prototype folder.
-- Keep a **CHANGES.md** deviation log during development; true up the
-  thesis document in EARLY SEPTEMBER (not October).
-- Update CLAUDE.md whenever a decision changes here.
+- **Backend first**, verify in PowerShell, then frontend against the real API.
+- Prove risky algorithms in a sandbox simulation BEFORE writing DB code —
+  this is how the double-elim generator was validated (5000+ random trials)
+  before a single Mongoose call.
+- User writes code WITH this chat (wants to understand every line for the
+  defense); **Claude Code = bug fixer / frontend scaffolder**, briefed via
+  CLAUDE.md (it has NO access to the chat). One page or module at a time;
+  review every diff; commit before and after; never let it touch the
+  tournament engine or the prototype folder.
+- Keep **CHANGES.md** current; true up the thesis in EARLY SEPTEMBER.
+- Update CLAUDE.md whenever a decision changes.
 
-## 7. PENDING / NEXT
+## 7. PENDING / NEXT (project level)
 
-1. **LYDO meeting**: present the system to LYDO (they handle sports and
-   can obtain the COMELEC voters' list). Bring the separate LYDO letter.
-2. **Backend build**: LARGELY DONE (auth, season state machine, rosters,
-   verification, review queue, ML tournament engine, dashboard stats).
-   See "CURRENT BUILD STATUS" at the end of this file for exactly what's
-   done vs pending.
-3. **HIPO charts** (3, incl. Organizer) + update old diagrams to 4 roles.
-4. Adviser validation of TAM questionnaire; build the Google Form.
-5. Paste Gantt PNG into the document placeholder; figure numbering.
+1. **LYDO meeting** — present the system, request the voters' list.
+2. **HIPO/diagram fixes** listed in section 2; update old diagrams to 4 roles.
+3. Adviser validation of TAM questionnaire; build the Google Form.
+4. Paste Gantt PNG into the document placeholder; figure numbering.
+5. **Confirm the public-photo decision** with Hon. Reserva (minors).
 6. September critical path: deploy early Sep (Render/Vercel + Atlas),
-   distribute credentials, instruction modal, chase 33/35 responses via
-   Reserva's group-chat endorsement.
+   distribute credentials, instruction modal, chase 33/35 responses.
 
 ## Open questions (remaining)
-- Exact registration-deadline handling (can a team ever substitute an
-  injured player after the deadline?).
-- Big-8 advance count per group for Mobile Legends round robin.
-- Whether LYDO grants the COMELEC voters' list, and in what format
-  (decides how much of verification is automated vs document-review).
+- Exact registration-deadline handling (substitutions after the deadline?).
+- Whether LYDO grants the COMELEC voters' list, and in what format.
+- Whether the SK is comfortable with public player photos (minors).
 
 ---
 ---
 
-# PART III — CURRENT BUILD STATUS (as of Aug 14, 2026)
+# PART III — CURRENT BUILD STATUS (as of Aug 2026)
 
-Team member driving the build: Jerico Asupre (Programmer). Repo is one git
-repo with two folders: backend/ (Express + MongoDB Atlas; server.js at the
-ROOT, not src/; runs on port 5000 via `npm run dev`) and frontend/ (Vite +
-React + Tailwind; port 5173; proxy /api -> localhost:5000). Hand-rolled
-Tailwind with a small shared component set (frontend/src/components/ui.jsx:
-Button/Card/Input/Label/Pill); shadcn/ui deferred to one restyle pass later.
+Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
+**server.js at the ROOT, not src/**; port 5000 via `npm run dev`) and
+`frontend/` (Vite + React + Tailwind; port 5173; proxy /api → localhost:5000).
 
-## DONE + TESTED (added this session, Aug 2026)
-- Per-group SINGLE-ELIMINATION tiebreaker (replaced round-robin playoff):
-  generation with random byes + nextMatchWin wiring; result route advances
-  isTiebreaker matches; qualification reads the bracket winner(s). Tested.
-- Accounts module: provisioning panel (list by role, provision-all, add-single,
-  reset, guarded delete), passwords shown once (bcrypt one-way), copy-password.
-  Backend routes + Accounts.jsx. Tested end-to-end.
-- Double-elim GROUP GENERATOR (generateGroupDoubleElim) for arbitrary N with
-  byes -> 2 qualifiers. Proven + live-tested. (The old hardcoded-8 else-branch of
-  POST /:id/bracket is now superseded and slated for removal.)
+## DONE + TESTED
+
+**Auth & accounts**
+- JWT login, role routing, forced first-login password change.
+- Full Accounts module: provisioning panel, provision-all, add-single account,
+  reset password (shown once), guarded delete. Tested end-to-end.
+
+**Season & registration**
+- Season lifecycle model + states, create/advance routes, state guards.
+- Team creation with **division + format**, one team per
+  (barangay, sport, season, division); ML allows 2.
+- Roster limits by format: team 10–15, doubles 2, singles 1.
+- Add/remove players, submit roster (locks + triggers pre-screen).
+
+**Verification**
+- Reference-list CSV upload, auto pre-screen (eligible / needs_document /
+  flagged with flagReason), Review Queue (approve / reject / verify).
+- Reject removes the player and reopens the roster; verify locks the team.
+- **GridFS file storage** (`config/gridfs.js`), two buckets:
+  - Player photos: upload (barangay admin, own team), public serve, delete.
+  - Residency documents: upload with docType, **super-admin-only** serve.
+- Barangay Admin **Document Submission** page (lists players needing docs,
+  doc-type picker, upload, shows verify status).
+- Review Queue shows the player's **photo + uploaded document inline**
+  (blob fetch with token) so the Federation can judge with evidence.
+
+**Tournaments**
+- ML: group stage, knockout-size picker, scaling single-elim + 3rd place,
+  score-driven advancement, per-group single-elim tiebreaker. Tested to 52 teams.
+- Physical sports: `/generate` splits a division's verified teams into 4 groups
+  and builds a double-elim per group; `/de-qualification` returns the 8
+  qualifiers tagged by group+seed; `/de-bracket` builds the standard-seeded
+  Top 8 + 3rd place. **Full pipeline verified end to end** (24 teams →
+  4 groups → played out → 8 qualifiers → knockout → champion + 3rd place).
+- Distinct bracket labels for group vs knockout (see Tournament format).
+- Per-sport division/format config seeded (`seedSportConfig.js`).
+
+**Frontend**
+- Super Admin: Dashboard, Season, Reference List, Review Queue, Tournaments
+  (sport picker, standings, match entry, knockout generation, aligned bracket
+  display with connector lines), Accounts.
+- Barangay Admin: Team Registration (sport → division → name), roster editor
+  (modal) with photo upload, Document Submission page.
+- Shared `AdminLayout` (generic, takes a `menu` prop), `ui.jsx` components.
 
 ## IN PROGRESS / NEXT (priority order)
-1. Wire generateGroupDoubleElim into POST /generate for physical sports: split
-   verified teams into 4 groups, build a double-elim per group. Remove the old
-   hardcoded-8 double-elim else-branch. Remove temp /:id/test-de route.
-2. Double-elim QUALIFICATION reader: per group, report upper-final winner +
-   lower-final winner as the 2 qualifiers (the round-robin qualification route
-   does not apply to double-elim groups).
-3. Feed the 8 qualifiers into the existing Top 8 single-elim knockout.
-4. Divided bracket generation (volleyball boys/girls; badminton/pickleball
-   singles/doubles x boys/girls) — one bracket per (sport, format, division).
-5. Barangay Admin frontend (roster form + document upload / GridFS).
-6. Organizer LIVE scoring screen (per-player points/fouls/MVP for basketball,
-   badminton, pickleball; side scoring for volleyball; scoped to assignedSport).
-7. Public Viewer (dark R7 theme). Accounts DONE. Champions archive, forfeit,
-   cosmetic bugs, polish, deploy.
+
+1. **Organizer LIVE scoring screen** — the primary courtside UI. Backend work
+   still needed: match live-state (`ongoing`), scoring endpoints, and writing
+   to PlayerMatchStats. Scoring modes agreed:
+   - Basketball: tap a player, +1/+2/+3 → credits the player AND the team;
+     fouls per player; MVP = top scorer.
+   - Volleyball: **+1 to the side** (rally points, sets); MVP picked manually.
+   - Badminton / Pickleball: **per-player +1** + fouls; MVP = top scorer.
+   - Billiards: plain win/loss entry (no live tapping).
+   - Every tap should update the Super Admin bracket and Public Viewer live
+     (polling is fine; websockets are overkill at this scale).
+   - Organizer sees ONLY their `assignedSport`. Super Admin bracket becomes
+     read-only display (scoring moves to the organizer).
+2. **Public Viewer** (dark R7 theme) — scores, standings, brackets, lineups
+   (with photos), champions archive.
+3. Super Admin **config UI** for per-sport `divisions` + `entryFormat`
+   (currently seeded by script) — extends the "Open Registration" modal.
+4. Barangay Admin remaining HIPO modules: Dashboard, Verification Status page,
+   Match Information.
+5. Champions archive on season complete; forfeit handling.
+6. `verified_residents` collection (approvals persisting across seasons).
+7. Polish: frontend role guards, 401 → redirect to login, shadcn restyle,
+   cosmetic bugs below.
+8. Deploy (Render + Vercel + Atlas), clear test data, delete dev-only code.
 
 ## KNOWN COSMETIC BUGS (low priority)
-- After a tiebreaker runs, the group standings DISPLAY shows combined
-  group+playoff points ("8 played, 15 pts"), which makes tied teams look
-  unresolved even though qualification is correct. Should show only group
-  games, mark qualified teams, and show a "resolved by draw" badge.
-- Tiebreaker/playoff matches labeled "R100/R101/R102" (cryptic) — relabel
-  "Playoff".
-- resolvedByDraw flag is in the qualification output but not shown in the UI.
+- Group standings display shows combined group+playoff points after a
+  tiebreaker; should show only group games and mark qualified teams.
+- Tiebreaker matches labeled "R100/R101/R102" — relabel "Playoff".
+- Expired token shows "Authentication required" instead of redirecting.
 
 ## DEV-ONLY SCRIPTS + ROUTES — DELETE BEFORE DEPLOYMENT
-All in backend/src/config/ (write DIRECTLY to the DB, bypassing app rules):
+In `backend/src/config/` (these write DIRECTLY to the DB, bypassing app rules):
 seedTestTeams.js, seedReviewTest.js, showOrReset.js, clearTournaments.js,
-seedTiebreakerTest.js (3-way tie), seedTie5Test.js (5-way tie),
-seed52WithTies.js (full 52-team tournament with forced ties in groups A/C).
-Also: POST /api/tournaments/:id/simulate-groups (auto-scores all group
-matches) + the amber "Auto-score all group matches" dev button in
-Tournaments.jsx.
+seedTiebreakerTest.js, seedTie5Test.js, seed52WithTies.js,
+seedVerifiedTeams.js, **seedSportConfig.js** (keep until the config UI exists).
+Routes/UI: `POST /api/tournaments/:id/simulate-groups`, the temp
+`POST /api/tournaments/:id/test-de`, and the amber "Auto-score all group
+matches" button in Tournaments.jsx.
+Also gitignore any `dev-setup.ps1` (it holds a password).
 
 ## GOTCHAS (bit us repeatedly)
-- Adding a field to a Mongoose model needs a FULL server restart (Ctrl+C +
-  npm run dev), not just nodemon reload — otherwise strict mode SILENTLY
-  DROPS the field on save ("saved successfully but blank"). Hit us on
-  isDivided (Sport) and knockoutSize (Tournament).
-- backend/src/routes/tournament.js accumulated corruption from long editing
-  (duplicate lines / duplicate const declarations / duplicate routes). Check
-  for duplicates before editing it. The qualification route was rewritten
-  clean once already to fix this.
-- Two-terminal rule: server in ONE terminal (untouched); run seeds / resets
-  / PowerShell API tests in a SEPARATE terminal. "Cannot find module" =
-  wrong folder (backend scripts run from backend/). "Unable to connect" =
-  server not running or you typed into the server's terminal.
-- Confirmed sports facts (from LYDO head): Volleyball = 2 divisions
-  (boys/girls); all other sports single/open; physical sports =
-  double-elimination; ML = open division, up to 2 teams per barangay,
-  group round-robin -> single-elim (Top 8 or Top 16) + 3rd place. Sport
-  list: Basketball, Volleyball, Badminton, Mobile Legends, Billiards, Chess,
-  Pickleball. 26 barangays.
+- **Adding or changing a field/enum on a Mongoose model needs a FULL server
+  restart** (Ctrl+C + `npm run dev`), not just nodemon reload — otherwise
+  strict mode SILENTLY DROPS the value on save. Hit us on isDivided,
+  knockoutSize, and the bracket enum.
+- `backend/src/routes/tournament.js` has accumulated duplicate lines /
+  declarations during long editing sessions. Check for duplicates before
+  editing it. (`shuffle` is currently defined twice — module scope and inside
+  `/:id/bracket`; harmless shadowing, safe to clean up.)
+- **Express route order**: put literal paths (`/needs-documents`,
+  `/documents/:docId/file`) BEFORE `/:id/...` routes, or the param route
+  swallows them.
+- **Two-terminal rule**: server in ONE terminal (untouched); run seeds /
+  PowerShell API tests in a SEPARATE terminal. "Cannot find module" = wrong
+  folder. "Unable to connect" = server not running (or `$base` is empty
+  because the terminal reset — re-run the login block).
+- PowerShell 5.1 has **no `-Form` parameter**, so multipart uploads can't be
+  tested from it. Test file uploads through the browser UI instead.
+- PowerShell arrays: JSON `[...]` pasted from a script won't parse; use
+  `@(...)` or pipe through `ConvertFrom-Json`, and wrap with `@()` before
+  `ConvertTo-Json` so a single-element array doesn't collapse.
+- Frontend paths must match `App.jsx` exactly — a redirect to `/barangay`
+  when the route is `/brgy` silently bounces to the login page via the
+  catch-all route.

@@ -15,3 +15,4 @@
   match history (protects the enteredBy audit trail) and for the last super admin.
 - Billiards: scored per match as a plain win/loss entry (no live per-point
   scoring), inside the same double-elim structure.
+- GridFS openUploadStream({ contentType }) is silently ignored by this driver version — store the mimetype in metadata too and read it back with a fallback in sendFile, or files download instead of displaying.

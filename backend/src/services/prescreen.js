@@ -29,8 +29,18 @@ async function prescreenTeam(team) {
   const links = await TeamPlayer.find({ team: team._id }).populate('player');
   const players = links.map((l) => l.player).filter(Boolean);
 
-  // This season's reference snapshot, loaded once.
+   // This season's reference snapshot, loaded once.
   const refs = await ReferenceList.find({ season: team.season }).lean();
+
+  // Index by normalized "lastname|firstname" so each player is ONE hash lookup
+  // instead of a linear scan of the whole list. Keeps screening time flat even
+  // when the reference list is a 17k-row voters' masterlist.
+  const refIndex = new Map();
+  for (const r of refs) {
+    const key = `${norm(r.lastName)}|${norm(r.firstName)}`;
+    if (!refIndex.has(key)) refIndex.set(key, []);
+    refIndex.get(key).push(r);
+  }
 
   // Whitelist lookup by normalized barangay name.
   const brgyByName = {};
@@ -47,7 +57,7 @@ async function prescreenTeam(team) {
       reason = `Under ${MINOR_AGE} — needs parental consent and documents`;
     } else {
       const fn = norm(p.firstName), ln = norm(p.lastName);
-      let candidates = refs.filter((r) => norm(r.firstName) === fn && norm(r.lastName) === ln);
+            let candidates = refIndex.get(`${ln}|${fn}`) || [];
 
       if (candidates.length > 1 && p.birthdate) {
         const exact = candidates.filter((r) => r.birthdate && sameDay(r.birthdate, p.birthdate));

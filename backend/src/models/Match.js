@@ -69,6 +69,19 @@ const matchSchema = new mongoose.Schema(
       ref: 'Team',
       default: null,       // set by the system once one team wins the majority
     },
+        // --- LIVE SCORING (organizer's courtside screen) ---
+    // Running tally while status === 'ongoing'. Every tap updates these, so the
+    // bracket and public viewer can read the current score cheaply (no aggregating
+    // PlayerMatchStats). On "End match" these are written into games[] as the result.
+    liveScoreA: { type: Number, default: 0 },
+    liveScoreB: { type: Number, default: 0 },
+    startedAt: { type: Date, default: null },   // when the organizer tapped Start
+    // Organizer's declared MVP (suggested as top scorer, confirmed by the organizer).
+    mvp: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Player',
+      default: null,
+    },
 
     // Bracket routing: where the winner and loser go next. Pre-generated at draw time
     // and LOCKED, so advancement is determined by structure, not by an admin's choice.

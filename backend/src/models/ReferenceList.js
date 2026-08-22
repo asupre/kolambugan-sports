@@ -41,6 +41,8 @@ const referenceListSchema = new mongoose.Schema(
 );
 
 // Speeds up the name-matching lookups the verification engine does constantly.
-referenceListSchema.index({ lastName: 1, firstName: 1 });
+
+referenceListSchema.index({ season: 1 });
+referenceListSchema.index({ season: 1, lastName: 1, firstName: 1 });
 
 module.exports = mongoose.model('ReferenceList', referenceListSchema);

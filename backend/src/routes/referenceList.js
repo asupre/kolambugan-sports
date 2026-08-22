@@ -6,7 +6,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 // Tolerant header mapping so the Federation's column names don't have to be exact.
 function canonicalKey(h) {
@@ -100,5 +100,6 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
+
 
 module.exports = router;

@@ -9,9 +9,9 @@ const Team = require('../models/Team');
 const Tournament = require('../models/Tournament');
 const Match = require('../models/Match');
 
-const SPORT_NAME = 'Basketball';
-const DIVISIONS = ['under17', 'under30'];
-const PER_DIVISION = 16;   // 16 per division -> groups of 4
+const SPORT_NAME = 'Volleyball';
+const DIVISIONS = ['boys', 'girls'];
+const PER_DIVISION = 12;   // minimum for 4 groups of 3
 
 (async () => {
   try {

@@ -161,42 +161,58 @@ function ScoringView({ matchId, mode, onBack }) {
       {/* Live controls */}
       {live && (
         <>
-          {mode === "player" && (
-            <p className="text-center text-sm mb-2">
-              {picked
-                ? <span className="text-indigo-700 font-medium">Scoring for {picked.name}</span>
-                : <span className="text-slate-500">Tap a player, then a point button</span>}
-            </p>
+                    {mode === "player" && (
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[1, 2, 3].map((pts) => (
+                <button key={pts}
+                  onClick={() => addPoints(picked?.side || "A", pts)}
+                  disabled={busy || !picked}
+                  className="py-5 rounded-xl bg-green-600 text-white text-2xl font-bold hover:bg-green-700 disabled:opacity-40">
+                  +{pts}
+                </button>
+              ))}
+            </div>
           )}
-
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {[1, 2, 3].map((pts) => (
-              <button key={pts}
-                onClick={() => addPoints(picked?.side || "A", pts)}
-                disabled={busy || (mode === "player" && !picked)}
-                className="py-5 rounded-xl bg-green-600 text-white text-2xl font-bold hover:bg-green-700 disabled:opacity-40">
-                +{pts}
-              </button>
-            ))}
-          </div>
 
           {mode === "side" && (
             <div className="grid grid-cols-2 gap-2 mb-4">
               <button onClick={() => call("score", { side: "A", points: 1 })} disabled={busy}
-                className="py-4 rounded-xl bg-slate-800 text-white font-semibold disabled:opacity-50">
+                className="py-5 rounded-xl bg-green-600 text-white text-lg font-bold hover:bg-green-700 disabled:opacity-50">
                 +1 {m.teamA?.teamName}
               </button>
               <button onClick={() => call("score", { side: "B", points: 1 })} disabled={busy}
-                className="py-4 rounded-xl bg-slate-800 text-white font-semibold disabled:opacity-50">
+                className="py-5 rounded-xl bg-green-600 text-white text-lg font-bold hover:bg-green-700 disabled:opacity-50">
                 +1 {m.teamB?.teamName}
               </button>
             </div>
           )}
 
-                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 mb-3">
+          {/* Per-team undo — each side has its own, so an organizer can correct
+              whichever team was mis-tapped. In player mode it undoes for the
+              selected player; in side mode it just takes a point off that team. */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button
+              onClick={() => mode === "player"
+                ? (picked?.side === "A" ? addPoints("A", -1) : setError(`Pick a ${m.teamA?.teamName} player to undo.`))
+                : call("score", { side: "A", points: -1 })}
+              disabled={busy}
+              className="py-3 rounded-xl border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-40">
+              −1 {m.teamA?.teamName}
+            </button>
+            <button
+              onClick={() => mode === "player"
+                ? (picked?.side === "B" ? addPoints("B", -1) : setError(`Pick a ${m.teamB?.teamName} player to undo.`))
+                : call("score", { side: "B", points: -1 })}
+              disabled={busy}
+              className="py-3 rounded-xl border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-40">
+              −1 {m.teamB?.teamName}
+            </button>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 mb-3">
             <div className="flex items-center justify-between gap-3 mb-2">
               <span className="text-slate-600 text-sm">
-                Period {Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of {m.bestOf || 1}
+                {(data.periodLabel || "Period").replace(/^./, (c) => c.toUpperCase())} {Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of {m.bestOf || 1}
               </span>
               <span className="text-slate-400 text-xs">
                 {(m.games || []).map((g) => `${g.scoreA}-${g.scoreB}`).join(" · ") || "none recorded"}
@@ -205,21 +221,16 @@ function ScoringView({ matchId, mode, onBack }) {
             <button onClick={() => call("end-period")}
               disabled={busy || (m.games?.length || 0) >= (m.bestOf || 1)}
               className="w-full py-2.5 rounded-lg bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 disabled:opacity-40">
-              End this period
+              End this {data.periodLabel || "period"}
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-5">
-            <button onClick={() => addPoints(picked?.side || "A", -1)} disabled={busy || (mode === "player" && !picked)}
-              className="py-3 rounded-xl border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-40">
-              Undo −1
-            </button>
-            <button onClick={() => { setMvp(topScorer?.pts > 0 ? String(topScorer.p._id) : null); setEnding(true); }}
-              disabled={busy || (m.games?.length || 0) < (m.bestOf || 1)}
-              className="py-3 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-40">
-              End match
-            </button>
-          </div>
+          <button onClick={() => { setMvp(topScorer?.pts > 0 ? String(topScorer.p._id) : null); setEnding(true); }}
+            disabled={busy || (m.games?.length || 0) < (m.bestOf || 1)}
+            className="w-full py-3 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-40 mb-5">
+            End match
+          </button>
+          
         </>
       )}
 

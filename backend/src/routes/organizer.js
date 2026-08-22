@@ -21,6 +21,14 @@ const SCORING_MODE = {
   'Chess': 'final',
   'Mobile Legends': 'final',
 };
+// What a period is called per sport (display only — the mechanics are identical:
+// score accumulates across all periods, winner is the higher total).
+const PERIOD_LABEL = {
+  'Basketball': 'quarter',
+  'Volleyball': 'set',
+  'Badminton': 'set',
+  'Pickleball': 'set',
+};
 
 // Load a match and confirm this organizer owns its sport.
 async function loadOwnedMatch(req, res) {
@@ -45,7 +53,7 @@ router.get('/matches', async (req, res) => {
     const tournaments = await Tournament.find({ sport: sportId }).select('_id division');
     const tIds = tournaments.map((t) => t._id);
 
-    const matches = await Match.find({ tournament: { $in: tIds }, teamA: { $ne: null }, teamB: { $ne: null } })
+    const matches = await Match.find({ tournament: { $in: tIds } })
       .populate('teamA', 'teamName').populate('teamB', 'teamName')
       .sort({ status: 1, round: 1, createdAt: 1 });
 
@@ -92,19 +100,36 @@ router.get('/matches/:matchId', async (req, res) => {
   }
 });
 
-// POST /api/organizer/matches/:matchId/start — begin live scoring.
+// POST /api/organizer/matches/:matchId/start   body: { periods }
 router.post('/matches/:matchId/start', async (req, res) => {
   try {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
-    const { match } = ctx;
+    const { match, sportName } = ctx;
     if (match.status === 'completed') return res.status(409).json({ message: 'This match is already finished.' });
     if (!match.teamA || !match.teamB) return res.status(400).json({ message: 'This match is still waiting for a team.' });
 
+    // How many periods (quarters/sets) this match runs. Organizer decides at start.
+    const periods = Number(req.body.periods ?? 1);
+    if (![1, 3, 5, 7, 4].includes(periods)) {
+      return res.status(400).json({ message: 'periods must be 1, 3, 4, 5, or 7.' });
+    }
+    match.bestOf = periods;
+
     match.status = 'ongoing';
     match.startedAt = match.startedAt || new Date();
+    match.games = [];               // periods get banked here as they finish
+    match.liveScoreA = 0;
+    match.liveScoreB = 0;
     await match.save();
-    res.json({ message: 'Match started.', matchId: match._id, status: match.status });
+
+    res.json({
+      message: 'Match started.',
+      matchId: match._id,
+      status: match.status,
+      periods,
+      periodLabel: PERIOD_LABEL[sportName] || 'period',
+    });
   } catch (err) {
     console.error('Start match error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -130,20 +155,31 @@ router.post('/matches/:matchId/score', async (req, res) => {
     }
 
     const mode = SCORING_MODE[sportName] || 'final';
+        let applied = points;   // what actually gets added to the team tally
+
     if (mode === 'player') {
       if (!playerId) return res.status(400).json({ message: `${sportName} is scored per player — pick a player.` });
       const teamId = side === 'A' ? match.teamA : match.teamB;
       const onTeam = await TeamPlayer.findOne({ team: teamId, player: playerId });
       if (!onTeam) return res.status(400).json({ message: 'That player is not on that team.' });
+
+      const stat = await PlayerMatchStats.findOne({ match: match._id, player: playerId });
+      const current = stat?.points || 0;
+      // Never let a player go negative; only apply what they actually have to give back.
+      applied = Math.max(points, -current);
+      if (applied === 0) {
+        return res.status(400).json({ message: 'That player has no points to undo.' });
+      }
+
       await PlayerMatchStats.findOneAndUpdate(
         { match: match._id, player: playerId },
-        { $inc: { points } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { $inc: { points: applied } },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
     }
 
-    const field = side === 'A' ? 'liveScoreA' : 'liveScoreB';
-    match[field] = Math.max(0, (match[field] || 0) + points);
+        const field = side === 'A' ? 'liveScoreA' : 'liveScoreB';
+    match[field] = Math.max(0, (match[field] || 0) + applied);
     await match.save();
 
     res.json({ message: 'Scored.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
@@ -161,16 +197,20 @@ router.post('/matches/:matchId/foul', async (req, res) => {
     const { match } = ctx;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
 
-    const delta = Number(req.body.delta ?? 1);
+        const delta = Number(req.body.delta ?? 1);
     if (![1, -1].includes(delta)) return res.status(400).json({ message: 'delta must be 1 or -1.' });
     if (!req.body.playerId) return res.status(400).json({ message: 'playerId is required.' });
+
+    const existing = await PlayerMatchStats.findOne({ match: match._id, player: req.body.playerId });
+    if (delta === -1 && (existing?.fouls || 0) === 0) {
+      return res.status(400).json({ message: 'That player has no fouls to undo.' });
+    }
 
     const stat = await PlayerMatchStats.findOneAndUpdate(
       { match: match._id, player: req.body.playerId },
       { $inc: { fouls: delta } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
-    if (stat.fouls < 0) { stat.fouls = 0; await stat.save(); }
 
     res.json({ message: 'Foul recorded.', playerId: req.body.playerId, fouls: stat.fouls });
   } catch (err) {
@@ -202,8 +242,15 @@ router.post('/matches/:matchId/end', async (req, res) => {
     if (!ctx) return;
     const { match } = ctx;
 
-    if (match.status === 'completed') return res.status(409).json({ message: 'This match already has a result.' });
+        if (match.status === 'completed') return res.status(409).json({ message: 'This match already has a result.' });
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before ending it.' });
+
+    const total = match.bestOf || 1;
+    if (match.games.length < total) {
+      return res.status(409).json({
+        message: `All ${total} ${PERIOD_LABEL[ctx.sportName] || 'period'}(s) must be recorded first — ${match.games.length} done.`,
+      });
+    }
 
     const a = match.liveScoreA || 0;
     const b = match.liveScoreB || 0;
@@ -222,7 +269,8 @@ router.post('/matches/:matchId/end', async (req, res) => {
       match.mvp = req.body.mvpPlayerId;
     }
 
-    match.games = [{ gameNumber: 1, scoreA: a, scoreB: b, winner }];
+        // games[] already holds each period's snapshot; stamp the overall winner on the last one.
+    if (match.games.length) match.games[match.games.length - 1].winner = winner;
     match.seriesWinner = winner;
     match.status = 'completed';
     match.enteredBy = req.user.id;
@@ -264,6 +312,46 @@ router.post('/matches/:matchId/end', async (req, res) => {
     });
   } catch (err) {
     console.error('End match error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+// POST /api/organizer/matches/:matchId/end-period
+// Banks a snapshot of the running score as one completed period. The score does
+// NOT reset — it accumulates across all periods, and the winner is the higher total.
+router.post('/matches/:matchId/end-period', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match, sportName } = ctx;
+    if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
+
+    const played = match.games.length;
+    const total = match.bestOf || 1;
+    if (played >= total) {
+      return res.status(409).json({ message: `All ${total} ${PERIOD_LABEL[sportName] || 'period'}(s) are already recorded. End the match.` });
+    }
+    // Bank only what was scored DURING this period (the running total minus
+    // everything already banked), so the periods read like a scoresheet and
+    // sum to the final score.
+    const bankedA = match.games.reduce((n, g) => n + (g.scoreA || 0), 0);
+    const bankedB = match.games.reduce((n, g) => n + (g.scoreB || 0), 0);
+
+    match.games.push({
+      gameNumber: played + 1,
+      scoreA: (match.liveScoreA || 0) - bankedA,
+      scoreB: (match.liveScoreB || 0) - bankedB,
+      winner: null,
+    });
+    await match.save();
+
+    res.json({
+      message: `${PERIOD_LABEL[sportName] || 'Period'} ${played + 1} recorded.`,
+      periodsPlayed: match.games.length,
+      periods: total,
+      runningScore: { a: match.liveScoreA, b: match.liveScoreB },
+    });
+  } catch (err) {
+    console.error('End period error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

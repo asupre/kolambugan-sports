@@ -57,7 +57,7 @@ const matchSchema = new mongoose.Schema(
 
     bestOf: {
       type: Number,
-      enum: [1, 3, 4, 5, 7],
+      enum: [1, 2,3, 4, 5, 7],
       default: 1,          // physical sports use 1; ML knockouts use 3/5/7
     },
     games: {

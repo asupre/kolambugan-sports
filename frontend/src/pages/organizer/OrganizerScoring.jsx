@@ -112,9 +112,7 @@ function ScoringView({ matchId, mode, onBack }) {
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 min-w-0 text-center">
             <p className="text-slate-300 text-sm truncate">{m.teamA?.teamName}</p>
-            <p className="text-5xl font-bold tabular-nums mt-1">
-              {finished ? m.games?.[0]?.scoreA : m.liveScoreA}
-            </p>
+                                    <p className="text-5xl font-bold tabular-nums mt-1">{m.liveScoreA}</p>
           </div>
           <div className="shrink-0 text-center">
             {live && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-red-500/20 text-red-300">● LIVE</span>}
@@ -123,9 +121,7 @@ function ScoringView({ matchId, mode, onBack }) {
           </div>
           <div className="flex-1 min-w-0 text-center">
             <p className="text-slate-300 text-sm truncate">{m.teamB?.teamName}</p>
-            <p className="text-5xl font-bold tabular-nums mt-1">
-              {finished ? m.games?.[0]?.scoreB : m.liveScoreB}
-            </p>
+                        <p className="text-5xl font-bold tabular-nums mt-1">{m.liveScoreB}</p>
           </div>
         </div>
         {finished && m.mvp && (
@@ -139,12 +135,14 @@ function ScoringView({ matchId, mode, onBack }) {
       {/* Not started */}
             {!live && !finished && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-slate-700 text-sm font-medium mb-2">How many periods?</p>
+                    <p className="text-slate-700 text-sm font-medium mb-2">How many {data.periodLabel || "period"}s?</p>
           <p className="text-slate-400 text-xs mb-3">
             Quarters, sets, or games — all of them must be played, and the winner is the higher total score.
           </p>
-          <div className="grid grid-cols-5 gap-2 mb-4">
-            {[1, 3, 4, 5, 7].map((n) => (
+          
+                    <div className="grid grid-cols-4 gap-2 mb-4">
+                    
+            {(data.periodOptions || [1, 3, 5, 7]).map((n) => (
               <button key={n} type="button" onClick={() => setPeriods(n)}
                 className={`py-3 rounded-lg text-lg font-semibold transition ${
                   periods === n ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -325,9 +323,9 @@ export default function OrganizerScoring() {
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 whitespace-nowrap">
               ● LIVE {m.liveScoreA}–{m.liveScoreB}
             </span>
-          ) : m.status === "completed" ? (
+                    ) : m.status === "completed" ? (
             <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 whitespace-nowrap">
-              {m.games?.[0]?.scoreA}–{m.games?.[0]?.scoreB}
+              {m.liveScoreA}–{m.liveScoreB}
             </span>
           ) : !ready ? (
             <span className="text-xs text-slate-400 whitespace-nowrap">waiting</span>

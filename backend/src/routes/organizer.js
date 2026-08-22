@@ -29,6 +29,13 @@ const PERIOD_LABEL = {
   'Badminton': 'set',
   'Pickleball': 'set',
 };
+// Sensible period counts per sport, so an organizer can't pick 7 quarters of basketball.
+const PERIOD_OPTIONS = {
+  'Basketball': [4],
+  'Volleyball': [1, 3, 5],
+  'Badminton': [1, 3, 5],
+  'Pickleball': [1, 3, 5],
+};
 
 // Load a match and confirm this organizer owns its sport.
 async function loadOwnedMatch(req, res) {
@@ -89,9 +96,11 @@ router.get('/matches/:matchId', async (req, res) => {
     const full = await Match.findById(match._id)
       .populate('teamA', 'teamName').populate('teamB', 'teamName').populate('mvp', 'firstName lastName');
 
-    res.json({
+            res.json({
       match: full,
       scoringMode: SCORING_MODE[sportName] || 'final',
+      periodOptions: PERIOD_OPTIONS[sportName] || [1, 3, 5, 7],
+      periodLabel: PERIOD_LABEL[sportName] || 'period',
       rosterA, rosterB, statByPlayer,
     });
   } catch (err) {
@@ -111,7 +120,7 @@ router.post('/matches/:matchId/start', async (req, res) => {
 
     // How many periods (quarters/sets) this match runs. Organizer decides at start.
     const periods = Number(req.body.periods ?? 1);
-    if (![1, 3, 5, 7, 4].includes(periods)) {
+       if (![1, 2, 3, 4, 5, 7].includes(periods)) {
       return res.status(400).json({ message: 'periods must be 1, 3, 4, 5, or 7.' });
     }
     match.bestOf = periods;

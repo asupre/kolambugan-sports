@@ -306,9 +306,10 @@ function MatchBox({ m, onScored, innerRef }) {
   const bName = m.teamB?.teamName || "TBD";
   const aWin = done && String(winnerId) === String(m.teamA?._id);
   const bWin = done && String(winnerId) === String(m.teamB?._id);
-  const g0 = (m.games && m.games[0]) || null;
-  const aScore = g0 ? g0.scoreA : 0;
-  const bScore = g0 ? g0.scoreB : 0;
+      // liveScore holds the accumulated total (across all periods) and survives
+    // match completion, so it's the final score too. games[0] is only period 1.
+    const aScore = m.liveScoreA ?? (m.games?.[0]?.scoreA ?? 0);
+    const bScore = m.liveScoreB ?? (m.games?.[0]?.scoreB ?? 0);
 
   async function save() {
     if (a === "" || b === "") return;

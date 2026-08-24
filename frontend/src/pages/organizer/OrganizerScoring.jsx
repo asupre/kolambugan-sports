@@ -41,6 +41,7 @@ function ScoringView({ matchId, mode, onBack }) {
   const m = data.match;
   const live = m.status === "ongoing";
   const finished = m.status === "completed";
+  const allPeriodsDone = (m.games?.length || 0) >= (m.bestOf || 1);
   const stat = (id) => data.statByPlayer?.[String(id)] || { points: 0, fouls: 0 };
 
   // Player mode: tap a player, then a point button. Side mode: point buttons only.
@@ -162,8 +163,8 @@ function ScoringView({ matchId, mode, onBack }) {
       {live && (
         <>
                     {mode === "player" && (
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {[1, 2, 3].map((pts) => (
+                        <div className={`grid gap-2 mb-4 ${(data.pointValues || [1]).length === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
+              {(data.pointValues || [1]).map((pts) => (
                 <button key={pts}
                   onClick={() => addPoints(picked?.side || "A", pts)}
                   disabled={busy || !picked}

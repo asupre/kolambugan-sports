@@ -36,6 +36,14 @@ const PERIOD_OPTIONS = {
   'Badminton': [1, 3, 5],
   'Pickleball': [1, 3, 5],
 };
+// Which point values a sport can score in one action. Basketball has 1/2/3;
+// rally sports only ever add a single point.
+const POINT_VALUES = {
+  'Basketball': [1, 2, 3],
+  'Badminton': [1],
+  'Pickleball': [1],
+  'Volleyball': [1],
+};
 
 // Load a match and confirm this organizer owns its sport.
 async function loadOwnedMatch(req, res) {
@@ -101,6 +109,7 @@ router.get('/matches/:matchId', async (req, res) => {
       scoringMode: SCORING_MODE[sportName] || 'final',
       periodOptions: PERIOD_OPTIONS[sportName] || [1, 3, 5, 7],
       periodLabel: PERIOD_LABEL[sportName] || 'period',
+      pointValues: POINT_VALUES[sportName] || [1],
       rosterA, rosterB, statByPlayer,
     });
   } catch (err) {
@@ -155,6 +164,16 @@ router.post('/matches/:matchId/score', async (req, res) => {
     if (!ctx) return;
     const { match, sportName } = ctx;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before scoring.' });
+        // Once every period has been banked, the match is done scoring — the only
+    // remaining action is ending it. Otherwise stray points would land in the
+    // running total with no period to belong to, and the periods would stop
+    // summing to the final score.
+    const totalPeriods = match.bestOf || 1;
+    if (match.games.length >= totalPeriods) {
+      return res.status(409).json({
+        message: `All ${totalPeriods} period(s) are recorded. End the match to finish.`,
+      });
+    }
 
     const { side, playerId } = req.body;
     const points = Number(req.body.points);

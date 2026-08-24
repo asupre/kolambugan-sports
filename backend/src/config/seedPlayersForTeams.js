@@ -7,8 +7,8 @@ const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
 const Sport = require('../models/Sport');
 
-const SPORT_NAME = 'Basketball';
-const PER_TEAM = 10;
+const SPORT_NAME = 'Badminton';
+const PER_TEAM = 2;
 const FIRST = ['Juan','Pedro','Miguel','Carlo','Rey','Ariel','Dennis','Noel','Ramon','Jomar','Kier','Vince'];
 const LAST  = ['Santos','Reyes','Cruz','Bautista','Garcia','Mendoza','Torres','Flores','Ramos','Aquino'];
 

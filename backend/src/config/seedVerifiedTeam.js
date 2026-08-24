@@ -9,7 +9,7 @@ const Team = require('../models/Team');
 const Tournament = require('../models/Tournament');
 const Match = require('../models/Match');
 
-const SPORT_NAME = 'Volleyball';
+const SPORT_NAME = 'Badminton';
 const DIVISIONS = ['boys', 'girls'];
 const PER_DIVISION = 12;   // minimum for 4 groups of 3
 

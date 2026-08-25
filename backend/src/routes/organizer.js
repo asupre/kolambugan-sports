@@ -127,10 +127,29 @@ router.post('/matches/:matchId/start', async (req, res) => {
     if (match.status === 'completed') return res.status(409).json({ message: 'This match is already finished.' });
     if (!match.teamA || !match.teamB) return res.status(400).json({ message: 'This match is still waiting for a team.' });
 
+
+    // Soft schedule check: warn but allow. Dates are an organisational aid, not an
+    // integrity control — an organizer must never be blocked from recording a game
+    // that is actually being played. A match with no date is always startable.
+    if (match.schedule && !req.body.confirmOffSchedule) {
+      const sched = new Date(match.schedule);
+      const now = new Date();
+      const sameDay = sched.getFullYear() === now.getFullYear()
+        && sched.getMonth() === now.getMonth()
+        && sched.getDate() === now.getDate();
+      if (!sameDay) {
+        return res.status(409).json({
+          message: `This match is scheduled for ${sched.toLocaleDateString()}. Start it anyway?`,
+          needsConfirmation: true,
+          scheduledFor: match.schedule,
+        });
+      }
+    }
+
     // How many periods (quarters/sets) this match runs. Organizer decides at start.
     const periods = Number(req.body.periods ?? 1);
        if (![1, 2, 3, 4, 5, 7].includes(periods)) {
-      return res.status(400).json({ message: 'periods must be 1, 3, 4, 5, or 7.' });
+            return res.status(400).json({ message: 'periods must be 1, 2, 3, 4, 5, or 7.' });
     }
     match.bestOf = periods;
 
@@ -168,8 +187,9 @@ router.post('/matches/:matchId/score', async (req, res) => {
     // remaining action is ending it. Otherwise stray points would land in the
     // running total with no period to belong to, and the periods would stop
     // summing to the final score.
-    const totalPeriods = match.bestOf || 1;
-    if (match.games.length >= totalPeriods) {
+        const totalPeriods = match.bestOf || 1;
+    const tied = (match.liveScoreA || 0) === (match.liveScoreB || 0);
+    if (match.games.length >= totalPeriods && !tied) {
       return res.status(409).json({
         message: `All ${totalPeriods} period(s) are recorded. End the match to finish.`,
       });
@@ -353,10 +373,16 @@ router.post('/matches/:matchId/end-period', async (req, res) => {
     const { match, sportName } = ctx;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
 
-    const played = match.games.length;
+        const played = match.games.length;
     const total = match.bestOf || 1;
     if (played >= total) {
-      return res.status(409).json({ message: `All ${total} ${PERIOD_LABEL[sportName] || 'period'}(s) are already recorded. End the match.` });
+      // A tie can't stand — allow an extra deciding period rather than trapping
+      // the organizer with no legal action.
+      if ((match.liveScoreA || 0) === (match.liveScoreB || 0)) {
+        match.bestOf = total + 1;
+      } else {
+        return res.status(409).json({ message: `All ${total} ${PERIOD_LABEL[sportName] || 'period'}(s) are recorded. End the match.` });
+      }
     }
     // Bank only what was scored DURING this period (the running total minus
     // everything already banked), so the periods read like a scoresheet and
@@ -380,6 +406,40 @@ router.post('/matches/:matchId/end-period', async (req, res) => {
     });
   } catch (err) {
     console.error('End period error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+// POST /api/organizer/matches/:matchId/cancel — undo a started match.
+// Resets it to 'scheduled' and discards everything recorded: live score, periods,
+// and per-player stats. For a match started by mistake or one that must be voided.
+// A completed match cannot be cancelled — its winner has already advanced through
+// the bracket, so undoing that needs an admin-level correction.
+router.post('/matches/:matchId/cancel', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+
+    if (match.status === 'completed') {
+      return res.status(409).json({ message: 'This match is already finished and cannot be cancelled.' });
+    }
+    if (match.status !== 'ongoing') {
+      return res.status(409).json({ message: 'This match has not been started.' });
+    }
+
+    await PlayerMatchStats.deleteMany({ match: match._id });
+
+    match.status = 'scheduled';
+    match.liveScoreA = 0;
+    match.liveScoreB = 0;
+    match.games = [];
+    match.startedAt = null;
+    match.mvp = null;
+    await match.save();
+
+    res.json({ message: 'Match cancelled and reset.', matchId: match._id, status: match.status });
+  } catch (err) {
+    console.error('Cancel match error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

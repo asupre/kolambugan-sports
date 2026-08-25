@@ -15,6 +15,7 @@ function ScoringView({ matchId, mode, onBack }) {
   const [ending, setEnding] = useState(false);     // MVP picker open
   const [mvp, setMvp] = useState(null);
   const [periods, setPeriods] = useState(1);   // organizer picks at start
+  
 
   async function load() {
     try {
@@ -24,7 +25,7 @@ function ScoringView({ matchId, mode, onBack }) {
   }
   useEffect(() => { load(); }, [matchId]);
 
-  async function call(path, body) {
+    async function call(path, body) {
     setBusy(true); setError("");
     try {
       await api(`/api/organizer/matches/${matchId}/${path}`, {
@@ -32,8 +33,25 @@ function ScoringView({ matchId, mode, onBack }) {
         body: JSON.stringify(body || {}),
       });
       await load();
-    } catch (e) { setError(e.message); }
-    finally { setBusy(false); }
+    } catch (e) {
+      // The start route returns a 409 when the match is dated for another day.
+      // Dates are guidance, not a lock — confirm and proceed.
+      if (path === "start" && /scheduled for/i.test(e.message)) {
+        if (window.confirm(`${e.message}`)) {
+          try {
+            await api(`/api/organizer/matches/${matchId}/start`, {
+              method: "POST",
+              body: JSON.stringify({ ...(body || {}), confirmOffSchedule: true }),
+            });
+            await load();
+          } catch (e2) { setError(e2.message); }
+        }
+      } else {
+        setError(e.message);
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!data) return <p className="text-slate-500">Loading match…</p>;
@@ -41,7 +59,8 @@ function ScoringView({ matchId, mode, onBack }) {
   const m = data.match;
   const live = m.status === "ongoing";
   const finished = m.status === "completed";
-  const allPeriodsDone = (m.games?.length || 0) >= (m.bestOf || 1);
+  const tied = (m.liveScoreA || 0) === (m.liveScoreB || 0);
+  const allPeriodsDone = (m.games?.length || 0) >= (m.bestOf || 1) && !tied;
   const stat = (id) => data.statByPlayer?.[String(id)] || { points: 0, fouls: 0 };
 
   // Player mode: tap a player, then a point button. Side mode: point buttons only.
@@ -226,12 +245,30 @@ function ScoringView({ matchId, mode, onBack }) {
             </button>
           </div>
 
+                    {tied && (m.games?.length || 0) >= (m.bestOf || 1) && (
+            <p className="text-amber-600 text-sm text-center mb-2">
+              Scores are level — play a deciding {data.periodLabel || "period"}.
+            </p>
+          )}
+
           <button onClick={() => { setMvp(topScorer?.pts > 0 ? String(topScorer.p._id) : null); setEnding(true); }}
-            disabled={busy || (m.games?.length || 0) < (m.bestOf || 1)}
+                        disabled={busy || !allPeriodsDone}
             className="w-full py-3 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-40 mb-5">
             End match
           </button>
           
+                    <button
+            onClick={() => {
+              const scored = (m.games?.length || 0) > 0 || (m.liveScoreA || 0) > 0 || (m.liveScoreB || 0) > 0;
+              const msg = scored
+                ? `Cancel this match? The current score (${m.liveScoreA}–${m.liveScoreB}) and ${m.games?.length || 0} recorded period(s) will be discarded.`
+                : "Cancel this match and return it to not-started?";
+              if (window.confirm(msg)) call("cancel");
+            }}
+            disabled={busy}
+            className="w-full py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 disabled:opacity-50 mb-5">
+            Cancel match
+          </button>
         </>
       )}
 
@@ -298,9 +335,16 @@ export default function OrganizerScoring() {
 
   if (loading) return <AdminLayout title="Matches" menu={organizerMenu}><p className="text-slate-500">Loading…</p></AdminLayout>;
 
-  const matches = feed?.matches || [];
+    const matches = feed?.matches || [];
+  const isToday = (d) => {
+    if (!d) return false;
+    const s = new Date(d), n = new Date();
+    return s.getFullYear() === n.getFullYear() && s.getMonth() === n.getMonth() && s.getDate() === n.getDate();
+  };
   const live = matches.filter((m) => m.status === "ongoing");
-  const upcoming = matches.filter((m) => m.status === "scheduled");
+  const scheduled = matches.filter((m) => m.status === "scheduled");
+  const today = scheduled.filter((m) => isToday(m.schedule));
+  const upcoming = scheduled.filter((m) => !isToday(m.schedule));
   const done = matches.filter((m) => m.status === "completed");
 
   if (openId) {
@@ -327,8 +371,9 @@ export default function OrganizerScoring() {
             <p className={`font-medium ${ready ? "text-slate-800" : "text-slate-400"}`}>
               {m.teamA?.teamName || "TBD"} <span className="text-slate-400">vs</span> {m.teamB?.teamName || "TBD"}
             </p>
-            <p className="text-slate-400 text-xs mt-0.5">
+                        <p className="text-slate-400 text-xs mt-0.5">
               {m.bracket} · round {m.round}{m.group ? ` · group ${m.group}` : ""}
+              {m.schedule ? ` · ${new Date(m.schedule).toLocaleDateString()}` : ""}
             </p>
           </div>
           {m.status === "ongoing" ? (
@@ -358,6 +403,14 @@ export default function OrganizerScoring() {
           <section>
             <h2 className="text-slate-700 font-semibold text-sm mb-2">Live now</h2>
             <div className="space-y-2">{live.map((m) => <Row key={m._id} m={m} />)}</div>
+          </section>
+        )}
+                {today.length > 0 && (
+          <section>
+            <h2 className="text-slate-700 font-semibold text-sm mb-2">
+              Today <span className="text-slate-400 font-normal">({today.length})</span>
+            </h2>
+            <div className="space-y-2">{today.map((m) => <Row key={m._id} m={m} />)}</div>
           </section>
         )}
 

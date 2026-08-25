@@ -163,6 +163,123 @@ function MatchesView({ tournamentId, onScored }) {
     </div>
   );
 }
+
+function ScheduleSection({ tournamentId }) {
+  const [open, setOpen] = useState(false);
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [roundDates, setRoundDates] = useState({});   // round -> date string
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function load() {
+    setLoading(true);
+    try {
+      const data = await api(`/api/tournaments/${tournamentId}/matches`);
+      setMatches(data.matches || []);
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { if (open) load(); }, [open, tournamentId]);
+
+  async function applyRound(round) {
+    const date = roundDates[round];
+    if (!date) { setMsg("Pick a date first."); return; }
+    setBusy(true); setMsg("");
+    try {
+      const res = await api(`/api/tournaments/${tournamentId}/schedule-bulk`, {
+        method: "POST",
+        body: JSON.stringify({ schedule: date, round: Number(round) }),
+      });
+      setMsg(res.message);
+      await load();
+    } catch (e) { setMsg(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function setOne(matchId, date) {
+    setBusy(true); setMsg("");
+    try {
+      await api(`/api/tournaments/matches/${matchId}/schedule`, {
+        method: "PATCH",
+        body: JSON.stringify({ schedule: date || null }),
+      });
+      await load();
+    } catch (e) { setMsg(e.message); }
+    finally { setBusy(false); }
+  }
+
+  const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
+  const asInputDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+
+  return (
+    <div className="mt-6 border-t border-slate-200 pt-4">
+      <button onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 text-slate-700 font-medium text-sm hover:text-slate-900">
+        <span className="text-slate-400">{open ? "▾" : "▸"}</span>
+        Schedule
+        <span className="text-slate-400 font-normal">
+          ({matches.filter((m) => m.schedule).length}/{matches.length} dated)
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {msg && <p className="text-sm text-slate-600 bg-slate-50 rounded px-3 py-2 mb-3">{msg}</p>}
+          {loading ? (
+            <p className="text-slate-500 text-sm">Loading matches…</p>
+          ) : (
+            <div className="space-y-5">
+              {rounds.map((r) => {
+                const inRound = matches.filter((m) => m.round === r);
+                return (
+                  <div key={r}>
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <h4 className="text-slate-700 font-medium text-sm">Round {r}</h4>
+                      <span className="text-slate-400 text-xs">({inRound.length} matches)</span>
+                      <div className="flex items-center gap-2 ml-auto">
+                        <input type="date"
+                          value={roundDates[r] || ""}
+                          onChange={(e) => setRoundDates({ ...roundDates, [r]: e.target.value })}
+                          className="rounded-lg border border-slate-300 px-2 py-1 text-sm" />
+                        <button onClick={() => applyRound(r)} disabled={busy}
+                          className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                          Apply to round
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      {inRound.map((m) => (
+                        <div key={m._id} className="flex items-center gap-2 text-sm border border-slate-200 rounded-lg px-3 py-2">
+                          <span className="text-slate-400 text-xs w-16 shrink-0">
+                            {m.group ? `Grp ${m.group}` : m.bracket}
+                          </span>
+                          <span className="flex-1 min-w-0 truncate text-slate-700">
+                            {m.teamA?.teamName || "TBD"} <span className="text-slate-400">vs</span> {m.teamB?.teamName || "TBD"}
+                          </span>
+                          <input type="date"
+                            value={asInputDate(m.schedule)}
+                            onChange={(e) => setOne(m._id, e.target.value)}
+                            className="rounded border border-slate-300 px-2 py-1 text-xs shrink-0" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [qualification, setQualification] = useState(null);
@@ -291,6 +408,7 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
           )}
         </>
       )}
+         <ScheduleSection tournamentId={tournamentId} />
     </div>
   );
 }

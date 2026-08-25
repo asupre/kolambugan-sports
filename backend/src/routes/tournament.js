@@ -989,4 +989,54 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
+
+// PATCH /api/tournaments/matches/:matchId/schedule — super admin sets or clears
+// one match's date. body: { schedule: "2026-09-12" | null }
+router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.matchId);
+    if (!match) return res.status(404).json({ message: 'Match not found.' });
+
+    if (req.body.schedule === null || req.body.schedule === '') {
+      match.schedule = null;
+    } else {
+      const d = new Date(req.body.schedule);
+      if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid date.' });
+      match.schedule = d;
+    }
+    await match.save();
+    res.json({ message: 'Schedule updated.', matchId: match._id, schedule: match.schedule });
+  } catch (err) {
+    console.error('Set schedule error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/tournaments/:id/schedule-bulk — super admin dates many matches at once.
+// body: { schedule: "2026-09-12", round?: 1, group?: "A", bracket?: "winners" }
+// At least one filter is required so a mistaken call can't re-date a whole tournament.
+router.post('/:id/schedule-bulk', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+
+    const d = new Date(req.body.schedule);
+    if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid date.' });
+
+    const filter = { tournament: tournament._id };
+    if (req.body.round != null) filter.round = Number(req.body.round);
+    if (req.body.group) filter.group = req.body.group;
+    if (req.body.bracket) filter.bracket = req.body.bracket;
+
+    if (Object.keys(filter).length === 1) {
+      return res.status(400).json({ message: 'Give at least one of: round, group, or bracket.' });
+    }
+
+    const result = await Match.updateMany(filter, { $set: { schedule: d } });
+    res.json({ message: `Scheduled ${result.modifiedCount} match(es).`, updated: result.modifiedCount });
+  } catch (err) {
+    console.error('Bulk schedule error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
 module.exports = router;

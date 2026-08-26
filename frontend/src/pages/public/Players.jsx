@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import {
-  Panel, PlayerAvatar, SportTabs, DIVISION_LABEL,
-  initials, playerPhotoUrl, SHOW_PLAYER_PHOTOS,
-} from "../../components/PublicUI";
+import { Panel, PlayerAvatar, SportTabs, SearchInput, DIVISION_LABEL, initials, playerPhotoUrl, SHOW_PLAYER_PHOTOS } from "../../components/PublicUI";
 
 // Points only compare WITHIN a sport, so a sport is always selected.
 const PREFERRED = "Basketball";
@@ -58,6 +55,7 @@ export default function Players() {
   const [sports, setSports] = useState([]);
   const [sport, setSport] = useState("");
   const [loading, setLoading] = useState(true);
+    const [q, setQ] = useState("");
 
   useEffect(() => {
     api("/api/public/tournaments")
@@ -84,7 +82,26 @@ export default function Players() {
     return () => { alive = false; };
   }, [sport, view]);
 
-  const total = teams.reduce((n, t) => n + (t.players?.length || 0), 0);
+    // Searching matches a player's name, or a team's — typing a barangay should
+  // show that whole squad rather than nothing.
+  const needle = q.trim().toLowerCase();
+  const visibleTeams = !needle ? teams : teams
+    .map((t) => {
+      const teamHit = `${t.name} ${t.barangay || ""}`.toLowerCase().includes(needle);
+      return {
+        ...t,
+        players: teamHit
+          ? t.players
+          : (t.players || []).filter((p) => `${p.firstName} ${p.lastName}`.toLowerCase().includes(needle)),
+      };
+    })
+    .filter((t) => t.players.length > 0);
+
+  const visibleLeaders = !needle
+    ? leaders
+    : leaders.filter((p) => `${p.firstName} ${p.lastName} ${p.team || ""}`.toLowerCase().includes(needle));
+
+  const total = visibleTeams.reduce((n, t) => n + (t.players?.length || 0), 0);
 
   const ViewTab = ({ v, label }) => (
     <button
@@ -117,14 +134,16 @@ export default function Players() {
       </p>
 
       <SportTabs sports={sports} value={sport} onChange={setSport} allLabel={null} />
+            <SearchInput value={q} onChange={setQ}
+        placeholder={view === "leaders" ? "Search a player…" : "Search a player, team, or barangay…"} />
 
       {loading ? (
         <p className="text-slate-500 text-sm">Loading…</p>
       ) : view === "all" ? (
-        teams.length === 0 ? (
+                visibleTeams.length === 0 ? (
           <Panel empty={`No verified ${sport || ""} teams yet.`} />
         ) : (
-          teams.map((t) => (
+                    visibleTeams.map((t) => (
             <Panel
               key={t.id}
               title={t.name}
@@ -146,12 +165,12 @@ export default function Players() {
             </Panel>
           ))
         )
-      ) : leaders.length === 0 ? (
+            ) : visibleLeaders.length === 0 ? (
         <Panel empty={`No scoring recorded for ${sport || "this sport"} yet.`} />
       ) : (
-        <Panel title={sport} count={`Top ${leaders.length}`}>
+                <Panel title={sport} count={`Top ${visibleLeaders.length}`}>
           <div>
-            {leaders.map((p) => {
+                        {visibleLeaders.map((p) => {
               const ppg = p.games > 0 ? (p.points / p.games).toFixed(1) : "—";
               return (
                 <div key={p.id} className="flex items-center gap-4 px-5 py-3.5 border-b border-[#1C2430] last:border-0">

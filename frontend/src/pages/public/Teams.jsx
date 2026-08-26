@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, SportTabs, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
 
 // Rosters don't change mid-game, so this page doesn't poll.
 export default function Teams() {
@@ -9,6 +9,7 @@ export default function Teams() {
   const [sports, setSports] = useState([]);
   const [sport, setSport] = useState("");
   const [loading, setLoading] = useState(true);
+    const [q, setQ] = useState("");
 
   useEffect(() => {
     api("/api/public/tournaments")
@@ -26,13 +27,18 @@ export default function Teams() {
     return () => { alive = false; };
   }, [sport]);
 
-  // Group by sport, then division — a barangay can field both U17 and U30.
+   // Group by sport, then division — a barangay can field both U17 and U30.
+  const needle = q.trim().toLowerCase();
+  const visible = needle
+    ? teams.filter((t) => `${t.name} ${t.barangay || ""}`.toLowerCase().includes(needle))
+    : teams;
+
   const groups = {};
-  teams.forEach((t) => {
+  visible.forEach((t) => {
     const key = `${t.sport || "—"}||${t.division || "open"}`;
     (groups[key] = groups[key] || []).push(t);
   });
-  const keys = Object.keys(groups).sort();
+  const keys = Object.keys(groups).sort();;
 
   return (
     <>
@@ -42,11 +48,12 @@ export default function Teams() {
       </p>
 
       <SportTabs sports={sports} value={sport} onChange={setSport} />
+            <SearchInput value={q} onChange={setQ} placeholder="Search a team or barangay…" />
 
       {loading ? (
         <p className="text-slate-500 text-sm">Loading…</p>
-      ) : teams.length === 0 ? (
-        <Panel empty="No verified teams yet. Teams appear here once residency review is complete." />
+            ) : visible.length === 0 ? (
+        <Panel empty={q ? `No teams match "${q}".` : "No verified teams yet. Teams appear here once residency review is complete."} />
       ) : (
         keys.map((key) => {
           const [sportName, division] = key.split("||");

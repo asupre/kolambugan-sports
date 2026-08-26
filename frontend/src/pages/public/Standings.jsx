@@ -37,6 +37,7 @@ export default function Standings() {
 
   const standings = data?.standings || {};
   const qualifiers = data?.qualifiers || {};
+    const qualification = data?.qualification || {};
   const groups = Object.keys(standings).sort();
   const current = tournaments.find((t) => t.id === tid);
   const isRoundRobin = (data?.matches || []).some((m) => m.group && m.bracket === "group");
@@ -77,12 +78,15 @@ export default function Standings() {
             {groups.map((g) => {
               const rows = standings[g] || [];
               const seeds = qualifiers[g] || [];
-              const seedOf = (teamId) => seeds.find((s) => s.teamId === teamId)?.seed;
-              // Before qualifiers are decided, mark the leading two by record.
-                                // Only rank provisionally once results exist. Highlighting the
-                  // top two of an all-zero table would just be alphabetical order
-                  // wearing a qualifying badge.
-                  const provisional = seeds.length === 0 && rows.some((r) => r.played > 0);
+                            const seedOf = (teamId) => seeds.find((s) => s.teamId === teamId)?.seed;
+              // Round-robin groups settle ties with a playoff, so position alone
+              // doesn't qualify anyone. Double-elim groups use seeds instead.
+              const q = qualification[g];
+              const clear = new Set(q?.clear || []);
+              const contested = new Set(q?.contested || []);
+              const provisional =
+                seeds.length === 0 && clear.size === 0 && contested.size === 0 &&
+                rows.some((r) => r.played > 0);
 
               return (
                 <Panel key={g} title={`Group ${g}`}>
@@ -93,13 +97,15 @@ export default function Standings() {
                     <span className="w-9 text-center">L</span>
                   </div>
                   {rows.map((r, i) => {
-                    const seed = seedOf(r.teamId);
-                    const marked = seed != null || (provisional && i < 2);
+                                        const seed = seedOf(r.teamId);
+                    const isThrough = clear.has(r.teamId);
+                    const isContested = contested.has(r.teamId);
+                    const marked = seed != null || isThrough || (provisional && i < 2);
                     return (
                       <div
                         key={r.teamId}
                         className={`flex items-center px-4 py-3 border-b border-[#1C2430] last:border-0 ${
-                          marked ? "bg-[#F5A524]/[0.06]" : ""
+                                                    marked ? "bg-[#F5A524]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : ""
                         }`}
                       >
                         <span className={`w-6 text-[13px] tabular-nums ${marked ? "text-[#F5A524]" : "text-slate-600"}`}>
@@ -110,6 +116,11 @@ export default function Standings() {
                           <span className={`text-[14px] truncate ${marked ? "text-slate-100" : "text-slate-400"}`}>
                             {r.teamName}
                           </span>
+                                                    {isContested && (
+                            <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 uppercase tracking-wide">
+                              Playoff
+                            </span>
+                          )}
                         </div>
                         <span className="w-9 text-center text-[14px] font-medium text-slate-200 tabular-nums">
                           {r.wins}

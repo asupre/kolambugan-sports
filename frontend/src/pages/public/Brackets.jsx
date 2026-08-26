@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { Crest, Panel, DIVISION_LABEL } from "../../components/PublicUI";
+console.log("brackets render")
 
 // Stage split: group-stage matches carry a `group`, knockout matches don't.
 // This avoids depending on the bracket label, which uses two naming schemes
 // (`final`/`third` in one generator, `ko_final`/`ko_third` in the other).
 const isGroupStage = (m) => !!m.group;
 const isThird = (m) => (m.bracket || "").includes("third");
-const isFinal = (m) => (m.bracket || "").includes("final");
 
 function MatchCard({ m, innerRef }) {
   const done = m.status === "completed";
@@ -39,9 +39,7 @@ function MatchCard({ m, innerRef }) {
       <Side team={m.teamA} score={m.scoreA} won={aWin} />
       <div className="border-t border-[#1C2430]" />
       <Side team={m.teamB} score={m.scoreB} won={bWin} />
-      {live && (
-        <div className="px-3 py-1 bg-red-500/10 text-red-400 text-[10px] font-semibold">LIVE</div>
-      )}
+      {live && <div className="px-3 py-1 bg-red-500/10 text-red-400 text-[10px] font-semibold">LIVE</div>}
     </div>
   );
 }
@@ -49,8 +47,7 @@ function MatchCard({ m, innerRef }) {
 // One bracket tree: rounds as columns, elbows drawn from each match to the one
 // its winner feeds. Wires are measured from the DOM because column heights are
 // decided by flex, not by us. Pointers to matches outside this section (a
-// winners-bracket loser dropping into losers) are skipped — there's no ref for
-// them, so they resolve to nothing.
+// winners-bracket loser dropping into losers) resolve to nothing and are skipped.
 function BracketSection({ title, matches, labelFor }) {
   const stageRef = useRef(null);
   const boxRefs = useRef({});
@@ -108,6 +105,78 @@ function BracketSection({ title, matches, labelFor }) {
   );
 }
 
+// A round robin has no tree — every team plays every team — so a bracket layout
+// would be a lie. Show the table that actually decides who advances, with the
+// fixtures underneath.
+function RoundRobinGroup({ rows, matches, advance, qual }) {
+    console.log("qual", qual, "first row id", rows[0]?.teamId);
+  const played = rows.some((r) => r.played > 0);
+  const clear = new Set(qual?.clear || []);
+  const contested = new Set(qual?.contested || []);
+
+  return (
+    <div>
+      <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-600 text-[10px] font-medium tracking-wider">
+        <span className="w-6">#</span>
+        <span className="flex-1">TEAM</span>
+        <span className="w-9 text-center">W</span>
+        <span className="w-9 text-center">L</span>
+      </div>
+      {rows.map((r, i) => {
+                const isThrough = clear.has(r.teamId);
+        const isContested = contested.has(r.teamId);
+        // Before the group finishes, the leading rows are only provisional.
+        const provisional = !qual?.complete && played && i < advance;
+        const marked = isThrough || provisional;
+        return (
+          <div key={r.teamId}
+            className={`flex items-center px-4 py-2.5 border-b border-[#1C2430] ${
+              isThrough ? "bg-[#F5A524]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : provisional ? "bg-[#F5A524]/[0.03]" : ""
+            }`}>
+            <span className={`w-6 text-[13px] tabular-nums ${marked ? "text-[#F5A524]" : "text-slate-600"}`}>
+              {i + 1}
+            </span>
+            <div className="flex-1 min-w-0 flex items-center gap-2.5">
+              <Crest name={r.teamName} size={22} />
+              <span className={`text-[14px] truncate ${marked ? "text-slate-100" : "text-slate-400"}`}>
+                {r.teamName}
+              </span>
+                        {isContested && (
+                <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 uppercase tracking-wide">
+                  Playoff
+                </span>
+              )}
+            </div>
+            <span className="w-9 text-center text-[14px] font-medium text-slate-200 tabular-nums">{r.wins}</span>
+            <span className="w-9 text-center text-[14px] text-slate-500 tabular-nums">{r.losses}</span>
+          </div>
+        );
+      })}
+
+      <div className="px-4 py-2 bg-[#141A24] border-b border-[#1C2430]">
+        <span className="text-slate-500 text-[11px] font-medium">Fixtures</span>
+      </div>
+      {matches.map((m) => {
+        const done = m.status === "completed";
+        const aWin = done && String(m.winner) === String(m.teamA?.id);
+        return (
+          <div key={m.id} className="flex items-center gap-3 px-4 py-2 border-b border-[#1C2430] last:border-0">
+            <span className={`flex-1 min-w-0 truncate text-right text-[13px] ${aWin ? "text-slate-100" : "text-slate-400"}`}>
+              {m.teamA?.name || "TBD"}
+            </span>
+            <span className="shrink-0 text-[13px] tabular-nums text-slate-500 w-14 text-center">
+              {done ? `${m.scoreA}–${m.scoreB}` : m.status === "ongoing" ? "LIVE" : "vs"}
+            </span>
+            <span className={`flex-1 min-w-0 truncate text-[13px] ${done && !aWin ? "text-slate-100" : "text-slate-400"}`}>
+              {m.teamB?.name || "TBD"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const knockoutLabel = (r, i, total) =>
   i === total - 1 ? "Final" : i === total - 2 ? "Semifinals" : i === total - 3 ? "Quarterfinals" : `Round ${r}`;
 
@@ -143,6 +212,9 @@ export default function Brackets() {
   }, [tid]);
 
   const matches = data?.matches || [];
+  const standings = data?.standings || {};
+  const advance = data?.tournament?.advancePerGroup || 2;
+
   const groupMatches = matches.filter(isGroupStage);
   const knockout = matches.filter((m) => !isGroupStage(m));
   const knockoutMain = knockout.filter((m) => !isThird(m));
@@ -155,15 +227,10 @@ export default function Brackets() {
 
       <div className="flex gap-4 overflow-x-auto border-b border-[#1C2430] mb-6">
         {tournaments.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTid(t.id)}
+          <button key={t.id} onClick={() => setTid(t.id)}
             className={`px-3 py-2 text-[13px] whitespace-nowrap border-b-2 transition ${
-              tid === t.id
-                ? "text-[#F5A524] border-[#F5A524]"
-                : "text-slate-400 border-transparent hover:text-slate-200"
-            }`}
-          >
+              tid === t.id ? "text-[#F5A524] border-[#F5A524]" : "text-slate-400 border-transparent hover:text-slate-200"
+            }`}>
             {t.sport} {DIVISION_LABEL[t.division] || t.division}
           </button>
         ))}
@@ -200,22 +267,30 @@ export default function Brackets() {
 
           {groups.map((g) => {
             const inGroup = groupMatches.filter((m) => m.group === g);
+            const roundRobin = inGroup.filter((m) => m.bracket === "group");
             const winners = inGroup.filter((m) => m.bracket === "winners");
             const losers = inGroup.filter((m) => m.bracket === "losers");
-            const roundRobin = inGroup.filter((m) => m.bracket === "group");
+            // A round-robin group has no winners/losers brackets at all.
+            const isRR = roundRobin.length > 0 && winners.length === 0;
+
             return (
               <Panel key={g} title={`Group ${g}`} count={`${inGroup.length} matches`}>
-                <div className="px-5 py-5">
-                  {roundRobin.length > 0 && (
-                    <BracketSection
-                      title="Round robin"
-                      matches={roundRobin}
-                      labelFor={(r) => `Round ${r}`}
-                    />
-                  )}
-                  <BracketSection title="Winners" matches={winners} labelFor={(r) => `Round ${r}`} />
-                  <BracketSection title="Losers" matches={losers} labelFor={(r) => `Round ${r}`} />
-                </div>
+                {isRR ? (
+                  <RoundRobinGroup
+                    rows={standings[g] || []}
+                    matches={roundRobin}
+                    advance={advance}
+                    qual={data?.qualification?.[g]}
+                  />
+                ) : (
+                  <div className="px-5 py-5">
+                    <BracketSection title="Winners" matches={winners} labelFor={(r) => `Round ${r}`} />
+                    <BracketSection title="Losers" matches={losers} labelFor={(r) => `Round ${r}`} />
+                    {roundRobin.length > 0 && (
+                      <BracketSection title="Playoff" matches={roundRobin} labelFor={(r) => `Round ${r}`} />
+                    )}
+                  </div>
+                )}
               </Panel>
             );
           })}

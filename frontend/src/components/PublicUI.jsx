@@ -154,3 +154,25 @@ export function SiteImage({ slot, label, className = "" }) {
     />
   );
 }
+export function SearchInput({ value, onChange, placeholder = "Search…" }) {
+  return (
+    <div className="relative mb-5">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+        className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none">
+        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" />
+      </svg>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-[#1C2430] bg-[#0F141C] text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#2A3441] transition"
+      />
+      {value && (
+        <button onClick={() => onChange("")} aria-label="Clear search"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300 text-sm">
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}

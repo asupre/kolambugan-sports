@@ -27,8 +27,8 @@ function publicMatch(m, sportName, division) {
     group: m.group,
     teamA: m.teamA ? { id: m.teamA._id, name: m.teamA.teamName } : null,
     teamB: m.teamB ? { id: m.teamB._id, name: m.teamB.teamName } : null,
-    scoreA: m.liveScoreA || 0,
-    scoreB: m.liveScoreB || 0,
+        scoreA: m.liveScoreA || (m.games || []).reduce((n, g) => n + (g.scoreA || 0), 0),
+    scoreB: m.liveScoreB || (m.games || []).reduce((n, g) => n + (g.scoreB || 0), 0),
     periods: (m.games || []).map((g) => ({ n: g.gameNumber, a: g.scoreA, b: g.scoreB })),
     periodsPlayed: (m.games || []).length,
     totalPeriods: m.bestOf || 1,
@@ -340,33 +340,98 @@ router.get('/players', async (req, res) => {
   }
 });
 
-// W/L per team, per group. Counts completed matches only; a match in progress
-// contributes nothing until the organizer ends it.
+// W/L per team, per group. Counts completed matches only, and EXCLUDES
+// tiebreaker playoffs — a playoff decides a tie, it isn't part of the group
+// record that created the tie.
 function groupStandings(matches) {
   const byGroup = {};
   matches.forEach((m) => {
-    if (!m.group) return;
+    if (!m.group || m.isTiebreaker) return;
     const g = (byGroup[m.group] = byGroup[m.group] || {});
     [m.teamA, m.teamB].forEach((t) => {
       if (!t) return;
       const k = String(t.id);
-      g[k] = g[k] || { teamId: k, teamName: t.name, wins: 0, losses: 0, played: 0 };
+      g[k] = g[k] || { teamId: k, teamName: t.name, wins: 0, losses: 0, played: 0, gameWinDiff: 0 };
     });
     if (m.status !== 'completed' || !m.winner) return;
-    [m.teamA, m.teamB].forEach((t) => {
+
+    // Games won within the match — the second tiebreak, matching the admin's.
+    let ga = 0, gb = 0;
+    (m.periods || []).forEach((p) => { if (p.a > p.b) ga++; else if (p.b > p.a) gb++; });
+
+    [m.teamA, m.teamB].forEach((t, i) => {
       if (!t) return;
       const row = g[String(t.id)];
       row.played += 1;
-      if (String(m.winner) === String(t.id)) row.wins += 1;
-      else row.losses += 1;
+      if (String(m.winner) === String(t.id)) row.wins += 1; else row.losses += 1;
+      row.gameWinDiff += i === 0 ? ga - gb : gb - ga;
     });
   });
+
   const out = {};
   Object.entries(byGroup).forEach(([g, rows]) => {
     out[g] = Object.values(rows).sort(
-      (a, b) => b.wins - a.wins || a.losses - b.losses || a.teamName.localeCompare(b.teamName)
+      (a, b) => b.wins - a.wins || b.gameWinDiff - a.gameWinDiff || a.teamName.localeCompare(b.teamName)
     );
   });
+  return out;
+}
+
+// Who has actually qualified from a ROUND-ROBIN group, and who is still
+// contesting the last spot. Position in the table isn't enough: teams level on
+// the cutoff line are tied, and a tie is settled by a playoff, not by
+// alphabetical order.
+function groupQualification(matches, advance) {
+  const standings = groupStandings(matches);
+  const out = {};
+
+  Object.entries(standings).forEach(([g, table]) => {
+    const gm = matches.filter((m) => m.group === g);
+    const rr = gm.filter((m) => !m.isTiebreaker && m.bracket === 'group');
+    const complete = rr.length > 0 && rr.every((m) => m.status === 'completed');
+
+    if (!complete || table.length <= advance) {
+      out[g] = { complete, clear: [], contested: [] };
+      return;
+    }
+
+    const lastIn = table[advance - 1];
+    const level = (t) => t.wins === lastIn.wins && t.gameWinDiff === lastIn.gameWinDiff;
+    const above = (t) => t.wins > lastIn.wins || (t.wins === lastIn.wins && t.gameWinDiff > lastIn.gameWinDiff);
+
+    const tied = table.filter(level);
+    const clearIn = table.filter(above);
+    const spotsLeft = advance - clearIn.length;
+
+    // Not a real contest: no tie, or enough spots for everyone tied.
+    if (tied.length < 2 || tied.length <= spotsLeft) {
+      out[g] = { complete, clear: table.slice(0, advance).map((t) => t.teamId), contested: [] };
+      return;
+    }
+
+    const tb = gm.filter((m) => m.isTiebreaker);
+    const resolved = tb.length > 0 && tb.every((m) => m.status === 'completed');
+
+    if (resolved) {
+      const final = tb.reduce((hi, m) => (!hi || m.round > hi.round ? m : hi), null);
+      // One spot goes to the playoff winner; two spots go to both finalists,
+      // since reaching the final is itself qualifying.
+      const through = spotsLeft === 1
+        ? [final?.winner].filter(Boolean).map(String)
+        : [final?.teamA?.id, final?.teamB?.id].filter(Boolean).map(String);
+      out[g] = { complete, clear: [...clearIn.map((t) => t.teamId), ...through], contested: [] };
+      return;
+    }
+
+    out[g] = {
+      complete,
+      clear: clearIn.map((t) => t.teamId),
+      contested: tied.map((t) => t.teamId),
+      spotsLeft,
+      playoffGenerated: tb.length > 0,
+    };
+  });
+
   return out;
 }
 
@@ -406,6 +471,8 @@ router.get('/bracket', async (req, res) => {
     const t = tid && byId[String(tid)];
     if (!t) return res.status(404).json({ message: 'Tournament not found.' });
 
+        // advancePerGroup decides how many rows to highlight in a round-robin table.
+    const tdoc = await Tournament.findById(tid).select('advancePerGroup');
     const matches = await Match.find({ tournament: tid })
       .populate('teamA', 'teamName').populate('teamB', 'teamName')
       .sort({ _id: 1 });
@@ -418,7 +485,9 @@ router.get('/bracket', async (req, res) => {
     }));
 
     res.json({
-      tournament: { id: t.id, sport: t.sport, division: t.division, stage: t.stage },
+            tournament: { id: t.id, sport: t.sport, division: t.division, stage: t.stage,
+                    advancePerGroup: tdoc?.advancePerGroup || 2 },
+                          qualification: groupQualification(shaped, tdoc?.advancePerGroup || 2),
       matches: shaped,
       standings: groupStandings(shaped),
       qualifiers: groupQualifiers(shaped),

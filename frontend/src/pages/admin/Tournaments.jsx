@@ -74,6 +74,22 @@ function MatchesView({ tournamentId }) {
     return () => { alive = false; };
   }, [tournamentId]);
 
+    async function revert(m) {
+    const ok = window.confirm(
+      `Revert ${m.teamA?.teamName} vs ${m.teamB?.teamName}?\n\n` +
+      `The score, periods and player stats are discarded, and both teams are pulled ` +
+      `back out of the matches they advanced into. The organizer scores it again.`
+    );
+    if (!ok) return;
+    try {
+      await api(`/api/tournaments/matches/${m._id}/revert`, { method: "POST" });
+      const d = await api(`/api/tournaments/${tournamentId}/bracket`);
+      setMatches(d.matches || []);
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
   if (loading) return <p className="text-slate-500 text-sm">Loading matches…</p>;
   if (matches.length === 0) return null;
 
@@ -90,6 +106,8 @@ function MatchesView({ tournamentId }) {
   const group = matches.filter((m) => !m.isTiebreaker);
   const playoff = matches.filter((m) => m.isTiebreaker);
 
+    
+
   const Row = ({ m }) => {
     const done = m.status === "completed";
     const aWin = done && String(m.seriesWinner) === String(m.teamA?._id || m.teamA);
@@ -104,10 +122,17 @@ function MatchesView({ tournamentId }) {
         <span className="px-2 tabular-nums text-slate-500 w-16 text-center shrink-0">
           {done ? `${scoreOf(m, "A")}–${scoreOf(m, "B")}`
             : m.status === "ongoing" ? "live" : "vs"}
+            
         </span>
         <span className={`flex-1 min-w-0 truncate ${done && !aWin ? "font-semibold text-slate-900" : "text-slate-600"}`}>
           {m.teamB?.teamName || "TBD"}
         </span>
+                      {done && (
+          <button onClick={() => revert(m)}
+            className="text-[11px] font-medium px-2 py-1 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 shrink-0">
+            Revert
+          </button>
+        )}
       </div>
     );
   };
@@ -453,7 +478,7 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
 
 // Read-only. Scoring belongs to the organizer's courtside screen — an admin
 // entering a score here would bypass PlayerMatchStats and the period record.
-function MatchBox({ m, innerRef }) {
+function MatchBox({ m, innerRef, onRevert }) {
   const done = m.status === "completed";
   const live = m.status === "ongoing";
   const winnerId = String(m.seriesWinner?._id || m.seriesWinner || "");
@@ -472,6 +497,7 @@ function MatchBox({ m, innerRef }) {
         {name || "TBD"}
       </span>
       {(done || live) && <span className="text-slate-600 font-medium w-6 text-center tabular-nums">{score}</span>}
+      
     </div>
   );
 
@@ -482,12 +508,18 @@ function MatchBox({ m, innerRef }) {
       <div className="border-t border-slate-100" />
       <Side name={m.teamB?.teamName} score={bScore} won={bWin} />
       {live && <div className="px-3 py-1 bg-red-50 text-red-600 text-[10px] font-semibold">● LIVE</div>}
+      {done && onRevert && (
+        <button onClick={() => onRevert(m)}
+          className="w-full px-3 py-1 border-t border-slate-100 text-[11px] text-slate-400 hover:text-slate-600 hover:bg-slate-50">
+          Revert
+        </button>
+      )}
     </div>
   );
 }
 
 // One tree, with elbows measured from the DOM.
-function BracketTree({ title, matches, labelFor }) {
+function BracketTree({ title, matches, labelFor, onRevert }) {
   const stageRef = useRef(null);
   const boxRefs = useRef({});
   const [wires, setWires] = useState([]);
@@ -533,7 +565,8 @@ function BracketTree({ title, matches, labelFor }) {
               <p className="text-slate-400 text-xs font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
               <div className="flex-1 flex flex-col justify-around gap-3">
                 {matches.filter((m) => m.round === r).map((m) => (
-                  <MatchBox key={m._id} m={m} innerRef={(el) => (boxRefs.current[m._id] = el)} />
+                                    <MatchBox key={m._id} m={m} onRevert={onRevert}
+                    innerRef={(el) => (boxRefs.current[m._id] = el)} />
                 ))}
               </div>
             </div>
@@ -556,6 +589,21 @@ function BracketView({ tournamentId }) {
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [tournamentId]);
+    async function revert(m) {
+    const ok = window.confirm(
+      `Revert ${m.teamA?.teamName} vs ${m.teamB?.teamName}?\n\n` +
+      `The score, periods and player stats are discarded, and both teams are pulled ` +
+      `back out of the matches they advanced into. The organizer scores it again.`
+    );
+    if (!ok) return;
+    try {
+      await api(`/api/tournaments/matches/${m._id}/revert`, { method: "POST" });
+      const d = await api(`/api/tournaments/${tournamentId}/bracket`);
+      setMatches(d.matches || []);
+    } catch (e) {
+      alert(e.message);
+    }
+  }
 
   if (loading) return <p className="text-slate-500 text-sm">Loading bracket…</p>;
   if (matches.length === 0) return <p className="text-slate-500 text-sm">No bracket yet.</p>;
@@ -567,21 +615,28 @@ function BracketView({ tournamentId }) {
   const knockout = matches.filter((m) => !m.group);
   const groups = [...new Set(grouped.map((m) => m.group))].sort();
 
-  const koLabel = (r, i, total) =>
-    i === total - 1 ? "Final" : i === total - 2 ? "Semifinals" : i === total - 3 ? "Quarterfinals" : `Round ${r}`;
+    // Name rounds by how many teams are left, not by position — the third-place
+  // match shares the final's round number and throws off counting backwards.
+  const koLabel = (r) => {
+    const inRound = koMain.filter((m) => m.round === r).length;
+    return inRound === 1 ? "Final"
+      : inRound === 2 ? "Semifinals"
+      : inRound === 4 ? "Quarterfinals"
+      : `Round of ${inRound * 2}`;
+  };
   const koMain = knockout.filter((m) => !(m.bracket || "").includes("third"));
   const koThird = knockout.find((m) => (m.bracket || "").includes("third"));
 
-  return (
+    return (
     <div>
       {koMain.length > 0 && (
         <div className="mb-8">
           <h3 className="text-slate-800 font-semibold mb-3">Knockout</h3>
-          <BracketTree matches={koMain} labelFor={koLabel} />
+          <BracketTree matches={koMain} labelFor={koLabel} onRevert={revert} />
           {koThird && (
             <div>
               <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>
-              <MatchBox m={koThird} innerRef={() => {}} />
+              <MatchBox m={koThird} innerRef={() => {}} onRevert={revert} />
             </div>
           )}
         </div>
@@ -590,9 +645,11 @@ function BracketView({ tournamentId }) {
       {groups.map((g) => (
         <div key={g} className="mb-8">
           <h3 className="text-slate-800 font-semibold mb-3">Group {g}</h3>
-          <BracketTree title="Winners" matches={grouped.filter((m) => m.group === g && m.bracket === "winners")}
+          <BracketTree title="Winners" onRevert={revert}
+            matches={grouped.filter((m) => m.group === g && m.bracket === "winners")}
             labelFor={(r) => `Round ${r}`} />
-          <BracketTree title="Losers" matches={grouped.filter((m) => m.group === g && m.bracket === "losers")}
+          <BracketTree title="Losers" onRevert={revert}
+            matches={grouped.filter((m) => m.group === g && m.bracket === "losers")}
             labelFor={(r) => `Round ${r}`} />
         </div>
       ))}

@@ -6,6 +6,7 @@ const Sport = require('../models/Sport');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 const { parseManila } = require('../config/time');
+const PlayerMatchStats = require('../models/PlayerMatchStats');
 
 const router = express.Router();
 
@@ -1045,6 +1046,95 @@ router.post('/:id/schedule-bulk', authenticate, authorize('super_admin'), async 
     res.json({ message: `Scheduled ${result.modifiedCount} match(es).`, updated: result.modifiedCount });
   } catch (err) {
     console.error('Bulk schedule error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+// POST /api/tournaments/matches/:matchId/revert — SUPER ADMIN.
+// Undoes a COMPLETED match: pulls both teams back out of the matches they were
+// advanced into, discards the score, periods and player stats, and returns it to
+// 'scheduled' so the organizer can score it properly.
+//
+// Deliberately NOT a score editor. Editing the number directly would bypass
+// PlayerMatchStats and the period record, leaving a result nothing supports.
+//
+// Refuses when anything downstream has already started: unwinding a chain of
+// matches automatically is how a bracket ends up half-rolled-back. The admin
+// cancels the downstream match first, then comes back here.
+router.post('/matches/:matchId/revert', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.matchId);
+    if (!match) return res.status(404).json({ message: 'Match not found.' });
+    if (match.status !== 'completed') {
+      return res.status(409).json({ message: 'Only a completed match can be reverted.' });
+    }
+
+    const tournament = await Tournament.findById(match.tournament);
+
+    // The final decided the champion and closed the tournament. Reopening that
+    // is a bigger decision than correcting a score.
+    if (['final', 'ko_final'].includes(match.bracket)) {
+      return res.status(409).json({
+        message: 'This is the final — reverting it would reopen a completed tournament. Delete and regenerate the bracket instead.',
+      });
+    }
+
+    // Check both destinations before touching anything.
+    const downstream = [];
+    for (const id of [match.nextMatchWin, match.nextMatchLose]) {
+      if (!id) continue;
+      const next = await Match.findById(id)
+        .populate('teamA', 'teamName').populate('teamB', 'teamName');
+      if (!next) continue;
+      if (next.status !== 'scheduled') {
+        downstream.push(`${next.teamA?.teamName || 'TBD'} vs ${next.teamB?.teamName || 'TBD'} (${next.status})`);
+      }
+    }
+    if (downstream.length) {
+      return res.status(409).json({
+        message: `A later match has already started: ${downstream.join('; ')}. Cancel it first, then revert this one.`,
+      });
+    }
+
+    // Remove the teams BY ID. placeInto fills the first empty slot, so the team
+    // could be sitting in either teamA or teamB — clearing by position would
+    // evict whoever else was already there.
+    const pullOut = async (nextId, teamId) => {
+      if (!nextId || !teamId) return;
+      const next = await Match.findById(nextId);
+      if (!next) return;
+      if (String(next.teamA) === String(teamId)) next.teamA = null;
+      else if (String(next.teamB) === String(teamId)) next.teamB = null;
+      await next.save();
+    };
+
+    const winner = match.seriesWinner;
+    const loser = String(winner) === String(match.teamA) ? match.teamB : match.teamA;
+    await pullOut(match.nextMatchWin, winner);
+    await pullOut(match.nextMatchLose, loser);
+
+    await PlayerMatchStats.deleteMany({ match: match._id });
+
+    match.status = 'scheduled';
+    match.seriesWinner = null;
+    match.games = [];
+    match.liveScoreA = 0;
+    match.liveScoreB = 0;
+    match.startedAt = null;
+    match.mvp = null;
+    match.enteredBy = null;
+    match.enteredAt = null;
+    await match.save();
+
+    // A tiebreaker or knockout result can close a tournament's stage; reverting
+    // one has to reopen it or the bracket page stops showing the group stage.
+    if (tournament && tournament.stage === 'completed') {
+      tournament.stage = 'elimination';
+      await tournament.save();
+    }
+
+    res.json({ message: 'Match reverted. The organizer can score it again.', matchId: match._id });
+  } catch (err) {
+    console.error('Revert match error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

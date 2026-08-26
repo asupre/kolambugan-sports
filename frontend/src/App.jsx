@@ -10,6 +10,14 @@ import Accounts from "./pages/admin/Accounts";
 import BrgyDashboard from "./pages/brgy/BrgyDashboard";
 import Documents from "./pages/brgy/Documents";
 import OrganizerScoring from "./pages/organizer/OrganizerScoring";
+import PublicLayout from "./pages/public/PublicLayout";
+import Home from "./pages/public/Home";
+import Matches from "./pages/public/Matches";
+import Standings from "./pages/public/Standings";
+import Teams from "./pages/public/Teams";
+import TeamDetail from "./pages/public/TeamDetail";
+import Players from "./pages/public/Players";
+import Brackets from "./pages/public/Brackets";
 // Temporary placeholder pages so routes resolve while we build the real ones.
 function Placeholder({ title }) {
   return (
@@ -34,8 +42,17 @@ export default function App() {
         <Route path="/brgy" element={<BrgyDashboard />} />
         <Route path="/brgy/documents" element={<Documents />} />
         <Route path="/organizer" element={<OrganizerScoring />} />
-        <Route path="/" element={<Placeholder title="Public Viewer (coming soon)" />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Home />} />
+           <Route path="/matches" element={<Matches />} />
+            <Route path="/standings" element={<Standings />} />
+            <Route path="teams" element={<Teams />} />
+            <Route path="teams/:id" element={<TeamDetail />} />
+            <Route path="players" element={<Players />} />
+            <Route path="/brackets" element={<Brackets />} />
+          </Route>
+        <Route path="*" element={<Navigate to="/" replace/>} />
+        
       </Routes>
     </BrowserRouter>
   );

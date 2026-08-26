@@ -997,15 +997,19 @@ router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'
     const match = await Match.findById(req.params.matchId);
     if (!match) return res.status(404).json({ message: 'Match not found.' });
 
-    if (req.body.schedule === null || req.body.schedule === '') {
-      match.schedule = null;
-    } else {
-      const d = new Date(req.body.schedule);
-      if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid date.' });
-      match.schedule = d;
+    if (req.body.schedule !== undefined) {
+      if (req.body.schedule === null || req.body.schedule === '') {
+        match.schedule = null;
+      } else {
+        const d = new Date(req.body.schedule);
+        if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid date.' });
+        match.schedule = d;
+      }
     }
+    if (req.body.venue !== undefined) match.venue = String(req.body.venue).trim();
+
     await match.save();
-    res.json({ message: 'Schedule updated.', matchId: match._id, schedule: match.schedule });
+    res.json({ message: 'Schedule updated.', matchId: match._id, schedule: match.schedule, venue: match.venue });
   } catch (err) {
     console.error('Set schedule error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -1032,7 +1036,9 @@ router.post('/:id/schedule-bulk', authenticate, authorize('super_admin'), async 
       return res.status(400).json({ message: 'Give at least one of: round, group, or bracket.' });
     }
 
-    const result = await Match.updateMany(filter, { $set: { schedule: d } });
+        const set = { schedule: d };
+    if (req.body.venue !== undefined) set.venue = String(req.body.venue).trim();
+    const result = await Match.updateMany(filter, { $set: set });
     res.json({ message: `Scheduled ${result.modifiedCount} match(es).`, updated: result.modifiedCount });
   } catch (err) {
     console.error('Bulk schedule error:', err);

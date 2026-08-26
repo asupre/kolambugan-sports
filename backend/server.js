@@ -22,6 +22,7 @@ app.use('/api/tournaments', require('./src/routes/tournament'));
 app.use('/api/stats', require('./src/routes/stats'));
 app.use('/api/accounts', require('./src/routes/accounts'));
 app.use('/api/organizer', require('./src/routes/organizer'));
+app.use('/api/public', require('./src/routes/public'));
 
 
 // A simple test route so we can confirm the server is alive

@@ -212,6 +212,36 @@ to be `winners`, which broke match counts and made the two indistinguishable.
 **Per-match best_of:** 1/3/5/7, default 1. Matches hold a `games[]` array +
 `seriesWinner`. ML knockouts use BO3/BO5.
 
+**LIVE SCORING & PERIODS (BUILT Aug 2026):**
+- The ORGANIZER scores matches, not the Super Admin. A match runs
+  scheduled → (organizer taps Start, choosing the PERIOD COUNT) → ongoing →
+  (organizer taps End match) → completed, and only then does advancement fire.
+- **Periods** (quarters / sets) are stored in `bestOf`. ALL periods must be
+  played before the match can end. The running score ACCUMULATES across periods
+  — it never resets — and the winner is the higher TOTAL. Each `games[]` entry
+  holds only that period's own points, so the periods sum to the final score
+  (a scoresheet, not a running scoreboard).
+- Per-sport period options: Basketball [4]; Volleyball/Badminton/Pickleball
+  [1,3,5]. Per-sport point values: Basketball [1,2,3]; the rally sports [1].
+- A TIE at the end extends the match by one deciding period rather than
+  trapping the organizer — a tie can never be recorded.
+- **Cancel match** resets a started match to `scheduled` and discards the live
+  score, periods, and PlayerMatchStats (for a mis-tap or a voided game). A
+  COMPLETED match cannot be cancelled — its winner has already advanced.
+- Scoring is blocked once every period is banked; only End match remains.
+
+**MATCH SCHEDULING (BUILT Aug 2026):**
+- Super Admin sets dates per match or in BULK BY ROUND, plus a `venue` string,
+  from a collapsible Schedule section inside the Tournaments page.
+- The organizer's match list surfaces a **Today** section; starting a match
+  dated for another day asks for confirmation but PROCEEDS (soft gate).
+  Rationale: dates are an organisational aid, not an integrity control — an
+  organizer must never be blocked from recording a game being played in front
+  of them. A match with NO date is always startable (which also keeps the
+  September evaluation usable).
+- NOTE: the day comparison uses server-local time. On Render that is UTC, 8h
+  behind Kolambugan — compare in Asia/Manila before deploying.
+
 **Unavailable team = FORFEIT** (confirmed). No reschedule/re-pair.
 
 **Also recorded per match:** fouls, individual player points, MVP
@@ -277,10 +307,13 @@ Tournament     sport, season, division, stage ∈ {group_stage, elimination,
                groups[], advancePerGroup, knockoutSize ∈ {8,16}
 Match          tournament, bracket ∈ {winners, losers, final, group, third,
                knockout, ko_final, ko_third}, round, group, teamA, teamB,
-               organizer, bestOf ∈ {1,3,5,7}, games[{gameNumber, scoreA,
-               scoreB, winner}], seriesWinner, nextMatchWin, nextMatchLose,
-               isTiebreaker, status ∈ {scheduled, ongoing, completed,
-               forfeited}, schedule, enteredBy, enteredAt
+               organizer, bestOf ∈ {1,2,3,4,5,7}  ← ALSO the PERIOD COUNT,
+               games[{gameNumber, scoreA, scoreB, winner}]  ← one entry per
+               PERIOD, holding only that period's own points,
+               seriesWinner, nextMatchWin, nextMatchLose, isTiebreaker,
+               status ∈ {scheduled, ongoing, completed, forfeited},
+               schedule, venue, liveScoreA, liveScoreB  ← running totals,
+               startedAt, mvp(FK Player), enteredBy, enteredAt
 PlayerMatchStats  match, player, points, fouls   ← unique(match, player);
                   NOTHING WRITES TO THIS YET (organizer screen pending)
 ```
@@ -317,23 +350,39 @@ Kept separate on purpose so a bug in one route cannot expose the other.
 
 ## Design system (two looks, one product)
 
-**Public Viewer — "R7-inspired" dark sports theme:**
-- Deep navy background (#0A1628-ish; brand navy #0E2340, gold #F5A524)
-- Solid dark cards (#111C2E) — NO backdrop-blur/glassmorphism (low-end phones)
-- Thin colored accent line per card, color-coded BY SPORT
-- Display font: Chakra Petch or Orbitron for headings/scores; Inter for body
-- Status pill badges with dot indicators (● LIVE, ● 26 BARANGAYS)
-- Minimal animation — at most a subtle transition on live score updates
+**Public Viewer — DARK, "ESPN structure" (decided Aug 2026):**
+- Near-black background `#0B1017`; panels `#0F141C`; borders `#1C2430`;
+  accent gold `#F5A524`. (Supersedes the earlier "R7 navy" note — the real R7
+  site turned out to be a full-bleed image + translucent cards, which we did
+  NOT adopt.)
+- Structure follows ESPN / PBA, not a betting site: panels with a header row
+  and thin dividers, no card gaps, no gradients, no emoji, no VS badges.
+- **Scoreboard strip** is the core pattern: a context line (sport · division ·
+  group · venue), then the two teams STACKED with right-aligned scores. The
+  LEADING team stays bright, the trailing team dims — that contrast alone shows
+  who is winning. No decoration needed.
+- **Schedule** follows PBA's fixture list: a date header bar, then per match the
+  time + venue on the LEFT and the two teams stacked with crest slots.
+- `Crest` component renders a monogram tile now; it is the SINGLE swap point for
+  barangay logos once those are built.
+- Sport tabs are underlined text, not chips.
+- Minimal animation. Live pages poll every 10s so scores tick over on their own —
+  that is the one "live" effect.
 - NEVER use Mobile Legends / Moonton art or any copyrighted game assets.
-- Public lineups show **surname, age, jersey, stats, and photo**. NO birthdate,
-  NO address, NO documents.
+- Public lineups show **surname, first name, jersey, age, stats, and photo**.
+  NO birthdate, NO address, NO documents.
 
-**Admin pages (Super Admin, Barangay Admin, Organizer) — shadcn/ui style:**
-- Clean, light, functional dashboard components
+**Admin pages (Super Admin, Barangay Admin) — shadcn/ui, deferred:**
 - Currently hand-rolled Tailwind + `components/ui.jsx`
   (Button/Card/Input/Label/Pill) and a generic `AdminLayout` that takes a
-  `menu` prop. shadcn/ui restyle deferred to one pass later.
-- Organizer's scoring screen is tablet/phone-first (big touch targets)
+  `menu` prop.
+- DECIDED: a single shadcn/ui conversion pass over ALL admin pages, with light
+  animation, AFTER the features are finished. Doing it once keeps them
+  consistent; doing it now would mean converting twice.
+
+**Organizer scoring screen — dark, courtside:**
+- Dark navy, very large scores, big touch targets. Tablet/phone first.
+- This is the one screen where dark is for legibility at arm's length.
 
 Everything mobile-first and responsive. Public users are on phones.
 
@@ -566,39 +615,66 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 - Distinct bracket labels for group vs knockout (see Tournament format).
 - Per-sport division/format config seeded (`seedSportConfig.js`).
 
+**Organizer live scoring (routes/organizer.js + pages/organizer/OrganizerScoring.jsx)**
+- Match feed scoped to the organizer's `assignedSport` (shows not-yet-ready
+  matches greyed out), Today section, start with period count, per-player
+  scoring (basketball 1/2/3, badminton/pickleball +1) or side scoring
+  (volleyball), fouls with undo, per-team undo, per-period banking, MVP
+  (defaults to top scorer), end match → bracket advancement, cancel/reset.
+- Writes PlayerMatchStats (points + fouls) — the model that had sat unused.
+- Tested: basketball (player mode), volleyball (side mode), badminton,
+  pickleball. Advancement verified — winner up, loser into the losers bracket.
+
+**Scheduling**
+- `PATCH /api/tournaments/matches/:matchId/schedule` (date + venue),
+  `POST /api/tournaments/:id/schedule-bulk` (by round / group / bracket).
+- Super Admin: collapsible Schedule section in the Tournaments page showing
+  "(N/M dated)", per-round bulk apply, per-match date field.
+
+**Public API (routes/public.js — unauthenticated, read-only)**
+- `/overview` (season, live, today, recent, counts — one call for the landing
+  page), `/matches?sport=&status=`, `/tournaments`, `/teams?sport=`,
+  `/teams/:id` (public lineup + season stats), `/leaders?sport=&limit=`.
+- Player shapes deliberately omit birthdate, address, documents; they return
+  `age` and `hasPhoto`.
+
 **Frontend**
 - Super Admin: Dashboard, Season, Reference List, Review Queue, Tournaments
   (sport picker, standings, match entry, knockout generation, aligned bracket
-  display with connector lines), Accounts.
+  display with connector lines, Schedule section), Accounts.
 - Barangay Admin: Team Registration (sport → division → name), roster editor
   (modal) with photo upload, Document Submission page.
+- Organizer: match list + live scoring screen.
+- Public Viewer (IN PROGRESS): `pages/public/PublicLayout.jsx` (header, nav,
+  3-column footer, `<Outlet/>`), `Home.jsx`, `Matches.jsx`, `Standings.jsx`,
+  `components/SportGrid.jsx`. Polls every 10s.
 - Shared `AdminLayout` (generic, takes a `menu` prop), `ui.jsx` components.
 
 ## IN PROGRESS / NEXT (priority order)
 
-1. **Organizer LIVE scoring screen** — the primary courtside UI. Backend work
-   still needed: match live-state (`ongoing`), scoring endpoints, and writing
-   to PlayerMatchStats. Scoring modes agreed:
-   - Basketball: tap a player, +1/+2/+3 → credits the player AND the team;
-     fouls per player; MVP = top scorer.
-   - Volleyball: **+1 to the side** (rally points, sets); MVP picked manually.
-   - Badminton / Pickleball: **per-player +1** + fouls; MVP = top scorer.
-   - Billiards: plain win/loss entry (no live tapping).
-   - Every tap should update the Super Admin bracket and Public Viewer live
-     (polling is fine; websockets are overkill at this scale).
-   - Organizer sees ONLY their `assignedSport`. Super Admin bracket becomes
-     read-only display (scoring moves to the organizer).
-2. **Public Viewer** (dark R7 theme) — scores, standings, brackets, lineups
-   (with photos), champions archive.
-3. Super Admin **config UI** for per-sport `divisions` + `entryFormat`
-   (currently seeded by script) — extends the "Open Registration" modal.
-4. Barangay Admin remaining HIPO modules: Dashboard, Verification Status page,
+1. **Finish the Public Viewer** — remaining pages: Brackets (reuse SportGrid),
+   Teams + team detail (lineup with photos), Players (top scorers from
+   `/leaders`), Champions, About. Plus a venue input in the Super Admin
+   scheduling UI so venues can actually be set.
+2. **Barangay logos** — `logo` GridFS field on **Barangay** (per barangay, NOT
+   per team), upload UI for the barangay admin, public serve route. The `Crest`
+   component in the public pages is the single swap point.
+3. **Instruction modal** — first-login orientation. REQUIRED: promised in the
+   thesis and the September evaluation depends on it.
+4. **Super Admin config UI** for per-sport `divisions` + `entryFormat`, AND the
+   ability to generate a divided tournament from the UI. Right now that is
+   PowerShell-only, which BLOCKS anyone but the developer from running the
+   system — more urgent than it sounds.
+5. Barangay Admin remaining HIPO modules: Dashboard, Verification Status page,
    Match Information.
-5. Champions archive on season complete; forfeit handling.
-6. `verified_residents` collection (approvals persisting across seasons).
-7. Polish: frontend role guards, 401 → redirect to login, shadcn restyle,
-   cosmetic bugs below.
-8. Deploy (Render + Vercel + Atlas), clear test data, delete dev-only code.
+6. Champions archive on season complete; forfeit handling.
+7. `verified_residents` collection (approvals persisting across seasons).
+8. **shadcn/ui pass over ALL admin pages** + light animation. Deliberately
+   deferred until the features are done.
+9. Polish: frontend role guards, 401 → redirect to login, cosmetic bugs below.
+10. Full end-to-end test on a CLEAN database (create season → register →
+    verify → generate → score → check the public viewer), then deploy
+    (Render + Vercel + Atlas) and delete all dev-only code.
 
 ## KNOWN COSMETIC BUGS (low priority)
 - Group standings display shows combined group+playoff points after a
@@ -610,7 +686,8 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 In `backend/src/config/` (these write DIRECTLY to the DB, bypassing app rules):
 seedTestTeams.js, seedReviewTest.js, showOrReset.js, clearTournaments.js,
 seedTiebreakerTest.js, seedTie5Test.js, seed52WithTies.js,
-seedVerifiedTeams.js, **seedSportConfig.js** (keep until the config UI exists).
+seedVerifiedTeams.js, seedPlayersForTeams.js, **seedSportConfig.js** (keep
+until the config UI exists).
 Routes/UI: `POST /api/tournaments/:id/simulate-groups`, the temp
 `POST /api/tournaments/:id/test-de`, and the amber "Auto-score all group
 matches" button in Tournaments.jsx.
@@ -637,6 +714,17 @@ Also gitignore any `dev-setup.ps1` (it holds a password).
 - PowerShell arrays: JSON `[...]` pasted from a script won't parse; use
   `@(...)` or pipe through `ConvertFrom-Json`, and wrap with `@()` before
   `ConvertTo-Json` so a single-element array doesn't collapse.
+- **GridFS ignores `openUploadStream({ contentType })`** in this driver version —
+  the type must ALSO go in `metadata`, and `sendFile` reads it back with a
+  fallback. Without it, files DOWNLOAD instead of displaying. Files uploaded
+  before this fix are permanently typeless; re-upload them.
+- **Mongoose `findOneAndUpdate({ new: true })` is deprecated** — use
+  `returnDocument: 'after'`.
+- **Don't read `games[0]` as the final score.** It is only period 1. The final
+  score is `liveScoreA`/`liveScoreB` (they survive completion). Admin-entered
+  results still write into `games[0]`, so displays need to handle both.
+- **Two `path="*"` routes** in App.jsx = the second is dead code. One catch-all,
+  pointing at `/`.
 - Frontend paths must match `App.jsx` exactly — a redirect to `/barangay`
   when the route is `/brgy` silently bounces to the login page via the
   catch-all route.

@@ -109,6 +109,11 @@ const matchSchema = new mongoose.Schema(
     schedule: {
       type: Date,          // when the match is set to be played
     },
+     venue: {
+      type: String,        // where it's played, e.g. "Kolambugan Covered Court"
+      trim: true,
+      default: "",
+    },
 
     // Audit trail: who entered the final result and when.
     enteredBy: {

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { Crest, Panel, DIVISION_LABEL } from "../../components/PublicUI";
-console.log("brackets render")
+
 
 // Stage split: group-stage matches carry a `group`, knockout matches don't.
 // This avoids depending on the bracket label, which uses two naming schemes
@@ -113,6 +113,11 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
   const played = rows.some((r) => r.played > 0);
   const clear = new Set(qual?.clear || []);
   const contested = new Set(qual?.contested || []);
+  // A qualifier below an eliminated team reads as a mistake, even though the
+  // table is sorted by group record and the playoff is what decided it.
+  const ordered = clear.size
+    ? [...rows].sort((a, b) => (clear.has(b.teamId) ? 1 : 0) - (clear.has(a.teamId) ? 1 : 0))
+    : rows;
 
   return (
     <div>
@@ -122,7 +127,7 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
         <span className="w-9 text-center">W</span>
         <span className="w-9 text-center">L</span>
       </div>
-      {rows.map((r, i) => {
+      {ordered.map((r, i) => {
                 const isThrough = clear.has(r.teamId);
         const isContested = contested.has(r.teamId);
         // Before the group finishes, the leading rows are only provisional.

@@ -62,6 +62,20 @@ function ScoringView({ matchId, mode, onBack }) {
   const tied = (m.liveScoreA || 0) === (m.liveScoreB || 0);
   const allPeriodsDone = (m.games?.length || 0) >= (m.bestOf || 1) && !tied;
   const stat = (id) => data.statByPlayer?.[String(id)] || { points: 0, fouls: 0 };
+    // ML, billiards and chess aren't scored point by point — the organizer records
+  // who won each game. One tap = one game won.
+  const finalMode = mode === "final";
+  const canEnd = finalMode
+    ? (m.liveScoreA || 0) !== (m.liveScoreB || 0)
+    : allPeriodsDone;
+
+  // In final mode the period is just the series, so bank it automatically
+  // rather than making the organizer tap an extra button.
+  async function openEnd() {
+    if (finalMode && (m.games?.length || 0) < (m.bestOf || 1)) await call("end-period");
+    setMvp(topScorer?.pts > 0 ? String(topScorer.p._id) : null);
+    setEnding(true);
+  }
 
   // Player mode: tap a player, then a point button. Side mode: point buttons only.
   async function addPoints(side, points) {
@@ -153,25 +167,32 @@ function ScoringView({ matchId, mode, onBack }) {
         <p className="text-red-600 text-sm">{error}</p></div>}
 
       {/* Not started */}
-            {!live && !finished && (
+                  {!live && !finished && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-slate-700 text-sm font-medium mb-2">How many {data.periodLabel || "period"}s?</p>
-          <p className="text-slate-400 text-xs mb-3">
-            Quarters, sets, or games — all of them must be played, and the winner is the higher total score.
-          </p>
-          
-                    <div className="grid grid-cols-4 gap-2 mb-4">
-                    
-            {(data.periodOptions || [1, 3, 5, 7]).map((n) => (
-              <button key={n} type="button" onClick={() => setPeriods(n)}
-                className={`py-3 rounded-lg text-lg font-semibold transition ${
-                  periods === n ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}>
-                {n}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => call("start", { periods })} disabled={busy}
+          {finalMode ? (
+            <p className="text-slate-400 text-xs mb-3">
+              Record the winner of each game as it finishes. The team with more
+              games won takes the match.
+            </p>
+          ) : (
+            <>
+              <p className="text-slate-700 text-sm font-medium mb-2">How many {data.periodLabel || "period"}s?</p>
+              <p className="text-slate-400 text-xs mb-3">
+                Quarters, sets, or games — all of them must be played, and the winner is the higher total score.
+              </p>
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {(data.periodOptions || [1, 3, 5, 7]).map((n) => (
+                  <button key={n} type="button" onClick={() => setPeriods(n)}
+                    className={`py-3 rounded-lg text-lg font-semibold transition ${
+                      periods === n ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <button onClick={() => call("start", { periods: finalMode ? 1 : periods })} disabled={busy}
             className="w-full py-4 rounded-xl bg-indigo-600 text-white font-semibold text-lg hover:bg-indigo-700 disabled:opacity-50">
             {busy ? "Starting…" : "Start match"}
           </button>
@@ -194,15 +215,15 @@ function ScoringView({ matchId, mode, onBack }) {
             </div>
           )}
 
-          {mode === "side" && (
+                    {(mode === "side" || finalMode) && (
             <div className="grid grid-cols-2 gap-2 mb-4">
               <button onClick={() => call("score", { side: "A", points: 1 })} disabled={busy}
                 className="py-5 rounded-xl bg-green-600 text-white text-lg font-bold hover:bg-green-700 disabled:opacity-50">
-                +1 {m.teamA?.teamName}
+                {finalMode ? `${m.teamA?.teamName} won a game` : `+1 ${m.teamA?.teamName}`}
               </button>
               <button onClick={() => call("score", { side: "B", points: 1 })} disabled={busy}
                 className="py-5 rounded-xl bg-green-600 text-white text-lg font-bold hover:bg-green-700 disabled:opacity-50">
-                +1 {m.teamB?.teamName}
+                {finalMode ? `${m.teamB?.teamName} won a game` : `+1 ${m.teamB?.teamName}`}
               </button>
             </div>
           )}
@@ -228,7 +249,7 @@ function ScoringView({ matchId, mode, onBack }) {
               −1 {m.teamB?.teamName}
             </button>
           </div>
-
+                {!finalMode && (
           <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 mb-3">
             <div className="flex items-center justify-between gap-3 mb-2">
               <span className="text-slate-600 text-sm">
@@ -244,6 +265,7 @@ function ScoringView({ matchId, mode, onBack }) {
               End this {data.periodLabel || "period"}
             </button>
           </div>
+          )}
 
                     {tied && (m.games?.length || 0) >= (m.bestOf || 1) && (
             <p className="text-amber-600 text-sm text-center mb-2">
@@ -251,8 +273,8 @@ function ScoringView({ matchId, mode, onBack }) {
             </p>
           )}
 
-          <button onClick={() => { setMvp(topScorer?.pts > 0 ? String(topScorer.p._id) : null); setEnding(true); }}
-                        disabled={busy || !allPeriodsDone}
+                    <button onClick={openEnd}
+            disabled={busy || !canEnd}
             className="w-full py-3 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-40 mb-5">
             End match
           </button>

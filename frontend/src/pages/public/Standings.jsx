@@ -84,6 +84,11 @@ export default function Standings() {
               const q = qualification[g];
               const clear = new Set(q?.clear || []);
               const contested = new Set(q?.contested || []);
+                            // A qualifier below an eliminated team reads as a mistake, even
+              // though the table is sorted by group record.
+              const ordered = clear.size
+                ? [...rows].sort((a, b) => (clear.has(b.teamId) ? 1 : 0) - (clear.has(a.teamId) ? 1 : 0))
+                : rows;
               const provisional =
                 seeds.length === 0 && clear.size === 0 && contested.size === 0 &&
                 rows.some((r) => r.played > 0);
@@ -96,7 +101,7 @@ export default function Standings() {
                     <span className="w-9 text-center">W</span>
                     <span className="w-9 text-center">L</span>
                   </div>
-                  {rows.map((r, i) => {
+                                    {ordered.map((r, i) => {
                                         const seed = seedOf(r.teamId);
                     const isThrough = clear.has(r.teamId);
                     const isContested = contested.has(r.teamId);

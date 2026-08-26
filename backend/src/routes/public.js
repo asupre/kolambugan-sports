@@ -343,10 +343,14 @@ router.get('/players', async (req, res) => {
 // W/L per team, per group. Counts completed matches only, and EXCLUDES
 // tiebreaker playoffs — a playoff decides a tie, it isn't part of the group
 // record that created the tie.
-function groupStandings(matches) {
+// includeTiebreakers: the DISPLAY table counts playoff wins, so a team that won
+// its way through reads 6-2 rather than 6-2's worth of matches at 4-2. The
+// QUALIFICATION logic must not count them — it needs the pre-playoff record to
+// see the tie that caused the playoff in the first place.
+function groupStandings(matches, includeTiebreakers = false) {
   const byGroup = {};
   matches.forEach((m) => {
-    if (!m.group || m.isTiebreaker) return;
+    if (!m.group || (!includeTiebreakers && m.isTiebreaker)) return;
     const g = (byGroup[m.group] = byGroup[m.group] || {});
     [m.teamA, m.teamB].forEach((t) => {
       if (!t) return;
@@ -489,7 +493,7 @@ router.get('/bracket', async (req, res) => {
                     advancePerGroup: tdoc?.advancePerGroup || 2 },
                           qualification: groupQualification(shaped, tdoc?.advancePerGroup || 2),
       matches: shaped,
-      standings: groupStandings(shaped),
+      standings: groupStandings(shaped, true),
       qualifiers: groupQualifiers(shaped),
     });
   } catch (err) {

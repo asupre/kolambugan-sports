@@ -7,6 +7,7 @@ const TeamPlayer = require('../models/TeamPlayer');
 const PlayerMatchStats = require('../models/PlayerMatchStats');
 const Sport = require('../models/Sport');
 const { authenticate, authorize } = require('../middleware/auth');
+const { isManilaToday } = require('../config/time');
 
 const router = express.Router();
 router.use(authenticate, authorize('organizer', 'super_admin'));
@@ -131,19 +132,13 @@ router.post('/matches/:matchId/start', async (req, res) => {
     // Soft schedule check: warn but allow. Dates are an organisational aid, not an
     // integrity control — an organizer must never be blocked from recording a game
     // that is actually being played. A match with no date is always startable.
-    if (match.schedule && !req.body.confirmOffSchedule) {
+        if (match.schedule && !req.body.confirmOffSchedule && !isManilaToday(match.schedule)) {
       const sched = new Date(match.schedule);
-      const now = new Date();
-      const sameDay = sched.getFullYear() === now.getFullYear()
-        && sched.getMonth() === now.getMonth()
-        && sched.getDate() === now.getDate();
-      if (!sameDay) {
-        return res.status(409).json({
-          message: `This match is scheduled for ${sched.toLocaleDateString()}. Start it anyway?`,
-          needsConfirmation: true,
-          scheduledFor: match.schedule,
-        });
-      }
+      return res.status(409).json({
+        message: `This match is scheduled for ${sched.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}. Start it anyway?`,
+        needsConfirmation: true,
+        scheduledFor: match.schedule,
+      });
     }
 
     // How many periods (quarters/sets) this match runs. Organizer decides at start.

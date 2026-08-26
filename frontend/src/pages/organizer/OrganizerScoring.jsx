@@ -358,11 +358,13 @@ export default function OrganizerScoring() {
   if (loading) return <AdminLayout title="Matches" menu={organizerMenu}><p className="text-slate-500">Loading…</p></AdminLayout>;
 
     const matches = feed?.matches || [];
-  const isToday = (d) => {
-    if (!d) return false;
-    const s = new Date(d), n = new Date();
-    return s.getFullYear() === n.getFullYear() && s.getMonth() === n.getMonth() && s.getDate() === n.getDate();
-  };
+    // Manila dates, not the tablet's — a device with the wrong timezone shouldn't
+  // move a match out of Today on game day.
+  const manilaDay = (d) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date(d));
+  const isToday = (d) => !!d && manilaDay(d) === manilaDay(new Date());
   const live = matches.filter((m) => m.status === "ongoing");
   const scheduled = matches.filter((m) => m.status === "scheduled");
   const today = scheduled.filter((m) => isToday(m.schedule));
@@ -395,7 +397,7 @@ export default function OrganizerScoring() {
             </p>
                         <p className="text-slate-400 text-xs mt-0.5">
               {m.bracket} · round {m.round}{m.group ? ` · group ${m.group}` : ""}
-              {m.schedule ? ` · ${new Date(m.schedule).toLocaleDateString()}` : ""}
+                            {m.schedule ? ` · ${new Date(m.schedule).toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })}` : ""}
             </p>
           </div>
           {m.status === "ongoing" ? (

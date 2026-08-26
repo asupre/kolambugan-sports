@@ -13,6 +13,7 @@ const Barangay = require('../models/Barangay');
 const { getCurrentSeason } = require('../middleware/season');
 const SiteImage = require('../models/SiteImage');
 const { sendFile } = require('../config/gridfs');
+const { isManilaToday } = require('../config/time');
 
 const router = express.Router();
 
@@ -80,16 +81,12 @@ router.get('/overview', async (req, res) => {
       return publicMatch(m, t.sport, t.division);
     });
 
-    const sameDay = (d) => {
-      if (!d) return false;
-      const x = new Date(d), n = new Date();
-      return x.getFullYear() === n.getFullYear() && x.getMonth() === n.getMonth() && x.getDate() === n.getDate();
-    };
+    
 
     res.json({
       season: { name: season.name, status: season.status },
       live: shaped.filter((m) => m.status === 'ongoing'),
-      today: shaped.filter((m) => m.status === 'scheduled' && sameDay(m.schedule)),
+            today: shaped.filter((m) => m.status === 'scheduled' && isManilaToday(m.schedule)),
       recent: shaped.filter((m) => m.status === 'completed').slice(0, 10),
       counts: {
         barangays: await Barangay.countDocuments(),

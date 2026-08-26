@@ -5,6 +5,7 @@ const Team = require('../models/Team');
 const Sport = require('../models/Sport');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
+const { parseManila } = require('../config/time');
 
 const router = express.Router();
 
@@ -1000,9 +1001,11 @@ router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'
     if (req.body.schedule !== undefined) {
       if (req.body.schedule === null || req.body.schedule === '') {
         match.schedule = null;
-      } else {
-        const d = new Date(req.body.schedule);
-        if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid date.' });
+           } else {
+        // Browser inputs carry no timezone — read them as Manila, not as the
+        // server's own zone, which is UTC in production.
+        const d = parseManila(req.body.schedule);
+        if (!d) return res.status(400).json({ message: 'Invalid date.' });
         match.schedule = d;
       }
     }
@@ -1024,8 +1027,8 @@ router.post('/:id/schedule-bulk', authenticate, authorize('super_admin'), async 
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
 
-    const d = new Date(req.body.schedule);
-    if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid date.' });
+        const d = parseManila(req.body.schedule);
+    if (!d) return res.status(400).json({ message: 'Invalid date.' });
 
     const filter = { tournament: tournament._id };
     if (req.body.round != null) filter.round = Number(req.body.round);

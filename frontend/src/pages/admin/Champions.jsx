@@ -2,17 +2,7 @@ import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { Button, Card } from "../../components/ui";
-
-const superAdminMenu = [
-  { label: "Dashboard", path: "/admin", icon: "▦" },
-  { label: "Season", path: "/admin/season", icon: "◷" },
-  { label: "Reference List", path: "/admin/reference", icon: "☑" },
-  { label: "Review Queue", path: "/admin/review", icon: "⚑" },
-  { label: "Tournaments", path: "/admin/tournaments", icon: "⛃" },
-  { label: "Champions", path: "/admin/champions", icon: "★" },
-  { label: "Site Images", path: "/admin/site-images", icon: "▣" },
-  { label: "Accounts", path: "/admin/accounts", icon: "☺" },
-];
+import { superAdminMenu } from "../../components/menus";
 
 const BLANK = {
   year: "", sport: "", division: "", barangay: "",

@@ -1,17 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
-
-const superAdminMenu = [
-  { label: "Dashboard", path: "/admin", icon: "▦" },
-  { label: "Season", path: "/admin/season", icon: "◷" },
-  { label: "Reference List", path: "/admin/reference", icon: "☑" },
-  { label: "Review Queue", path: "/admin/review", icon: "⚑" },
-  { label: "Tournaments", path: "/admin/tournaments", icon: "⛃" },
-   { label: "Champions", path: "/admin/champions", icon: "★" },
-   { label: "Site Images", path: "/admin/site-images", icon: "▣" },
-  { label: "Accounts", path: "/admin/accounts", icon: "☺" },
-];
+import { superAdminMenu } from "../../components/menus";
 
 const STAGES = [
   { key: "setup", label: "Setup", next: "Open Registration" },
@@ -20,6 +11,9 @@ const STAGES = [
   { key: "ongoing", label: "Ongoing", next: "Close & Archive Season" },
   { key: "completed", label: "Completed", next: null },
 ];
+
+const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under17: "U17", under30: "U30" };
+const FORMAT_LABEL = { team: "Team", doubles: "Doubles", singles: "Singles" };
 
 function StageTimeline({ current }) {
   const currentIndex = STAGES.findIndex((s) => s.key === current);
@@ -30,13 +24,11 @@ function StageTimeline({ current }) {
         const active = i === currentIndex;
         return (
           <div key={s.key} className="flex items-center gap-2">
-            <div
-              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                active ? "bg-indigo-600 text-white"
-                : done ? "bg-indigo-100 text-indigo-700"
-                : "bg-slate-100 text-slate-400"
-              }`}
-            >
+            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+              active ? "bg-indigo-600 text-white"
+              : done ? "bg-indigo-100 text-indigo-700"
+              : "bg-slate-100 text-slate-400"
+            }`}>
               {s.label}
             </div>
             {i < STAGES.length - 1 && <span className="text-slate-300">→</span>}
@@ -69,7 +61,8 @@ function CreateSeasonModal({ open, onClose, onCreate, busy, error }) {
           <button onClick={onClose} className="flex-1 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium py-2.5 hover:bg-slate-50 transition">
             Cancel
           </button>
-          <button onClick={() => onCreate(name.trim())} disabled={busy || !name.trim()} className="flex-1 rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition">
+          <button onClick={() => onCreate(name.trim())} disabled={busy || !name.trim()}
+            className="flex-1 rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition">
             {busy ? "Creating…" : "Create"}
           </button>
         </div>
@@ -78,75 +71,53 @@ function CreateSeasonModal({ open, onClose, onCreate, busy, error }) {
   );
 }
 
-// Modal shown when opening registration — pick which sports have boys/girls divisions.
-function DivisionModal({ open, onClose, onConfirm, busy, error }) {
+// What each sport is set to run. Shown during Setup because the settings are
+// frozen once teams register — this is the last comfortable moment to check them.
+function SportSetupSummary() {
   const [sports, setSports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [divided, setDivided] = useState({});
 
   useEffect(() => {
-    if (!open) return;
-    setLoading(true);
     api("/api/sports")
-      .then((data) => {
-        const list = data.sports || [];
-        setSports(list);
-        const init = {};
-        list.forEach((s) => { init[s._id] = !!s.isDivided; });
-        setDivided(init);
-      })
+      .then((d) => setSports(d.sports || []))
       .catch(() => setSports([]))
       .finally(() => setLoading(false));
-  }, [open]);
+  }, []);
 
-  if (!open) return null;
+  if (loading) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h3 className="text-slate-900 font-semibold text-lg mb-1">Set up divisions</h3>
-        <p className="text-slate-500 text-sm mb-4">
-          Choose which sports run separate <span className="font-medium">boys' and girls'</span> brackets
-          this season. Divided sports let each barangay enter one boys' and one girls' team.
-        </p>
+    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <h3 className="text-slate-800 font-semibold">Sport setup</h3>
+        <Link to="/admin/config" className="text-indigo-600 text-sm font-medium hover:underline">
+          Change
+        </Link>
+      </div>
+      <p className="text-slate-500 text-sm mb-4">
+        Check these before opening registration. Once barangays start registering,
+        divisions and entry formats are locked — rosters get built against them.
+      </p>
 
-        {loading ? (
-          <p className="text-slate-500 text-sm">Loading sports…</p>
-        ) : (
-          <div className="space-y-2 max-h-72 overflow-y-auto">
-            {sports.map((s) => (
-              <div key={s._id} className="flex items-center justify-between py-2 px-3 rounded-lg border border-slate-200">
-                <span className="text-slate-700 text-sm">{s.name}</span>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setDivided({ ...divided, [s._id]: false })}
-                    className={`text-xs font-medium px-3 py-1 rounded-lg transition ${!divided[s._id] ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
-                  >
-                    Single
-                  </button>
-                  <button
-                    onClick={() => setDivided({ ...divided, [s._id]: true })}
-                    className={`text-xs font-medium px-3 py-1 rounded-lg transition ${divided[s._id] ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
-                  >
-                    Boys / Girls
-                  </button>
-                </div>
+      <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+        {sports.map((s) => {
+          const divisions = s.divisions?.length ? s.divisions : ["open"];
+          return (
+            <div key={s._id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+              <span className="text-slate-700 font-medium w-32 shrink-0 truncate">{s.name}</span>
+              <div className="flex-1 min-w-0 flex flex-wrap gap-1">
+                {divisions.map((d) => (
+                  <span key={d} className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-xs">
+                    {DIVISION_LABEL[d] || d}
+                  </span>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-
-        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
-
-        <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium py-2.5 hover:bg-slate-50 transition">
-            Cancel
-          </button>
-          <button onClick={() => onConfirm(divided)} disabled={busy || loading} className="flex-1 rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition">
-            {busy ? "Opening…" : "Save & Open Registration"}
-          </button>
-        </div>
+              <span className="text-slate-500 text-xs shrink-0">
+                {FORMAT_LABEL[s.entryFormat] || s.entryFormat || "—"}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -158,14 +129,13 @@ export default function Season() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [divisionModalOpen, setDivisionModalOpen] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
       const data = await api("/api/seasons/current");
       setSeason(data.season);
-    } catch (e) {
+    } catch {
       setSeason(null);
     } finally {
       setLoading(false);
@@ -191,27 +161,20 @@ export default function Season() {
 
   async function advance() {
     if (!season) return;
-    setBusy(true);
-    setError("");
-    try {
-      const data = await api(`/api/seasons/${season._id}/advance`, { method: "POST" });
-      setSeason(data.season);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
+    // Opening registration freezes sport configuration, so make it a deliberate
+    // step rather than something you discover afterwards.
+    if (season.status === "setup") {
+      const ok = window.confirm(
+        "Opening registration locks each sport's divisions and entry format — " +
+        "barangays will build rosters against them. Are they set up correctly?"
+      );
+      if (!ok) return;
     }
-  }
-
-  // Opening registration: save division settings, THEN advance.
-  async function confirmDivisionsAndAdvance(divided) {
     setBusy(true);
     setError("");
     try {
-      await api("/api/sports/divisions", { method: "PATCH", body: JSON.stringify({ divisions: divided }) });
       const data = await api(`/api/seasons/${season._id}/advance`, { method: "POST" });
       setSeason(data.season);
-      setDivisionModalOpen(false);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -229,12 +192,13 @@ export default function Season() {
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm max-w-md">
           <h2 className="text-slate-800 font-semibold mb-1">No active season</h2>
           <p className="text-slate-500 text-sm mb-4">Create a season to begin the cycle.</p>
-          <button onClick={() => { setError(""); setModalOpen(true); }} className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition">
+          <button onClick={() => { setError(""); setModalOpen(true); }}
+            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition">
             + Create Season
           </button>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-2xl">
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-start justify-between flex-wrap gap-3">
               <div>
@@ -251,7 +215,9 @@ export default function Season() {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm max-w-md">
+          {season.status === "setup" && <SportSetupSummary />}
+
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <h3 className="text-slate-800 font-semibold mb-1">Advance the season</h3>
             {currentStage?.next ? (
               <>
@@ -260,19 +226,8 @@ export default function Season() {
                   This cannot be undone.
                 </p>
                 {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-                <button
-                  onClick={() => {
-                    // Opening registration → show the division setup modal first.
-                    if (season.status === "setup") {
-                      setError("");
-                      setDivisionModalOpen(true);
-                    } else {
-                      advance();
-                    }
-                  }}
-                  disabled={busy}
-                  className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition"
-                >
+                <button onClick={advance} disabled={busy}
+                  className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition">
                   {busy ? "Working…" : currentStage.next}
                 </button>
               </>
@@ -282,7 +237,8 @@ export default function Season() {
                   This season is <span className="font-medium">completed</span> and archived. Start a
                   new one to begin the next cycle.
                 </p>
-                <button onClick={() => { setError(""); setModalOpen(true); }} className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition">
+                <button onClick={() => { setError(""); setModalOpen(true); }}
+                  className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition">
                   + Create New Season
                 </button>
               </>
@@ -291,8 +247,8 @@ export default function Season() {
         </div>
       )}
 
-      <CreateSeasonModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={createSeason} busy={busy} error={error} />
-      <DivisionModal open={divisionModalOpen} onClose={() => setDivisionModalOpen(false)} onConfirm={confirmDivisionsAndAdvance} busy={busy} error={error} />
+      <CreateSeasonModal open={modalOpen} onClose={() => setModalOpen(false)}
+        onCreate={createSeason} busy={busy} error={error} />
     </AdminLayout>
   );
 }

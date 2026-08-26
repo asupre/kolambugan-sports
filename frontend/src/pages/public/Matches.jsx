@@ -6,8 +6,12 @@ const context = (m) =>
   [DIVISION_LABEL[m.division] || m.division, m.group ? `Grp ${m.group}` : null, m.round ? `R${m.round}` : null]
     .filter(Boolean).join(" · ");
 
+// Pinned to Manila: the league's dates are Philippine dates regardless of where
+// the viewer's device thinks it is.
 const dateKey = (d) =>
-  new Date(d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  new Date(d).toLocaleDateString(undefined, {
+    timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric",
+  });
 
 // A date-only schedule is stored as midnight UTC, which renders as 8:00 AM in
 // Manila — a time nobody set. Only show a time when one was actually chosen.
@@ -18,7 +22,7 @@ const hasTime = (d) => {
 
 const timeOf = (d) =>
   d && hasTime(d)
-    ? new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    ? new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" })
     : null;
 
 // A fixture with no score is one line. The stacked layout below is for matches

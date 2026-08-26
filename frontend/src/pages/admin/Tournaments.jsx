@@ -1,19 +1,11 @@
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { Button, Card } from "../../components/ui";
+import { superAdminMenu } from "../../components/menus";
 
-
-const superAdminMenu = [
-  { label: "Dashboard", path: "/admin", icon: "▦" },
-  { label: "Season", path: "/admin/season", icon: "◷" },
-  { label: "Reference List", path: "/admin/reference", icon: "☑" },
-  { label: "Review Queue", path: "/admin/review", icon: "⚑" },
-  { label: "Tournaments", path: "/admin/tournaments", icon: "⛃" },
-   { label: "Champions", path: "/admin/champions", icon: "★" },
-   { label: "Site Images", path: "/admin/site-images", icon: "▣" },
-  { label: "Accounts", path: "/admin/accounts", icon: "☺" },
-];
+const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under17: "U17", under30: "U30" };
 
 function StandingsView({ tournamentId }) {
   const [groups, setGroups] = useState(null);
@@ -69,99 +61,73 @@ function StandingsView({ tournamentId }) {
   );
 }
 
-function MatchesView({ tournamentId, onScored }) {
+function MatchesView({ tournamentId }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [scores, setScores] = useState({});   // { matchId: { a, b } }
-  const [busyId, setBusyId] = useState(null);
-  const [error, setError] = useState("");
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await api(`/api/tournaments/${tournamentId}/matches`);
-      // only group-stage matches here
-      setMatches((data.matches || []).filter((m) => m.bracket === "group"));
-    } catch (e) {
-      setMatches([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, [tournamentId]);
-
-  async function submitScore(matchId) {
-    const s = scores[matchId];
-    if (!s || s.a === "" || s.b === "" || s.a == null || s.b == null) return;
-    setBusyId(matchId);
-    setError("");
-    try {
-      await api(`/api/tournaments/matches/${matchId}/result`, {
-        method: "POST",
-        body: JSON.stringify({ scoreA: Number(s.a), scoreB: Number(s.b) }),
-      });
-      await load();
-      onScored && onScored(); // refresh standings above
-    } catch (e) {
-      setError(e.message); // e.g. "cannot end in a tie"
-    } finally {
-      setBusyId(null);
-    }
-  }
+  useEffect(() => {
+    let alive = true;
+    api(`/api/tournaments/${tournamentId}/matches`)
+      .then((d) => { if (alive) setMatches((d.matches || []).filter((m) => m.bracket === "group")); })
+      .catch(() => { if (alive) setMatches([]); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [tournamentId]);
 
   if (loading) return <p className="text-slate-500 text-sm">Loading matches…</p>;
   if (matches.length === 0) return null;
 
+  const scoreOf = (m, side) =>
+    (m.games || []).reduce((n, g) => n + (g[side === "A" ? "scoreA" : "scoreB"] || 0), 0);
+
+  // Tiebreaker rounds are numbered from 100 so they sort after the group stage.
+  // That's an implementation detail; nobody should read "Round 101".
+  const roundLabel = (m) =>
+    m.isTiebreaker
+      ? (m.round >= 101 ? "Playoff decider" : "Playoff")
+      : `R${m.round}`;
+
+  const group = matches.filter((m) => !m.isTiebreaker);
+  const playoff = matches.filter((m) => m.isTiebreaker);
+
+  const Row = ({ m }) => {
+    const done = m.status === "completed";
+    const aWin = done && String(m.seriesWinner) === String(m.teamA?._id || m.teamA);
+    return (
+      <div className="flex items-center gap-2 flex-wrap border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        <span className="text-slate-400 text-xs w-24 shrink-0">
+          {m.group ? `Grp ${m.group} · ` : ""}{roundLabel(m)}
+        </span>
+        <span className={`flex-1 min-w-0 text-right truncate ${aWin ? "font-semibold text-slate-900" : "text-slate-600"}`}>
+          {m.teamA?.teamName || "TBD"}
+        </span>
+        <span className="px-2 tabular-nums text-slate-500 w-16 text-center shrink-0">
+          {done ? `${scoreOf(m, "A")}–${scoreOf(m, "B")}`
+            : m.status === "ongoing" ? "live" : "vs"}
+        </span>
+        <span className={`flex-1 min-w-0 truncate ${done && !aWin ? "font-semibold text-slate-900" : "text-slate-600"}`}>
+          {m.teamB?.teamName || "TBD"}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div className="mt-6">
-      <h3 className="text-slate-700 font-medium text-sm mb-2">Group matches</h3>
-      {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3">
-          <p className="text-red-600 text-sm">{error}</p>
-        </div>
-      )}
-      <div className="space-y-2">
-        {matches.map((m) => {
-          const done = m.status === "completed";
-          const s = scores[m._id] || { a: "", b: "" };
-          return (
-            <div key={m._id} className="flex items-center gap-2 flex-wrap border border-slate-200 rounded-lg px-3 py-2 text-sm">
-              <span className="text-slate-400 text-xs w-14">Grp {m.group} R{m.round}</span>
-              <span className="flex-1 min-w-0 text-slate-700 text-right truncate">{m.teamA?.teamName}</span>
-              {done ? (
-                <span className="font-semibold text-slate-900 px-2">
-                  {m.games?.[0]?.scoreA} – {m.games?.[0]?.scoreB}
-                </span>
-              ) : (
-                <>
-                  <input
-                    type="number" min="0" value={s.a}
-                    onChange={(e) => setScores({ ...scores, [m._id]: { ...s, a: e.target.value } })}
-                    className="w-12 rounded border border-slate-300 px-2 py-1 text-center"
-                  />
-                  <span className="text-slate-400">–</span>
-                  <input
-                    type="number" min="0" value={s.b}
-                    onChange={(e) => setScores({ ...scores, [m._id]: { ...s, b: e.target.value } })}
-                    className="w-12 rounded border border-slate-300 px-2 py-1 text-center"
-                  />
-                </>
-              )}
-              <span className="flex-1 min-w-0 text-slate-700 truncate">{m.teamB?.teamName}</span>
-              {!done && (
-                <button
-                  onClick={() => submitScore(m._id)}
-                  disabled={busyId === m._id}
-                  className="text-xs font-medium px-3 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {busyId === m._id ? "…" : "Save"}
-                </button>
-              )}
-            </div>
-          );
-        })}
+      <div className="flex items-baseline gap-2 mb-2">
+        <h3 className="text-slate-700 font-medium text-sm">Group matches</h3>
+        <span className="text-slate-400 text-xs">
+          scored by the organizer — {group.filter((m) => m.status === "completed").length}/{group.length} played
+        </span>
       </div>
+      <div className="space-y-2">{group.map((m) => <Row key={m._id} m={m} />)}</div>
+
+      {playoff.length > 0 && (
+        <>
+          <h3 className="text-slate-700 font-medium text-sm mt-5 mb-2">Tiebreaker playoff</h3>
+          <div className="space-y-2">{playoff.map((m) => <Row key={m._id} m={m} />)}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -289,10 +255,11 @@ function ScheduleSection({ tournamentId }) {
   );
 }
 
-function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
+function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [qualification, setQualification] = useState(null);
- const [busy, setBusy] = useState(false);
+  const [qualification, setQualification] = useState(null);  // ML tiebreaker UI
+  const [readiness, setReadiness] = useState(null);          // who actually qualified
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [simulating, setSimulating] = useState(false);
 
@@ -308,41 +275,80 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
     }
   }
 
+  // The public bracket endpoint is the single source of truth for who has
+  // qualified: it accounts for tiebreaker playoffs (ML) and for upper/lower
+  // bracket winners (physical sports). Table POSITION is not enough — a playoff
+  // can send a team through from below the cutoff line.
+  async function loadReadiness() {
+    try {
+      const d = await api(`/api/public/bracket?tournament=${tournamentId}`);
+      const groups = [...new Set((d.matches || []).filter((m) => m.group).map((m) => m.group))];
+      const qual = d.qualification || {};
+      const seeds = d.qualifiers || {};
+
+      if (isML) {
+        const contested = groups.filter((g) => (qual[g]?.contested || []).length > 0);
+        const ids = groups.flatMap((g) => qual[g]?.clear || []);
+        const advance = d.tournament?.advancePerGroup || 1;
+        setReadiness({
+          groups, contested, ids,
+          ready: contested.length === 0 && ids.length === groups.length * advance,
+          expected: groups.length * advance,
+        });
+      } else {
+        const short = groups.filter((g) => (seeds[g] || []).length < 2);
+        const ids = groups.flatMap((g) => (seeds[g] || []).map((s) => s.teamId));
+        setReadiness({
+          groups, contested: [], ids, short,
+          ready: short.length === 0 && groups.length > 0,
+          expected: groups.length * 2,
+        });
+      }
+    } catch {
+      setReadiness(null);
+    }
+  }
+
   async function loadQualification() {
     try {
-      const data = await api(`/api/tournaments/${tournamentId}/qualification`);
-      setQualification(data);
-    } catch (e) {
+      setQualification(await api(`/api/tournaments/${tournamentId}/qualification`));
+    } catch {
       setQualification(null);
     }
   }
 
-  useEffect(() => { loadQualification(); }, [tournamentId, refreshKey]);
+  useEffect(() => {
+    loadReadiness();
+    if (isML) loadQualification();
+  }, [tournamentId, refreshKey, isML]);
 
-  // Are all groups complete with no unresolved ties?
   const groups = qualification?.groups || {};
   const groupList = Object.entries(groups);
-  const allComplete = groupList.length > 0 && groupList.every(([, g]) => g.complete);
   const anyNeedsTiebreaker = groupList.some(([, g]) => g.needsTiebreaker);
-  const qualifiedTeams = groupList.flatMap(([, g]) => g.qualified || []);
+  const groupsComplete = groupList.length > 0 && groupList.every(([, g]) => g.complete);
 
   async function generateBracket() {
     setBusy(true);
     setError("");
     try {
-      // Gather the qualified team IDs. The qualification endpoint returns names;
-      // we need IDs, so we read them from the standings.
-      const standings = await api(`/api/tournaments/${tournamentId}/standings`);
-      const ids = [];
-      for (const [groupName, g] of Object.entries(qualification.groups)) {
-        const table = standings.groups[groupName] || [];
-        const advance = qualification.advancePerGroup || 2;
-        table.slice(0, advance).forEach((row) => ids.push(row.teamId));
+      if (!isML) {
+        // The de-bracket route reads the group qualifiers itself, so there's
+        // nothing to send — and nothing for the frontend to get wrong.
+        await api(`/api/tournaments/${tournamentId}/de-bracket`, { method: "POST" });
+      } else {
+        if (!readiness?.ready) {
+          setError(
+            readiness?.contested?.length
+              ? `Group ${readiness.contested.join(", ")} still has a tie for the last spot. Play the tiebreaker playoff first.`
+              : "Not every group has produced its qualifiers yet."
+          );
+          return;
+        }
+        await api(`/api/tournaments/${tournamentId}/bracket`, {
+          method: "POST",
+          body: JSON.stringify({ teamIds: readiness.ids }),
+        });
       }
-      await api(`/api/tournaments/${tournamentId}/bracket`, {
-        method: "POST",
-        body: JSON.stringify({ teamIds: ids }),
-      });
       onBracketGenerated && onBracketGenerated();
     } catch (e) {
       setError(e.message);
@@ -364,13 +370,19 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
     }
   }
 
+  const ErrorBox = () => error ? (
+    <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3">
+      <p className="text-red-600 text-sm">{error}</p>
+    </div>
+  ) : null;
+
   return (
     <div>
       {stage === "elimination" || stage === "completed" ? (
         <BracketView tournamentId={tournamentId} />
       ) : (
         <>
-        <div className="mb-4">
+          <div className="mb-4">
             <button
               onClick={simulateGroups}
               disabled={simulating}
@@ -379,154 +391,118 @@ function TournamentDetail({ tournamentId, stage, onBracketGenerated }) {
               {simulating ? "Simulating…" : "⚡ Dev: Auto-score all group matches"}
             </button>
           </div>
-          <StandingsView tournamentId={tournamentId} key={`s-${refreshKey}`} />
-          <MatchesView tournamentId={tournamentId} key={`m-${refreshKey}`} onScored={() => setRefreshKey((k) => k + 1)} />
-          {allComplete && (
+
+          {isML ? (
+            <>
+              <StandingsView tournamentId={tournamentId} key={`s-${refreshKey}`} />
+              <MatchesView tournamentId={tournamentId} key={`m-${refreshKey}`}
+                onScored={() => setRefreshKey((k) => k + 1)} />
+            </>
+          ) : (
+            <BracketView tournamentId={tournamentId} key={`b-${refreshKey}`} />
+          )}
+
+          {(isML ? groupsComplete : readiness) && (
             <div className="mt-6 pt-6 border-t border-slate-200">
-              <h3 className="text-slate-800 font-semibold mb-1">Group stage complete</h3>
-              {anyNeedsTiebreaker ? (
-                <div>
+              {isML && anyNeedsTiebreaker && !readiness?.ready ? (
+                <>
+                  <h3 className="text-slate-800 font-semibold mb-1">Tie at the cutoff</h3>
                   <p className="text-amber-600 text-sm mb-3">
-                    Some groups have a tie for the last qualifying spot. Generate a round-robin playoff among the tied teams to resolve it.
+                    Some groups have a tie for the last qualifying spot. Generate a
+                    single-elimination playoff among the tied teams to settle it.
                   </p>
-                  {error && (
-                    <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3">
-                      <p className="text-red-600 text-sm">{error}</p>
-                    </div>
-                  )}
+                  <ErrorBox />
                   <Button onClick={generateTiebreakers} disabled={busy}>
                     {busy ? "Generating…" : "Generate Tiebreaker Playoff"}
                   </Button>
-                </div>
+                </>
+              ) : readiness?.ready ? (
+                <>
+                  <h3 className="text-slate-800 font-semibold mb-1">Group stage complete</h3>
+                  <p className="text-slate-500 text-sm mb-3">
+                    {readiness.ids.length} teams qualified.
+                  </p>
+                  <ErrorBox />
+                  <Button onClick={generateBracket} disabled={busy}>
+                    {busy ? "Generating…" : `Generate Knockout Bracket (${readiness.ids.length} teams)`}
+                  </Button>
+                </>
               ) : (
                 <>
-                  <p className="text-slate-500 text-sm mb-3">
-                    {qualifiedTeams.length} teams qualified: {qualifiedTeams.join(", ")}.
+                  <h3 className="text-slate-800 font-semibold mb-1">Not ready yet</h3>
+                  <p className="text-slate-500 text-sm">
+                    {readiness?.contested?.length
+                      ? `Group ${readiness.contested.join(", ")} still has a tie to settle.`
+                      : readiness?.short?.length
+                        ? `Group ${readiness.short.join(", ")} hasn't produced both qualifiers yet.`
+                        : "Finish the group stage first."}
                   </p>
-                  {error && (
-                    <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3">
-                      <p className="text-red-600 text-sm">{error}</p>
-                    </div>
-                  )}
-                  <Button onClick={generateBracket} disabled={busy}>
-                    {busy ? "Generating…" : `Generate Knockout Bracket (${qualifiedTeams.length} teams)`}
-                  </Button>
+                  <p className="text-slate-400 text-xs mt-1">
+                    {readiness?.ids?.length || 0} of {readiness?.expected || "?"} qualifiers decided.
+                  </p>
                 </>
               )}
             </div>
           )}
         </>
       )}
-         <ScheduleSection tournamentId={tournamentId} />
+      <ScheduleSection tournamentId={tournamentId} />
     </div>
   );
 }
 
-function MatchBox({ m, onScored, innerRef }) {
-  const [a, setA] = useState("");
-  const [b, setB] = useState("");
-  const [busy, setBusy] = useState(false);
+// Read-only. Scoring belongs to the organizer's courtside screen — an admin
+// entering a score here would bypass PlayerMatchStats and the period record.
+function MatchBox({ m, innerRef }) {
   const done = m.status === "completed";
-  const ready = m.teamA && m.teamB && !done;
-  const winnerId = m.seriesWinner?._id || m.seriesWinner;
-  const aName = m.teamA?.teamName || "TBD";
-  const bName = m.teamB?.teamName || "TBD";
-  const aWin = done && String(winnerId) === String(m.teamA?._id);
-  const bWin = done && String(winnerId) === String(m.teamB?._id);
-      // liveScore holds the accumulated total (across all periods) and survives
-    // match completion, so it's the final score too. games[0] is only period 1.
-    const aScore = m.liveScoreA ?? (m.games?.[0]?.scoreA ?? 0);
-    const bScore = m.liveScoreB ?? (m.games?.[0]?.scoreB ?? 0);
+  const live = m.status === "ongoing";
+  const winnerId = String(m.seriesWinner?._id || m.seriesWinner || "");
+  const aId = String(m.teamA?._id || m.teamA || "");
+  const bId = String(m.teamB?._id || m.teamB || "");
+  const aWin = done && winnerId === aId;
+  const bWin = done && winnerId === bId;
 
-  async function save() {
-    if (a === "" || b === "") return;
-    setBusy(true);
-    try {
-      await api(`/api/tournaments/matches/${m._id}/result`, {
-        method: "POST",
-        body: JSON.stringify({ scoreA: Number(a), scoreB: Number(b) }),
-      });
-      onScored && onScored();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const total = (side) => (m.games || []).reduce((n, g) => n + (g[side] || 0), 0);
+  const aScore = m.liveScoreA || total("scoreA");
+  const bScore = m.liveScoreB || total("scoreB");
+
+  const Side = ({ name, score, won }) => (
+    <div className={`flex items-center gap-2 px-3 py-2 ${won ? "bg-green-50" : ""}`}>
+      <span className={`flex-1 min-w-0 truncate ${won ? "font-semibold text-slate-900" : "text-slate-600"}`}>
+        {name || "TBD"}
+      </span>
+      {(done || live) && <span className="text-slate-600 font-medium w-6 text-center tabular-nums">{score}</span>}
+    </div>
+  );
 
   return (
-    <div ref={innerRef} className="border border-slate-200 rounded-lg overflow-hidden text-sm w-56 shrink-0 bg-white">
-      <div className={`flex items-center gap-2 px-3 py-2 ${aWin ? "bg-green-50 font-semibold" : ""}`}>
-        <span className="truncate text-slate-700 flex-1">{aName}</span>
-        {done ? (
-          <span className="text-slate-600 font-medium w-6 text-center">{aScore}</span>
-        ) : ready ? (
-          <input type="number" min="0" value={a} onChange={(e) => setA(e.target.value)}
-            className="w-8 rounded border border-slate-300 px-1 py-0.5 text-center text-xs" />
-        ) : (
-          <span className="w-6" />
-        )}
-      </div>
+    <div ref={innerRef}
+      className={`border rounded-lg overflow-hidden text-sm w-56 shrink-0 bg-white ${live ? "border-red-300" : "border-slate-200"}`}>
+      <Side name={m.teamA?.teamName} score={aScore} won={aWin} />
       <div className="border-t border-slate-100" />
-      <div className={`flex items-center gap-2 px-3 py-2 ${bWin ? "bg-green-50 font-semibold" : ""}`}>
-        <span className="truncate text-slate-700 flex-1">{bName}</span>
-        {done ? (
-          <span className="text-slate-600 font-medium w-6 text-center">{bScore}</span>
-        ) : ready ? (
-          <input type="number" min="0" value={b} onChange={(e) => setB(e.target.value)}
-            className="w-8 rounded border border-slate-300 px-1 py-0.5 text-center text-xs" />
-        ) : (
-          <span className="w-6" />
-        )}
-      </div>
-      {ready && (
-        <div className="px-2 py-1.5 bg-slate-50 border-t border-slate-100 flex justify-end">
-          <button onClick={save} disabled={busy}
-            className="text-xs font-medium px-3 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-            {busy ? "…" : "Save"}
-          </button>
-        </div>
-      )}
+      <Side name={m.teamB?.teamName} score={bScore} won={bWin} />
+      {live && <div className="px-3 py-1 bg-red-50 text-red-600 text-[10px] font-semibold">● LIVE</div>}
     </div>
   );
 }
 
-function BracketView({ tournamentId }) {
-  const [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [wires, setWires] = useState([]);
+// One tree, with elbows measured from the DOM.
+function BracketTree({ title, matches, labelFor }) {
   const stageRef = useRef(null);
   const boxRefs = useRef({});
+  const [wires, setWires] = useState([]);
+  const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await api(`/api/tournaments/${tournamentId}/bracket`);
-      setMatches(data.matches || []);
-    } catch (e) {
-      setMatches([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, [tournamentId]);
-
-  const hasLosers = matches.some((m) => m.bracket === "losers");
-
-  // Measure each match box and draw an elbow to the match its winner feeds.
   useLayoutEffect(() => {
-    if (hasLosers) { setWires([]); return; }
     function measure() {
       const stage = stageRef.current;
       if (!stage) return;
       const base = stage.getBoundingClientRect();
       const ws = [];
       matches.forEach((m) => {
-        if (m.bracket !== "winners" && m.bracket !== "final") return;
         const from = boxRefs.current[m._id];
-        const toId = m.nextMatchWin && (m.nextMatchWin._id || m.nextMatchWin);
-        const to = toId && boxRefs.current[String(toId)];
+        const toId = m.nextMatchWin && String(m.nextMatchWin._id || m.nextMatchWin);
+        const to = toId && boxRefs.current[toId];
         if (!from || !to) return;
         const a = from.getBoundingClientRect();
         const b = to.getBoundingClientRect();
@@ -540,106 +516,101 @@ function BracketView({ tournamentId }) {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [matches, hasLosers]);
+  }, [matches]);
 
-  if (loading) return <p className="text-slate-500 text-sm">Loading bracket…</p>;
-  if (matches.length === 0) return <p className="text-slate-500 text-sm">No bracket yet.</p>;
-
-  // Double-elimination (physical sports): keep the stacked-section layout for now.
-  if (hasLosers) {
-    const sections = [
-      { key: "winners", label: "Winners Bracket" },
-      { key: "losers", label: "Losers Bracket" },
-      { key: "final", label: "Grand Final" },
-      { key: "third", label: "3rd Place Match" },
-    ];
-    return (
-      <div className="space-y-8">
-        {sections.map((section) => {
-          const secMatches = matches.filter((m) => m.bracket === section.key);
-          if (secMatches.length === 0) return null;
-          const rounds = [...new Set(secMatches.map((m) => m.round))].sort((a, b) => a - b);
-          return (
-            <div key={section.key}>
-              <h3 className="text-slate-800 font-semibold mb-3">{section.label}</h3>
-              <div className="overflow-x-auto">
-                <div className="flex gap-6 min-w-min pb-2">
-                  {rounds.map((r) => (
-                    <div key={r} className="flex flex-col">
-                      <p className="text-slate-400 text-xs font-medium mb-2">Round {r}</p>
-                      <div className="flex-1 flex flex-col justify-around gap-3">
-                        {secMatches.filter((m) => m.round === r).map((m) => (
-                          <MatchBox key={m._id} m={m} onScored={load} innerRef={(el) => (boxRefs.current[m._id] = el)} />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // Single-elimination (Mobile Legends): one continuous bracket + a detached 3rd-place card.
-  const linear = matches.filter((m) => m.bracket === "winners" || m.bracket === "final");
-  const rounds = [...new Set(linear.map((m) => m.round))].sort((a, b) => a - b);
-  const lastRound = rounds[rounds.length - 1];
-  const columns = rounds.map((r, idx) => ({
-    round: r,
-    label:
-      r === lastRound ? "Grand final"
-      : idx === rounds.length - 2 ? "Semifinals"
-      : `Round ${r}`,
-    matches: linear.filter((m) => m.round === r),
-  }));
-  const thirdMatch = matches.find((m) => m.bracket === "third");
+  if (matches.length === 0) return null;
 
   return (
-    <div>
-      <h3 className="text-slate-800 font-semibold mb-3">Knockout bracket</h3>
+    <div className="mb-6">
+      {title && <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide mb-2">{title}</p>}
       <div className="overflow-x-auto pb-2">
-        <div ref={stageRef} className="relative flex gap-12 min-w-min">
+        <div ref={stageRef} className="relative flex gap-10 min-w-min">
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
-            {wires.map((d, i) => (
-              <path key={i} d={d} stroke="#cbd5e1" strokeWidth="2" fill="none" />
-            ))}
+            {wires.map((d, i) => <path key={i} d={d} stroke="#cbd5e1" strokeWidth="2" fill="none" />)}
           </svg>
-          {columns.map((col) => (
-            <div key={col.round} className="relative z-10 flex flex-col">
-              <p className="text-slate-400 text-xs font-medium mb-2">{col.label}</p>
-              <div className="flex-1 flex flex-col justify-around">
-                {col.matches.map((m) => (
-                  <MatchBox key={m._id} m={m} onScored={load} innerRef={(el) => (boxRefs.current[m._id] = el)} />
+          {rounds.map((r, i) => (
+            <div key={r} className="relative z-10 flex flex-col">
+              <p className="text-slate-400 text-xs font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
+              <div className="flex-1 flex flex-col justify-around gap-3">
+                {matches.filter((m) => m.round === r).map((m) => (
+                  <MatchBox key={m._id} m={m} innerRef={(el) => (boxRefs.current[m._id] = el)} />
                 ))}
               </div>
             </div>
           ))}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {thirdMatch && (
-        <div className="mt-5">
-          <p className="text-slate-400 text-xs font-medium mb-2">Third place</p>
-          <MatchBox m={thirdMatch} onScored={load} innerRef={() => {}} />
+function BracketView({ tournamentId }) {
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    api(`/api/tournaments/${tournamentId}/bracket`)
+      .then((d) => { if (alive) setMatches(d.matches || []); })
+      .catch(() => { if (alive) setMatches([]); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [tournamentId]);
+
+  if (loading) return <p className="text-slate-500 text-sm">Loading bracket…</p>;
+  if (matches.length === 0) return <p className="text-slate-500 text-sm">No bracket yet.</p>;
+
+  // Physical sports run FOUR separate double-elims, one per group. Filtering on
+  // bracket alone merges them into a single unreadable tree — the group is what
+  // separates them.
+  const grouped = matches.filter((m) => m.group);
+  const knockout = matches.filter((m) => !m.group);
+  const groups = [...new Set(grouped.map((m) => m.group))].sort();
+
+  const koLabel = (r, i, total) =>
+    i === total - 1 ? "Final" : i === total - 2 ? "Semifinals" : i === total - 3 ? "Quarterfinals" : `Round ${r}`;
+  const koMain = knockout.filter((m) => !(m.bracket || "").includes("third"));
+  const koThird = knockout.find((m) => (m.bracket || "").includes("third"));
+
+  return (
+    <div>
+      {koMain.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-slate-800 font-semibold mb-3">Knockout</h3>
+          <BracketTree matches={koMain} labelFor={koLabel} />
+          {koThird && (
+            <div>
+              <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>
+              <MatchBox m={koThird} innerRef={() => {}} />
+            </div>
+          )}
         </div>
       )}
+
+      {groups.map((g) => (
+        <div key={g} className="mb-8">
+          <h3 className="text-slate-800 font-semibold mb-3">Group {g}</h3>
+          <BracketTree title="Winners" matches={grouped.filter((m) => m.group === g && m.bracket === "winners")}
+            labelFor={(r) => `Round ${r}`} />
+          <BracketTree title="Losers" matches={grouped.filter((m) => m.group === g && m.bracket === "losers")}
+            labelFor={(r) => `Round ${r}`} />
+        </div>
+      ))}
     </div>
   );
 }
 
 export default function Tournaments() {
+  const { sportId } = useParams();
+  const navigate = useNavigate();
   const [sports, setSports] = useState([]);
-  const [selectedSport, setSelectedSport] = useState(null);
-  const [tournaments, setTournaments] = useState([]);   // existing tournaments this season
+  const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [knockoutSize, setKnockoutSize] = useState(16);
+  const [division, setDivision] = useState("");
 
-  // Load sports + existing tournaments once.
   async function loadAll() {
     setLoading(true);
     try {
@@ -649,9 +620,6 @@ export default function Tournaments() {
       ]);
       setSports(sportsData.sports || []);
       setTournaments(tourneyData.tournaments || []);
-      if (!selectedSport && sportsData.sports?.length) {
-        setSelectedSport(sportsData.sports[0]);
-      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -661,127 +629,140 @@ export default function Tournaments() {
 
   useEffect(() => { loadAll(); }, []);
 
-  // The tournament (if any) for the currently selected sport.
-  const currentTournament = tournaments.find(
-    (t) => t.sport && (t.sport._id === selectedSport?._id || t.sport === selectedSport?._id)
-  );
+  // No sport in the URL — send them to the first one rather than showing an
+  // empty page. The sidebar is the picker now.
+  useEffect(() => {
+    if (!sportId && sports.length) navigate(`/admin/tournaments/${sports[0]._id}`, { replace: true });
+  }, [sportId, sports, navigate]);
 
+  // Changing sport resets the division, since the divisions differ per sport.
+  useEffect(() => { setDivision(""); setError(""); }, [sportId]);
+
+  const selectedSport = sports.find((s) => String(s._id) === String(sportId));
   const isMobileLegends = selectedSport?.name === "Mobile Legends";
+
+  const divisions = selectedSport?.divisions?.length ? selectedSport.divisions : ["open"];
+  const activeDivision = divisions.includes(division) ? division : divisions[0];
+
+  // A sport can run several tournaments in one season — one per division. Match
+  // on BOTH, or basketball u30 sits unreachable behind u17.
+  const currentTournament = tournaments.find(
+    (t) =>
+      t.sport && (t.sport._id === selectedSport?._id || t.sport === selectedSport?._id) &&
+      (t.division || "open") === activeDivision
+  );
 
   async function generate() {
     if (!selectedSport) return;
     setBusy(true);
     setError("");
     try {
-      const body = { sportId: selectedSport._id };
-      if (isMobileLegends) {
-        body.knockoutSize = Number(knockoutSize);
-      }
-      await api("/api/tournaments/generate", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      await loadAll(); // refresh to show the new tournament
+      const body = { sportId: selectedSport._id, division: activeDivision };
+      if (isMobileLegends) body.knockoutSize = Number(knockoutSize);
+      await api("/api/tournaments/generate", { method: "POST", body: JSON.stringify(body) });
+      await loadAll();
     } catch (e) {
-      setError(e.message); // e.g. "Need at least 2 verified teams"
+      setError(e.message);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <AdminLayout title="Tournaments" menu={superAdminMenu}>
+    <AdminLayout title={selectedSport?.name || "Tournaments"} menu={superAdminMenu}>
       {loading ? (
         <p className="text-slate-500">Loading…</p>
+      ) : !selectedSport ? (
+        <p className="text-slate-500">Pick a sport from the sidebar.</p>
       ) : (
         <div className="max-w-5xl space-y-6">
-          {/* Sport picker */}
-          <Card className="p-5">
-            <p className="text-slate-500 text-sm mb-3">Select a sport to manage its tournament</p>
+          {divisions.length > 1 && (
             <div className="flex flex-wrap gap-2">
-              {sports.map((s) => (
+              {divisions.map((d) => (
                 <button
-                  key={s._id}
-                  onClick={() => { setSelectedSport(s); setError(""); }}
+                  key={d}
+                  onClick={() => { setDivision(d); setError(""); }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    selectedSport?._id === s._id
+                    activeDivision === d
                       ? "bg-indigo-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
-                  {s.name}
+                  {DIVISION_LABEL[d] || d}
                 </button>
               ))}
             </div>
-          </Card>
+          )}
 
-          {/* Selected sport's tournament state */}
-          {selectedSport && (
-            <Card className="p-6">
-              <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-                <h2 className="text-slate-800 font-semibold text-lg">{selectedSport.name}</h2>
-                {currentTournament && (
-                  <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm font-medium">
-                    {currentTournament.format === "round_robin" ? "Group stage" : "Elimination"} · {currentTournament.stage}
+          <Card className="p-6">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+              <h2 className="text-slate-800 font-semibold text-lg">
+                {selectedSport.name}
+                {divisions.length > 1 && (
+                  <span className="text-slate-400 font-normal text-base ml-2">
+                    {DIVISION_LABEL[activeDivision] || activeDivision}
                   </span>
                 )}
+              </h2>
+              {currentTournament && (
+                <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm font-medium">
+                  {currentTournament.format === "round_robin" ? "Group stage" : "Elimination"} · {currentTournament.stage}
+                </span>
+              )}
+            </div>
+
+            {error && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-4">
+                <p className="text-red-600 text-sm">{error}</p>
               </div>
+            )}
 
-              {error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-4">
-                  <p className="text-red-600 text-sm">{error}</p>
-                </div>
-              )}
+            {!currentTournament ? (
+              <div>
+                <p className="text-slate-500 text-sm mb-4">
+                  No {divisions.length > 1 ? `${DIVISION_LABEL[activeDivision] || activeDivision} ` : ""}
+                  tournament generated for {selectedSport.name} yet. Generate one from the
+                  verified teams. {isMobileLegends
+                    ? "Mobile Legends uses a grouped round-robin."
+                    : "This sport uses four groups of double-elimination."}
+                </p>
 
-              {!currentTournament ? (
-                // No tournament yet — offer to generate.
-                <div>
-                  <p className="text-slate-500 text-sm mb-4">
-                    No tournament generated for {selectedSport.name} yet. Generate one from the
-                    verified teams. {isMobileLegends
-                      ? "Mobile Legends uses a grouped round-robin."
-                      : "This sport uses double-elimination."}
-                  </p>
-
-                  {isMobileLegends && (
-                    <div className="mb-4">
-                      <label className="block text-slate-700 text-sm font-medium mb-1.5">
-                        Knockout size
-                      </label>
-                      <div className="flex gap-2">
-                        {[8, 16].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            onClick={() => setKnockoutSize(n)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                              Number(knockoutSize) === n
-                                ? "bg-indigo-600 text-white"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            }`}
-                          >
-                            Top {n}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-slate-400 text-xs mt-1">
-                        The system creates 8 groups and funnels down to the Top {knockoutSize}.
-                        Needs at least {knockoutSize} verified teams.
-                      </p>
+                {isMobileLegends && (
+                  <div className="mb-4">
+                    <label className="block text-slate-700 text-sm font-medium mb-1.5">Knockout size</label>
+                    <div className="flex gap-2">
+                      {[8, 16].map((n) => (
+                        <button key={n} type="button" onClick={() => setKnockoutSize(n)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                            Number(knockoutSize) === n
+                              ? "bg-indigo-600 text-white"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}>
+                          Top {n}
+                        </button>
+                      ))}
                     </div>
-                  )}
+                    <p className="text-slate-400 text-xs mt-1">
+                      The system creates 8 groups and funnels down to the Top {knockoutSize}.
+                      Needs at least {knockoutSize} verified teams.
+                    </p>
+                  </div>
+                )}
 
-                  <Button onClick={generate} disabled={busy}>
-                    {busy ? "Generating…" : `Generate ${selectedSport.name} Tournament`}
-                  </Button>
-                </div>
-              ) : (
-                
-                <TournamentDetail tournamentId={currentTournament._id} stage={currentTournament.stage} onBracketGenerated={loadAll} />
-              
-              )}
-            </Card>
-          )}
+                <Button onClick={generate} disabled={busy}>
+                  {busy ? "Generating…" : `Generate ${selectedSport.name} Tournament`}
+                </Button>
+              </div>
+            ) : (
+              <TournamentDetail
+                key={currentTournament._id}
+                tournamentId={currentTournament._id}
+                stage={currentTournament.stage}
+                isML={isMobileLegends}
+                onBracketGenerated={loadAll}
+              />
+            )}
+          </Card>
         </div>
       )}
     </AdminLayout>

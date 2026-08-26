@@ -22,6 +22,7 @@ import AdminChampions from "./pages/admin/Champions";
 import Champions from "./pages/public/Champions";
 import About from "./pages/public/About";
 import SiteImages from "./pages/admin/SiteImages";
+import SportConfig from "./pages/admin/SportConfig";
 // Temporary placeholder pages so routes resolve while we build the real ones.
 function Placeholder({ title }) {
   return (
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/admin/reference" element={<ReferenceList />} />
         <Route path="/admin/review" element={<ReviewQueue />} />
         <Route path="/admin/tournaments" element={<Tournaments />} />
+        <Route path="/admin/tournaments/:sportId" element={<Tournaments />} />
         <Route path="/admin/accounts" element={<Accounts />} />
         <Route path="/brgy" element={<BrgyDashboard />} />
         <Route path="/brgy/documents" element={<Documents />} />
@@ -59,6 +61,7 @@ export default function App() {
           </Route>
           <Route path="/admin/champions" element={<AdminChampions />} />
           <Route path="/admin/site-images" element={<SiteImages />} />
+          <Route path="/admin/config" element={<SportConfig />} />
         <Route path="*" element={<Navigate to="/" replace/>} />
         
       </Routes>

@@ -52,14 +52,14 @@ function putFile(bucketName, buffer, filename, contentType, metadata = {}) {
 }
 
 // Pipe a stored file out to an Express response.
-async function sendFile(bucketName, id, res) {
+async function sendFile(bucketName, id, res, cacheSeconds = 86400) {
   let _id;
   try { _id = new ObjectId(String(id)); } catch { return res.status(400).json({ message: 'Bad file id.' }); }
   const files = await bucket(bucketName).find({ _id }).toArray();
   if (!files.length) return res.status(404).json({ message: 'File not found.' });
   const type = files[0].contentType || files[0].metadata?.contentType || 'application/octet-stream';
   res.set('Content-Type', type);
-  res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Cache-Control', `public, max-age=${cacheSeconds}`);
   bucket(bucketName).openDownloadStream(_id).pipe(res);
 }
 

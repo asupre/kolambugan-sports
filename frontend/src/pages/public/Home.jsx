@@ -1,33 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, DIVISION_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, SiteImage, DIVISION_LABEL } from "../../components/PublicUI";
 
-// Editable image slots. Each key is a fixed slot the Super Admin can replace;
-// until that route exists (or a slot is empty), the placeholder below shows.
-// This is the single swap point for site imagery.
-const siteImageUrl = (key) => `/api/public/site-image/${key}`;
 
-function SiteImage({ slot, label, className = "" }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return (
-      <div
-        className={`flex items-center justify-center bg-[#141A24] border border-dashed border-[#2A3441] ${className}`}
-      >
-        <span className="text-slate-600 text-[11px] tracking-wide">Sample image · {label}</span>
-      </div>
-    );
-  }
-  return (
-    <img
-      src={siteImageUrl(slot)}
-      alt=""
-      onError={() => setFailed(true)}
-      className={`object-cover ${className}`}
-    />
-  );
-}
 
 function Stat({ value, label }) {
   return (

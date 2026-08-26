@@ -3,6 +3,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const championRoutes = require('./src/routes/champion');
+
 require('dotenv').config();
 
 const app = express();
@@ -23,6 +25,9 @@ app.use('/api/stats', require('./src/routes/stats'));
 app.use('/api/accounts', require('./src/routes/accounts'));
 app.use('/api/organizer', require('./src/routes/organizer'));
 app.use('/api/public', require('./src/routes/public'));
+app.use('/api/champions', championRoutes);
+app.use('/api/site-images', require('./src/routes/siteimage'));
+
 
 
 // A simple test route so we can confirm the server is alive

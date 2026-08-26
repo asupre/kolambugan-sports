@@ -8,6 +8,8 @@ const superAdminMenu = [
   { label: "Reference List", path: "/admin/reference", icon: "☑" },
   { label: "Review Queue", path: "/admin/review", icon: "⚑" },
   { label: "Tournaments", path: "/admin/tournaments", icon: "⛃" },
+   { label: "Champions", path: "/admin/champions", icon: "★" },
+   { label: "Site Images", path: "/admin/site-images", icon: "▣" },
   { label: "Accounts", path: "/admin/accounts", icon: "☺" },
 ];
 

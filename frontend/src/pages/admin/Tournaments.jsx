@@ -10,6 +10,8 @@ const superAdminMenu = [
   { label: "Reference List", path: "/admin/reference", icon: "☑" },
   { label: "Review Queue", path: "/admin/review", icon: "⚑" },
   { label: "Tournaments", path: "/admin/tournaments", icon: "⛃" },
+   { label: "Champions", path: "/admin/champions", icon: "★" },
+   { label: "Site Images", path: "/admin/site-images", icon: "▣" },
   { label: "Accounts", path: "/admin/accounts", icon: "☺" },
 ];
 
@@ -214,7 +216,14 @@ function ScheduleSection({ tournamentId }) {
   }
 
   const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
-  const asInputDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+    // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time. toISOString() would
+  // convert to UTC and shift the clock by 8 hours, so build it by hand.
+  const asInputDate = (d) => {
+    if (!d) return "";
+    const x = new Date(d);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
+  };
 
   return (
     <div className="mt-6 border-t border-slate-200 pt-4">
@@ -242,7 +251,7 @@ function ScheduleSection({ tournamentId }) {
                       <h4 className="text-slate-700 font-medium text-sm">Round {r}</h4>
                       <span className="text-slate-400 text-xs">({inRound.length} matches)</span>
                       <div className="flex items-center gap-2 ml-auto">
-                        <input type="date"
+                                                   <input type="datetime-local"
                           value={roundDates[r] || ""}
                           onChange={(e) => setRoundDates({ ...roundDates, [r]: e.target.value })}
                           className="rounded-lg border border-slate-300 px-2 py-1 text-sm" />
@@ -262,7 +271,7 @@ function ScheduleSection({ tournamentId }) {
                           <span className="flex-1 min-w-0 truncate text-slate-700">
                             {m.teamA?.teamName || "TBD"} <span className="text-slate-400">vs</span> {m.teamB?.teamName || "TBD"}
                           </span>
-                          <input type="date"
+                                                    <input type="datetime-local"
                             value={asInputDate(m.schedule)}
                             onChange={(e) => setOne(m._id, e.target.value)}
                             className="rounded border border-slate-300 px-2 py-1 text-xs shrink-0" />

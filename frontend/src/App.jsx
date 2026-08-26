@@ -18,6 +18,10 @@ import Teams from "./pages/public/Teams";
 import TeamDetail from "./pages/public/TeamDetail";
 import Players from "./pages/public/Players";
 import Brackets from "./pages/public/Brackets";
+import AdminChampions from "./pages/admin/Champions";
+import Champions from "./pages/public/Champions";
+import About from "./pages/public/About";
+import SiteImages from "./pages/admin/SiteImages";
 // Temporary placeholder pages so routes resolve while we build the real ones.
 function Placeholder({ title }) {
   return (
@@ -50,7 +54,11 @@ export default function App() {
             <Route path="teams/:id" element={<TeamDetail />} />
             <Route path="players" element={<Players />} />
             <Route path="/brackets" element={<Brackets />} />
+            <Route path="/champions" element={<Champions />} />
+            <Route path="/about" element={<About />} />
           </Route>
+          <Route path="/admin/champions" element={<AdminChampions />} />
+          <Route path="/admin/site-images" element={<SiteImages />} />
         <Route path="*" element={<Navigate to="/" replace/>} />
         
       </Routes>

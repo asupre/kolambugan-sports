@@ -9,12 +9,21 @@ const context = (m) =>
 const dateKey = (d) =>
   new Date(d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
+// A date-only schedule is stored as midnight UTC, which renders as 8:00 AM in
+// Manila — a time nobody set. Only show a time when one was actually chosen.
+const hasTime = (d) => {
+  const x = new Date(d);
+  return !(x.getUTCHours() === 0 && x.getUTCMinutes() === 0 && x.getUTCSeconds() === 0);
+};
+
 const timeOf = (d) =>
-  d ? new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : null;
+  d && hasTime(d)
+    ? new Date(d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
 
 // A fixture with no score is one line. The stacked layout below is for matches
 // that have something to show.
-function FixtureRow({ m, trailing }) {
+function FixtureRow({ m, trailing, sub }) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[#1C2430] last:border-0">
       <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
@@ -26,7 +35,10 @@ function FixtureRow({ m, trailing }) {
         <Crest name={m.teamB?.name} size={22} />
         <span className="text-slate-200 text-[13px] truncate">{m.teamB?.name || "TBD"}</span>
       </div>
-      <span className="w-24 shrink-0 text-right text-slate-600 text-[11px] truncate">{trailing}</span>
+            <div className="w-28 shrink-0 text-right">
+        <div className="text-slate-500 text-[11px] truncate">{trailing}</div>
+        {sub && <div className="text-slate-600 text-[10px] truncate">{sub}</div>}
+      </div>
     </div>
   );
 }
@@ -163,10 +175,12 @@ export default function Matches() {
                       <span className="text-slate-200 text-[12px] font-semibold">{date}</span>
                     </div>
                     {list.map((m) => (
-                      <FixtureRow
+                                            <FixtureRow
                         key={m.id}
                         m={m}
-                        trailing={[timeOf(m.schedule), m.venue].filter(Boolean).join(" · ") || context(m)}
+                        trailing={timeOf(m.schedule) || "TBD"}
+                        sub={[m.sport, DIVISION_LABEL[m.division] || m.division, m.venue]
+                          .filter(Boolean).join(" · ")}
                       />
                     ))}
                   </div>

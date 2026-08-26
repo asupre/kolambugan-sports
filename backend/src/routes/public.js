@@ -11,6 +11,8 @@ const PlayerMatchStats = require('../models/PlayerMatchStats');
 const Sport = require('../models/Sport');
 const Barangay = require('../models/Barangay');
 const { getCurrentSeason } = require('../middleware/season');
+const SiteImage = require('../models/SiteImage');
+const { sendFile } = require('../config/gridfs');
 
 const router = express.Router();
 
@@ -426,5 +428,30 @@ router.get('/bracket', async (req, res) => {
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
-
+// GET /api/public/site-images — PUBLIC. The focal point of each filled slot, so
+// a page can position all its images from one request instead of one each.
+router.get('/site-images', async (req, res) => {
+  try {
+    const rows = await SiteImage.find({ file: { $ne: null } }).select('key focal');
+    const focals = {};
+    rows.forEach((r) => { focals[r.key] = r.focal || 'center'; });
+    res.json({ focals });
+  } catch (err) {
+    console.error('Site images error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+// GET /api/public/site-image/:key — PUBLIC. Serves an editable site image.
+// Short cache: replacing a banner should show up right away, not tomorrow.
+router.get('/site-image/:key', async (req, res) => {
+  try {
+    const row = await SiteImage.findOne({ key: req.params.key });
+    if (!row || !row.file) return res.status(404).json({ message: 'No image.' });
+        res.set('X-Focal', row.focal || 'center');
+    await sendFile('site', row.file, res, 60);
+  } catch (err) {
+    console.error('Site image serve error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
 module.exports = router;

@@ -6,7 +6,7 @@
 // Crest is the SINGLE SWAP POINT for barangay logos. When the logo serve
 // route exists, change it here and every public page picks it up at once.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export const DIVISION_LABEL = {
   open: "Open",
@@ -27,7 +27,7 @@ export const initials = (name = "") =>
 
 // ── Photo routes ────────────────────────────────────────────────────────────
 // TODO(Jerico): confirm this against the real GridFS serve route.
-export const playerPhotoUrl = (id) => `/api/team/players/${id}/photo`;
+export const playerPhotoUrl = (id) => `/api/teams/players/${id}/photo`;
 
 // Pending Hon. Reserva's decision on publishing minors' photos.
 // Flip to false and every public photo falls back to a monogram — no other edits.
@@ -109,5 +109,48 @@ export function Tag({ children }) {
     <span className="px-2 py-0.5 rounded bg-[#1C2430] text-slate-400 text-[11px] font-medium whitespace-nowrap">
       {children}
     </span>
+  );
+}
+// ── Editable site imagery ───────────────────────────────────────────────────
+export const siteImageUrl = (key) => `/api/public/site-image/${key}`;
+
+// Fetched once per page load and shared by every slot, rather than each image
+// firing its own request for the same data.
+let focalPromise = null;
+function loadFocals() {
+  if (!focalPromise) {
+    focalPromise = fetch("/api/public/site-images")
+      .then((r) => (r.ok ? r.json() : { focals: {} }))
+      .then((d) => d.focals || {})
+      .catch(() => ({}));
+  }
+  return focalPromise;
+}
+
+export function SiteImage({ slot, label, className = "" }) {
+  const [failed, setFailed] = useState(false);
+  const [focal, setFocal] = useState("center");
+
+  useEffect(() => {
+    let alive = true;
+    loadFocals().then((f) => { if (alive && f[slot]) setFocal(f[slot]); });
+    return () => { alive = false; };
+  }, [slot]);
+
+  if (failed) {
+    return (
+      <div className={`flex items-center justify-center bg-[#141A24] border border-dashed border-[#2A3441] ${className}`}>
+        <span className="text-slate-600 text-[11px] tracking-wide">Sample image · {label}</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={siteImageUrl(slot)}
+      alt=""
+      onError={() => setFailed(true)}
+      style={{ objectPosition: focal }}
+      className={`object-cover ${className}`}
+    />
   );
 }

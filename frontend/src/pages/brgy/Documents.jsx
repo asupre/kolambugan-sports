@@ -5,7 +5,8 @@ import { Card } from "../../components/ui";
 
 const brgyMenu = [
   { label: "My Teams", path: "/brgy", icon: "⛃" },
-  { label: "Documents", path: "/brgy/documents", icon: "🗎" },
+  { label: "Verification Status", path: "/brgy/documents", icon: "🗎" },
+  { label: "Matches", path: "/brgy/matches", icon: "◷" },
 ];
 
 const DOC_TYPES = [
@@ -62,7 +63,7 @@ export default function Documents() {
   }
 
   return (
-    <AdminLayout title="Document Submission" menu={brgyMenu}>
+        <AdminLayout title="Verification Status" menu={brgyMenu}>
       {loading ? (
         <p className="text-slate-500">Loading…</p>
       ) : (
@@ -79,6 +80,13 @@ export default function Documents() {
               These players weren't matched on the reference list, so they need proof of
               Kolambugan residency. Players under 15 also need parental consent.
               Accepted files: image or PDF, max 8&nbsp;MB. The SK Federation reviews each one.
+            </p>
+            <p className="text-slate-500 text-sm mt-2">
+              If a name here looks wrong, it may just be a typo — the reference list is
+              matched on the exact spelling. Open the player on{" "}
+              <span className="font-medium">My Teams → View roster → Edit</span> to correct
+              it, and the residency check runs again straight away. No document needed if
+              the corrected name matches.
             </p>
           </Card>
 

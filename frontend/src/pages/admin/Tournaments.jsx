@@ -158,18 +158,20 @@ function MatchesView({ tournamentId }) {
 }
 
 function ScheduleSection({ tournamentId }) {
-  const [open, setOpen] = useState(false);
   const [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [roundDates, setRoundDates] = useState({});   // round -> date string
+  const [loading, setLoading] = useState(true);
+  const [edits, setEdits] = useState({});     // matchId -> { schedule, venue }
+  const [bulk, setBulk] = useState({});       // round -> { schedule, venue, group }
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+    const [openRounds, setOpenRounds] = useState({});
 
   async function load() {
     setLoading(true);
     try {
       const data = await api(`/api/tournaments/${tournamentId}/matches`);
       setMatches(data.matches || []);
+      setEdits({});
     } catch (e) {
       setMsg(e.message);
     } finally {
@@ -177,16 +179,61 @@ function ScheduleSection({ tournamentId }) {
     }
   }
 
-  useEffect(() => { if (open) load(); }, [open, tournamentId]);
+  useEffect(() => { load(); }, [tournamentId]);
 
-  async function applyRound(round) {
-    const date = roundDates[round];
-    if (!date) { setMsg("Pick a date first."); return; }
+  // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time. toISOString() would
+  // convert to UTC and shift the clock by 8 hours.
+  const asInput = (d) => {
+    if (!d) return "";
+    const x = new Date(d);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
+  };
+
+  const valueOf = (m, field) =>
+    edits[m._id]?.[field] !== undefined
+      ? edits[m._id][field]
+      : field === "schedule" ? asInput(m.schedule) : (m.venue || "");
+
+  const isDirty = (m) => {
+    const e = edits[m._id];
+    if (!e) return false;
+    return (e.schedule !== undefined && e.schedule !== asInput(m.schedule))
+      || (e.venue !== undefined && e.venue !== (m.venue || ""));
+  };
+
+  function edit(matchId, field, value) {
+    setEdits((prev) => ({ ...prev, [matchId]: { ...prev[matchId], [field]: value } }));
+  }
+
+  // Saved explicitly rather than on every keystroke — typing a venue would
+  // otherwise fire a request per character.
+  async function saveOne(m) {
     setBusy(true); setMsg("");
     try {
+      await api(`/api/tournaments/matches/${m._id}/schedule`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          schedule: valueOf(m, "schedule") || null,
+          venue: valueOf(m, "venue"),
+        }),
+      });
+      await load();
+    } catch (e) { setMsg(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function applyRound(round) {
+    const b = bulk[round] || {};
+    if (!b.schedule) { setMsg("Pick a date and time first."); return; }
+    setBusy(true); setMsg("");
+    try {
+      const body = { schedule: b.schedule, round: Number(round) };
+      if (b.group) body.group = b.group;
+      if (b.venue) body.venue = b.venue;
       const res = await api(`/api/tournaments/${tournamentId}/schedule-bulk`, {
         method: "POST",
-        body: JSON.stringify({ schedule: date, round: Number(round) }),
+        body: JSON.stringify(body),
       });
       setMsg(res.message);
       await load();
@@ -194,86 +241,145 @@ function ScheduleSection({ tournamentId }) {
     finally { setBusy(false); }
   }
 
-  async function setOne(matchId, date) {
-    setBusy(true); setMsg("");
-    try {
-      await api(`/api/tournaments/matches/${matchId}/schedule`, {
-        method: "PATCH",
-        body: JSON.stringify({ schedule: date || null }),
-      });
-      await load();
-    } catch (e) { setMsg(e.message); }
-    finally { setBusy(false); }
-  }
+   // Round numbers restart in the knockout, so group-stage round 1 and the first
+  // knockout round collide. Group-stage matches carry a `group`; knockout matches
+  // don't — that's what separates them.
+  const stageOf = (m) => (m.group ? "group" : "knockout");
+  const keyOf = (m) => `${stageOf(m)}-${m.round}`;
+  const sections = [...new Set(matches.map(keyOf))].sort((a, b) => {
+    const [sa, ra] = a.split("-"); const [sb, rb] = b.split("-");
+    if (sa !== sb) return sa === "group" ? -1 : 1;
+    return Number(ra) - Number(rb);
+  });
+  const groups = [...new Set(matches.map((m) => m.group).filter(Boolean))].sort();
+  const dated = matches.filter((m) => m.schedule).length;
 
-  const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
-    // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time. toISOString() would
-  // convert to UTC and shift the clock by 8 hours, so build it by hand.
-  const asInputDate = (d) => {
-    if (!d) return "";
-    const x = new Date(d);
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
+  const roundLabel = (m) => {
+    if (m.isTiebreaker) return m.round >= 101 ? "Playoff decider" : "Playoff";
+    if (!m.group) {
+      const n = matches.filter((x) => !x.group && x.round === m.round && !(x.bracket || "").includes("third")).length;
+      return n === 1 ? "Final" : n === 2 ? "Semifinals" : n === 4 ? "Quarterfinals" : `Round of ${n * 2}`;
+    }
+    return `Round ${m.round}`;
   };
 
+  const input = "rounded-lg border border-slate-300 px-2 py-1.5 text-sm";
+
   return (
-    <div className="mt-6 border-t border-slate-200 pt-4">
-      <button onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 text-slate-700 font-medium text-sm hover:text-slate-900">
-        <span className="text-slate-400">{open ? "▾" : "▸"}</span>
-        Schedule
-        <span className="text-slate-400 font-normal">
-          ({matches.filter((m) => m.schedule).length}/{matches.length} dated)
-        </span>
-      </button>
+    <div className="mt-8 border-t border-slate-200 pt-5">
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <h3 className="text-slate-800 font-semibold">Schedule</h3>
+        <span className="text-slate-400 text-sm">{dated} of {matches.length} dated</span>
+      </div>
+      <p className="text-slate-500 text-sm mb-4">
+        Dates are guidance, not a lock — an organizer can still start an undated match,
+        or one being played on a different day. Times are Philippine time.
+      </p>
 
-      {open && (
-        <div className="mt-3">
-          {msg && <p className="text-sm text-slate-600 bg-slate-50 rounded px-3 py-2 mb-3">{msg}</p>}
-          {loading ? (
-            <p className="text-slate-500 text-sm">Loading matches…</p>
-          ) : (
-            <div className="space-y-5">
-              {rounds.map((r) => {
-                const inRound = matches.filter((m) => m.round === r);
-                return (
-                  <div key={r}>
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <h4 className="text-slate-700 font-medium text-sm">Round {r}</h4>
-                      <span className="text-slate-400 text-xs">({inRound.length} matches)</span>
-                      <div className="flex items-center gap-2 ml-auto">
-                                                   <input type="datetime-local"
-                          value={roundDates[r] || ""}
-                          onChange={(e) => setRoundDates({ ...roundDates, [r]: e.target.value })}
-                          className="rounded-lg border border-slate-300 px-2 py-1 text-sm" />
-                        <button onClick={() => applyRound(r)} disabled={busy}
-                          className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-                          Apply to round
-                        </button>
-                      </div>
+      {msg && <p className="text-sm text-slate-600 bg-slate-50 rounded px-3 py-2 mb-3">{msg}</p>}
+
+      {loading ? (
+        <p className="text-slate-500 text-sm">Loading matches…</p>
+      ) : matches.length === 0 ? (
+        <p className="text-slate-500 text-sm">No matches to schedule yet.</p>
+      ) : (
+        <div className="space-y-6">
+                    {sections.map((key) => {
+                        const r = Number(key.split("-")[1]);
+            const inRound = matches.filter((m) => keyOf(m) === key);
+                                    const b = bulk[key] || {};
+
+                        // A round where everything has been played is history — collapse it so
+            // it doesn't bury the rounds still needing dates.
+            const played = inRound.filter((m) => m.status === "completed").length;
+            const allPlayed = played === inRound.length;
+                        const open = openRounds[key] ?? !allPlayed;
+            return (
+                            <div key={key} className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                                                      <button onClick={() => setOpenRounds({ ...openRounds, [key]: !open })}
+                    className="flex items-baseline gap-2 mb-2 w-full text-left">
+                    <span className="text-slate-400 text-xs">{open ? "▾" : "▸"}</span>
+                    <h4 className="text-slate-800 font-medium text-sm">{roundLabel(inRound[0])}</h4>
+                    <span className="text-slate-400 text-xs">
+                      {inRound.length} match{inRound.length === 1 ? "" : "es"} ·{" "}
+                      {allPlayed ? "all played" : `${inRound.filter((m) => m.schedule).length} dated`}
+                    </span>
+                  </button>
+                  {open && (
+                  <div className="flex items-end gap-2 flex-wrap">
+                  
+                    <div>
+                      <label className="block text-slate-500 text-[11px] mb-1">Date &amp; time</label>
+                                            <input type="datetime-local" value={b.schedule || ""}
+                        onChange={(e) => setBulk({ ...bulk, [key]: { ...b, schedule: e.target.value } })}
+                        className={input} />
                     </div>
-
-                    <div className="space-y-1">
-                      {inRound.map((m) => (
-                        <div key={m._id} className="flex items-center gap-2 text-sm border border-slate-200 rounded-lg px-3 py-2">
+                    <div>
+                      <label className="block text-slate-500 text-[11px] mb-1">Venue</label>
+                                            <input type="text" placeholder="Covered court" value={b.venue || ""}
+                        onChange={(e) => setBulk({ ...bulk, [key]: { ...b, venue: e.target.value } })}
+                        className={`${input} w-44`} />
+                    </div>
+                    {groups.length > 0 && (
+                      <div>
+                        <label className="block text-slate-500 text-[11px] mb-1">Group</label>
+                                                <select value={b.group || ""}
+                          onChange={(e) => setBulk({ ...bulk, [key]: { ...b, group: e.target.value } })}
+                          className={input}>
+                          <option value="">All groups</option>
+                          {groups.map((g) => <option key={g} value={g}>Group {g}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <button onClick={() => applyRound(r)} disabled={busy}
+                      className="text-xs font-medium px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                      Apply to round
+                    </button>
+                  </div>
+                    )}
+                </div>
+                     {open && (
+                <div className="divide-y divide-slate-100">
+                  {inRound.map((m) => {
+                    const done = m.status === "completed";
+                    return (
+                      <div key={m._id} className={`px-4 py-2.5 ${done ? "bg-slate-50/60" : ""}`}>
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-slate-400 text-xs w-16 shrink-0">
                             {m.group ? `Grp ${m.group}` : m.bracket}
                           </span>
-                          <span className="flex-1 min-w-0 truncate text-slate-700">
-                            {m.teamA?.teamName || "TBD"} <span className="text-slate-400">vs</span> {m.teamB?.teamName || "TBD"}
+                          <span className="flex-1 min-w-[12rem] truncate text-sm text-slate-700">
+                            {m.teamA?.teamName || "TBD"}
+                            <span className="text-slate-400"> vs </span>
+                            {m.teamB?.teamName || "TBD"}
                           </span>
-                                                    <input type="datetime-local"
-                            value={asInputDate(m.schedule)}
-                            onChange={(e) => setOne(m._id, e.target.value)}
-                            className="rounded border border-slate-300 px-2 py-1 text-xs shrink-0" />
+
+                          {done ? (
+                            <span className="text-slate-400 text-xs">played</span>
+                          ) : (
+                            <>
+                              <input type="datetime-local" value={valueOf(m, "schedule")}
+                                onChange={(e) => edit(m._id, "schedule", e.target.value)}
+                                className={`${input} text-xs shrink-0`} />
+                              <input type="text" placeholder="Venue" value={valueOf(m, "venue")}
+                                onChange={(e) => edit(m._id, "venue", e.target.value)}
+                                className={`${input} text-xs w-36 shrink-0`} />
+                              <button onClick={() => saveOne(m)} disabled={busy || !isDirty(m)}
+                                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-30 shrink-0">
+                                Save
+                              </button>
+                            </>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                      </div>
+                    );
+                  })}
+                </div>
+                 )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -523,7 +629,17 @@ function BracketTree({ title, matches, labelFor, onRevert }) {
   const stageRef = useRef(null);
   const boxRefs = useRef({});
   const [wires, setWires] = useState([]);
-  const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
+    const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
+    // Round numbers restart in the knockout, so round 1 of the group stage and the
+  // first knockout round collide. Group-stage matches carry a `group`; knockout
+  // matches don't — that's what separates them.
+  const stageOf = (m) => (m.group ? "group" : "knockout");
+  const keyOf = (m) => `${stageOf(m)}-${m.round}`;
+  const sections = [...new Set(matches.map(keyOf))].sort((a, b) => {
+    const [sa, ra] = a.split("-"); const [sb, rb] = b.split("-");
+    if (sa !== sb) return sa === "group" ? -1 : 1;
+    return Number(ra) - Number(rb);
+  });
 
   useLayoutEffect(() => {
     function measure() {

@@ -13,6 +13,7 @@ export const superAdminMenu = [
   { label: "Tournaments", path: "/admin/tournaments", icon: "⛃", dynamic: "sports" },
     { label: "Sport Setup", path: "/admin/config", icon: "⚙" },
   { label: "Champions", path: "/admin/champions", icon: "★" },
+    { label: "Reports", path: "/admin/reports", icon: "▤" },
   { label: "Site Images", path: "/admin/site-images", icon: "▣" },
   { label: "Accounts", path: "/admin/accounts", icon: "☺" },
 ];

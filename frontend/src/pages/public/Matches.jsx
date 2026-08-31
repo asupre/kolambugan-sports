@@ -39,9 +39,9 @@ function FixtureRow({ m, trailing, sub }) {
         <Crest name={m.teamB?.name} size={22} />
         <span className="text-slate-200 text-[13px] truncate">{m.teamB?.name || "TBD"}</span>
       </div>
-            <div className="w-28 shrink-0 text-right">
-        <div className="text-slate-500 text-[11px] truncate">{trailing}</div>
-        {sub && <div className="text-slate-600 text-[10px] truncate">{sub}</div>}
+                   <div className="w-32 shrink-0 text-right">
+        <div className="text-slate-500 text-[11px]">{trailing}</div>
+        {sub && <div className="text-slate-600 text-[10px] leading-tight mt-0.5">{sub}</div>}
       </div>
     </div>
   );
@@ -183,7 +183,7 @@ export default function Matches() {
                         key={m.id}
                         m={m}
                         trailing={timeOf(m.schedule) || "TBD"}
-                        sub={[m.sport, DIVISION_LABEL[m.division] || m.division, m.venue]
+                                                sub={[DIVISION_LABEL[m.division] || m.division, m.venue]
                           .filter(Boolean).join(" · ")}
                       />
                     ))}

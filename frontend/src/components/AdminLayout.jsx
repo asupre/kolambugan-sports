@@ -48,7 +48,7 @@ export default function AdminLayout({ title, menu, children }) {
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <aside
-        className={`fixed z-30 inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col transform transition-transform duration-200 lg:translate-x-0 lg:static ${
+               className={`fixed z-30 inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col transform transition-transform duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >

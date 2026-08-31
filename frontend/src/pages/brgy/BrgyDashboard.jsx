@@ -5,7 +5,8 @@ import { Button, Card } from "../../components/ui";
 
 const brgyMenu = [
   { label: "My Teams", path: "/brgy", icon: "⛃" },
-  { label: "Documents", path: "/brgy/documents", icon: "🗎" },
+  { label: "Verification Status", path: "/brgy/documents", icon: "🗎" },
+  { label: "Matches", path: "/brgy/matches", icon: "◷" },
 ];
 
 const ROSTER_LIMITS = {

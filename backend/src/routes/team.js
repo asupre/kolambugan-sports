@@ -6,7 +6,7 @@ const Sport = require('../models/Sport');
 const Document = require('../models/Document');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
-const { prescreenTeam } = require('../services/prescreen');
+const { prescreenTeam,  prescreenPlayer } = require('../services/prescreen');
 const { uploadPhoto, uploadDoc, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
 const router = express.Router();
@@ -190,6 +190,76 @@ router.get('/:id/players', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
+// PATCH /api/teams/:id/players/:playerId — correct a player's details.
+//
+// Exists because the only alternative was REJECT, which deletes the player, their
+// documents, their photo, and reopens the roster — a brutal price for a typo, and
+// no help at all once a wrong name is already on the public site.
+//
+// Deliberately has NO submittedAt check and no season gate: a correction has to
+// work after submission, which is exactly when typos get noticed.
+//
+// Changing the name or birthdate invalidates the residency screen, since those
+// are what the reference lookup uses — so it re-screens. A corrected spelling
+// clears automatically; a wrong one gets flagged. The check can't be edited around.
+router.patch('/:id/players/:playerId', authenticate,
+  authorize('barangay_admin', 'super_admin'), async (req, res) => {
+  try {
+    const team = await loadOwnedTeam(req, res);
+    if (!team) return;
+
+    const link = await TeamPlayer.findOne({ team: team._id, player: req.params.playerId });
+    if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
+
+    const player = await Player.findById(req.params.playerId);
+    if (!player) return res.status(404).json({ message: 'Player not found.' });
+
+    const { firstName, middleName, lastName, birthdate, address, jerseyNumber } = req.body;
+    const before = { first: player.firstName, last: player.lastName, birth: String(player.birthdate) };
+
+    if (firstName !== undefined) {
+      if (!String(firstName).trim()) return res.status(400).json({ message: 'First name cannot be empty.' });
+      player.firstName = String(firstName).trim();
+    }
+    if (lastName !== undefined) {
+      if (!String(lastName).trim()) return res.status(400).json({ message: 'Last name cannot be empty.' });
+      player.lastName = String(lastName).trim();
+    }
+    if (middleName !== undefined) player.middleName = String(middleName).trim() || undefined;
+    if (address !== undefined) player.address = String(address).trim() || undefined;
+    if (jerseyNumber !== undefined) {
+      player.jerseyNumber = jerseyNumber === null || jerseyNumber === '' ? undefined : Number(jerseyNumber);
+    }
+    if (birthdate !== undefined) {
+      const d = new Date(birthdate);
+      if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid birthdate.' });
+      player.birthdate = d;
+      player.age = computeAge(d);
+    }
+
+    await player.save();
+
+    const identityChanged =
+      before.first !== player.firstName ||
+      before.last !== player.lastName ||
+      before.birth !== String(player.birthdate);
+
+    let screening = null;
+    if (identityChanged) screening = await prescreenPlayer(player, team);
+
+    const fresh = await Player.findById(player._id);
+    res.json({
+      message: identityChanged ? 'Player updated and re-screened.' : 'Player updated.',
+      player: fresh,
+      rescreened: identityChanged,
+      screening,
+    });
+  } catch (err) {
+    console.error('Update player error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
 
 // DELETE /api/teams/:id/players/:playerId  — remove a player from a draft roster.
 router.delete('/:id/players/:playerId', authenticate, authorize('barangay_admin'),

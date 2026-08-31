@@ -371,8 +371,15 @@ function groupStandings(matches, includeTiebreakers = false) {
 
   const out = {};
   Object.entries(byGroup).forEach(([g, rows]) => {
+       // Losses before gameWinDiff: in a double-elim group teams play different
+    // numbers of matches, and gameWinDiff accumulates, so a team that played
+    // more can out-rank an unbeaten one on raw period totals.
     out[g] = Object.values(rows).sort(
-      (a, b) => b.wins - a.wins || b.gameWinDiff - a.gameWinDiff || a.teamName.localeCompare(b.teamName)
+      (a, b) =>
+        b.wins - a.wins ||
+        a.losses - b.losses ||
+        b.gameWinDiff - a.gameWinDiff ||
+        a.teamName.localeCompare(b.teamName)
     );
   });
   return out;

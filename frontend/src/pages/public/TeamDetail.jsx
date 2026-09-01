@@ -68,7 +68,7 @@ export default function TeamDetail() {
       </Link>
 
       <div className="flex items-center gap-4 mt-3 mb-5">
-        <Crest name={team.barangay || team.name} size={56} />
+                <Crest name={team.barangay || team.name} barangayId={team.barangayId} size={56} />
         <div className="min-w-0">
           <h1 className="text-slate-100 text-2xl font-semibold tracking-tight truncate">{team.name}</h1>
           <div className="text-slate-500 text-sm truncate">

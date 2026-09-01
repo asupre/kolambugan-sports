@@ -71,7 +71,7 @@ export default function Teams() {
                     to={`/teams/${t.id}`}
                     className="flex items-center gap-3 px-5 py-4 bg-[#0F141C] hover:bg-[#141A24] transition"
                   >
-                    <Crest name={t.barangay || t.name} />
+                                        <Crest name={t.barangay || t.name} barangayId={t.barangayId} />
                     <div className="min-w-0">
                       <div className="text-slate-100 text-[15px] font-medium truncate">{t.name}</div>
                       <div className="text-slate-500 text-[12px] truncate">

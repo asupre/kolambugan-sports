@@ -16,12 +16,12 @@ function Stat({ value, label }) {
 
 function MiniScore({ m }) {
   const aLeads = m.scoreA >= m.scoreB;
-  const Line = ({ name, score, leading }) => (
+  const Line = ({ team, score, leading }) => (
     <div className="flex items-center justify-between py-1">
       <div className="flex items-center gap-2 min-w-0">
-        <Crest name={name} size={22} />
+        <Crest name={team?.name} barangayId={team?.barangayId} size={22} />
         <span className={`text-[13px] truncate ${leading ? "text-slate-100" : "text-slate-400"}`}>
-          {name || "TBD"}
+          {team?.name || "TBD"}
         </span>
       </div>
       <span className={`text-[15px] font-semibold tabular-nums pl-3 ${leading ? "text-slate-100" : "text-slate-500"}`}>
@@ -35,8 +35,8 @@ function MiniScore({ m }) {
         {m.sport} · {DIVISION_LABEL[m.division] || m.division}
         {m.group ? ` · Grp ${m.group}` : ""}
       </div>
-      <Line name={m.teamA?.name} score={m.scoreA} leading={aLeads} />
-      <Line name={m.teamB?.name} score={m.scoreB} leading={!aLeads || m.scoreA === m.scoreB} />
+      <Line team={m.teamA} score={m.scoreA} leading={aLeads} />
+       <Line team={m.teamB} score={m.scoreB} leading={!aLeads || m.scoreA === m.scoreB} />
     </div>
   );
 }

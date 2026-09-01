@@ -16,7 +16,10 @@ const barangaySchema = new mongoose.Schema(
       type: Boolean,
       default: false,          // most barangays: players must be from that barangay
     },
+        // Barangay crest, shown across the public site. Public by design.
+    logo: { type: mongoose.Schema.Types.ObjectId, default: null },
   },
+
   {
     timestamps: true,
   }

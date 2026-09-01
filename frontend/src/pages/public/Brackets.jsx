@@ -15,9 +15,9 @@ function MatchCard({ m, innerRef }) {
   const aWin = done && m.winner && String(m.winner) === String(m.teamA?.id);
   const bWin = done && m.winner && String(m.winner) === String(m.teamB?.id);
 
-  const Side = ({ team, score, won }) => (
+    const Side = ({ team, score, won }) => (
     <div className="flex items-center gap-2 px-3 py-2">
-      <Crest name={team?.name} size={20} />
+      <Crest name={team?.name} barangayId={team?.barangayId} size={20} />
       <span className={`flex-1 min-w-0 truncate text-[13px] ${won ? "text-slate-100 font-medium" : done ? "text-slate-500" : "text-slate-300"}`}>
         {team?.name || "TBD"}
       </span>
@@ -142,7 +142,7 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
               {i + 1}
             </span>
             <div className="flex-1 min-w-0 flex items-center gap-2.5">
-              <Crest name={r.teamName} size={22} />
+                            <Crest name={r.teamName} barangayId={r.barangayId} size={22} />
               <span className={`text-[14px] truncate ${marked ? "text-slate-100" : "text-slate-400"}`}>
                 {r.teamName}
               </span>

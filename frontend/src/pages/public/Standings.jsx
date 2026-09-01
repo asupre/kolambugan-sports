@@ -117,7 +117,7 @@ export default function Standings() {
                           {seed ?? i + 1}
                         </span>
                         <div className="flex-1 min-w-0 flex items-center gap-2.5">
-                          <Crest name={r.teamName} size={24} />
+                                                    <Crest name={r.teamName} barangayId={r.barangayId} size={24} />
                           <span className={`text-[14px] truncate ${marked ? "text-slate-100" : "text-slate-400"}`}>
                             {r.teamName}
                           </span>

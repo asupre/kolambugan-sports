@@ -35,8 +35,24 @@ export const SHOW_PLAYER_PHOTOS = true;
 
 // ── Components ──────────────────────────────────────────────────────────────
 
-// Barangay crest. Falls back to a monogram tile until logos are uploaded.
-export function Crest({ name, size = 40 }) {
+export const barangayLogoUrl = (id) => `/api/barangays/${id}/logo`;
+
+// Barangay crest. Falls back to a monogram when no logo is uploaded, or if the
+// team has no barangay id in the payload — match feeds only carry team names.
+export function Crest({ name, barangayId, size = 40 }) {
+  const [failed, setFailed] = useState(false);
+
+  if (barangayId && !failed) {
+    return (
+      <img
+        src={barangayLogoUrl(barangayId)}
+        alt=""
+        onError={() => setFailed(true)}
+        className="rounded object-cover bg-[#1C2430] shrink-0"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
   return (
     <div
       className="rounded bg-[#1C2430] text-slate-400 font-semibold flex items-center justify-center shrink-0"

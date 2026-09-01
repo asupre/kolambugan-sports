@@ -25,6 +25,7 @@ import SiteImages from "./pages/admin/SiteImages";
 import SportConfig from "./pages/admin/SportConfig";
 import BrgyMatches from "./pages/brgy/BrgyMatches";
 import Reports from "./pages/admin/Reports";
+import RequireRole from "./components/RequireRole";
 // Temporary placeholder pages so routes resolve while we build the real ones.
 function Placeholder({ title }) {
   return (
@@ -37,37 +38,45 @@ function Placeholder({ title }) {
 export default function App() {
   return (
     <BrowserRouter>
-     <Routes>
+          <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/season" element={<Season />} />
-        <Route path="/admin/reference" element={<ReferenceList />} />
-        <Route path="/admin/review" element={<ReviewQueue />} />
-        <Route path="/admin/tournaments" element={<Tournaments />} />
-        <Route path="/admin/tournaments/:sportId" element={<Tournaments />} />
-        <Route path="/admin/accounts" element={<Accounts />} />
-        <Route path="/brgy" element={<BrgyDashboard />} />
-        <Route path="/brgy/documents" element={<Documents />} />
-        <Route path="/brgy/matches" element={<BrgyMatches />} />
-        <Route path="/organizer" element={<OrganizerScoring />} />
+
+        {/* Super Admin */}
+        <Route path="/admin" element={<RequireRole roles={["super_admin"]}><AdminDashboard /></RequireRole>} />
+        <Route path="/admin/season" element={<RequireRole roles={["super_admin"]}><Season /></RequireRole>} />
+        <Route path="/admin/reference" element={<RequireRole roles={["super_admin"]}><ReferenceList /></RequireRole>} />
+        <Route path="/admin/review" element={<RequireRole roles={["super_admin"]}><ReviewQueue /></RequireRole>} />
+        <Route path="/admin/tournaments" element={<RequireRole roles={["super_admin"]}><Tournaments /></RequireRole>} />
+        <Route path="/admin/tournaments/:sportId" element={<RequireRole roles={["super_admin"]}><Tournaments /></RequireRole>} />
+        <Route path="/admin/config" element={<RequireRole roles={["super_admin"]}><SportConfig /></RequireRole>} />
+        <Route path="/admin/reports" element={<RequireRole roles={["super_admin"]}><Reports /></RequireRole>} />
+        <Route path="/admin/champions" element={<RequireRole roles={["super_admin"]}><AdminChampions /></RequireRole>} />
+        <Route path="/admin/site-images" element={<RequireRole roles={["super_admin"]}><SiteImages /></RequireRole>} />
+        <Route path="/admin/accounts" element={<RequireRole roles={["super_admin"]}><Accounts /></RequireRole>} />
+
+        {/* Barangay Admin */}
+        <Route path="/brgy" element={<RequireRole roles={["barangay_admin"]}><BrgyDashboard /></RequireRole>} />
+        <Route path="/brgy/documents" element={<RequireRole roles={["barangay_admin"]}><Documents /></RequireRole>} />
+        <Route path="/brgy/matches" element={<RequireRole roles={["barangay_admin"]}><BrgyMatches /></RequireRole>} />
+
+        {/* Organizer — super admin may score too, matching the backend. */}
+        <Route path="/organizer" element={<RequireRole roles={["organizer", "super_admin"]}><OrganizerScoring /></RequireRole>} />
+
+        {/* Public */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
-           <Route path="/matches" element={<Matches />} />
-            <Route path="/standings" element={<Standings />} />
-            <Route path="teams" element={<Teams />} />
-            <Route path="teams/:id" element={<TeamDetail />} />
-            <Route path="players" element={<Players />} />
-            <Route path="/brackets" element={<Brackets />} />
-            <Route path="/champions" element={<Champions />} />
-            <Route path="/about" element={<About />} />
-          </Route>
-          <Route path="/admin/champions" element={<AdminChampions />} />
-          <Route path="/admin/site-images" element={<SiteImages />} />
-          <Route path="/admin/config" element={<SportConfig />} />
-          <Route path="/admin/reports" element={<Reports />} />
-        <Route path="*" element={<Navigate to="/" replace/>} />
-        
+          <Route path="/matches" element={<Matches />} />
+          <Route path="/standings" element={<Standings />} />
+          <Route path="/teams" element={<Teams />} />
+          <Route path="/teams/:id" element={<TeamDetail />} />
+          <Route path="/players" element={<Players />} />
+          <Route path="/brackets" element={<Brackets />} />
+          <Route path="/champions" element={<Champions />} />
+          <Route path="/about" element={<About />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

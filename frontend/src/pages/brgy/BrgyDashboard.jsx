@@ -166,6 +166,97 @@ function DocumentUpload({ teamId, playerId, onUploaded }) {
     </div>
   );
 }
+// The barangay crest, shown on every public page beside this barangay's teams.
+// Uploaded here rather than by the federation: 26 barangays, and each one knows
+// its own logo.
+function LogoCard() {
+  const [barangay, setBarangay] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [v, setV] = useState(Date.now());   // cache-buster after a change
+
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const myId = user?.barangay?._id || user?.barangay;
+
+  async function load() {
+    try {
+      const d = await api("/api/barangays");
+      setBarangay((d.barangays || []).find((b) => String(b._id) === String(myId)) || null);
+    } catch (e) { setError(e.message); }
+  }
+
+  useEffect(() => { if (myId) load(); }, [myId]);
+
+  async function upload(file) {
+    if (!file) return;
+    setBusy(true); setError("");
+    try {
+      const fd = new FormData();
+      fd.append("logo", file);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/barangays/${myId}/logo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Upload failed.");
+      setV(Date.now());
+      await load();
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function remove() {
+    if (!window.confirm("Remove your barangay logo? A monogram will show instead.")) return;
+    setBusy(true); setError("");
+    try {
+      await api(`/api/barangays/${myId}/logo`, { method: "DELETE" });
+      setV(Date.now());
+      await load();
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  if (!myId) return null;
+
+  return (
+    <Card className="p-5">
+      <h2 className="text-slate-800 font-semibold mb-1">Barangay logo</h2>
+      <p className="text-slate-500 text-sm mb-4">
+        Shown beside your teams everywhere on the public site — match results,
+        standings, brackets. Square images work best. JPEG, PNG or WebP, up to 2&nbsp;MB.
+      </p>
+
+      {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+
+      <div className="flex items-center gap-4">
+        {barangay?.hasLogo ? (
+          <img src={`/api/barangays/${myId}/logo?v=${v}`} alt=""
+            className="h-20 w-20 rounded-lg object-cover bg-slate-100 border border-slate-200" />
+        ) : (
+          <div className="h-20 w-20 rounded-lg bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-xs text-center px-2">
+            No logo
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer w-fit">
+            {busy ? "Working…" : barangay?.hasLogo ? "Replace logo" : "Upload logo"}
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+              onChange={(e) => { upload(e.target.files[0]); e.target.value = ""; }} />
+          </label>
+          {barangay?.hasLogo && (
+            <button onClick={remove} disabled={busy}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 w-fit">
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function RosterEditor({ team, sports, onClose }) {
   const [players, setPlayers] = useState([]);
@@ -512,7 +603,7 @@ export default function BrgyDashboard() {
               <p className="text-red-600 text-sm">{error}</p>
             </div>
           )}
-
+            <LogoCard />
           <Card className="p-5">
             <h2 className="text-slate-800 font-semibold mb-1">Register a team</h2>
             <p className="text-slate-500 text-sm mb-4">

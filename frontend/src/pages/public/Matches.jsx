@@ -32,11 +32,11 @@ function FixtureRow({ m, trailing, sub }) {
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[#1C2430] last:border-0">
       <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
         <span className="text-slate-200 text-[13px] truncate text-right">{m.teamA?.name || "TBD"}</span>
-        <Crest name={m.teamA?.name} size={22} />
+                <Crest name={m.teamA?.name} barangayId={m.teamA?.barangayId} size={22} />
       </div>
       <span className="text-slate-600 text-[11px] shrink-0">vs</span>
       <div className="flex-1 min-w-0 flex items-center gap-2">
-        <Crest name={m.teamB?.name} size={22} />
+                <Crest name={m.teamB?.name} barangayId={m.teamB?.barangayId} size={22} />
         <span className="text-slate-200 text-[13px] truncate">{m.teamB?.name || "TBD"}</span>
       </div>
                    <div className="w-32 shrink-0 text-right">
@@ -51,7 +51,7 @@ function FixtureRow({ m, trailing, sub }) {
 function ScoreStrip({ m }) {
   const live = m.status === "ongoing";
   const aLeads = m.scoreA >= m.scoreB;
-  const Line = ({ name, score, leading }) => (
+  const Line = ({ team, score, leading }) => (
     <div className="flex items-center justify-between py-1">
       <div className="flex items-center gap-2.5 min-w-0">
         <Crest name={name} size={26} />

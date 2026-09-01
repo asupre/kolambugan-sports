@@ -5,6 +5,8 @@ const { authenticate, authorize } = require('../middleware/auth');
 const router = express.Router();
 const Team = require('../models/Team');
 const { getCurrentSeason } = require('../middleware/season');
+const multer = require('multer');
+const { putFile, sendFile, deleteFile } = require('../config/gridfs');
 
 router.get('/sports', async (req, res) => {
   const sports = await Sport.find().sort({ name: 1 });
@@ -32,8 +34,10 @@ router.patch('/sports/divisions', authenticate, authorize('super_admin'), async 
 });
 
 router.get('/barangays', async (req, res) => {
-  const barangays = await Barangay.find().sort({ name: 1 });
-  res.json({ barangays });
+  const rows = await Barangay.find().sort({ name: 1 });
+  // hasLogo instead of the raw file id — the UI only needs to know whether one
+  // exists, and the id is meaningless to it.
+  res.json({ barangays: rows.map((b) => ({ ...b.toObject(), hasLogo: !!b.logo, logo: undefined })) });
 });
 
 const ALLOWED_DIVISIONS = ['open', 'boys', 'girls', 'under17', 'under30'];
@@ -80,6 +84,81 @@ router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async
     res.json({ message: `${sport.name} updated.`, sport });
   } catch (err) {
     console.error('Sport config error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+const BUCKET = 'logos';
+
+// Its own limit and bucket — a crest is small, and keeping it separate from
+// player photos means a bug in one path can't reach the other.
+const uploadLogo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.mimetype)) {
+      return cb(new Error('Logo must be a JPEG, PNG, or WebP image.'));
+    }
+    cb(null, true);
+  },
+});
+
+// GET /api/barangays/:id/logo — PUBLIC; the crest shown on team pages.
+router.get('/barangays/:id/logo', async (req, res) => {
+  try {
+    const b = await Barangay.findById(req.params.id).select('logo');
+    if (!b || !b.logo) return res.status(404).json({ message: 'No logo.' });
+    await sendFile(BUCKET, b.logo, res, 300);
+  } catch (err) {
+    console.error('Barangay logo error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/barangays/:id/logo — barangay admin, own barangay only.
+// Super admin may set any, so a bad upload can be corrected without chasing
+// down whoever made it.
+router.post('/barangays/:id/logo', authenticate,
+  authorize('barangay_admin', 'super_admin'), uploadLogo.single('logo'), async (req, res) => {
+  try {
+    if (req.user.role === 'barangay_admin' && String(req.user.barangay) !== String(req.params.id)) {
+      return res.status(403).json({ message: "You can only change your own barangay's logo." });
+    }
+    if (!req.file) return res.status(400).json({ message: 'No image uploaded.' });
+
+    const b = await Barangay.findById(req.params.id);
+    if (!b) return res.status(404).json({ message: 'Barangay not found.' });
+
+    const old = b.logo;
+    b.logo = await putFile(BUCKET, req.file.buffer, `logo-${b._id}`, req.file.mimetype, {
+      barangay: String(b._id),
+    });
+    await b.save();
+    if (old) await deleteFile(BUCKET, old);
+
+    res.status(201).json({ message: 'Logo updated.', barangay: b.name });
+  } catch (err) {
+    console.error('Logo upload error:', err);
+    res.status(400).json({ message: err.message || 'Could not upload the logo.' });
+  }
+});
+
+// DELETE /api/barangays/:id/logo — clears it back to the monogram.
+router.delete('/barangays/:id/logo', authenticate,
+  authorize('barangay_admin', 'super_admin'), async (req, res) => {
+  try {
+    if (req.user.role === 'barangay_admin' && String(req.user.barangay) !== String(req.params.id)) {
+      return res.status(403).json({ message: "You can only change your own barangay's logo." });
+    }
+    const b = await Barangay.findById(req.params.id);
+    if (!b || !b.logo) return res.status(404).json({ message: 'No logo to remove.' });
+
+    await deleteFile(BUCKET, b.logo);
+    b.logo = null;
+    await b.save();
+    res.json({ message: 'Logo removed.' });
+  } catch (err) {
+    console.error('Logo delete error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

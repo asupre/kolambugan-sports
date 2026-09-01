@@ -26,8 +26,10 @@ function publicMatch(m, sportName, division) {
     bracket: m.bracket,
     round: m.round,
     group: m.group,
-    teamA: m.teamA ? { id: m.teamA._id, name: m.teamA.teamName } : null,
-    teamB: m.teamB ? { id: m.teamB._id, name: m.teamB.teamName } : null,
+        // barangayId lets the public pages show the barangay crest instead of a
+    // monogram — the team name alone isn't enough to find the logo.
+    teamA: m.teamA ? { id: m.teamA._id, name: m.teamA.teamName, barangayId: m.teamA.barangay ? String(m.teamA.barangay) : null } : null,
+    teamB: m.teamB ? { id: m.teamB._id, name: m.teamB.teamName, barangayId: m.teamB.barangay ? String(m.teamB.barangay) : null } : null,
         scoreA: m.liveScoreA || (m.games || []).reduce((n, g) => n + (g.scoreA || 0), 0),
     scoreB: m.liveScoreB || (m.games || []).reduce((n, g) => n + (g.scoreB || 0), 0),
     periods: (m.games || []).map((g) => ({ n: g.gameNumber, a: g.scoreA, b: g.scoreB })),
@@ -73,7 +75,7 @@ router.get('/overview', async (req, res) => {
     if (!season) return res.json({ season: null, live: [], today: [], recent: [] });
 
     const matches = await Match.find({ tournament: { $in: ids } })
-      .populate('teamA', 'teamName').populate('teamB', 'teamName')
+            .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .sort({ updatedAt: -1 });
 
     const shaped = matches.map((m) => {
@@ -105,7 +107,7 @@ router.get('/matches', async (req, res) => {
   try {
     const { byId, ids } = await seasonTournaments();
     let matches = await Match.find({ tournament: { $in: ids } })
-      .populate('teamA', 'teamName').populate('teamB', 'teamName')
+            .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .sort({ schedule: 1, round: 1 });
 
     let shaped = matches.map((m) => {
@@ -147,6 +149,7 @@ router.get('/teams', async (req, res) => {
       id: t._id,
       name: t.teamName,
       barangay: t.barangay?.name,
+      barangayId: t.barangay?._id ? String(t.barangay._id) : null,
       sport: t.sport?.name,
       division: t.division,
       format: t.format,
@@ -190,8 +193,9 @@ router.get('/teams/:id', async (req, res) => {
     stats.forEach((s) => { statBy[String(s._id)] = { points: s.points, fouls: s.fouls }; });
 
     res.json({
-      team: {
+            team: {
         id: team._id, name: team.teamName, barangay: team.barangay?.name,
+        barangayId: team.barangay?._id ? String(team.barangay._id) : null,
         sport: team.sport?.name, division: team.division, format: team.format,
       },
       players: players.map((p) => ({
@@ -234,7 +238,7 @@ router.get('/leaders', async (req, res) => {
     players.forEach((p) => { pBy[String(p._id)] = p; });
 
     // Which team each leader plays for (first match found is enough for display).
-        const links = await TeamPlayer.find({ player: { $in: rows.map((r) => r._id) } }).populate('team', 'teamName');
+        const links = await TeamPlayer.find({ player: { $in: rows.map((r) => r._id) } })      .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay');
     const teamBy = {};
     links.forEach((l) => {
       if (!teamBy[String(l.player)] && l.team) {
@@ -323,9 +327,10 @@ router.get('/players', async (req, res) => {
 
     res.json({
       teams: teams.map((t) => ({
-        id: t._id,
+                id: t._id,
         name: t.teamName,
         barangay: t.barangay?.name,
+        barangayId: t.barangay?._id ? String(t.barangay._id) : null,
         sport: t.sport?.name,
         division: t.division,
         players: (byTeam[String(t._id)] || []).sort(byJersey),
@@ -352,7 +357,7 @@ function groupStandings(matches, includeTiebreakers = false) {
     [m.teamA, m.teamB].forEach((t) => {
       if (!t) return;
       const k = String(t.id);
-      g[k] = g[k] || { teamId: k, teamName: t.name, wins: 0, losses: 0, played: 0, gameWinDiff: 0 };
+                 g[k] = g[k] || { teamId: k, teamName: t.name, barangayId: t.barangayId || null, wins: 0, losses: 0, played: 0, gameWinDiff: 0 };
     });
     if (m.status !== 'completed' || !m.winner) return;
 
@@ -482,7 +487,7 @@ router.get('/bracket', async (req, res) => {
         // advancePerGroup decides how many rows to highlight in a round-robin table.
     const tdoc = await Tournament.findById(tid).select('advancePerGroup');
     const matches = await Match.find({ tournament: tid })
-      .populate('teamA', 'teamName').populate('teamB', 'teamName')
+            .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .sort({ _id: 1 });
 
        const shaped = matches.map((m) => ({

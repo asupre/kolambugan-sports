@@ -2,9 +2,99 @@ import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 
+
+const dateOf = (d) =>
+  d ? new Date(d).toLocaleDateString(undefined, {
+    timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric",
+  }) : "No date set";
+
 const organizerMenu = [
   { label: "Matches", path: "/organizer", icon: "⛃" },
 ];
+
+const DIVISION_LABEL = {
+  open: "Open", boys: "Boys", girls: "Girls",
+  under17: "U17", under30: "U30",
+};
+ 
+const BRACKET_LABEL = {
+  winners: "Winners bracket",
+  losers: "Losers bracket",
+  final: "Grand final",
+  third: "Third place",
+  ko_third: "Third place",
+};
+ 
+// The organizer picks a match out of a list at courtside, often in a hurry.
+// Raw enum values ("winners · round 101 · group A") are database fields, not
+// something a game official should have to decode.
+function describeMatch(m, all) {
+  if (m.isTiebreaker) {
+    return {
+      group: m.group ? `Group ${m.group}` : null,
+      stage: m.round >= 101 ? "Tiebreaker decider" : "Tiebreaker playoff",
+      note: "Winner takes the last qualifying spot",
+      tone: "warn",
+    };
+  }
+ 
+  // Knockout matches carry no group. Name the round by how many are left in it,
+  // which is stable whether the bracket is a Top 8 or a Top 16.
+  if (!m.group) {
+    const inRound = all.filter(
+      (x) => !x.group && !x.isTiebreaker && x.round === m.round &&
+        !String(x.bracket || "").includes("third")
+    ).length;
+    if (String(m.bracket || "").includes("third")) {
+      return { group: null, stage: "Third place", note: null, tone: "plain" };
+    }
+    const stage = inRound === 1 ? "Final"
+      : inRound === 2 ? "Semifinal"
+      : inRound === 4 ? "Quarterfinal"
+      : `Round of ${inRound * 2}`;
+    const note = inRound === 2 ? "Winner reaches the final"
+      : inRound === 4 ? "Winner reaches the semifinal"
+      : null;
+    return { group: null, stage, note, tone: "plain" };
+  }
+ 
+  return {
+    group: `Group ${m.group}`,
+    stage: `${BRACKET_LABEL[m.bracket] || "Group stage"}, Round ${m.round}`,
+    note: null,
+    tone: "accent",
+  };
+}
+ 
+const timeOf = (d) => {
+  if (!d) return null;
+  const x = new Date(d);
+  const midnightUtc = x.getUTCHours() === 0 && x.getUTCMinutes() === 0;
+  return midnightUtc ? null
+    : x.toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
+};
+ 
+// Barangay crest, falling back to initials while logos are still being uploaded.
+function Crest({ team, size = 40 }) {
+  const [failed, setFailed] = useState(false);
+  const name = team?.teamName || "";
+  const id = team?.barangay ? String(team.barangay) : null;
+ 
+  if (id && !failed) {
+    return (
+      <img src={`/api/barangays/${id}/logo`} alt="" onError={() => setFailed(true)}
+        className="rounded-lg object-cover bg-slate-100 shrink-0"
+        style={{ width: size, height: size }} />
+    );
+  }
+  return (
+    <div className="rounded-lg bg-slate-100 text-slate-400 font-semibold flex items-center justify-center shrink-0"
+      style={{ width: size, height: size, fontSize: size * 0.32 }}>
+      {name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "—"}
+    </div>
+  );
+}
+
 
 
 function ScoringView({ matchId, mode, onBack }) {
@@ -62,6 +152,7 @@ function ScoringView({ matchId, mode, onBack }) {
   const tied = (m.liveScoreA || 0) === (m.liveScoreB || 0);
   const allPeriodsDone = (m.games?.length || 0) >= (m.bestOf || 1) && !tied;
   const stat = (id) => data.statByPlayer?.[String(id)] || { points: 0, fouls: 0 };
+  const desc = describeMatch(m, [m]);
     // ML, billiards and chess aren't scored point by point — the organizer records
   // who won each game. One tap = one game won.
   const finalMode = mode === "final";
@@ -142,24 +233,58 @@ function ScoringView({ matchId, mode, onBack }) {
       <button onClick={onBack} className="text-slate-500 text-sm mb-3 hover:text-slate-700">← All matches</button>
 
       {/* Scoreboard */}
-      <div className="rounded-2xl bg-slate-900 text-white p-5 mb-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1 min-w-0 text-center">
-            <p className="text-slate-300 text-sm truncate">{m.teamA?.teamName}</p>
-                                    <p className="text-5xl font-bold tabular-nums mt-1">{m.liveScoreA}</p>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 mb-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            {desc.group && (
+              <span className={`text-[11px] px-2 py-0.5 rounded ${
+                desc.tone === "warn" ? "bg-amber-50 text-amber-700" : "bg-indigo-50 text-indigo-700"
+              }`}>
+                {desc.group}
+              </span>
+            )}
+            <span className="text-slate-500 text-xs">
+              {data.sport}
+              {data.division && data.division !== "open" ? ` ${DIVISION_LABEL[data.division] || data.division}` : ""}
+              {" · "}{desc.stage}
+            </span>
           </div>
+          <span className="text-slate-400 text-xs">
+            {live && !finalMode
+              ? `${(data.periodLabel || "period").replace(/^./, (c) => c.toUpperCase())} ${Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of ${m.bestOf || 1}`
+              : finished ? "Final" : "Not started"}
+          </span>
+        </div>
+ 
+        <div className="flex items-center gap-4">
+          <div className="flex-1 min-w-0 text-center">
+            <div className="flex justify-center mb-2"><Crest team={m.teamA} size={40} /></div>
+            <p className="text-slate-600 text-sm truncate">{m.teamA?.teamName}</p>
+            <p className="text-4xl font-semibold tabular-nums mt-1 text-slate-900">{m.liveScoreA}</p>
+          </div>
+ 
           <div className="shrink-0 text-center">
-            {live && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-red-500/20 text-red-300">● LIVE</span>}
-            {finished && <span className="text-xs px-2 py-1 rounded-full bg-slate-700 text-slate-300">FINAL</span>}
-            {!live && !finished && <span className="text-xs px-2 py-1 rounded-full bg-slate-700 text-slate-300">NOT STARTED</span>}
+            {live && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600">Live</span>}
+            {finished && <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">Final</span>}
+            {!live && !finished && <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">Not started</span>}
+            {(m.games || []).length > 0 && (
+              <p className="text-slate-400 text-xs mt-2 tabular-nums">
+                {(m.games || []).map((g) => `${g.scoreA}-${g.scoreB}`).join(" · ")}
+              </p>
+            )}
           </div>
+ 
           <div className="flex-1 min-w-0 text-center">
-            <p className="text-slate-300 text-sm truncate">{m.teamB?.teamName}</p>
-                        <p className="text-5xl font-bold tabular-nums mt-1">{m.liveScoreB}</p>
+            <div className="flex justify-center mb-2"><Crest team={m.teamB} size={40} /></div>
+            <p className="text-slate-600 text-sm truncate">{m.teamB?.teamName}</p>
+            <p className="text-4xl font-semibold tabular-nums mt-1 text-slate-900">{m.liveScoreB}</p>
           </div>
         </div>
+ 
         {finished && m.mvp && (
-          <p className="text-center text-slate-400 text-xs mt-3">MVP: {m.mvp.firstName} {m.mvp.lastName}</p>
+          <p className="text-center text-slate-500 text-xs mt-4">
+            MVP: {m.mvp.firstName} {m.mvp.lastName}
+          </p>
         )}
       </div>
 
@@ -370,6 +495,13 @@ export default function OrganizerScoring() {
   const today = scheduled.filter((m) => isToday(m.schedule));
   const upcoming = scheduled.filter((m) => !isToday(m.schedule));
   const done = matches.filter((m) => m.status === "completed");
+   // Dated days first, undated fixtures last — an organizer looks for a date
+  // before anything else on game day.
+  const grouped = {};
+  upcoming.forEach((m) => { (grouped[dateOf(m.schedule)] = grouped[dateOf(m.schedule)] || []).push(m); });
+  const byDate = Object.entries(grouped).sort((a, b) =>
+    a[0] === "No date set" ? 1 : b[0] === "No date set" ? -1 : 0
+  );
 
   if (openId) {
     return (
@@ -380,40 +512,80 @@ export default function OrganizerScoring() {
     );
   }
 
-  const Row = ({ m }) => {
+  const Row = ({ m, showDate }) => {
     const ready = m.teamA && m.teamB;
+    const d = describeMatch(m, matches);
+    const time = timeOf(m.schedule);
+    const live = m.status === "ongoing";
+    const done = m.status === "completed";
+ 
+    // A colour per state, carried on the left edge so the eye can find the
+    // startable matches without reading every row.
+    const accent = live ? "border-l-4 border-l-red-500"
+      : done ? "border-l-4 border-l-slate-200"
+      : !ready ? "border-l-4 border-l-slate-200"
+      : "border-l-4 border-l-indigo-500";
+ 
+    const tag = d.tone === "warn"
+      ? "bg-amber-100 text-amber-800"
+      : "bg-indigo-100 text-indigo-800";
+ 
     return (
       <button
         onClick={() => ready && setOpenId(m._id)}
         disabled={!ready}
-        className={`w-full text-left rounded-xl border p-4 transition ${
-          ready ? "border-slate-200 bg-white hover:border-indigo-300" : "border-slate-100 bg-slate-50 cursor-not-allowed"
-        }`}
+        className={`w-full text-left rounded-xl border ${accent} p-4 transition ${
+          ready && !done
+            ? "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30"
+            : "border-slate-100 bg-slate-50"
+        } ${!ready ? "cursor-not-allowed" : ""}`}
       >
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          {d.group && (
+            <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${tag}`}>{d.group}</span>
+          )}
+          <span className="text-slate-500 text-xs">
+            {feed?.sport}
+            {m.division && m.division !== "open" ? ` ${DIVISION_LABEL[m.division] || m.division}` : ""}
+            {" · "}{d.stage}
+          </span>
+        </div>
+ 
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className={`font-medium ${ready ? "text-slate-800" : "text-slate-400"}`}>
-              {m.teamA?.teamName || "TBD"} <span className="text-slate-400">vs</span> {m.teamB?.teamName || "TBD"}
-            </p>
-                        <p className="text-slate-400 text-xs mt-0.5">
-              {m.bracket} · round {m.round}{m.group ? ` · group ${m.group}` : ""}
-                            {m.schedule ? ` · ${new Date(m.schedule).toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })}` : ""}
-            </p>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Crest team={m.teamA} size={28} />
+            <span className={`text-sm truncate ${ready ? "text-slate-800 font-medium" : "text-slate-400"}`}>
+              {m.teamA?.teamName || "TBD"}
+            </span>
+            <span className="text-slate-300 text-xs shrink-0">vs</span>
+            <Crest team={m.teamB} size={28} />
+            <span className={`text-sm truncate ${ready ? "text-slate-800 font-medium" : "text-slate-400"}`}>
+              {m.teamB?.teamName || "TBD"}
+            </span>
           </div>
-          {m.status === "ongoing" ? (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 whitespace-nowrap">
+ 
+          {live ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-800 whitespace-nowrap shrink-0">
               ● LIVE {m.liveScoreA}–{m.liveScoreB}
             </span>
-                    ) : m.status === "completed" ? (
-            <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 whitespace-nowrap">
+          ) : done ? (
+            <span className="text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-800 whitespace-nowrap shrink-0">
               {m.liveScoreA}–{m.liveScoreB}
             </span>
           ) : !ready ? (
-            <span className="text-xs text-slate-400 whitespace-nowrap">waiting</span>
+            <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">waiting for a team</span>
           ) : (
-            <span className="text-xs font-medium text-indigo-600 whitespace-nowrap">Start →</span>
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-indigo-600 text-white whitespace-nowrap shrink-0">
+              Start →
+            </span>
           )}
         </div>
+ 
+        {(showDate || time || m.venue || d.note) && (
+          <p className="text-slate-500 text-xs mt-2">
+            {[showDate ? dateOf(m.schedule) : null, time, m.venue, d.note].filter(Boolean).join(" · ")}
+          </p>
+        )}
       </button>
     );
   };
@@ -438,15 +610,28 @@ export default function OrganizerScoring() {
           </section>
         )}
 
-        <section>
-          <h2 className="text-slate-700 font-semibold text-sm mb-2">
-            Upcoming <span className="text-slate-400 font-normal">({upcoming.length})</span>
-          </h2>
-          <div className="space-y-2">
-            {upcoming.length === 0 && <p className="text-slate-400 text-sm">Nothing scheduled.</p>}
-            {upcoming.map((m) => <Row key={m._id} m={m} />)}
-          </div>
-        </section>
+        {upcoming.length > 0 && (
+          <section>
+            <h2 className="text-slate-700 font-semibold text-sm mb-2">
+              Upcoming <span className="text-slate-400 font-normal">({upcoming.length})</span>
+            </h2>
+            <div className="space-y-4">
+              {byDate.map(([date, list]) => (
+                <div key={date}>
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="text-slate-600 text-xs font-semibold">{date}</span>
+                    <span className="text-slate-400 text-xs">
+                      {list.length} match{list.length === 1 ? "" : "es"}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {list.map((m) => <Row key={m._id} m={m} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {done.length > 0 && (
           <section>

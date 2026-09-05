@@ -66,17 +66,24 @@ router.get('/matches', async (req, res) => {
     if (!sportId) return res.status(400).json({ message: 'No sport assigned.' });
 
     const sport = await Sport.findById(sportId);
-    const tournaments = await Tournament.find({ sport: sportId }).select('_id division');
+        const tournaments = await Tournament.find({ sport: sportId }).select('_id division');
     const tIds = tournaments.map((t) => t._id);
+    const divisionByTournament = {};
+    tournaments.forEach((t) => { divisionByTournament[String(t._id)] = t.division || 'open'; });
 
+    // barangay comes along so the courtside screen can show crests rather than
+    // blank tiles; division so a U17 match can't be mistaken for a U30 one.
     const matches = await Match.find({ tournament: { $in: tIds } })
-      .populate('teamA', 'teamName').populate('teamB', 'teamName')
+      .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .sort({ status: 1, round: 1, createdAt: 1 });
 
     res.json({
       sport: sport?.name,
       scoringMode: SCORING_MODE[sport?.name] || 'final',
-      matches,
+      matches: matches.map((m) => ({
+        ...m.toObject(),
+        division: divisionByTournament[String(m.tournament)] || 'open',
+      })),
     });
   } catch (err) {
     console.error('Organizer matches error:', err);
@@ -102,9 +109,9 @@ router.get('/matches/:matchId', async (req, res) => {
     const statByPlayer = {};
     stats.forEach((s) => { statByPlayer[String(s.player)] = { points: s.points, fouls: s.fouls }; });
 
-    const full = await Match.findById(match._id)
-      .populate('teamA', 'teamName').populate('teamB', 'teamName').populate('mvp', 'firstName lastName');
-
+        const full = await Match.findById(match._id)
+      .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
+      .populate('mvp', 'firstName lastName');
             res.json({
       match: full,
       scoringMode: SCORING_MODE[sportName] || 'final',
@@ -112,6 +119,8 @@ router.get('/matches/:matchId', async (req, res) => {
       periodLabel: PERIOD_LABEL[sportName] || 'period',
       pointValues: POINT_VALUES[sportName] || [1],
       rosterA, rosterB, statByPlayer,
+            division: ctx.tournament.division || 'open',
+      sport: sportName,
     });
   } catch (err) {
     console.error('Organizer match detail error:', err);

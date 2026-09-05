@@ -51,18 +51,19 @@ function FixtureRow({ m, trailing, sub }) {
 function ScoreStrip({ m }) {
   const live = m.status === "ongoing";
   const aLeads = m.scoreA >= m.scoreB;
-  const Line = ({ team, score, leading }) => (
+    const Line = ({ team, score, leading }) => (
     <div className="flex items-center justify-between py-1">
       <div className="flex items-center gap-2.5 min-w-0">
-        <Crest name={name} size={26} />
+        <Crest name={team?.name} barangayId={team?.barangayId} size={26} />
         <span className={`text-[14px] truncate ${leading ? "text-slate-100" : "text-slate-400"}`}>
-          {name || "TBD"}
+          {team?.name || "TBD"}
         </span>
       </div>
       <span className={`text-lg font-semibold tabular-nums pl-3 ${leading ? "text-slate-100" : "text-slate-500"}`}>
         {score}
       </span>
     </div>
+  
   );
   return (
     <div className="px-4 py-3 border-b border-[#1C2430] last:border-0">
@@ -78,8 +79,8 @@ function ScoreStrip({ m }) {
           <span className="text-slate-600 text-[11px] shrink-0">{timeOf(m.schedule) || "Final"}</span>
         )}
       </div>
-      <Line name={m.teamA?.name} score={m.scoreA} leading={aLeads} />
-      <Line name={m.teamB?.name} score={m.scoreB} leading={!aLeads || m.scoreA === m.scoreB} />
+            <Line team={m.teamA} score={m.scoreA} leading={aLeads} />
+      <Line team={m.teamB} score={m.scoreB} leading={!aLeads || m.scoreA === m.scoreB} />
       {m.periods?.length > 1 && (
         <div className="text-slate-600 text-[11px] mt-1.5 tabular-nums">
           {m.periods.map((p) => `${p.a}-${p.b}`).join("  ·  ")}

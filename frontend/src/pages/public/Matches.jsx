@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { Crest, Panel, SportTabs, DIVISION_LABEL } from "../../components/PublicUI";
 
+// Quarters in basketball, sets in the rally sports. "P1" is internal shorthand;
+// nobody watching says "period one".
+const PERIOD_PREFIX = {
+  Basketball: "Q",
+  Volleyball: "S",
+  Badminton: "S",
+  Pickleball: "S",
+};
 const context = (m) =>
   [DIVISION_LABEL[m.division] || m.division, m.group ? `Grp ${m.group}` : null, m.round ? `R${m.round}` : null]
     .filter(Boolean).join(" · ");
@@ -72,8 +80,10 @@ function ScoreStrip({ m }) {
           {m.sport} · {context(m)}{m.venue ? ` · ${m.venue}` : ""}
         </span>
         {live ? (
-          <span className="text-red-400 text-[11px] font-semibold shrink-0">
-            {m.totalPeriods > 1 ? `P${Math.min(m.periodsPlayed + 1, m.totalPeriods)}` : "LIVE"}
+                   <span className="text-red-400 text-[11px] font-semibold">
+            {m.totalPeriods > 1
+              ? `LIVE · ${PERIOD_PREFIX[m.sport] || "P"}${Math.min(m.periodsPlayed + 1, m.totalPeriods)}`
+              : "LIVE"}
           </span>
         ) : (
           <span className="text-slate-600 text-[11px] shrink-0">{timeOf(m.schedule) || "Final"}</span>

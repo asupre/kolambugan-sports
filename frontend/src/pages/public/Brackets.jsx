@@ -44,11 +44,51 @@ function MatchCard({ m, innerRef }) {
   );
 }
 
+// The last match of a bracket has nothing to its right, so the tree just stops
+// and a viewer has to work out what winning it earned. This card says so.
+function WinnerCard({ match, label, sublabel, bothQualify }) {
+  const done = match && (match.status === "completed" || match.status === "forfeited") && match.winner;
+  const winner = done
+    ? [match.teamA, match.teamB].find((t) => t && String(t.id) === String(match.winner))
+    : null;
+  const loser = done
+    ? [match.teamA, match.teamB].find((t) => t && String(t.id) !== String(match.winner))
+    : null;
+ 
+  return (
+    <div className={`w-52 shrink-0 rounded border px-3 py-2.5 ${
+      done ? "border-[#F5A524]/40 bg-[#F5A524]/[0.06]" : "border-dashed border-[#1C2430] bg-[#0F141C]"
+    }`}>
+      <p className={`text-[10px] uppercase tracking-wide ${done ? "text-[#F5A524]" : "text-slate-600"}`}>
+        {label}
+      </p>
+      <p className={`text-[14px] mt-0.5 truncate ${done ? "text-slate-100 font-medium" : "text-slate-600"}`}>
+        {winner?.name || "TBD"}
+      </p>
+      {/* A 2-team group plays one match that decides both qualifiers, so naming
+          only the winner would leave the runner-up unexplained. */}
+      {bothQualify && (
+        <p className={`text-[13px] truncate ${done ? "text-slate-300" : "text-slate-600"}`}>
+          {loser?.name || "TBD"}
+        </p>
+      )}
+      {sublabel && <p className="text-[11px] text-slate-500 mt-1">{sublabel}</p>}
+    </div>
+  );
+}
+ 
+// The match a bracket ends on: the one no other match in it feeds from.
+function finalOf(matches) {
+  if (matches.length === 0) return null;
+  const targets = new Set(matches.map((m) => m.nextMatchWin).filter(Boolean));
+  return matches.find((m) => !targets.has(m.id) && !m.nextMatchWin)
+    || matches.reduce((hi, m) => (!hi || (m.round || 0) > (hi.round || 0) ? m : hi), null);
+}
 // One bracket tree: rounds as columns, elbows drawn from each match to the one
 // its winner feeds. Wires are measured from the DOM because column heights are
 // decided by flex, not by us. Pointers to matches outside this section (a
 // winners-bracket loser dropping into losers) resolve to nothing and are skipped.
-function BracketSection({ title, matches, labelFor }) {
+function BracketSection({ title, matches, labelFor, winner }) {
   const stageRef = useRef(null);
   const boxRefs = useRef({});
   const [wires, setWires] = useState([]);
@@ -99,6 +139,17 @@ function BracketSection({ title, matches, labelFor }) {
               </div>
             </div>
           ))}
+                  
+
+          {winner && (
+            <div className="relative z-10 flex flex-col">
+              <p className="text-slate-600 text-[11px] font-medium mb-2">&nbsp;</p>
+              <div className="flex-1 flex flex-col justify-around">
+                <WinnerCard {...winner} />
+              </div>
+            </div>
+          )}
+        
         </div>
       </div>
     </div>
@@ -250,13 +301,21 @@ export default function Brackets() {
           {knockoutMain.length > 0 ? (
             <Panel title="Knockout">
               <div className="px-5 py-5">
-                <BracketSection matches={knockoutMain} labelFor={knockoutLabel} />
-                {knockoutThird && (
+                                <BracketSection matches={knockoutMain} labelFor={knockoutLabel}
+                  winner={{
+                    match: finalOf(knockoutMain),
+                    label: "Champion",
+                    sublabel: null,
+                  }} />
+                                {knockoutThird && (
                   <div>
                     <h3 className="text-slate-400 text-[12px] font-semibold uppercase tracking-wide mb-3">
                       Third place
                     </h3>
-                    <MatchCard m={knockoutThird} innerRef={() => {}} />
+                    <div className="flex items-center gap-10">
+                      <MatchCard m={knockoutThird} innerRef={() => {}} />
+                      <WinnerCard match={knockoutThird} label="Third place" sublabel={null} />
+                    </div>
                   </div>
                 )}
               </div>
@@ -288,9 +347,20 @@ export default function Brackets() {
                     qual={data?.qualification?.[g]}
                   />
                 ) : (
-                  <div className="px-5 py-5">
-                    <BracketSection title="Winners" matches={winners} labelFor={(r) => `Round ${r}`} />
-                    <BracketSection title="Losers" matches={losers} labelFor={(r) => `Round ${r}`} />
+                                    <div className="px-5 py-5">
+                    <BracketSection title="Winners" matches={winners} labelFor={(r) => `Round ${r}`}
+                      winner={winners.length > 0 ? {
+                        match: finalOf(winners),
+                        label: "Winner",
+                        sublabel: losers.length === 0 ? "Both teams qualify" : "Qualifies as seed 1",
+                        bothQualify: losers.length === 0,
+                      } : null} />
+                    <BracketSection title="Losers" matches={losers} labelFor={(r) => `Round ${r}`}
+                      winner={losers.length > 0 ? {
+                        match: finalOf(losers),
+                        label: "Winner",
+                        sublabel: "Qualifies as seed 2",
+                      } : null} />
                     {roundRobin.length > 0 && (
                       <BracketSection title="Playoff" matches={roundRobin} labelFor={(r) => `Round ${r}`} />
                     )}

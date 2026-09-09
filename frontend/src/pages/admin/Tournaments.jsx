@@ -223,8 +223,11 @@ function ScheduleSection({ tournamentId }) {
     finally { setBusy(false); }
   }
 
-  async function applyRound(round) {
-    const b = bulk[round] || {};
+    // Keyed by section, not round number: group round 1 and knockout round 1 are
+  // different sections that happen to share a number.
+  async function applyRound(key) {
+    const b = bulk[key] || {};
+    const round = Number(String(key).split("-")[1]);
     if (!b.schedule) { setMsg("Pick a date and time first."); return; }
     setBusy(true); setMsg("");
     try {
@@ -332,7 +335,7 @@ function ScheduleSection({ tournamentId }) {
                         </select>
                       </div>
                     )}
-                    <button onClick={() => applyRound(r)} disabled={busy}
+                    <button onClick={() => applyRound(key)} disabled={busy}
                       className="text-xs font-medium px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
                       Apply to round
                     </button>
@@ -342,7 +345,7 @@ function ScheduleSection({ tournamentId }) {
                      {open && (
                 <div className="divide-y divide-slate-100">
                   {inRound.map((m) => {
-                    const done = m.status === "completed";
+                                        const done = m.status === "completed" || m.status === "forfeited";
                     return (
                       <div key={m._id} className={`px-4 py-2.5 ${done ? "bg-slate-50/60" : ""}`}>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -356,7 +359,9 @@ function ScheduleSection({ tournamentId }) {
                           </span>
 
                           {done ? (
-                            <span className="text-slate-400 text-xs">played</span>
+                            <span className="text-slate-400 text-xs">
+                               {m.status === "forfeited" ? "forfeited" : "played"}
+                            </span>
                           ) : (
                             <>
                               <input type="datetime-local" value={valueOf(m, "schedule")}
@@ -623,9 +628,45 @@ function MatchBox({ m, innerRef, onRevert }) {
     </div>
   );
 }
+// The last match of a bracket has nothing to its right, so the tree just stops
+// and nobody can see what winning it earned. This card says so.
+function WinnerCard({ match, label, sublabel, bothQualify }) {
+  const done = match && ["completed", "forfeited"].includes(match.status) && match.seriesWinner;
+  const winnerId = done ? String(match.seriesWinner._id || match.seriesWinner) : null;
+  const sides = [match?.teamA, match?.teamB];
+  const winner = done ? sides.find((t) => t && String(t._id) === winnerId) : null;
+  const loser = done ? sides.find((t) => t && String(t._id) !== winnerId) : null;
 
+  return (
+    <div className={`w-52 shrink-0 rounded-lg border px-3 py-2.5 ${
+      done ? "border-green-300 bg-green-50" : "border-dashed border-slate-300 bg-white"
+    }`}>
+      <p className={`text-[10px] uppercase tracking-wide ${done ? "text-green-700" : "text-slate-400"}`}>
+        {label}
+      </p>
+      <p className={`text-sm mt-0.5 truncate ${done ? "text-slate-900 font-medium" : "text-slate-400"}`}>
+        {winner?.teamName || "TBD"}
+      </p>
+      {/* A 2-team group plays one match that decides both qualifiers. */}
+      {bothQualify && (
+        <p className={`text-[13px] truncate ${done ? "text-slate-600" : "text-slate-400"}`}>
+          {loser?.teamName || "TBD"}
+        </p>
+      )}
+      {sublabel && <p className="text-[11px] text-slate-400 mt-1">{sublabel}</p>}
+    </div>
+  );
+}
+
+// The match a bracket ends on: the one no other match in it feeds from.
+function finalOf(matches) {
+  if (matches.length === 0) return null;
+  const targets = new Set(matches.map((m) => m.nextMatchWin && String(m.nextMatchWin._id || m.nextMatchWin)).filter(Boolean));
+  return matches.find((m) => !targets.has(String(m._id)) && !m.nextMatchWin)
+    || matches.reduce((hi, m) => (!hi || (m.round || 0) > (hi.round || 0) ? m : hi), null);
+}
 // One tree, with elbows measured from the DOM.
-function BracketTree({ title, matches, labelFor, onRevert }) {
+function BracketTree({ title, matches, labelFor, onRevert, winner }) {
   const stageRef = useRef(null);
   const boxRefs = useRef({});
   const [wires, setWires] = useState([]);
@@ -686,7 +727,16 @@ function BracketTree({ title, matches, labelFor, onRevert }) {
                 ))}
               </div>
             </div>
-          ))}
+                    ))}
+
+          {winner && (
+            <div className="relative z-10 flex flex-col">
+              <p className="text-slate-400 text-xs font-medium mb-2">&nbsp;</p>
+              <div className="flex-1 flex flex-col justify-around">
+                <WinnerCard {...winner} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -748,11 +798,15 @@ function BracketView({ tournamentId }) {
       {koMain.length > 0 && (
         <div className="mb-8">
           <h3 className="text-slate-800 font-semibold mb-3">Knockout</h3>
-          <BracketTree matches={koMain} labelFor={koLabel} onRevert={revert} />
-          {koThird && (
+                    <BracketTree matches={koMain} labelFor={koLabel} onRevert={revert}
+            winner={{ match: finalOf(koMain), label: "Champion", sublabel: null }} />
+                    {koThird && (
             <div>
               <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>
-              <MatchBox m={koThird} innerRef={() => {}} onRevert={revert} />
+              <div className="flex items-center gap-10">
+                <MatchBox m={koThird} innerRef={() => {}} onRevert={revert} />
+                <WinnerCard match={koThird} label="Third place" sublabel={null} />
+              </div>
             </div>
           )}
         </div>
@@ -761,12 +815,27 @@ function BracketView({ tournamentId }) {
       {groups.map((g) => (
         <div key={g} className="mb-8">
           <h3 className="text-slate-800 font-semibold mb-3">Group {g}</h3>
-          <BracketTree title="Winners" onRevert={revert}
-            matches={grouped.filter((m) => m.group === g && m.bracket === "winners")}
-            labelFor={(r) => `Round ${r}`} />
-          <BracketTree title="Losers" onRevert={revert}
-            matches={grouped.filter((m) => m.group === g && m.bracket === "losers")}
-            labelFor={(r) => `Round ${r}`} />
+                    {(() => {
+            const w = grouped.filter((m) => m.group === g && m.bracket === "winners");
+            const l = grouped.filter((m) => m.group === g && m.bracket === "losers");
+            return (
+              <>
+                <BracketTree title="Winners" onRevert={revert} matches={w} labelFor={(r) => `Round ${r}`}
+                  winner={w.length > 0 ? {
+                    match: finalOf(w),
+                    label: "Winner",
+                    sublabel: l.length === 0 ? "Both teams qualify" : "Qualifies as seed 1",
+                    bothQualify: l.length === 0,
+                  } : null} />
+                <BracketTree title="Losers" onRevert={revert} matches={l} labelFor={(r) => `Round ${r}`}
+                  winner={l.length > 0 ? {
+                    match: finalOf(l),
+                    label: "Winner",
+                    sublabel: "Qualifies as seed 2",
+                  } : null} />
+              </>
+            );
+          })()}
         </div>
       ))}
     </div>

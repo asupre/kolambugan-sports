@@ -12,12 +12,15 @@ const { isManilaToday } = require('../config/time');
 const router = express.Router();
 router.use(authenticate, authorize('organizer', 'super_admin'));
 
-// Which sports are scored live per player, per side, or not at all.
+// How each sport is scored live.
+//   player — every point belongs to a player (basketball)
+//   rally  — player points PLUS a team button for points the opponent gave away
+//   final  — no per-player scoring; the organizer records who won each game
 const SCORING_MODE = {
   'Basketball': 'player',
-  'Badminton': 'player',
-  'Pickleball': 'player',
-  'Volleyball': 'side',
+  'Badminton': 'rally',
+  'Pickleball': 'rally',
+  'Volleyball': 'rally',
   'Billiards': 'final',
   'Chess': 'final',
   'Mobile Legends': 'final',
@@ -44,6 +47,20 @@ const POINT_VALUES = {
   'Badminton': [1],
   'Pickleball': [1],
   'Volleyball': [1],
+};
+// Which stats each sport records beyond points. Fouls only belong where the
+// sport actually has them.
+const STAT_TYPES = {
+  'Basketball': ['foul', 'rebound', 'assist'],
+  'Volleyball': [],
+  'Badminton': [],
+  'Pickleball': [],
+};
+// How many players are on court at once — the scoring screen shows only these,
+// so an organizer isn't scrolling a 15-player roster mid-game.
+const ON_COURT = {
+  'Basketball': 5,
+  'Volleyball': 6,
 };
 
 // Load a match and confirm this organizer owns its sport.
@@ -118,6 +135,8 @@ router.get('/matches/:matchId', async (req, res) => {
       periodOptions: PERIOD_OPTIONS[sportName] || [1, 3, 5, 7],
       periodLabel: PERIOD_LABEL[sportName] || 'period',
       pointValues: POINT_VALUES[sportName] || [1],
+            statTypes: STAT_TYPES[sportName] || [],
+      onCourt: ON_COURT[sportName] || null,
       rosterA, rosterB, statByPlayer,
             division: ctx.tournament.division || 'open',
       sport: sportName,
@@ -206,11 +225,16 @@ router.post('/matches/:matchId/score', async (req, res) => {
       return res.status(400).json({ message: 'points must be a non-zero integer between -3 and 3.' });
     }
 
-    const mode = SCORING_MODE[sportName] || 'final';
-        let applied = points;   // what actually gets added to the team tally
+        const mode = SCORING_MODE[sportName] || 'final';
+    let applied = points;   // what actually gets added to the team tally
 
-    if (mode === 'player') {
-      if (!playerId) return res.status(400).json({ message: `${sportName} is scored per player — pick a player.` });
+    if (mode === 'player' && !playerId) {
+      return res.status(400).json({ message: `${sportName} is scored per player — pick a player.` });
+    }
+
+    // Rally sports attribute a point to a player when there is one; a team point
+    // (opponent error) arrives with no playerId and credits nobody.
+    if ((mode === 'player' || mode === 'rally') && playerId) {
       const teamId = side === 'A' ? match.teamA : match.teamB;
       const onTeam = await TeamPlayer.findOne({ team: teamId, player: playerId });
       if (!onTeam) return res.status(400).json({ message: 'That player is not on that team.' });
@@ -229,7 +253,13 @@ router.post('/matches/:matchId/score', async (req, res) => {
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
     }
-
+        if (applied > 0) {
+      const p = playerId ? await Player.findById(playerId).select('lastName') : null;
+      match.lastAction = {
+        type: 'points', side, player: playerId || null, amount: applied,
+        label: `+${applied} ${p?.lastName || (side === 'A' ? 'team A' : 'team B')}`,
+      };
+    }
         const field = side === 'A' ? 'liveScoreA' : 'liveScoreB';
     match[field] = Math.max(0, (match[field] || 0) + applied);
     await match.save();
@@ -241,32 +271,89 @@ router.post('/matches/:matchId/score', async (req, res) => {
   }
 });
 
-// POST /api/organizer/matches/:matchId/foul  body: { playerId, delta?: 1|-1 }
-router.post('/matches/:matchId/foul', async (req, res) => {
+// POST /api/organizer/matches/:matchId/stat
+// body: { playerId, type: 'foul'|'rebound'|'assist', delta?: 1|-1 }
+// One route for every non-scoring stat, so adding another later is a list entry
+// rather than a new endpoint.
+router.post('/matches/:matchId/stat', async (req, res) => {
   try {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
-    const { match } = ctx;
+    const { match, sportName } = ctx;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
 
-        const delta = Number(req.body.delta ?? 1);
-    if (![1, -1].includes(delta)) return res.status(400).json({ message: 'delta must be 1 or -1.' });
+    const type = req.body.type;
+    const allowed = STAT_TYPES[sportName] || [];
+    if (!allowed.includes(type)) {
+      return res.status(400).json({ message: `${sportName} doesn't record ${type || 'that stat'}.` });
+    }
     if (!req.body.playerId) return res.status(400).json({ message: 'playerId is required.' });
 
+    const delta = Number(req.body.delta ?? 1);
+    if (![1, -1].includes(delta)) return res.status(400).json({ message: 'delta must be 1 or -1.' });
+
+    const field = type === 'foul' ? 'fouls' : type === 'rebound' ? 'rebounds' : 'assists';
     const existing = await PlayerMatchStats.findOne({ match: match._id, player: req.body.playerId });
-    if (delta === -1 && (existing?.fouls || 0) === 0) {
-      return res.status(400).json({ message: 'That player has no fouls to undo.' });
+    if (delta === -1 && (existing?.[field] || 0) === 0) {
+      return res.status(400).json({ message: `That player has no ${type} to undo.` });
     }
 
     const stat = await PlayerMatchStats.findOneAndUpdate(
       { match: match._id, player: req.body.playerId },
-      { $inc: { fouls: delta } },
+      { $inc: { [field]: delta } },
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
 
-    res.json({ message: 'Foul recorded.', playerId: req.body.playerId, fouls: stat.fouls });
+    if (delta === 1) {
+      const p = await Player.findById(req.body.playerId).select('lastName');
+      match.lastAction = {
+        type, side: null, player: req.body.playerId, amount: 1,
+        label: `${type} ${p?.lastName || ''}`.trim(),
+      };
+      await match.save();
+    }
+
+    res.json({ message: 'Recorded.', playerId: req.body.playerId, [field]: stat[field] });
   } catch (err) {
-    console.error('Foul error:', err);
+    console.error('Stat error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/organizer/matches/:matchId/undo — reverses the last action.
+router.post('/matches/:matchId/undo', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+    if (match.status !== 'ongoing') return res.status(409).json({ message: 'The match is not running.' });
+
+    const last = match.lastAction;
+    if (!last || !last.type) return res.status(400).json({ message: 'Nothing to undo.' });
+
+    if (last.type === 'points') {
+      const field = last.side === 'A' ? 'liveScoreA' : 'liveScoreB';
+      match[field] = Math.max(0, (match[field] || 0) - last.amount);
+      if (last.player) {
+        await PlayerMatchStats.updateOne(
+          { match: match._id, player: last.player },
+          { $inc: { points: -last.amount } }
+        );
+      }
+    } else {
+      const field = last.type === 'foul' ? 'fouls' : last.type === 'rebound' ? 'rebounds' : 'assists';
+      await PlayerMatchStats.updateOne(
+        { match: match._id, player: last.player },
+        { $inc: { [field]: -1 } }
+      );
+    }
+
+    match.lastAction = { type: null, side: null, player: null, amount: 0, label: '' };
+    await match.save();
+
+    res.json({ message: 'Undone.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
+  } catch (err) {
+    console.error('Undo error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
@@ -444,6 +531,76 @@ router.post('/matches/:matchId/cancel', async (req, res) => {
     res.json({ message: 'Match cancelled and reset.', matchId: match._id, status: match.status });
   } catch (err) {
     console.error('Cancel match error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+// POST /api/organizer/matches/:matchId/forfeit  body: { forfeitingSide: 'A'|'B' }
+// A no-show is known before tip-off, so this is only available on a match that
+// hasn't started. Recorded 1–0 so the result reads clearly and the bracket
+// advances by the same rules as any other match; the 'forfeited' status is what
+// tells everyone why the score looks like that.
+router.post('/matches/:matchId/forfeit', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+
+    if (match.status === 'completed' || match.status === 'forfeited') {
+      return res.status(409).json({ message: 'This match already has a result.' });
+    }
+    if (match.status === 'ongoing') {
+      return res.status(409).json({ message: 'Cancel the match first, then record the forfeit.' });
+    }
+    if (!match.teamA || !match.teamB) {
+      return res.status(400).json({ message: 'This match is still waiting for a team.' });
+    }
+
+    const losing = req.body.forfeitingSide;
+    if (!['A', 'B'].includes(losing)) {
+      return res.status(400).json({ message: 'Pick which team forfeited.' });
+    }
+
+    const winner = losing === 'A' ? match.teamB : match.teamA;
+    const loser = losing === 'A' ? match.teamA : match.teamB;
+
+    match.liveScoreA = losing === 'A' ? 0 : 1;
+    match.liveScoreB = losing === 'B' ? 0 : 1;
+    match.games = [{
+      gameNumber: 1,
+      scoreA: match.liveScoreA,
+      scoreB: match.liveScoreB,
+      winner,
+    }];
+    match.seriesWinner = winner;
+    match.status = 'forfeited';
+    match.enteredBy = req.user.id;
+    match.enteredAt = new Date();
+    await match.save();
+
+    // Same advancement as a played match — a forfeit still sends someone through.
+    const placeInto = async (nextId, teamId) => {
+      if (!nextId || !teamId) return;
+      const next = await Match.findById(nextId);
+      if (!next) return;
+      if (!next.teamA) next.teamA = teamId;
+      else if (!next.teamB) next.teamB = teamId;
+      await next.save();
+    };
+
+    if (match.isTiebreaker) {
+      await placeInto(match.nextMatchWin, winner);
+    } else if (['winners', 'losers', 'final', 'knockout', 'ko_final'].includes(match.bracket)) {
+      await placeInto(match.nextMatchWin, winner);
+      await placeInto(match.nextMatchLose, loser);
+      if (match.bracket === 'final' || match.bracket === 'ko_final') {
+        const t = await Tournament.findById(match.tournament);
+        if (t) { t.stage = 'completed'; await t.save(); }
+      }
+    }
+
+    res.json({ message: 'Forfeit recorded.', matchId: match._id, winner: String(winner) });
+  } catch (err) {
+    console.error('Forfeit error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

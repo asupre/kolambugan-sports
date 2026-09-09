@@ -37,12 +37,34 @@ export const SHOW_PLAYER_PHOTOS = true;
 
 export const barangayLogoUrl = (id) => `/api/barangays/${id}/logo`;
 
-// Barangay crest. Falls back to a monogram when no logo is uploaded, or if the
-// team has no barangay id in the payload — match feeds only carry team names.
+// Which barangays actually have a logo, fetched once per page load. Without it
+// every crest fires a request that 404s before falling back to the monogram —
+// on a page with 26 barangays that's dozens of wasted round trips.
+let logoPromise = null;
+function loadLogos() {
+  if (!logoPromise) {
+    logoPromise = fetch("/api/barangays")
+      .then((r) => (r.ok ? r.json() : { barangays: [] }))
+      .then((d) => new Set((d.barangays || []).filter((b) => b.hasLogo).map((b) => String(b._id))))
+      .catch(() => new Set());
+  }
+  return logoPromise;
+}
+
+// Barangay crest. Falls back to a monogram when no logo is uploaded, or when the
+// payload carries no barangay id.
 export function Crest({ name, barangayId, size = 40 }) {
+  const [has, setHas] = useState(null);   // null = still checking
   const [failed, setFailed] = useState(false);
 
-  if (barangayId && !failed) {
+  useEffect(() => {
+    if (!barangayId) { setHas(false); return; }
+    let alive = true;
+    loadLogos().then((set) => { if (alive) setHas(set.has(String(barangayId))); });
+    return () => { alive = false; };
+  }, [barangayId]);
+
+  if (has && !failed) {
     return (
       <img
         src={barangayLogoUrl(barangayId)}

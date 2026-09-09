@@ -38,7 +38,10 @@ export default function TeamDetail() {
   // Volleyball is side-scored, and billiards and chess are win/loss only —
   // no PlayerMatchStats rows exist, so the stat columns would be a wall of
   // zeroes. Show them only when the sport actually records them.
-    const statsTracked = players.some((p) => (p.stats?.points || 0) > 0 || (p.stats?.fouls || 0) > 0);
+      const statsTracked = players.some((p) => (p.stats?.points || 0) > 0 || (p.stats?.fouls || 0) > 0);
+  // Rebounds and assists are basketball-only, so the columns appear only when
+  // the sport actually records them.
+  const boxScore = players.some((p) => (p.stats?.rebounds || 0) > 0 || (p.stats?.assists || 0) > 0);
 
   const roster = [...players].sort((a, b) => {
     const an = Number(a.jerseyNumber), bn = Number(b.jerseyNumber);
@@ -96,7 +99,9 @@ export default function TeamDetail() {
                   <Th>#</Th>
                   <Th>Player</Th>
                   <Th right>Age</Th>
-                  {statsTracked && <><Th right>GP</Th><Th right>PTS</Th><Th right>PPG</Th><Th right>Fouls</Th></>}
+                                    {statsTracked && <><Th right>GP</Th><Th right>PTS</Th><Th right>PPG</Th>
+                    {boxScore && <><Th right>REB</Th><Th right>AST</Th></>}
+                    <Th right>Fouls</Th></>}
                 </tr>
               </thead>
               <tbody>
@@ -119,7 +124,13 @@ export default function TeamDetail() {
                         <>
                           <Td right dim>{s.games}</Td>
                           <Td right>{s.points}</Td>
-                          <Td right dim>{ppg}</Td>
+                                                    <Td right dim>{ppg}</Td>
+                          {boxScore && (
+                            <>
+                              <Td right dim>{s.rebounds || 0}</Td>
+                              <Td right dim>{s.assists || 0}</Td>
+                            </>
+                          )}
                           <Td right dim>{s.fouls}</Td>
                         </>
                       )}

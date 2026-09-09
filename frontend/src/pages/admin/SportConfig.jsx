@@ -122,6 +122,68 @@ function SportCard({ sport, onSaved, onError }) {
     </Card>
   );
 }
+// Which barangays may lend players to another barangay's team. Small barangays
+// often can't field a full roster, so the league allows named exceptions rather
+// than a blanket rule.
+function CrossBarangayCard({ onError }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  async function load() {
+    try {
+      const d = await api("/api/barangays");
+      setRows(d.barangays || []);
+    } catch (e) { onError(e.message); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function toggle(b) {
+    setBusyId(b._id);
+    try {
+      const d = await api(`/api/barangays/${b._id}/cross`, {
+        method: "PATCH",
+        body: JSON.stringify({ allowsCrossBarangay: !b.allowsCrossBarangay }),
+      });
+      setRows((prev) => prev.map((x) => (x._id === b._id ? { ...x, allowsCrossBarangay: d.barangay.allowsCrossBarangay } : x)));
+    } catch (e) { onError(e.message); }
+    finally { setBusyId(null); }
+  }
+
+  const allowed = rows.filter((b) => b.allowsCrossBarangay).length;
+
+  return (
+    <Card className="p-5">
+      <h2 className="text-slate-800 font-semibold mb-1">Cross-barangay play</h2>
+      <p className="text-slate-500 text-sm mb-4">
+        A resident of a checked barangay may play for another barangay's team without
+        being flagged during residency verification. Intended for barangays that can't
+        field a full roster on their own. {allowed} of {rows.length} allowed.
+      </p>
+
+      {loading ? (
+        <p className="text-slate-500 text-sm">Loading…</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+          {rows.map((b) => (
+            <label key={b._id} className="flex items-center gap-2.5 py-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!b.allowsCrossBarangay}
+                disabled={busyId === b._id}
+                onChange={() => toggle(b)}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-slate-700 text-sm">{b.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default function SportConfig() {
   const [sports, setSports] = useState([]);
@@ -160,7 +222,7 @@ export default function SportConfig() {
             built against the old settings.
           </p>
         </Card>
-
+                <CrossBarangayCard onError={setError} />
         {loading ? (
           <p className="text-slate-500">Loading…</p>
         ) : (

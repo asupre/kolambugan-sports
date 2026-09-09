@@ -1064,8 +1064,8 @@ router.post('/matches/:matchId/revert', authenticate, authorize('super_admin'), 
   try {
     const match = await Match.findById(req.params.matchId);
     if (!match) return res.status(404).json({ message: 'Match not found.' });
-    if (match.status !== 'completed') {
-      return res.status(409).json({ message: 'Only a completed match can be reverted.' });
+        if (!['completed', 'forfeited'].includes(match.status)) {
+      return res.status(409).json({ message: 'Only a completed or forfeited match can be reverted.' });
     }
 
     const tournament = await Tournament.findById(match.tournament);

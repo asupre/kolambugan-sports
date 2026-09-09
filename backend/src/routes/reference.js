@@ -34,10 +34,15 @@ router.patch('/sports/divisions', authenticate, authorize('super_admin'), async 
 });
 
 router.get('/barangays', async (req, res) => {
-  const rows = await Barangay.find().sort({ name: 1 });
-  // hasLogo instead of the raw file id — the UI only needs to know whether one
-  // exists, and the id is meaningless to it.
-  res.json({ barangays: rows.map((b) => ({ ...b.toObject(), hasLogo: !!b.logo, logo: undefined })) });
+  const rows = await Barangay.find().select('name allowsCrossBarangay logo').sort({ name: 1 });
+  res.json({
+    barangays: rows.map((b) => ({
+      _id: b._id,
+      name: b.name,
+      allowsCrossBarangay: b.allowsCrossBarangay,
+      hasLogo: !!b.logo,
+    })),
+  });
 });
 
 const ALLOWED_DIVISIONS = ['open', 'boys', 'girls', 'under17', 'under30'];
@@ -159,6 +164,28 @@ router.delete('/barangays/:id/logo', authenticate,
     res.json({ message: 'Logo removed.' });
   } catch (err) {
     console.error('Logo delete error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+// PATCH /api/barangays/:id/cross — super admin; allow this barangay's residents
+// to play for another barangay's team.
+//
+// The rule already existed in the residency screen but could only be set by
+// editing the database, which meant the league couldn't run without a developer.
+router.patch('/barangays/:id/cross', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const allowed = req.body.allowsCrossBarangay;
+    if (typeof allowed !== 'boolean') {
+      return res.status(400).json({ message: 'allowsCrossBarangay must be true or false.' });
+    }
+    const b = await Barangay.findByIdAndUpdate(
+      req.params.id, { allowsCrossBarangay: allowed }, { new: true }
+    );
+    if (!b) return res.status(404).json({ message: 'Barangay not found.' });
+
+    res.json({ message: `${b.name} updated.`, barangay: { _id: b._id, name: b.name, allowsCrossBarangay: b.allowsCrossBarangay } });
+  } catch (err) {
+    console.error('Cross-barangay error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

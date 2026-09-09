@@ -117,7 +117,7 @@ export default function BrgyMatches() {
 
   const live = ours.filter((m) => m.status === "ongoing");
   const upcoming = ours.filter((m) => m.status === "scheduled");
-  const done = ours.filter((m) => m.status === "completed").reverse();
+    const done = ours.filter((m) => m.status === "completed" || m.status === "forfeited").reverse();
 
   // Upcoming groups by date; undated fixtures fall into their own bucket at the end.
   const byDate = {};

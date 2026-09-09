@@ -106,6 +106,15 @@ const matchSchema = new mongoose.Schema(
       enum: ['scheduled', 'ongoing', 'completed', 'forfeited'],
       default: 'scheduled',
     },
+        // What the organizer did last, so a mis-tap is one tap to reverse. Only one
+    // step deep — this is an undo button, not a history.
+    lastAction: {
+      type: { type: String, default: null },        // 'points' | 'foul' | 'rebound' | 'assist'
+      side: { type: String, default: null },
+      player: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+      amount: { type: Number, default: 0 },
+      label: { type: String, default: '' },         // shown on the button
+    },
     schedule: {
       type: Date,          // when the match is set to be played
     },

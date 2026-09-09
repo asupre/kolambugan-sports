@@ -89,7 +89,7 @@ router.get('/overview', async (req, res) => {
       season: { name: season.name, status: season.status },
       live: shaped.filter((m) => m.status === 'ongoing'),
             today: shaped.filter((m) => m.status === 'scheduled' && isManilaToday(m.schedule)),
-      recent: shaped.filter((m) => m.status === 'completed').slice(0, 10),
+            recent: shaped.filter((m) => ['completed', 'forfeited'].includes(m.status)).slice(0, 10),
       counts: {
         barangays: await Barangay.countDocuments(),
         sports: await Sport.countDocuments(),
@@ -186,11 +186,14 @@ router.get('/teams/:id', async (req, res) => {
           player: { $in: players.map((p) => p._id) },
         },
       },
-      { $group: { _id: '$player', points: { $sum: '$points' }, fouls: { $sum: '$fouls' } } },
+                  { $group: { _id: '$player', points: { $sum: '$points' }, fouls: { $sum: '$fouls' },
+                  rebounds: { $sum: '$rebounds' }, assists: { $sum: '$assists' } } },
     ]);
     const games = (await teamGamesMap(ids))[String(team._id)] || 0;
     const statBy = {};
-    stats.forEach((s) => { statBy[String(s._id)] = { points: s.points, fouls: s.fouls }; });
+    stats.forEach((s) => {
+      statBy[String(s._id)] = { points: s.points, fouls: s.fouls, rebounds: s.rebounds, assists: s.assists };
+    });
 
     res.json({
             team: {
@@ -205,7 +208,7 @@ router.get('/teams/:id', async (req, res) => {
         jerseyNumber: p.jerseyNumber,
         age: p.age,
         hasPhoto: !!p.photo,
-                stats: { points: 0, fouls: 0, ...(statBy[String(p._id)] || {}), games },
+                        stats: { points: 0, fouls: 0, rebounds: 0, assists: 0, ...(statBy[String(p._id)] || {}), games },
       })),
     });
   } catch (err) {
@@ -227,7 +230,8 @@ router.get('/leaders', async (req, res) => {
 
     const rows = await PlayerMatchStats.aggregate([
       { $match: { match: { $in: wanted.map((m) => m._id) } } },
-      { $group: { _id: '$player', points: { $sum: '$points' }, fouls: { $sum: '$fouls' }, games: { $sum: 1 } } },
+            { $group: { _id: '$player', points: { $sum: '$points' }, fouls: { $sum: '$fouls' },
+                  rebounds: { $sum: '$rebounds' }, assists: { $sum: '$assists' } } },
       { $sort: { points: -1 } },
       { $limit: limit },
     ]);
@@ -256,8 +260,10 @@ router.get('/leaders', async (req, res) => {
         hasPhoto: !!pBy[String(r._id)]?.photo,
         team: teamBy[String(r._id)]?.name || null,
         games: gamesBy[String(teamBy[String(r._id)]?.id)] || 0,
-        points: r.points,
+                points: r.points,
         fouls: r.fouls,
+        rebounds: r.rebounds || 0,
+        assists: r.assists || 0,
         games: r.games,
       })),
     });
@@ -359,7 +365,7 @@ function groupStandings(matches, includeTiebreakers = false) {
       const k = String(t.id);
                  g[k] = g[k] || { teamId: k, teamName: t.name, barangayId: t.barangayId || null, wins: 0, losses: 0, played: 0, gameWinDiff: 0 };
     });
-    if (m.status !== 'completed' || !m.winner) return;
+        if (!['completed', 'forfeited'].includes(m.status) || !m.winner) return;
 
     // Games won within the match — the second tiebreak, matching the admin's.
     let ga = 0, gb = 0;

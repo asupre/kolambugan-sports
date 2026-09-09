@@ -142,7 +142,7 @@ export default function Matches() {
   const dated = scheduled.filter((m) => m.schedule);
   const undated = scheduled.filter((m) => !m.schedule);
   // Most recent result first — a results feed reads backwards.
-  const done = real.filter((m) => m.status === "completed").reverse();
+    const done = real.filter((m) => m.status === "completed" || m.status === "forfeited").reverse();
 
   const byDate = {};
   dated.forEach((m) => { (byDate[dateKey(m.schedule)] = byDate[dateKey(m.schedule)] || []).push(m); });

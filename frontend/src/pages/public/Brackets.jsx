@@ -355,7 +355,7 @@ export default function Brackets() {
                         sublabel: losers.length === 0 ? "Both teams qualify" : "Qualifies as seed 1",
                         bothQualify: losers.length === 0,
                       } : null} />
-                    <BracketSection title="Losers" matches={losers} labelFor={(r) => `Round ${r}`}
+                                        <BracketSection title="Losers" matches={losers} labelFor={(r, i) => `Round ${i + 1}`}
                       winner={losers.length > 0 ? {
                         match: finalOf(losers),
                         label: "Winner",

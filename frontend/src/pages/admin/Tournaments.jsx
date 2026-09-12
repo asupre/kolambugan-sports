@@ -827,7 +827,7 @@ function BracketView({ tournamentId }) {
                     sublabel: l.length === 0 ? "Both teams qualify" : "Qualifies as seed 1",
                     bothQualify: l.length === 0,
                   } : null} />
-                <BracketTree title="Losers" onRevert={revert} matches={l} labelFor={(r) => `Round ${r}`}
+                                <BracketTree title="Losers" onRevert={revert} matches={l} labelFor={(r, i) => `Round ${i + 1}`}
                   winner={l.length > 0 ? {
                     match: finalOf(l),
                     label: "Winner",

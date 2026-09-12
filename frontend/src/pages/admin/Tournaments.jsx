@@ -881,7 +881,9 @@ export default function Tournaments() {
   useEffect(() => { setDivision(""); setError(""); }, [sportId]);
 
   const selectedSport = sports.find((s) => String(s._id) === String(sportId));
-  const isMobileLegends = selectedSport?.name === "Mobile Legends";
+    // Physical sports always run four groups into a Top 8, so there's nothing to
+  // choose. Esports pick their knockout size.
+  const isEsports = selectedSport?.category === "esports";
 
   const divisions = selectedSport?.divisions?.length ? selectedSport.divisions : ["open"];
   const activeDivision = divisions.includes(division) ? division : divisions[0];
@@ -900,7 +902,7 @@ export default function Tournaments() {
     setError("");
     try {
       const body = { sportId: selectedSport._id, division: activeDivision };
-      if (isMobileLegends) body.knockoutSize = Number(knockoutSize);
+      if (isEsports) body.knockoutSize = Number(knockoutSize);
       await api("/api/tournaments/generate", { method: "POST", body: JSON.stringify(body) });
       await loadAll();
     } catch (e) {
@@ -964,12 +966,12 @@ export default function Tournaments() {
                 <p className="text-slate-500 text-sm mb-4">
                   No {divisions.length > 1 ? `${DIVISION_LABEL[activeDivision] || activeDivision} ` : ""}
                   tournament generated for {selectedSport.name} yet. Generate one from the
-                  verified teams. {isMobileLegends
-                    ? "Mobile Legends uses a grouped round-robin."
+                                    verified teams. {isEsports
+                    ? "This sport uses a grouped round-robin."
                     : "This sport uses four groups of double-elimination."}
                 </p>
 
-                {isMobileLegends && (
+                {isEsports && (
                   <div className="mb-4">
                     <label className="block text-slate-700 text-sm font-medium mb-1.5">Knockout size</label>
                     <div className="flex gap-2">
@@ -1000,7 +1002,7 @@ export default function Tournaments() {
                 key={currentTournament._id}
                 tournamentId={currentTournament._id}
                 stage={currentTournament.stage}
-                isML={isMobileLegends}
+                isML={isEsports}
                 onBracketGenerated={loadAll}
               />
             )}

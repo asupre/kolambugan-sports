@@ -63,6 +63,21 @@ const ON_COURT = {
   'Volleyball': 6,
 };
 
+// A configured sport wins; otherwise the built-in default for one of the seven
+// seeded sports; otherwise something safe. A sport nobody has configured still
+// works, and a configured one no longer depends on its name.
+function rulesFor(sport) {
+  const name = sport?.name;
+  return {
+    scoringMode: sport?.scoringMode || SCORING_MODE[name] || 'final',
+    pointValues: sport?.pointValues?.length ? sport.pointValues : (POINT_VALUES[name] || [1]),
+    periodLabel: sport?.periodLabel || PERIOD_LABEL[name] || 'period',
+    periodOptions: sport?.periodOptions?.length ? sport.periodOptions : (PERIOD_OPTIONS[name] || [1, 3, 5, 7]),
+    statTypes: sport?.statTypes?.length ? sport.statTypes : (STAT_TYPES[name] || []),
+    onCourt: sport?.onCourt ?? ON_COURT[name] ?? null,
+  };
+}
+
 // Load a match and confirm this organizer owns its sport.
 async function loadOwnedMatch(req, res) {
   const match = await Match.findById(req.params.matchId);
@@ -73,7 +88,7 @@ async function loadOwnedMatch(req, res) {
     res.status(403).json({ message: 'You can only score matches for your assigned sport.' });
     return null;
   }
-  return { match, tournament: t, sportName: t.sport.name };
+    return { match, tournament: t, sportName: t.sport.name, sport: t.sport };
 }
 
 // GET /api/organizer/matches — every match in this organizer's sport, newest first.
@@ -96,7 +111,7 @@ router.get('/matches', async (req, res) => {
 
     res.json({
       sport: sport?.name,
-      scoringMode: SCORING_MODE[sport?.name] || 'final',
+            scoringMode: rulesFor(sport).scoringMode,
       matches: matches.map((m) => ({
         ...m.toObject(),
         division: divisionByTournament[String(m.tournament)] || 'open',
@@ -131,12 +146,7 @@ router.get('/matches/:matchId', async (req, res) => {
       .populate('mvp', 'firstName lastName');
             res.json({
       match: full,
-      scoringMode: SCORING_MODE[sportName] || 'final',
-      periodOptions: PERIOD_OPTIONS[sportName] || [1, 3, 5, 7],
-      periodLabel: PERIOD_LABEL[sportName] || 'period',
-      pointValues: POINT_VALUES[sportName] || [1],
-            statTypes: STAT_TYPES[sportName] || [],
-      onCourt: ON_COURT[sportName] || null,
+            ...rulesFor(ctx.sport),
       rosterA, rosterB, statByPlayer,
             division: ctx.tournament.division || 'open',
       sport: sportName,
@@ -188,7 +198,7 @@ router.post('/matches/:matchId/start', async (req, res) => {
       matchId: match._id,
       status: match.status,
       periods,
-      periodLabel: PERIOD_LABEL[sportName] || 'period',
+            periodLabel: rulesFor(ctx.sport).periodLabel,
     });
   } catch (err) {
     console.error('Start match error:', err);
@@ -221,11 +231,14 @@ router.post('/matches/:matchId/score', async (req, res) => {
     const { side, playerId } = req.body;
     const points = Number(req.body.points);
     if (!['A', 'B'].includes(side)) return res.status(400).json({ message: 'side must be "A" or "B".' });
-    if (!Number.isInteger(points) || Math.abs(points) > 3 || points === 0) {
-      return res.status(400).json({ message: 'points must be a non-zero integer between -3 and 3.' });
+        // The cap comes from the sport's own point values, so a configured sport
+    // isn't stuck with basketball's 1/2/3 ceiling.
+    const maxPoints = Math.max(...rulesFor(ctx.sport).pointValues, 1);
+    if (!Number.isInteger(points) || Math.abs(points) > maxPoints || points === 0) {
+      return res.status(400).json({ message: `points must be a non-zero integer between -${maxPoints} and ${maxPoints}.` });
     }
 
-        const mode = SCORING_MODE[sportName] || 'final';
+            const mode = rulesFor(ctx.sport).scoringMode;
     let applied = points;   // what actually gets added to the team tally
 
     if (mode === 'player' && !playerId) {
@@ -283,7 +296,7 @@ router.post('/matches/:matchId/stat', async (req, res) => {
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
 
     const type = req.body.type;
-    const allowed = STAT_TYPES[sportName] || [];
+        const allowed = rulesFor(ctx.sport).statTypes;
     if (!allowed.includes(type)) {
       return res.status(400).json({ message: `${sportName} doesn't record ${type || 'that stat'}.` });
     }

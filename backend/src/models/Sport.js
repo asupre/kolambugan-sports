@@ -47,6 +47,42 @@ const sportSchema = new mongoose.Schema(
       enum: ['team', 'singles', 'doubles'],
       default: 'team',
     },
+     // ── Per-sport rules ───────────────────────────────────────────────────
+    // These used to be hardcoded by sport NAME across three route files, which
+    // meant a new sport could be created but never scored or drawn. Each is
+    // left null so it falls back to the original built-in default for the seven
+    // seeded sports — nothing changes until someone configures it.
+
+    // How the organizer scores:
+    //   player — every point belongs to a player (basketball)
+    //   rally  — player points plus a team button for opponent errors
+    //   final  — no per-player scoring; who won each game
+    scoringMode: {
+      type: String,
+      enum: ['player', 'rally', 'final', null],
+      default: null,
+    },
+    // What one scoring action can add. Basketball 1/2/3; rally sports [1].
+    pointValues: { type: [Number], default: undefined },
+    // Display only — "quarter", "set", "game".
+    periodLabel: { type: String, default: null, trim: true },
+    // Which period counts an organizer may choose at the start of a match.
+    periodOptions: { type: [Number], default: undefined },
+    // Stats beyond points. Fouls only belong where the sport has them.
+    statTypes: {
+      type: [String],
+      enum: ['foul', 'rebound', 'assist'],
+      default: undefined,
+    },
+    // How many players are on court at once, so the scoring screen shows only
+    // those. Null means show the whole roster.
+    onCourt: { type: Number, default: null },
+    // Entries a single barangay may register. Mobile Legends allows 2.
+    teamsPerBarangay: { type: Number, default: null },
+    // How many groups the draw creates, and how many teams reach the knockout.
+    numGroups: { type: Number, default: null },
+    knockoutSize: { type: Number, default: null },
+  
   },
   {
     timestamps: true,

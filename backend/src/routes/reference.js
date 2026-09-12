@@ -7,6 +7,8 @@ const Team = require('../models/Team');
 const { getCurrentSeason } = require('../middleware/season');
 const multer = require('multer');
 const { putFile, sendFile, deleteFile } = require('../config/gridfs');
+const Tournament = require('../models/Tournament');
+const User = require('../models/User');
 
 router.get('/sports', async (req, res) => {
   const sports = await Sport.find().sort({ name: 1 });
@@ -92,6 +94,8 @@ router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
+
+
 
 const BUCKET = 'logos';
 
@@ -186,6 +190,170 @@ router.patch('/barangays/:id/cross', authenticate, authorize('super_admin'), asy
     res.json({ message: `${b.name} updated.`, barangay: { _id: b._id, name: b.name, allowsCrossBarangay: b.allowsCrossBarangay } });
   } catch (err) {
     console.error('Cross-barangay error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// ── Sports ───────────────────────────────────────────────────────────────
+// Sports were seeded by a script with no UI, so the league couldn't add one
+// without a developer. Deletion is guarded: a sport with history stays, or its
+// matches, teams and champions would be orphaned.
+
+router.post('/sports', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ message: 'Sport name is required.' });
+    if (await Sport.findOne({ name })) {
+      return res.status(409).json({ message: `"${name}" already exists.` });
+    }
+    const category = req.body.category === 'esports' ? 'esports' : 'physical';
+    const tournamentFormat = req.body.tournamentFormat === 'round_robin'
+      ? 'round_robin' : 'double_elimination';
+
+    const sport = await Sport.create({ name, category, tournamentFormat });
+    res.status(201).json({
+      message: `${name} added. Provision accounts to create its organizer login.`,
+      sport,
+    });
+  } catch (err) {
+    console.error('Add sport error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const sport = await Sport.findById(req.params.id);
+    if (!sport) return res.status(404).json({ message: 'Sport not found.' });
+
+    if (req.body.name !== undefined) {
+      const name = String(req.body.name).trim();
+      if (!name) return res.status(400).json({ message: 'Sport name cannot be empty.' });
+      const clash = await Sport.findOne({ name, _id: { $ne: sport._id } });
+      if (clash) return res.status(409).json({ message: `"${name}" already exists.` });
+      sport.name = name;
+    }
+    if (req.body.category) sport.category = req.body.category;
+    if (req.body.tournamentFormat) sport.tournamentFormat = req.body.tournamentFormat;
+
+    // Per-sport rules. An empty value means "fall back to the default".
+    ['scoringMode', 'periodLabel'].forEach((k) => {
+      if (req.body[k] !== undefined) sport[k] = req.body[k] || null;
+    });
+    ['onCourt', 'teamsPerBarangay', 'numGroups', 'knockoutSize'].forEach((k) => {
+      if (req.body[k] !== undefined) {
+        sport[k] = req.body[k] === null || req.body[k] === '' ? null : Number(req.body[k]);
+      }
+    });
+    ['pointValues', 'periodOptions', 'statTypes'].forEach((k) => {
+      if (Array.isArray(req.body[k])) sport[k] = req.body[k];
+    });
+
+    await sport.save();
+    res.json({ message: `${sport.name} updated.`, sport });
+  } catch (err) {
+    console.error('Update sport error:', err);
+    res.status(400).json({ message: err.message || 'Could not update the sport.' });
+  }
+});
+
+router.delete('/sports/:id', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const sport = await Sport.findById(req.params.id);
+    if (!sport) return res.status(404).json({ message: 'Sport not found.' });
+
+    const teams = await Team.countDocuments({ sport: sport._id });
+    const tournaments = await Tournament.countDocuments({ sport: sport._id });
+    const organizers = await User.countDocuments({ assignedSport: sport._id });
+    if (teams || tournaments || organizers) {
+      const parts = [
+        teams ? `${teams} team(s)` : null,
+        tournaments ? `${tournaments} tournament(s)` : null,
+        organizers ? `${organizers} organizer account(s)` : null,
+      ].filter(Boolean).join(', ');
+      return res.status(409).json({
+        message: `${sport.name} still has ${parts}. Remove those first — deleting it now would orphan their records.`,
+      });
+    }
+
+    await Sport.deleteOne({ _id: sport._id });
+    res.json({ message: `${sport.name} removed.` });
+  } catch (err) {
+    console.error('Delete sport error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// ── Barangays ────────────────────────────────────────────────────────────
+
+router.post('/barangays', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ message: 'Barangay name is required.' });
+    if (await Barangay.findOne({ name })) {
+      return res.status(409).json({ message: `"${name}" already exists.` });
+    }
+    const b = await Barangay.create({
+      name,
+      allowsCrossBarangay: !!req.body.allowsCrossBarangay,
+    });
+    res.status(201).json({
+      message: `${name} added. Provision accounts to create its barangay admin login.`,
+      barangay: { _id: b._id, name: b.name, allowsCrossBarangay: b.allowsCrossBarangay, hasLogo: false },
+    });
+  } catch (err) {
+    console.error('Add barangay error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+router.patch('/barangays/:id', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const b = await Barangay.findById(req.params.id);
+    if (!b) return res.status(404).json({ message: 'Barangay not found.' });
+
+    if (req.body.name !== undefined) {
+      const name = String(req.body.name).trim();
+      if (!name) return res.status(400).json({ message: 'Barangay name cannot be empty.' });
+      const clash = await Barangay.findOne({ name, _id: { $ne: b._id } });
+      if (clash) return res.status(409).json({ message: `"${name}" already exists.` });
+      b.name = name;
+    }
+    if (req.body.allowsCrossBarangay !== undefined) {
+      b.allowsCrossBarangay = !!req.body.allowsCrossBarangay;
+    }
+
+    await b.save();
+    res.json({
+      message: `${b.name} updated.`,
+      barangay: { _id: b._id, name: b.name, allowsCrossBarangay: b.allowsCrossBarangay, hasLogo: !!b.logo },
+    });
+  } catch (err) {
+    console.error('Update barangay error:', err);
+    res.status(400).json({ message: err.message || 'Could not update the barangay.' });
+  }
+});
+
+router.delete('/barangays/:id', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const b = await Barangay.findById(req.params.id);
+    if (!b) return res.status(404).json({ message: 'Barangay not found.' });
+
+    const teams = await Team.countDocuments({ barangay: b._id });
+    const admins = await User.countDocuments({ barangay: b._id });
+    if (teams || admins) {
+      const parts = [
+        teams ? `${teams} team(s)` : null,
+        admins ? `${admins} admin account(s)` : null,
+      ].filter(Boolean).join(' and ');
+      return res.status(409).json({ message: `${b.name} still has ${parts}. Remove those first.` });
+    }
+
+    if (b.logo) await deleteFile('logos', b.logo);
+    await Barangay.deleteOne({ _id: b._id });
+    res.json({ message: `${b.name} removed.` });
+  } catch (err) {
+    console.error('Delete barangay error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

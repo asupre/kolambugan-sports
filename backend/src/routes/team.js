@@ -70,7 +70,8 @@ router.post('/', authenticate, authorize('barangay_admin'),
 
     // Mobile Legends allows two teams per barangay; every other sport is one team
     // per barangay PER DIVISION (so a barangay can enter both u17 and u30).
-    const maxTeams = sport.name === 'Mobile Legends' ? 2 : 1;
+        // Configured per sport; Mobile Legends is the seeded exception at 2.
+    const maxTeams = sport.teamsPerBarangay ?? (sport.name === 'Mobile Legends' ? 2 : 1);
     const existing = await Team.find({
       barangay: req.user.barangay,
       sport: sportId,

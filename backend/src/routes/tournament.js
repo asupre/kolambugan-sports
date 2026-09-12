@@ -232,12 +232,14 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
       return res.status(409).json({ message: `A ${division} tournament for this sport already exists this season. Delete it to regenerate.` });
     }
 
-        const isRoundRobin = sport.name === 'Mobile Legends' || sport.tournamentFormat === 'round_robin';
+            // Format now comes from the sport's own setting rather than its name, so a
+    // new sport can use either draw.
+    const isRoundRobin = sport.tournamentFormat === 'round_robin';
 
     // ---- PHYSICAL SPORTS: 4 groups, double-elimination within each group ----
     if (!isRoundRobin) {
             const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified', division });
-      const NUM_GROUPS = 4;
+            const NUM_GROUPS = sport.numGroups || 4;
       // Need at least 2 per group so every group can produce 2 qualifiers → a real Top 8.
             if (teams.length < NUM_GROUPS * 3) {
         return res.status(400).json({
@@ -247,8 +249,10 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
 
       // Shuffle, then distribute as evenly as possible across the 4 groups.
       const shuffled = [...teams].sort(() => Math.random() - 0.5);
-      const groupNames = ['A', 'B', 'C', 'D'];
-      const buckets = { A: [], B: [], C: [], D: [] };
+            const LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const groupNames = LABELS.slice(0, NUM_GROUPS);
+      const buckets = {};
+      groupNames.forEach((g) => { buckets[g] = []; });
       shuffled.forEach((team, i) => { buckets[groupNames[i % NUM_GROUPS]].push(team); });
 
       const tournament = await Tournament.create({
@@ -259,7 +263,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
         stage: 'group_stage',
         groups: groupNames,
         advancePerGroup: 2,           // upper-bracket winner + lower-bracket winner
-        knockoutSize: 8,              // 4 groups × 2 → Top 8
+                knockoutSize: sport.knockoutSize || NUM_GROUPS * 2,
       });
 
       // Build one double-elim bracket per group (byes handled inside the generator).
@@ -278,7 +282,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
         teams: teams.length,
         numGroups: NUM_GROUPS,
         advancePerGroup: 2,
-        knockoutSize: 8,
+                knockoutSize: sport.knockoutSize || NUM_GROUPS * 2,
         groups: groupInfo,
         matches: totalMatches,
       });
@@ -289,9 +293,10 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
 
     // Knockout size drives everything: always 8 groups.
     // Top 8  -> advance 1 per group.  Top 16 -> advance 2 per group.
-    const knockoutSize = parseInt(req.body.knockoutSize, 10);
-    if (![8, 16].includes(knockoutSize)) {
-      return res.status(400).json({ message: 'Knockout size must be 8 or 16.' });
+        // The request may override, but a configured sport supplies its own default.
+    const knockoutSize = parseInt(req.body.knockoutSize, 10) || sport.knockoutSize || 8;
+    if (![8, 16, 32].includes(knockoutSize)) {
+      return res.status(400).json({ message: 'Knockout size must be 8, 16, or 32.' });
     }
     // Need at least as many verified teams as the knockout size.
     if (teams.length < knockoutSize) {
@@ -300,7 +305,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
       });
     }
 
-    const NUM_GROUPS = 8;
+        const NUM_GROUPS = sport.numGroups || 8;
     const advancePerGroup = knockoutSize / NUM_GROUPS; // 8 -> 1, 16 -> 2
 
     // Shuffle then distribute as evenly as possible across the 8 groups
@@ -445,7 +450,7 @@ router.get('/:id/matches', async (req, res) => {
 // GET /api/tournaments/:id/standings — public; standings computed per group.
 router.get('/:id/standings', async (req, res) => {
   try {
-    const tournament = await Tournament.findById(req.params.id).populate('sport', 'name');
+        const tournament = await Tournament.findById(req.params.id).populate('sport', 'name tournamentFormat');
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
 
     const matches = await Match.find({ tournament: tournament._id });
@@ -693,7 +698,7 @@ function shuffle(arr) {
 // Physical sports = double-elimination.
 router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, res) => {
   try {
-    const tournament = await Tournament.findById(req.params.id).populate('sport', 'name');
+        const tournament = await Tournament.findById(req.params.id).populate('sport', 'name tournamentFormat');
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
 
     const existing = await Match.findOne({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } });
@@ -709,7 +714,9 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
       });
     }
 
-    const isML = tournament.sport?.name === 'Mobile Legends';
+        // By format, not by name — a new esport with a round-robin draw needs the
+    // same single-elimination knockout that Mobile Legends gets.
+    const isML = tournament.sport?.tournamentFormat === 'round_robin';
 
     const shuffle = (arr) => {
       const a = [...arr];
@@ -757,25 +764,13 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
           await wire(thisRound[i], winnerTo, loserTo);
         }
       }
-    } else {
-      // DOUBLE ELIMINATION (physical sports) — still hardcoded for 8 teams (arbitrary-N is next).
-      const bestOf = 3;
-      const wqf = [];
-      for (let i = 0; i < 4; i++) wqf.push(await mk('winners', 1, bestOf, seeds[i * 2], seeds[i * 2 + 1]));
-      const wsf = [await mk('winners', 2, bestOf), await mk('winners', 2, bestOf)];
-      const wf = await mk('winners', 3, bestOf);
-      const lr1 = [await mk('losers', 1, bestOf), await mk('losers', 1, bestOf)];
-      const lr2 = [await mk('losers', 2, bestOf), await mk('losers', 2, bestOf)];
-      const lr3 = await mk('losers', 3, bestOf);
-      const lf = await mk('losers', 4, bestOf);
-      const gf = await mk('final', 1, bestOf);
-      await wire(wqf[0], wsf[0], lr1[0]); await wire(wqf[1], wsf[0], lr1[0]);
-      await wire(wqf[2], wsf[1], lr1[1]); await wire(wqf[3], wsf[1], lr1[1]);
-      await wire(wsf[0], wf, lr2[0]); await wire(wsf[1], wf, lr2[1]);
-      await wire(wf, gf, lf);
-      await wire(lr1[0], lr2[0], null); await wire(lr1[1], lr2[1], null);
-      await wire(lr2[0], lr3, null); await wire(lr2[1], lr3, null);
-      await wire(lr3, lf, null); await wire(lf, gf, null);
+        } else {
+      // Physical sports build their knockout from group qualifiers via
+      // /de-bracket, which seeds A1–B2 properly. The hardcoded 8-team
+      // double-elim that lived here silently ignored any team past the eighth.
+      return res.status(400).json({
+        message: 'This sport uses group double-elimination — generate its knockout from the group qualifiers instead.',
+      });
     }
 
     tournament.stage = 'elimination';

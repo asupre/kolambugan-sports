@@ -1,10 +1,16 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Season = require('../models/Season');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
 const Barangay = require('../models/Barangay');
+const Sport = require('../models/Sport');
+const User = require('../models/User');
+const Tournament = require('../models/Tournament');
+const Match = require('../models/Match');
 const { authenticate, authorize } = require('../middleware/auth');
+const { isManilaToday } = require('../config/time');
 
 const router = express.Router();
 
@@ -13,9 +19,16 @@ router.get('/dashboard', authenticate, authorize('super_admin'), async (req, res
   try {
     const season = await Season.findOne().sort({ createdAt: -1 });
     const barangays = await Barangay.countDocuments();
+    const sports = await Sport.countDocuments();
+
+    const [barangayAdmins, organizers] = await Promise.all([
+      User.countDocuments({ role: 'barangay_admin' }),
+      User.countDocuments({ role: 'organizer' }),
+    ]);
 
     let teams = 0;
     let toReview = 0;
+    let todayMatches = [];
 
     if (season) {
       teams = await Team.countDocuments({ season: season._id });
@@ -29,6 +42,46 @@ router.get('/dashboard', authenticate, authorize('super_admin'), async (req, res
         _id: { $in: playerIds },
         eligibilityStatus: { $in: ['flagged', 'needs_document'] },
       });
+
+      // Today's games, for the dashboard carousel — "how many would play today"
+      // reads as a roster headcount, not just a match count, so each entry
+      // carries both teams' player counts alongside the fixture.
+      const tournaments = await Tournament.find({ season: season._id }).populate('sport', 'name');
+      const sportById = {};
+      tournaments.forEach((t) => { sportById[String(t._id)] = t.sport?.name || '?'; });
+      const tournamentIds = tournaments.map((t) => t._id);
+
+      const matches = await Match.find({ tournament: { $in: tournamentIds }, schedule: { $ne: null } })
+        .populate('teamA', 'teamName')
+        .populate('teamB', 'teamName');
+      const todays = matches.filter((m) => isManilaToday(m.schedule));
+
+      const involvedTeamIds = [...new Set(
+        todays.flatMap((m) => [m.teamA?._id, m.teamB?._id]).filter(Boolean).map(String)
+      )];
+      const counts = await TeamPlayer.aggregate([
+        { $match: { team: { $in: involvedTeamIds.map((id) => new mongoose.Types.ObjectId(id)) } } },
+        { $group: { _id: '$team', n: { $sum: 1 } } },
+      ]);
+      const countByTeam = {};
+      counts.forEach((c) => { countByTeam[String(c._id)] = c.n; });
+
+      todayMatches = todays
+        .sort((a, b) => new Date(a.schedule) - new Date(b.schedule))
+        .map((m) => {
+          const aCount = m.teamA ? (countByTeam[String(m.teamA._id)] || 0) : 0;
+          const bCount = m.teamB ? (countByTeam[String(m.teamB._id)] || 0) : 0;
+          return {
+            id: m._id,
+            sport: sportById[String(m.tournament)] || '?',
+            teamA: m.teamA?.teamName || 'TBD',
+            teamB: m.teamB?.teamName || 'TBD',
+            players: aCount + bCount,
+            schedule: m.schedule,
+            venue: m.venue || '',
+            status: m.status,
+          };
+        });
     }
 
     res.json({
@@ -36,6 +89,9 @@ router.get('/dashboard', authenticate, authorize('super_admin'), async (req, res
       teams,
       playersToReview: toReview,
       barangays,
+      sports,
+      accounts: { barangayAdmins, organizers },
+      todayMatches,
     });
   } catch (err) {
     console.error('Dashboard stats error:', err);

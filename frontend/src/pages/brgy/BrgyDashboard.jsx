@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { DatePicker } from "../../components/DateTimePicker";
 import {
   Dialog,
   DialogContent,
@@ -128,8 +129,8 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
           onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
         <div className="space-y-1">
           <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
-          <Input type="date" className="w-full" value={form.birthdate}
-            onChange={(e) => setForm({ ...form, birthdate: e.target.value })} />
+          <DatePicker value={form.birthdate}
+            onChange={(v) => setForm({ ...form, birthdate: v })} />
         </div>
         <Input type="number" placeholder="Jersey #" value={form.jerseyNumber}
           onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
@@ -411,7 +412,7 @@ function RosterEditor({ team, sports, onClose }) {
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent showCloseButton={false} className="sm:max-w-2xl! max-h-[85vh] overflow-y-auto">
+      <DialogContent showCloseButton={false} className="sm:max-w-2xl! max-h-[85vh] overflow-y-auto scrollbar-thin">
         <DialogHeader className="flex-row items-start justify-between gap-3 space-y-0">
           <div>
             <DialogTitle>{team.teamName}</DialogTitle>
@@ -545,8 +546,8 @@ function RosterEditor({ team, sports, onClose }) {
                       onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
                     <div className="space-y-1">
                       <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
-                      <Input type="date" className="w-full" value={form.birthdate}
-                        onChange={(e) => setForm({ ...form, birthdate: e.target.value })} />
+                      <DatePicker value={form.birthdate}
+                        onChange={(v) => setForm({ ...form, birthdate: v })} />
                     </div>
                     <Input placeholder="Address (optional)" value={form.address}
                       onChange={(e) => setForm({ ...form, address: e.target.value })} />

@@ -144,7 +144,7 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 min-h-[18rem] overflow-y-auto flex-1">
+        <div className="px-6 py-5 min-h-[18rem] overflow-y-auto scrollbar-thin flex-1">
           {tab === "info" ? (
             <div className="flex flex-col sm:flex-row gap-6">
               <dl className="flex-1 space-y-3 text-sm order-2 sm:order-1">

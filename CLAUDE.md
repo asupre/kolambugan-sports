@@ -449,6 +449,20 @@ so a bug in one route cannot expose the other.
   re-brand.
 - `components/ui.jsx` (Button/Card/Input/Label/Pill) is now DEAD — nothing
   imports it. Safe to delete once someone confirms nothing else references it.
+- **Native date/time inputs replaced with shadcn Calendar** (Sep 2026):
+  `components/DateTimePicker.jsx` exports `DatePicker` and `DateTimePicker`
+  (Popover + Calendar for the date, a themed time input alongside) — used in
+  `Tournaments.jsx`'s schedule section and `BrgyDashboard.jsx`'s birthdate
+  fields. Both read/write the same `"YYYY-MM-DD"` / `"YYYY-MM-DDTHH:mm"`
+  strings the native inputs did, so `config/time.js`'s `parseManila()`
+  needed no changes. Built from theme tokens, so it's dark-mode-aware for
+  free under `enableDarkMode`.
+- **Dashboard analytics** (Sep 2026): `GET /api/stats/dashboard` also
+  returns `sports`, `accounts: { barangayAdmins, organizers }`, and
+  `todayMatches` (today's matches in Manila time, each carrying both teams'
+  summed roster size as `players`). The Super Admin Dashboard shows these as
+  a stat column (Sports / Barangay admins / Organizers) beside a `Carousel`
+  of today's games.
 
 **Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
 - CORRECTION: this was long documented as permanently "dark navy... the one

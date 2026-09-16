@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, RotateCcw, Zap } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import { DateTimePicker } from "../../components/DateTimePicker";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -44,7 +45,7 @@ function StandingsView({ tournamentId }) {
       {Object.entries(groups).filter(([name]) => name !== "-").map(([groupName, table]) => (
         <div key={groupName}>
           <h3 className="font-medium text-sm mb-2">Group {groupName}</h3>
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto scrollbar-thin rounded-lg border">
             <table className="w-full text-sm">
               <thead className="bg-muted text-muted-foreground text-left">
                 <tr>
@@ -321,8 +322,8 @@ function ScheduleSection({ tournamentId }) {
                     <div className="flex items-end gap-2 flex-wrap">
                       <div className="space-y-1">
                         <Label className="text-[11px] font-normal text-muted-foreground">Date &amp; time</Label>
-                        <Input type="datetime-local" value={b.schedule || ""}
-                          onChange={(e) => setBulk({ ...bulk, [key]: { ...b, schedule: e.target.value } })} />
+                        <DateTimePicker value={b.schedule || ""}
+                          onChange={(v) => setBulk({ ...bulk, [key]: { ...b, schedule: v } })} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[11px] font-normal text-muted-foreground">Venue</Label>
@@ -372,9 +373,9 @@ function ScheduleSection({ tournamentId }) {
                               </span>
                             ) : (
                               <>
-                                <Input type="datetime-local" value={valueOf(m, "schedule")}
-                                  onChange={(e) => edit(m._id, "schedule", e.target.value)}
-                                  className="text-xs shrink-0 w-auto" />
+                                <DateTimePicker value={valueOf(m, "schedule")}
+                                  onChange={(v) => edit(m._id, "schedule", v)}
+                                  className="shrink-0 w-auto" />
                                 <Input type="text" placeholder="Venue" value={valueOf(m, "venue")}
                                   onChange={(e) => edit(m._id, "venue", e.target.value)}
                                   className="text-xs w-36 shrink-0" />
@@ -724,7 +725,7 @@ function BracketTree({ title, matches, labelFor, onRevert, winner }) {
   return (
     <div className="mb-6">
       {title && <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">{title}</p>}
-      <div className="overflow-x-auto pb-2">
+      <div className="overflow-x-auto scrollbar-thin pb-4">
         <div ref={stageRef} className="relative flex gap-10 min-w-min">
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
             {wires.map((d, i) => <path key={i} d={d} className="stroke-border" strokeWidth="2" fill="none" />)}

@@ -230,7 +230,7 @@ export default function Reports() {
             </Card>
           ) : (
             <>
-              <div className="flex gap-4 overflow-x-auto border-b no-print">
+              <div className="flex gap-4 overflow-x-auto scrollbar-thin border-b no-print">
                 {sports.map((s) => (
                   <button key={s} onClick={() => setSport(s)}
                     className={cn(

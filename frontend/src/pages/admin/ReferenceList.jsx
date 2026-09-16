@@ -151,7 +151,7 @@ export default function ReferenceList() {
               <CardTitle>Loaded residents</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="max-h-96 overflow-y-auto rounded-lg border">
+              <div className="max-h-96 overflow-y-auto scrollbar-thin rounded-lg border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted text-muted-foreground text-left sticky top-0">
                     <tr>

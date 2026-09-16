@@ -251,3 +251,35 @@ says WebSockets and must be corrected.
   warnings (`catch (e)` where `e` was never read) were fixed opportunistically
   while those exact lines were already being touched; no new issues were
   introduced anywhere in this pass.
+
+## 2026-09 — Session: dashboard analytics, shadcn Calendar, bracket scroll fix
+
+- **Dashboard analytics.** `GET /api/stats/dashboard` now also returns
+  `sports`, `accounts: { barangayAdmins, organizers }`, and `todayMatches`
+  (every match scheduled for "today" in Manila time, across the whole
+  league, with each team's roster size summed into a `players` count — "how
+  many would play today" reads as a headcount, not a match tally). The
+  Dashboard page adds a two-column section below the existing stat row: left
+  side is three new stat cards (Sports / Barangay admins / Organizers),
+  right side is a `Carousel` of today's games, one per slide, each showing
+  sport, matchup, player headcount, live/final/scheduled status, and venue.
+- **Native date/time inputs replaced with shadcn Calendar.** Added
+  `components/DateTimePicker.jsx` (`DatePicker` and `DateTimePicker`) —
+  Popover + Calendar for the date, a themed `Input type="time"` alongside for
+  the time. Both read/write the exact same `"YYYY-MM-DD"` /
+  `"YYYY-MM-DDTHH:mm"` strings the native inputs produced, so the backend's
+  `parseManila()` needed no changes. Wired into `Tournaments.jsx`'s schedule
+  section (per-match and bulk-by-round) and `BrgyDashboard.jsx`'s birthdate
+  fields. Being built from theme tokens, both go dark automatically under
+  `enableDarkMode` — no separate dark styling needed.
+- **Bracket horizontal scroll fixed.** Added a `.scrollbar-thin` utility
+  (themed via `--border`/`--muted-foreground`, both scrollbar-width and
+  `::-webkit-scrollbar`) and applied it to `BracketTree`'s scroll container
+  plus every other horizontal/vertical overflow panel in the admin pages
+  that still had a bare OS scrollbar.
+- Fixed a real bug this surfaced: two shadcn `Select`s (Accounts.jsx,
+  Champions.jsx) were passed `value={x || undefined}`, which starts a Select
+  uncontrolled and switches it to controlled once something is picked — React
+  warns about this for good reason (it can silently drop the first render's
+  state in edge cases). Radix's Select supports `""` as the controlled
+  "nothing selected" value, so passing the raw state string directly fixed it.

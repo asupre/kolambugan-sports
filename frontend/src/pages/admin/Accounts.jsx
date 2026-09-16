@@ -312,7 +312,7 @@ export default function Accounts() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto rounded-lg border">
+                  <div className="overflow-x-auto scrollbar-thin rounded-lg border">
                     <table className="w-full text-sm">
                       <thead className="bg-muted text-muted-foreground text-left">
                         <tr>

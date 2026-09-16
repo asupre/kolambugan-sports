@@ -1,9 +1,24 @@
 import { useEffect, useState } from "react";
-import { Building2, CalendarClock, ShieldAlert, Users2 } from "lucide-react";
+import {
+  Building2,
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  MapPin,
+  ShieldAlert,
+  Trophy,
+  UserCog,
+  Users2,
+  Whistle,
+} from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Carousel, CarouselContent, CarouselItem, useCarousel } from "../../components/ui/carousel";
 import { Skeleton } from "../../components/ui/skeleton";
 
 function StatCard({ label, value, sub, loading, Icon, accent }) {
@@ -25,6 +40,59 @@ function StatCard({ label, value, sub, loading, Icon, accent }) {
   );
 }
 
+function CarouselNav() {
+  const { scrollPrev, scrollNext, canScrollPrev, canScrollNext } = useCarousel();
+  return (
+    <div className="flex gap-1 shrink-0">
+      <Button size="icon-sm" variant="outline" onClick={scrollPrev} disabled={!canScrollPrev}>
+        <ChevronLeft />
+      </Button>
+      <Button size="icon-sm" variant="outline" onClick={scrollNext} disabled={!canScrollNext}>
+        <ChevronRight />
+      </Button>
+    </div>
+  );
+}
+
+const timeOf = (d) =>
+  new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
+
+function GameSlide({ m }) {
+  const live = m.status === "ongoing";
+  const done = m.status === "completed" || m.status === "forfeited";
+  return (
+    <div className="rounded-lg border p-4 h-full flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400">{m.sport}</Badge>
+        {live ? (
+          <Badge className="bg-red-500/15 text-red-600 dark:text-red-400 gap-1">
+            <Circle className="size-2 fill-current" /> LIVE
+          </Badge>
+        ) : done ? (
+          <Badge className="bg-green-500/15 text-green-600 dark:text-green-400">Final</Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">{timeOf(m.schedule)}</span>
+        )}
+      </div>
+
+      <p className="font-medium text-sm truncate">
+        {m.teamA} <span className="text-muted-foreground font-normal">vs</span> {m.teamB}
+      </p>
+
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Users2 className="size-4 shrink-0" />
+        {m.players} player{m.players === 1 ? "" : "s"} playing
+      </div>
+
+      {m.venue && (
+        <p className="flex items-center gap-1 text-xs text-muted-foreground mt-auto">
+          <MapPin className="size-3 shrink-0" /> {m.venue}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +103,8 @@ export default function AdminDashboard() {
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
   }, []);
+
+  const todayMatches = stats?.todayMatches || [];
 
   return (
     <AdminLayout title="Dashboard" menu={superAdminMenu} enableDarkMode>
@@ -69,6 +139,63 @@ export default function AdminDashboard() {
           Icon={Building2}
           accent="border-l-primary"
         />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+        <div className="space-y-4">
+          <StatCard
+            label="Sports"
+            value={stats?.sports ?? 0}
+            loading={loading}
+            Icon={Trophy}
+            accent="border-l-blue-500"
+          />
+          <StatCard
+            label="Barangay admins"
+            value={stats?.accounts?.barangayAdmins ?? 0}
+            loading={loading}
+            Icon={UserCog}
+            accent="border-l-green-500"
+          />
+          <StatCard
+            label="Organizers"
+            value={stats?.accounts?.organizers ?? 0}
+            loading={loading}
+            Icon={Whistle}
+            accent="border-l-amber-500"
+          />
+        </div>
+
+        <Card className="border-l-4 border-l-red-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Circle className="size-3 fill-current text-red-500" />
+              Today's games
+              {!loading && <span className="font-normal text-sm text-muted-foreground">({todayMatches.length})</span>}
+            </CardTitle>
+            <CardDescription>How many players are on court across the league today.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-40 w-full rounded-lg" />
+            ) : todayMatches.length === 0 ? (
+              <p className="text-muted-foreground text-sm">Nothing scheduled for today.</p>
+            ) : (
+              <Carousel opts={{ align: "start" }}>
+                <div className="flex justify-end mb-2">
+                  <CarouselNav />
+                </div>
+                <CarouselContent>
+                  {todayMatches.map((m) => (
+                    <CarouselItem key={m.id}>
+                      <GameSlide m={m} />
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+              </Carousel>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="mt-6">

@@ -499,6 +499,16 @@ so a bug in one route cannot expose the other.
   first sport) instead of expanding inline. The mobile header's own
   open-sidebar button uses the same `PanelLeftOpen` icon (not a `☰` hamburger
   character) for one consistent icon language.
+- **Full-screen loading on login/logout** (Sep 2026): `components/
+  LoadingScreen.jsx` (K mark + spinner + message, theme-token based — dark
+  automatically when shown from inside `AdminLayout` with dark mode on).
+  Login's `loading` state now stays `true` through a successful attempt
+  (only resets on error) so the whole form is replaced by the loading
+  screen, not just the submit button disabled. Logout (`AdminLayout`, shared
+  by all three roles) has no real async work — a bare instant swap read as
+  nothing happened — so it shows the loading screen for a deliberate 450ms
+  before the actual `localStorage` clear + navigate. That delay is
+  intentional pacing, not a real load; don't "optimize" it away.
 
 **Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
 - CORRECTION: this was long documented as permanently "dark navy... the one

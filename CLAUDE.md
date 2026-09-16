@@ -467,10 +467,18 @@ so a bug in one route cannot expose the other.
   a `Carousel` of today's games.
 - **Super Admin sidebar is grouped, not flat** (Sep 2026): `superAdminMenu`
   in `menus.js` is `[{header, items}, ...]` — Overview, Season &
-  Verification, Competition, Content, Administration — each a collapsible
-  section in `AdminLayout` (chevron toggles it, default expanded).
-  `organizerMenu`/`brgyMenu` stay flat arrays; `AdminLayout` renders whichever
-  shape it's given (`menu[0].header !== undefined` ⇒ grouped).
+  Verification, Competition, Content, Administration. Headers are plain
+  static labels, NOT collapse toggles — `organizerMenu`/`brgyMenu` stay flat
+  arrays; `AdminLayout` renders whichever shape it's given
+  (`menu[0].header !== undefined` ⇒ grouped).
+- **Whole-sidebar collapse** (Sep 2026): `AdminLayout` has a `rail` boolean
+  toggled by a dedicated button above Sign out (desktop-only, `hidden
+  lg:flex` — separate from the mobile hamburger's overlay open/close).
+  Collapses the ENTIRE sidebar to an icon-only `lg:w-16` rail — labels,
+  headers, and group dividers hide/simplify, items keep a `title` tooltip.
+  The Tournaments item's per-sport flyout has no room in a 4rem rail, so
+  collapsed it's a direct link to Tournaments (lands on the first sport)
+  instead of expanding inline.
 
 **Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
 - CORRECTION: this was long documented as permanently "dark navy... the one

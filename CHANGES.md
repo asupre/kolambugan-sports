@@ -296,16 +296,38 @@ says WebSockets and must be corrected.
   scheduled in the past whose status is still `scheduled`/`ongoing`;
   completed/forfeited ones drop off normally. Verified live: surfaced a
   2-day-old unresolved Mobile Legends match alongside today's Basketball games.
-- **Super Admin sidebar regrouped into collapsible, named sections.** Ten
-  items in one flat list read as cluttered. `superAdminMenu` in `menus.js` is
-  now an array of `{header, items}` groups instead of a flat array — grouped
-  by what each screen is FOR: **Overview** (Dashboard), **Season &
-  Verification** (Season, Reference List, Review Queue), **Competition**
-  (League Setup, Tournaments), **Content** (Champions, Reports, Site Images),
-  **Administration** (Accounts). `AdminLayout` renders each group as a
-  collapsible section (chevron + header toggles it) and still supports the
-  old flat-array shape for `organizerMenu`/`brgyMenu`, which don't need
-  headers for 1–3 items. Also fixes the actual bug behind "the scroll looks
-  bad when I click Tournaments": expanding Tournaments' 8-sport submenu could
-  make the sidebar nav scroll, and it had the bare OS scrollbar — now uses
-  the same `.scrollbar-thin` utility as everywhere else.
+- **Super Admin sidebar regrouped under plain named headers.** Ten items in
+  one flat list read as cluttered. `superAdminMenu` in `menus.js` is now an
+  array of `{header, items}` groups instead of a flat array — grouped by what
+  each screen is FOR: **Overview** (Dashboard), **Season & Verification**
+  (Season, Reference List, Review Queue), **Competition** (League Setup,
+  Tournaments), **Content** (Champions, Reports, Site Images),
+  **Administration** (Accounts). Headers are static labels, not collapse
+  toggles. `AdminLayout` still supports the old flat-array shape for
+  `organizerMenu`/`brgyMenu`, which don't need headers for 1–3 items. Also
+  fixes the actual bug behind "the scroll looks bad when I click
+  Tournaments": expanding Tournaments' 8-sport submenu could make the sidebar
+  nav scroll, and it had the bare OS scrollbar — now uses the same
+  `.scrollbar-thin` utility as everywhere else.
+- **Whole-sidebar collapse, corrected.** First pass made the group HEADERS
+  the collapse trigger (click a header, its items hide) — wrong read of the
+  ask. What was actually wanted: a single toggle that collapses the ENTIRE
+  sidebar into an icon-only rail, the pattern from AI chat sidebars (Claude,
+  ChatGPT), not per-section accordions. Replaced with a `rail` boolean on
+  `AdminLayout` and a dedicated toggle button (`PanelLeftClose`/
+  `PanelLeftOpen`) pinned above Sign out, desktop-only (`hidden lg:flex` —
+  mobile already has its own overlay open/close via the hamburger, a separate
+  concept). Collapsed: sidebar narrows to `lg:w-16`, every label and header
+  text disappears, items show icon-only with a native `title` tooltip, and
+  groups are separated by a plain divider instead of header text. The
+  Tournaments item's per-sport flyout has nowhere to render in a 4rem rail,
+  so collapsed it's a direct shortcut to Tournaments (which lands on the
+  first sport) rather than trying to expand inline.
+- **Season page's oversized empty space fixed.** Its content wrapper was
+  `max-w-2xl` while every sibling admin page (Champions, Reports, Accounts,
+  Site Images, League Setup) uses `max-w-4xl` — an unexplained outlier that
+  read as broken, not intentional, on a normal-width screen. Bumped both
+  wrappers (loading skeleton and main content) to match. Audited every other
+  admin page's width for the same mismatch — none found; the rest were
+  already consistent (`max-w-4xl` for form/settings pages, `max-w-5xl` for
+  table/bracket-heavy ones), so nothing else needed changing.

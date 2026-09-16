@@ -206,7 +206,7 @@ export default function Season() {
   return (
     <AdminLayout title="Season" menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <div className="max-w-2xl space-y-3">
+        <div className="max-w-4xl space-y-3">
           <Skeleton className="h-32 w-full rounded-xl" />
           <Skeleton className="h-24 w-full rounded-xl" />
         </div>
@@ -223,7 +223,7 @@ export default function Season() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6 max-w-2xl">
+        <div className="space-y-6 max-w-4xl">
           <Card className="border-l-4 border-l-blue-500">
             <CardContent className="space-y-5">
               <div className="flex items-start justify-between flex-wrap gap-3">

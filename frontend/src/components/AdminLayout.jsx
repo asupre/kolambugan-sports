@@ -1,23 +1,23 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ChevronDown, ChevronRight, Moon, Sun } from "lucide-react";
+import { Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { api } from "../api";
 import { getStoredTheme, storeTheme } from "../lib/theme";
 import { cn } from "../lib/utils";
 
 // menu can be flat ([{label, path, icon}, ...]) or grouped
-// ([{header, items: [...]}, ...]) — grouped renders each header as a
-// collapsible section. Flattened once here so the sports-submenu and
+// ([{header, items: [...]}, ...]) — grouped renders each header as a plain
+// label over its items. Flattened once here so the sports-submenu and
 // active-route effects don't need to know which shape they got.
 function flattenItems(menu) {
   return menu[0]?.header !== undefined ? menu.flatMap((g) => g.items) : menu;
 }
 
 export default function AdminLayout({ title, menu, children, enableDarkMode = false }) {
-  const [open, setOpen] = useState(false);       // mobile sidebar toggle
+  const [open, setOpen] = useState(false);          // mobile: sidebar shown as an overlay
+  const [rail, setRail] = useState(false);           // desktop: whole sidebar collapsed to an icon rail
   const [sports, setSports] = useState([]);
-  const [expanded, setExpanded] = useState({});  // which sport-submenus are open
-  const [collapsed, setCollapsed] = useState({}); // which header groups are collapsed
+  const [expanded, setExpanded] = useState({});      // which sport-submenus are open
   const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme() : "light"));
   const navigate = useNavigate();
   const location = useLocation();
@@ -70,7 +70,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
 
   const itemClass = (active) =>
     cn(
-      "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition",
+      "w-full flex items-center gap-3 rounded-lg text-sm font-medium transition",
+      rail ? "justify-center px-0 py-2" : "px-3 py-2",
       active ? "bg-primary/10 text-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
     );
 
@@ -78,17 +79,25 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
     const active = location.pathname === item.path;
 
     if (item.dynamic === "sports") {
-      const isOpen = !!expanded[item.path];
+      // No room for an inline flyout in the collapsed rail — collapsed, this
+      // is just a shortcut straight to the section (which lands on the first
+      // sport); expanded, it opens the per-sport submenu as usual.
+      const isOpen = !rail && !!expanded[item.path];
       const inside = location.pathname.startsWith(item.path);
       return (
         <div key={item.path}>
           <button
-            onClick={() => setExpanded((e) => ({ ...e, [item.path]: !isOpen }))}
+            onClick={() => (rail ? go(item.path) : setExpanded((e) => ({ ...e, [item.path]: !isOpen })))}
             className={itemClass(inside && location.pathname === item.path)}
+            title={rail ? item.label : undefined}
           >
             <span className="text-base">{item.icon}</span>
-            <span className="flex-1 text-left">{item.label}</span>
-            <span className="text-sidebar-foreground/40 text-xs">{isOpen ? "▾" : "▸"}</span>
+            {!rail && (
+              <>
+                <span className="flex-1 text-left">{item.label}</span>
+                <span className="text-sidebar-foreground/40 text-xs">{isOpen ? "▾" : "▸"}</span>
+              </>
+            )}
           </button>
 
           {isOpen && (
@@ -120,9 +129,9 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
     }
 
     return (
-      <button key={item.path} onClick={() => go(item.path)} className={itemClass(active)}>
+      <button key={item.path} onClick={() => go(item.path)} className={itemClass(active)} title={rail ? item.label : undefined}>
         <span className="text-base">{item.icon}</span>
-        {item.label}
+        {!rail && item.label}
       </button>
     );
   }
@@ -131,48 +140,59 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
     <div className="min-h-screen bg-background flex">
       <aside
         className={cn(
-          "fixed z-30 inset-y-0 left-0 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-transform duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen",
-          open ? "translate-x-0" : "-translate-x-full"
+          "fixed z-30 inset-y-0 left-0 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-[transform,width] duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen",
+          open ? "translate-x-0" : "-translate-x-full",
+          rail ? "w-64 lg:w-16" : "w-64"
         )}
       >
-        <div className="h-16 flex items-center gap-2 px-5 border-b border-sidebar-border shrink-0">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+        <div className={cn("h-16 flex items-center border-b border-sidebar-border shrink-0", rail ? "lg:justify-center lg:px-0 px-5 gap-2" : "px-5 gap-2")}>
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
             <span className="text-primary-foreground font-bold text-sm">K</span>
           </div>
-          <span className="font-semibold text-sidebar-foreground text-sm">Kolambugan Sports</span>
+          <span className={cn("font-semibold text-sidebar-foreground text-sm", rail && "lg:hidden")}>Kolambugan Sports</span>
         </div>
 
-        <nav className="p-3 space-y-1 flex-1 overflow-y-auto scrollbar-thin">
+        <nav className={cn("py-3 space-y-1 flex-1 overflow-y-auto scrollbar-thin", rail ? "lg:px-2 px-3" : "px-3")}>
           {grouped
-            ? menu.map((group) => {
-                const isCollapsed = !!collapsed[group.header];
-                return (
-                  <div key={group.header} className="pb-1">
-                    <button
-                      onClick={() => setCollapsed((c) => ({ ...c, [group.header]: !isCollapsed }))}
-                      className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition"
-                    >
-                      {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+            ? menu.map((group) => (
+                <div key={group.header} className="pb-1">
+                  {!rail && (
+                    <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/40">
                       {group.header}
-                    </button>
-                    {!isCollapsed && (
-                      <div className="space-y-1">
-                        {group.items.map((item) => renderItem(item))}
-                      </div>
-                    )}
+                    </p>
+                  )}
+                  {rail && <div className="hidden lg:block my-2 border-t border-sidebar-border/60" />}
+                  <div className="space-y-1">
+                    {group.items.map((item) => renderItem(item))}
                   </div>
-                );
-              })
+                </div>
+              ))
             : items.map((item) => renderItem(item))}
         </nav>
+
+        {/* Desktop-only rail toggle — mobile already has its own open/close via the hamburger. */}
+        <button
+          onClick={() => setRail((r) => !r)}
+          className={cn(
+            "hidden lg:flex items-center gap-2 mx-3 mb-2 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition",
+            rail && "lg:justify-center lg:mx-2 lg:px-0"
+          )}
+          title={rail ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {rail ? <PanelLeftOpen className="size-4" /> : <><PanelLeftClose className="size-4" /> Collapse</>}
+        </button>
 
         <div className="p-3 border-t border-sidebar-border shrink-0">
           <button
             onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition"
+            className={cn(
+              "w-full flex items-center gap-3 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition",
+              rail ? "justify-center px-0 py-2" : "px-3 py-2"
+            )}
+            title={rail ? "Sign out" : undefined}
           >
             <span className="text-base">⎋</span>
-            Sign out
+            {!rail && "Sign out"}
           </button>
         </div>
       </aside>

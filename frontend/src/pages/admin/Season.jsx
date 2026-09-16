@@ -1,8 +1,23 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowRight, CalendarClock, ListTodo, Plus, Settings2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Skeleton } from "../../components/ui/skeleton";
 
 const STAGES = [
   { key: "setup", label: "Setup", next: "Open Registration" },
@@ -24,14 +39,14 @@ function StageTimeline({ current }) {
         const active = i === currentIndex;
         return (
           <div key={s.key} className="flex items-center gap-2">
-            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-              active ? "bg-indigo-600 text-white"
-              : done ? "bg-indigo-100 text-indigo-700"
-              : "bg-slate-100 text-slate-400"
-            }`}>
+            <Badge className={
+              active ? "bg-primary text-primary-foreground"
+              : done ? "bg-primary/15 text-primary"
+              : "bg-muted text-muted-foreground"
+            }>
               {s.label}
-            </div>
-            {i < STAGES.length - 1 && <span className="text-slate-300">→</span>}
+            </Badge>
+            {i < STAGES.length - 1 && <ArrowRight className="size-3.5 text-muted-foreground" />}
           </div>
         );
       })}
@@ -41,33 +56,34 @@ function StageTimeline({ current }) {
 
 function CreateSeasonModal({ open, onClose, onCreate, busy, error }) {
   const [name, setName] = useState("");
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-        <h3 className="text-slate-900 font-semibold text-lg mb-1">Create a season</h3>
-        <p className="text-slate-500 text-sm mb-4">It will start in the Setup stage.</p>
-        <label className="block text-slate-700 text-sm font-medium mb-1.5">Season name</label>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. 2026 Season"
-          autoFocus
-          className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition"
-        />
-        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
-        <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium py-2.5 hover:bg-slate-50 transition">
-            Cancel
-          </button>
-          <button onClick={() => onCreate(name.trim())} disabled={busy || !name.trim()}
-            className="flex-1 rounded-lg bg-indigo-600 text-white text-sm font-medium py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition">
-            {busy ? "Creating…" : "Create"}
-          </button>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create a season</DialogTitle>
+          <DialogDescription>It will start in the Setup stage.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="season-name">Season name</Label>
+          <Input
+            id="season-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. 2026 Season"
+            autoFocus
+          />
         </div>
-      </div>
-    </div>
+        {error && <p className="text-destructive text-sm">{error}</p>}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onCreate(name.trim())} disabled={busy || !name.trim()}>
+            {busy ? "Creating…" : "Create"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -87,39 +103,42 @@ function SportSetupSummary() {
   if (loading) return null;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-      <div className="flex items-baseline justify-between gap-3 mb-1">
-        <h3 className="text-slate-800 font-semibold">Sport setup</h3>
-        <Link to="/admin/config" className="text-indigo-600 text-sm font-medium hover:underline">
-          Change
-        </Link>
-      </div>
-      <p className="text-slate-500 text-sm mb-4">
-        Check these before opening registration. Once barangays start registering,
-        divisions and entry formats are locked — rosters get built against them.
-      </p>
-
-      <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
-        {sports.map((s) => {
-          const divisions = s.divisions?.length ? s.divisions : ["open"];
-          return (
-            <div key={s._id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
-              <span className="text-slate-700 font-medium w-32 shrink-0 truncate">{s.name}</span>
-              <div className="flex-1 min-w-0 flex flex-wrap gap-1">
-                {divisions.map((d) => (
-                  <span key={d} className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-xs">
-                    {DIVISION_LABEL[d] || d}
-                  </span>
-                ))}
+    <Card className="border-l-4 border-l-amber-500">
+      <CardHeader>
+        <div className="flex items-baseline justify-between gap-3">
+          <CardTitle className="flex items-center gap-2">
+            <Settings2 className="size-4 text-amber-500" /> Sport setup
+          </CardTitle>
+          <Link to="/admin/config" className="text-primary text-sm font-medium hover:underline">
+            Change
+          </Link>
+        </div>
+        <CardDescription>
+          Check these before opening registration. Once barangays start registering,
+          divisions and entry formats are locked — rosters get built against them.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-lg border divide-y">
+          {sports.map((s) => {
+            const divisions = s.divisions?.length ? s.divisions : ["open"];
+            return (
+              <div key={s._id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                <span className="font-medium w-32 shrink-0 truncate">{s.name}</span>
+                <div className="flex-1 min-w-0 flex flex-wrap gap-1">
+                  {divisions.map((d) => (
+                    <Badge key={d} variant="secondary">{DIVISION_LABEL[d] || d}</Badge>
+                  ))}
+                </div>
+                <span className="text-muted-foreground text-xs shrink-0">
+                  {FORMAT_LABEL[s.entryFormat] || s.entryFormat || "—"}
+                </span>
               </div>
-              <span className="text-slate-500 text-xs shrink-0">
-                {FORMAT_LABEL[s.entryFormat] || s.entryFormat || "—"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -185,65 +204,79 @@ export default function Season() {
   const currentStage = season ? STAGES.find((s) => s.key === season.status) : null;
 
   return (
-    <AdminLayout title="Season" menu={superAdminMenu}>
+    <AdminLayout title="Season" menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <p className="text-slate-500">Loading…</p>
-      ) : !season ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm max-w-md">
-          <h2 className="text-slate-800 font-semibold mb-1">No active season</h2>
-          <p className="text-slate-500 text-sm mb-4">Create a season to begin the cycle.</p>
-          <button onClick={() => { setError(""); setModalOpen(true); }}
-            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition">
-            + Create Season
-          </button>
+        <div className="max-w-2xl space-y-3">
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
         </div>
+      ) : !season ? (
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle>No active season</CardTitle>
+            <CardDescription>Create a season to begin the cycle.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => { setError(""); setModalOpen(true); }}>
+              <Plus /> Create Season
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-6 max-w-2xl">
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-start justify-between flex-wrap gap-3">
-              <div>
-                <p className="text-slate-500 text-sm">Current season</p>
-                <h2 className="text-slate-900 text-xl font-semibold">{season.name}</h2>
+          <Card className="border-l-4 border-l-blue-500">
+            <CardContent className="space-y-5">
+              <div className="flex items-start justify-between flex-wrap gap-3">
+                <div>
+                  <p className="text-muted-foreground text-sm flex items-center gap-1.5">
+                    <CalendarClock className="size-3.5" /> Current season
+                  </p>
+                  <h2 className="text-xl font-semibold">{season.name}</h2>
+                </div>
+                <Badge className="bg-primary/15 text-primary">
+                  {currentStage?.label || season.status}
+                </Badge>
               </div>
-              <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm font-medium">
-                {currentStage?.label || season.status}
-              </span>
-            </div>
-            <div className="mt-5">
-              <p className="text-slate-500 text-xs mb-2">Lifecycle</p>
-              <StageTimeline current={season.status} />
-            </div>
-          </div>
+              <div>
+                <p className="text-muted-foreground text-xs mb-2 flex items-center gap-1.5">
+                  <ListTodo className="size-3.5" /> Lifecycle
+                </p>
+                <StageTimeline current={season.status} />
+              </div>
+            </CardContent>
+          </Card>
 
           {season.status === "setup" && <SportSetupSummary />}
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <h3 className="text-slate-800 font-semibold mb-1">Advance the season</h3>
-            {currentStage?.next ? (
-              <>
-                <p className="text-slate-500 text-sm mb-4">
-                  Next step: <span className="font-medium text-slate-700">{currentStage.next}</span>.
-                  This cannot be undone.
-                </p>
-                {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-                <button onClick={advance} disabled={busy}
-                  className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition">
-                  {busy ? "Working…" : currentStage.next}
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-slate-500 text-sm mb-4">
-                  This season is <span className="font-medium">completed</span> and archived. Start a
-                  new one to begin the next cycle.
-                </p>
-                <button onClick={() => { setError(""); setModalOpen(true); }}
-                  className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 transition">
-                  + Create New Season
-                </button>
-              </>
-            )}
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Advance the season</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {currentStage?.next ? (
+                <>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    Next step: <span className="font-medium text-foreground">{currentStage.next}</span>.
+                    This cannot be undone.
+                  </p>
+                  {error && <p className="text-destructive text-sm mb-3">{error}</p>}
+                  <Button onClick={advance} disabled={busy}>
+                    {busy ? "Working…" : currentStage.next}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    This season is <span className="font-medium text-foreground">completed</span> and archived. Start a
+                    new one to begin the next cycle.
+                  </p>
+                  <Button onClick={() => { setError(""); setModalOpen(true); }}>
+                    <Plus /> Create New Season
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 

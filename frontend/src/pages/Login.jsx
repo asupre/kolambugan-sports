@@ -1,11 +1,58 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck, Trophy, Users2 } from "lucide-react";
+import {
+  ChessKnight,
+  CircleDot,
+  Dumbbell,
+  Eye,
+  EyeOff,
+  Gamepad2,
+  Loader2,
+  LockKeyhole,
+  Medal,
+  ShieldCheck,
+  Swords,
+  Target,
+  Trophy,
+  Users2,
+  Volleyball,
+  Whistle,
+} from "lucide-react";
 import { api } from "../api";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+
+// A scattered texture of generic sport glyphs, not team logos or copyrighted
+// art (see the Mobile Legends rule in CLAUDE.md) — just enough to read as
+// "a sports league" behind the gradient without competing with the text.
+const SPORT_GLYPHS = [
+  { Icon: Volleyball, top: "8%", left: "72%", size: 64, rotate: -12 },
+  { Icon: Trophy, top: "22%", left: "18%", size: 44, rotate: 8 },
+  { Icon: Dumbbell, top: "40%", left: "85%", size: 52, rotate: 20 },
+  { Icon: Whistle, top: "62%", left: "8%", size: 40, rotate: -18 },
+  { Icon: ChessKnight, top: "78%", left: "60%", size: 48, rotate: 10 },
+  { Icon: Gamepad2, top: "12%", left: "45%", size: 40, rotate: -6 },
+  { Icon: Target, top: "88%", left: "30%", size: 44, rotate: 4 },
+  { Icon: CircleDot, top: "50%", left: "35%", size: 32, rotate: 0 },
+  { Icon: Swords, top: "34%", left: "60%", size: 36, rotate: -24 },
+  { Icon: Medal, top: "68%", left: "82%", size: 36, rotate: 14 },
+];
+
+function SportsBackdrop() {
+  return (
+    <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+      {SPORT_GLYPHS.map(({ Icon, top, left, size, rotate }, i) => (
+        <Icon
+          key={i}
+          className="absolute text-white/10"
+          style={{ top, left, width: size, height: size, transform: `rotate(${rotate}deg)` }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -65,6 +112,7 @@ export default function Login() {
       {/* Brand panel — hidden on phones, this is the one screen that gets to be a
           little more decorative since every role lands here first. */}
       <div className="hidden lg:flex relative flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-primary to-[oklch(0.34_0.19_290)] p-12 text-primary-foreground">
+        <SportsBackdrop />
         <div className="absolute -top-24 -right-24 size-96 rounded-full bg-white/10 blur-3xl" />
         <div className="absolute bottom-0 left-0 size-72 rounded-full bg-[oklch(0.7_0.2_70)]/20 blur-3xl" />
 

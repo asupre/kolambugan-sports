@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from "react";
+import { CheckCircle2, ClipboardList, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
-
 import { superAdminMenu } from "../../components/menus";
-
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Skeleton } from "../../components/ui/skeleton";
 
 export default function ReferenceList() {
   const [status, setStatus] = useState(null);   // { count, season }
@@ -15,14 +18,14 @@ export default function ReferenceList() {
   const fileInputRef = useRef(null);
   const [records, setRecords] = useState([]);
 
-async function loadStatus() {
+  async function loadStatus() {
     setLoading(true);
     try {
       const data = await api("/api/reference-list/status");
       setStatus(data);
       const list = await api("/api/reference-list");
       setRecords(list.records || []);
-    } catch (e) {
+    } catch {
       setStatus(null);
       setRecords([]);
     } finally {
@@ -58,7 +61,7 @@ async function loadStatus() {
         if (fileInputRef.current) fileInputRef.current.value = "";
         loadStatus(); // refresh the count
       }
-    } catch (e) {
+    } catch {
       setError("Could not reach the server.");
     } finally {
       setUploading(false);
@@ -66,97 +69,110 @@ async function loadStatus() {
   }
 
   return (
-    <AdminLayout title="Reference List" menu={superAdminMenu}>
+    <AdminLayout title="Reference List" menu={superAdminMenu} enableDarkMode>
       <div className="max-w-5xl space-y-6">
         {/* Current status */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <h2 className="text-slate-800 font-semibold mb-1">Current reference list</h2>
-          {loading ? (
-            <p className="text-slate-500 text-sm">Loading…</p>
-          ) : !status || status.count === 0 ? (
-            <p className="text-slate-500 text-sm">
-              No reference list uploaded for the current season yet.
-            </p>
-          ) : (
-            <p className="text-slate-600 text-sm">
-              <span className="text-2xl font-semibold text-slate-900">{status.count}</span> resident
-              records loaded{status.season ? ` for ${status.season}` : ""}.
-            </p>
-          )}
-        </div>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="size-4 text-blue-500" /> Current reference list
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-6 w-56" />
+            ) : !status || status.count === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No reference list uploaded for the current season yet.
+              </p>
+            ) : (
+              <p className="text-sm">
+                <span className="text-2xl font-semibold">{status.count}</span> resident
+                records loaded{status.season ? ` for ${status.season}` : ""}.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Upload */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <h2 className="text-slate-800 font-semibold mb-1">Upload a new list</h2>
-          <p className="text-slate-500 text-sm mb-4">
-            Upload a CSV of eligible residents. This <span className="font-medium">replaces</span> the
-            current list for this season. Columns can be named flexibly (first/last name, birthdate,
-            barangay).
-          </p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Upload a new list</CardTitle>
+            <CardDescription>
+              Upload a CSV of eligible residents. This <span className="font-medium text-foreground">replaces</span> the
+              current list for this season. Columns can be named flexibly (first/last name, birthdate,
+              barangay).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={(e) => setFile(e.target.files[0] || null)}
+              className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/15 cursor-pointer"
+            />
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={(e) => setFile(e.target.files[0] || null)}
-            className="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium hover:file:bg-indigo-100 cursor-pointer mb-4"
-          />
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-4">
-              <p className="text-red-600 text-sm">{error}</p>
-            </div>
-          )}
+            {result && (
+              <Alert className="border-green-500/30 bg-green-500/5">
+                <CheckCircle2 className="text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-foreground">
+                  <p className="font-medium">Uploaded successfully.</p>
+                  <p>{result.inserted} records loaded.</p>
+                  {result.skippedRows?.length > 0 && (
+                    <p className="text-muted-foreground">
+                      {result.skippedRows.length} row(s) skipped (missing a name).
+                    </p>
+                  )}
+                  <p className="text-muted-foreground text-xs mt-1">
+                    Birthdates: {result.hasBirthdates ? "yes" : "no"} · Barangays:{" "}
+                    {result.hasBarangays ? "yes" : "no"}
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {result && (
-            <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 mb-4 text-sm text-green-700">
-              <p className="font-medium">Uploaded successfully.</p>
-              <p>{result.inserted} records loaded.</p>
-              {result.skippedRows?.length > 0 && (
-                <p className="text-green-600">
-                  {result.skippedRows.length} row(s) skipped (missing a name).
-                </p>
-              )}
-              <p className="text-green-600 text-xs mt-1">
-                Birthdates: {result.hasBirthdates ? "yes" : "no"} · Barangays:{" "}
-                {result.hasBarangays ? "yes" : "no"}
-              </p>
-            </div>
-          )}
+            <Button onClick={handleUpload} disabled={!file || uploading}>
+              <UploadCloud /> {uploading ? "Uploading…" : "Upload & Replace List"}
+            </Button>
+          </CardContent>
+        </Card>
 
-          <button
-            onClick={handleUpload}
-            disabled={!file || uploading}
-            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-5 py-2.5 hover:bg-indigo-700 disabled:opacity-50 transition"
-          >
-            {uploading ? "Uploading…" : "Upload & Replace List"}
-          </button>
-        </div>
         {/* The list itself */}
         {records.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-slate-800 font-semibold mb-3">Loaded residents</h2>
-            <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-200">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-left sticky top-0">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Last name</th>
-                    <th className="px-3 py-2 font-medium">First name</th>
-                    <th className="px-3 py-2 font-medium">Barangay</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {records.map((r) => (
-                    <tr key={r._id} className="text-slate-700">
-                      <td className="px-3 py-2">{r.lastName}</td>
-                      <td className="px-3 py-2">{r.firstName}</td>
-                      <td className="px-3 py-2 text-slate-500">{r.barangay || "—"}</td>
+          <Card>
+            <CardHeader>
+              <CardTitle>Loaded residents</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-96 overflow-y-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted text-muted-foreground text-left sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Last name</th>
+                      <th className="px-3 py-2 font-medium">First name</th>
+                      <th className="px-3 py-2 font-medium">Barangay</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </thead>
+                  <tbody className="divide-y">
+                    {records.map((r) => (
+                      <tr key={r._id}>
+                        <td className="px-3 py-2">{r.lastName}</td>
+                        <td className="px-3 py-2">{r.firstName}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{r.barangay || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </AdminLayout>

@@ -1,16 +1,26 @@
 import { useEffect, useState } from "react";
+import { Pencil, Trash2, Trophy, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
-import { Button, Card } from "../../components/ui";
 import { superAdminMenu } from "../../components/menus";
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
+import { Skeleton } from "../../components/ui/skeleton";
 
 const BLANK = {
   year: "", sport: "", division: "", barangay: "",
   teamName: "", mvp: "", prize: "", notes: "",
 };
-
-const input = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm";
-const label = "block text-slate-600 text-xs font-medium mb-1";
 
 export default function Champions() {
   const [champions, setChampions] = useState([]);
@@ -119,159 +129,178 @@ export default function Champions() {
   const years = Object.keys(byYear).map(Number).sort((a, b) => b - a);
 
   return (
-    <AdminLayout title="Champions" menu={superAdminMenu}>
+    <AdminLayout title="Champions" menu={superAdminMenu} enableDarkMode>
       <div className="max-w-4xl space-y-6">
         {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
         {ok && (
-          <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2">
-            <p className="text-green-700 text-sm">{ok}</p>
-          </div>
+          <Alert className="border-green-500/30 bg-green-500/5">
+            <AlertDescription className="text-green-700 dark:text-green-400">{ok}</AlertDescription>
+          </Alert>
         )}
 
-        <Card className="p-5">
-          <h2 className="text-slate-800 font-semibold mb-1">
-            {editingId ? "Edit champion" : "Add a past champion"}
-          </h2>
-          <p className="text-slate-500 text-sm mb-4">
-            Records from previous seasons, including years before this system existed.
-            Year, sport, and barangay are required; everything else is optional.
-          </p>
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingId ? "Edit champion" : "Add a past champion"}</CardTitle>
+            <CardDescription>
+              Records from previous seasons, including years before this system existed.
+              Year, sport, and barangay are required; everything else is optional.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Year *</Label>
+                <Input type="number" value={form.year} onChange={set("year")} placeholder="2024" />
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={label}>Year *</label>
-              <input type="number" value={form.year} onChange={set("year")} placeholder="2024" className={input} />
+              <div className="space-y-1.5">
+                <Label>Sport *</Label>
+                {otherSport ? (
+                  <div className="flex gap-2">
+                    <Input value={form.sport} onChange={set("sport")} placeholder="Sport name" />
+                    <button type="button" onClick={() => { setOtherSport(false); setForm({ ...form, sport: "" }); }}
+                      className="text-xs text-muted-foreground hover:text-foreground whitespace-nowrap">Use list</button>
+                  </div>
+                ) : (
+                  <Select
+                    value={form.sport || undefined}
+                    onValueChange={(v) => v === "__other"
+                      ? (setOtherSport(true), setForm({ ...form, sport: "" }))
+                      : setForm({ ...form, sport: v })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a sport…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sports.map((s) => <SelectItem key={s._id} value={s.name}>{s.name}</SelectItem>)}
+                      <SelectItem value="__other">Other…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Barangay *</Label>
+                {otherBarangay ? (
+                  <div className="flex gap-2">
+                    <Input value={form.barangay} onChange={set("barangay")} placeholder="Barangay name" />
+                    <button type="button" onClick={() => { setOtherBarangay(false); setForm({ ...form, barangay: "" }); }}
+                      className="text-xs text-muted-foreground hover:text-foreground whitespace-nowrap">Use list</button>
+                  </div>
+                ) : (
+                  <Select
+                    value={form.barangay || undefined}
+                    onValueChange={(v) => v === "__other"
+                      ? (setOtherBarangay(true), setForm({ ...form, barangay: "" }))
+                      : setForm({ ...form, barangay: v })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a barangay…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {barangays.map((b) => <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>)}
+                      <SelectItem value="__other">Other…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Division</Label>
+                <Input value={form.division} onChange={set("division")} placeholder="U17, Boys, Open…" />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Team name</Label>
+                <Input value={form.teamName} onChange={set("teamName")} placeholder="Baybay Warriors" />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>MVP</Label>
+                <Input value={form.mvp} onChange={set("mvp")} placeholder="Player name" />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Prize</Label>
+                <Input value={form.prize} onChange={set("prize")} placeholder="₱15,000 + trophy" />
+              </div>
+
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label>Notes</Label>
+                <Input value={form.notes} onChange={set("notes")} placeholder="Anything worth recording" />
+              </div>
+
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label>Proof photo {editingId && "(leave empty to keep the current one)"}</Label>
+                <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0] || null)}
+                  className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/15 cursor-pointer" />
+                <p className="text-muted-foreground text-xs">JPEG, PNG, or WebP · up to 3 MB. This photo is public.</p>
+              </div>
             </div>
 
-            <div>
-              <label className={label}>Sport *</label>
-              {otherSport ? (
-                <div className="flex gap-2">
-                  <input value={form.sport} onChange={set("sport")} placeholder="Sport name" className={input} />
-                  <button type="button" onClick={() => { setOtherSport(false); setForm({ ...form, sport: "" }); }}
-                    className="text-xs text-slate-500 hover:text-slate-700 whitespace-nowrap">Use list</button>
-                </div>
-              ) : (
-                <select value={form.sport}
-                  onChange={(e) => e.target.value === "__other" ? (setOtherSport(true), setForm({ ...form, sport: "" })) : set("sport")(e)}
-                  className={input}>
-                  <option value="">Select a sport…</option>
-                  {sports.map((s) => <option key={s._id} value={s.name}>{s.name}</option>)}
-                  <option value="__other">Other…</option>
-                </select>
+            <div className="flex gap-2 mt-4">
+              <Button onClick={save} disabled={busy || !canSave}>
+                <UploadCloud /> {busy ? "Saving…" : editingId ? "Save changes" : "Add champion"}
+              </Button>
+              {editingId && (
+                <Button variant="secondary" onClick={reset}>Cancel</Button>
               )}
             </div>
-
-            <div>
-              <label className={label}>Barangay *</label>
-              {otherBarangay ? (
-                <div className="flex gap-2">
-                  <input value={form.barangay} onChange={set("barangay")} placeholder="Barangay name" className={input} />
-                  <button type="button" onClick={() => { setOtherBarangay(false); setForm({ ...form, barangay: "" }); }}
-                    className="text-xs text-slate-500 hover:text-slate-700 whitespace-nowrap">Use list</button>
-                </div>
-              ) : (
-                <select value={form.barangay}
-                  onChange={(e) => e.target.value === "__other" ? (setOtherBarangay(true), setForm({ ...form, barangay: "" })) : set("barangay")(e)}
-                  className={input}>
-                  <option value="">Select a barangay…</option>
-                  {barangays.map((b) => <option key={b._id} value={b.name}>{b.name}</option>)}
-                  <option value="__other">Other…</option>
-                </select>
-              )}
-            </div>
-
-            <div>
-              <label className={label}>Division</label>
-              <input value={form.division} onChange={set("division")} placeholder="U17, Boys, Open…" className={input} />
-            </div>
-
-            <div>
-              <label className={label}>Team name</label>
-              <input value={form.teamName} onChange={set("teamName")} placeholder="Baybay Warriors" className={input} />
-            </div>
-
-            <div>
-              <label className={label}>MVP</label>
-              <input value={form.mvp} onChange={set("mvp")} placeholder="Player name" className={input} />
-            </div>
-
-            <div>
-              <label className={label}>Prize</label>
-              <input value={form.prize} onChange={set("prize")} placeholder="₱15,000 + trophy" className={input} />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className={label}>Notes</label>
-              <input value={form.notes} onChange={set("notes")} placeholder="Anything worth recording" className={input} />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className={label}>Proof photo {editingId && "(leave empty to keep the current one)"}</label>
-              <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0] || null)}
-                className="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium hover:file:bg-indigo-100 cursor-pointer" />
-              <p className="text-slate-400 text-xs mt-1">JPEG, PNG, or WebP · up to 3 MB. This photo is public.</p>
-            </div>
-          </div>
-
-          <div className="flex gap-2 mt-4">
-            <Button onClick={save} disabled={busy || !canSave}>
-              {busy ? "Saving…" : editingId ? "Save changes" : "Add champion"}
-            </Button>
-            {editingId && (
-              <Button variant="secondary" onClick={reset}>Cancel</Button>
-            )}
-          </div>
+          </CardContent>
         </Card>
 
         {loading ? (
-          <p className="text-slate-500">Loading…</p>
+          <div className="space-y-3">
+            <Skeleton className="h-32 w-full rounded-xl" />
+            <Skeleton className="h-32 w-full rounded-xl" />
+          </div>
         ) : champions.length === 0 ? (
-          <Card className="p-5">
-            <p className="text-slate-500 text-sm">No champions recorded yet.</p>
+          <Card>
+            <CardContent className="text-muted-foreground text-sm">No champions recorded yet.</CardContent>
           </Card>
         ) : (
           years.map((y) => (
-            <Card key={y} className="p-5">
-              <h3 className="text-slate-800 font-semibold mb-3">
-                {y}
-                <span className="text-slate-400 font-normal text-sm ml-2">({byYear[y].length})</span>
-              </h3>
-              <div className="space-y-2">
+            <Card key={y} className="border-l-4 border-l-amber-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="size-4 text-amber-500" />
+                  {y}
+                  <span className="font-normal text-sm text-muted-foreground">({byYear[y].length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
                 {byYear[y].map((c) => (
-                  <div key={c.id} className="flex items-center gap-3 border border-slate-200 rounded-lg px-3 py-2">
+                  <div key={c.id} className="flex items-center gap-3 rounded-lg border px-3 py-2">
                     {c.hasPhoto ? (
-                      <img src={`/api/champions/${c.id}/photo`} alt="" className="w-12 h-12 rounded object-cover bg-slate-100 shrink-0" />
+                      <img src={`/api/champions/${c.id}/photo`} alt="" className="w-12 h-12 rounded object-cover bg-muted shrink-0" />
                     ) : (
-                      <div className="w-12 h-12 rounded bg-slate-100 flex items-center justify-center text-slate-400 text-[10px] shrink-0">
+                      <div className="w-12 h-12 rounded bg-muted flex items-center justify-center text-muted-foreground text-[10px] shrink-0">
                         No photo
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="text-slate-800 text-sm font-medium truncate">
+                      <div className="text-sm font-medium truncate">
                         {c.sport}{c.division ? ` · ${c.division}` : ""} — {c.barangay}
                       </div>
-                      <div className="text-slate-500 text-xs truncate">
+                      <div className="text-muted-foreground text-xs truncate">
                         {[c.teamName, c.mvp && `MVP: ${c.mvp}`, c.prize].filter(Boolean).join(" · ") || "—"}
                       </div>
                     </div>
                     <div className="inline-flex gap-2 shrink-0">
-                      <button onClick={() => startEdit(c)}
-                        className="text-xs font-medium px-3 py-1 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50">
-                        Edit
-                      </button>
-                      <button onClick={() => remove(c)}
-                        className="text-xs font-medium px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
-                        Delete
-                      </button>
+                      <Button size="icon-sm" variant="outline" onClick={() => startEdit(c)}>
+                        <Pencil />
+                      </Button>
+                      <Button size="icon-sm" variant="destructive" onClick={() => remove(c)}>
+                        <Trash2 />
+                      </Button>
                     </div>
                   </div>
                 ))}
-              </div>
+              </CardContent>
             </Card>
           ))
         )}

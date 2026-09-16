@@ -145,25 +145,23 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
           rail ? "w-64 lg:w-16" : "w-64"
         )}
       >
-        <div className={cn("h-16 flex items-center border-b border-sidebar-border shrink-0", rail ? "lg:justify-center lg:px-0 px-5 gap-2" : "px-5 gap-2")}>
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <span className="text-primary-foreground font-bold text-sm">K</span>
+        <div className={cn("h-16 flex items-center border-b border-sidebar-border shrink-0 px-5", rail && "lg:justify-center lg:px-2")}>
+          <div className={cn("flex items-center gap-2 min-w-0 flex-1", rail && "lg:hidden")}>
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+              <span className="text-primary-foreground font-bold text-sm">K</span>
+            </div>
+            <span className="font-semibold text-sidebar-foreground text-sm truncate">Kolambugan Sports</span>
           </div>
-          <span className={cn("font-semibold text-sidebar-foreground text-sm", rail && "lg:hidden")}>Kolambugan Sports</span>
+          {/* Desktop-only rail toggle, beside the logo — mobile has its own
+              open/close via the header button, a separate overlay concept. */}
+          <button
+            onClick={() => setRail((r) => !r)}
+            className="hidden lg:flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition"
+            title={rail ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {rail ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
         </div>
-
-        {/* Desktop-only rail toggle, right under the logo — mobile has its own
-            open/close via the header button, a separate overlay concept. */}
-        <button
-          onClick={() => setRail((r) => !r)}
-          className={cn(
-            "hidden lg:flex items-center gap-2 mx-3 mt-3 mb-1 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition shrink-0",
-            rail && "lg:justify-center lg:mx-2 lg:px-0"
-          )}
-          title={rail ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {rail ? <PanelLeftOpen className="size-4" /> : <><PanelLeftClose className="size-4" /> Collapse</>}
-        </button>
 
         <nav className={cn("py-3 space-y-1 flex-1 overflow-y-auto scrollbar-thin", rail ? "lg:px-2 px-3" : "px-3")}>
           {grouped

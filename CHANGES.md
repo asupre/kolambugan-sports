@@ -359,3 +359,28 @@ says WebSockets and must be corrected.
   redundant now and the main source of the mismatched look, since the rest
   of the field's internal segments (hour/minute/AM-PM) can't be restyled by
   CSS in any browser.
+
+## 2026-09 — Session: Dashboard de-AI'd toward a professional look
+
+- **Removed the colored-left-border-on-every-card pattern from
+  `AdminDashboard.jsx`.** A distinct accent color per stat tile (blue/green/
+  amber/primary) is a recognizable "AI-generated dashboard" tell, not a real
+  product pattern — color should mark an actual status, not decorate a
+  static number. Stat tiles are now neutral: a muted icon in a plain gray
+  square, uppercase label, large number, no border accent, no colored icon.
+  Matches the restrained style of Stripe/Linear-type KPI tiles rather than a
+  Notion-template feel.
+- The "Today's games" carousel keeps color ONLY where it's real status: a
+  red "Live" indicator for an ongoing match. "Final" is now plain muted text
+  instead of a green badge (finishing isn't an alert worth a color), and the
+  sport name is a neutral secondary badge instead of blue (the sport isn't a
+  status either).
+- Dropped the "Welcome back" card — a generic message pointing at the
+  sidebar added visual weight without adding information; a professional
+  dashboard should read as data first.
+- Scoped to `AdminDashboard.jsx` only. The same colored-accent pattern is
+  still on the other nine Super Admin pages (Champions, Reports, Accounts,
+  Review Queue, League Setup, Tournaments, Season, Site Images, Reference
+  List) and the Barangay Admin / Organizer pages from earlier in this
+  session — left alone pending a decision on whether to extend the same
+  "professional over decorative" treatment everywhere.

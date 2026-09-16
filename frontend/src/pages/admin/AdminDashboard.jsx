@@ -21,20 +21,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import { Carousel, CarouselContent, CarouselItem, useCarousel } from "../../components/ui/carousel";
 import { Skeleton } from "../../components/ui/skeleton";
 
-function StatCard({ label, value, sub, loading, Icon, accent }) {
+// Deliberately neutral — a colored accent on every tile is the thing that
+// reads as "AI-generated dashboard" rather than a real product. Color here
+// is reserved for what's actually a status (LIVE), not decoration.
+function StatCard({ label, value, sub, loading, Icon }) {
   return (
-    <Card className={`border-l-4 ${accent}`}>
-      <CardContent className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-muted-foreground text-sm">{label}</p>
-          {loading ? (
-            <Skeleton className="h-7 w-16 mt-1.5" />
-          ) : (
-            <p className="text-2xl font-semibold mt-1 truncate">{value}</p>
-          )}
-          {sub && <p className="text-muted-foreground text-xs mt-1">{sub}</p>}
+    <Card>
+      <CardContent className="flex items-center gap-3.5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+          <Icon className="size-5 text-muted-foreground" />
         </div>
-        <Icon className="size-5 text-muted-foreground shrink-0" />
+        <div className="min-w-0">
+          <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">{label}</p>
+          {loading ? (
+            <Skeleton className="h-6 w-16 mt-1" />
+          ) : (
+            <p className="text-2xl font-semibold leading-tight truncate">{value}</p>
+          )}
+          {sub && <p className="text-muted-foreground text-xs mt-0.5">{sub}</p>}
+        </div>
       </CardContent>
     </Card>
   );
@@ -63,13 +68,13 @@ function GameSlide({ m }) {
   return (
     <div className="rounded-lg border p-4 h-full flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-2">
-        <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400">{m.sport}</Badge>
+        <Badge variant="secondary">{m.sport}</Badge>
         {live ? (
-          <Badge className="bg-red-500/15 text-red-600 dark:text-red-400 gap-1">
-            <Circle className="size-2 fill-current" /> LIVE
-          </Badge>
+          <span className="flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-medium">
+            <Circle className="size-2 fill-current" /> Live
+          </span>
         ) : done ? (
-          <Badge className="bg-green-500/15 text-green-600 dark:text-green-400">Final</Badge>
+          <span className="text-muted-foreground text-xs font-medium">Final</span>
         ) : (
           <span className="text-muted-foreground text-xs">{timeOf(m.schedule)}</span>
         )}
@@ -115,14 +120,12 @@ export default function AdminDashboard() {
           sub={stats?.season ? `Status: ${stats.season.status}` : "No active season"}
           loading={loading}
           Icon={CalendarClock}
-          accent="border-l-blue-500"
         />
         <StatCard
           label="Teams registered"
           value={stats?.teams ?? 0}
           loading={loading}
           Icon={Users2}
-          accent="border-l-green-500"
         />
         <StatCard
           label="Players to review"
@@ -130,50 +133,44 @@ export default function AdminDashboard() {
           sub="Flagged or needs document"
           loading={loading}
           Icon={ShieldAlert}
-          accent="border-l-amber-500"
         />
         <StatCard
           label="Barangays"
           value={stats?.barangays ?? 0}
           loading={loading}
           Icon={Building2}
-          accent="border-l-primary"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-4">
           <StatCard
             label="Sports"
             value={stats?.sports ?? 0}
             loading={loading}
             Icon={Trophy}
-            accent="border-l-blue-500"
           />
           <StatCard
             label="Barangay admins"
             value={stats?.accounts?.barangayAdmins ?? 0}
             loading={loading}
             Icon={UserCog}
-            accent="border-l-green-500"
           />
           <StatCard
             label="Organizers"
             value={stats?.accounts?.organizers ?? 0}
             loading={loading}
             Icon={Whistle}
-            accent="border-l-amber-500"
           />
         </div>
 
-        <Card className="border-l-4 border-l-red-500">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Circle className="size-3 fill-current text-red-500" />
+            <CardTitle>
               Today's games
-              {!loading && <span className="font-normal text-sm text-muted-foreground">({todayMatches.length})</span>}
+              {!loading && <span className="font-normal text-sm text-muted-foreground ml-1.5">({todayMatches.length})</span>}
             </CardTitle>
-            <CardDescription>How many players are on court across the league today.</CardDescription>
+            <CardDescription>Player headcount across the league today.</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -197,16 +194,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Welcome back</CardTitle>
-          <CardDescription>
-            Use the sidebar to manage the season, upload the reference list, review players,
-            run tournaments, and provision accounts.
-          </CardDescription>
-        </CardHeader>
-      </Card>
     </AdminLayout>
   );
 }

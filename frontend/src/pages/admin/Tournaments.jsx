@@ -1,9 +1,24 @@
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { ChevronDown, ChevronRight, RotateCcw, Zap } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
-import { Button, Card } from "../../components/ui";
 import { superAdminMenu } from "../../components/menus";
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent } from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
+import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
 const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under17: "U17", under30: "U30" };
 
@@ -20,18 +35,18 @@ function StandingsView({ tournamentId }) {
     return () => { active = false; };
   }, [tournamentId]);
 
-  if (loading) return <p className="text-slate-500 text-sm">Loading standings…</p>;
+  if (loading) return <Skeleton className="h-48 w-full rounded-xl" />;
   if (!groups || Object.keys(groups).length === 0)
-    return <p className="text-slate-500 text-sm">No standings yet.</p>;
+    return <p className="text-muted-foreground text-sm">No standings yet.</p>;
 
   return (
     <div className="space-y-6">
       {Object.entries(groups).filter(([name]) => name !== "-").map(([groupName, table]) => (
         <div key={groupName}>
-          <h3 className="text-slate-700 font-medium text-sm mb-2">Group {groupName}</h3>
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <h3 className="font-medium text-sm mb-2">Group {groupName}</h3>
+          <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500 text-left">
+              <thead className="bg-muted text-muted-foreground text-left">
                 <tr>
                   <th className="px-3 py-2 font-medium w-8">#</th>
                   <th className="px-3 py-2 font-medium">Team</th>
@@ -41,10 +56,10 @@ function StandingsView({ tournamentId }) {
                   <th className="px-3 py-2 font-medium text-center">Pts</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y">
                 {table.map((row, i) => (
-                  <tr key={row.teamId} className="text-slate-700">
-                    <td className="px-3 py-2 text-slate-400">{i + 1}</td>
+                  <tr key={row.teamId}>
+                    <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                     <td className="px-3 py-2 font-medium">{row.teamName}</td>
                     <td className="px-3 py-2 text-center">{row.played}</td>
                     <td className="px-3 py-2 text-center">{row.wins}</td>
@@ -74,7 +89,7 @@ function MatchesView({ tournamentId }) {
     return () => { alive = false; };
   }, [tournamentId]);
 
-    async function revert(m) {
+  async function revert(m) {
     const ok = window.confirm(
       `Revert ${m.teamA?.teamName} vs ${m.teamB?.teamName}?\n\n` +
       `The score, periods and player stats are discarded, and both teams are pulled ` +
@@ -90,7 +105,7 @@ function MatchesView({ tournamentId }) {
     }
   }
 
-  if (loading) return <p className="text-slate-500 text-sm">Loading matches…</p>;
+  if (loading) return <Skeleton className="h-40 w-full rounded-xl" />;
   if (matches.length === 0) return null;
 
   const scoreOf = (m, side) =>
@@ -106,32 +121,28 @@ function MatchesView({ tournamentId }) {
   const group = matches.filter((m) => !m.isTiebreaker);
   const playoff = matches.filter((m) => m.isTiebreaker);
 
-    
-
   const Row = ({ m }) => {
     const done = m.status === "completed";
     const aWin = done && String(m.seriesWinner) === String(m.teamA?._id || m.teamA);
     return (
-      <div className="flex items-center gap-2 flex-wrap border border-slate-200 rounded-lg px-3 py-2 text-sm">
-        <span className="text-slate-400 text-xs w-24 shrink-0">
+      <div className="flex items-center gap-2 flex-wrap rounded-lg border px-3 py-2 text-sm">
+        <span className="text-muted-foreground text-xs w-24 shrink-0">
           {m.group ? `Grp ${m.group} · ` : ""}{roundLabel(m)}
         </span>
-        <span className={`flex-1 min-w-0 text-right truncate ${aWin ? "font-semibold text-slate-900" : "text-slate-600"}`}>
+        <span className={cn("flex-1 min-w-0 text-right truncate", aWin ? "font-semibold" : "text-muted-foreground")}>
           {m.teamA?.teamName || "TBD"}
         </span>
-        <span className="px-2 tabular-nums text-slate-500 w-16 text-center shrink-0">
+        <span className="px-2 tabular-nums text-muted-foreground w-16 text-center shrink-0">
           {done ? `${scoreOf(m, "A")}–${scoreOf(m, "B")}`
             : m.status === "ongoing" ? "live" : "vs"}
-            
         </span>
-        <span className={`flex-1 min-w-0 truncate ${done && !aWin ? "font-semibold text-slate-900" : "text-slate-600"}`}>
+        <span className={cn("flex-1 min-w-0 truncate", done && !aWin ? "font-semibold" : "text-muted-foreground")}>
           {m.teamB?.teamName || "TBD"}
         </span>
-                      {done && (
-          <button onClick={() => revert(m)}
-            className="text-[11px] font-medium px-2 py-1 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 shrink-0">
-            Revert
-          </button>
+        {done && (
+          <Button size="sm" variant="outline" onClick={() => revert(m)} className="shrink-0">
+            <RotateCcw /> Revert
+          </Button>
         )}
       </div>
     );
@@ -140,8 +151,8 @@ function MatchesView({ tournamentId }) {
   return (
     <div className="mt-6">
       <div className="flex items-baseline gap-2 mb-2">
-        <h3 className="text-slate-700 font-medium text-sm">Group matches</h3>
-        <span className="text-slate-400 text-xs">
+        <h3 className="font-medium text-sm">Group matches</h3>
+        <span className="text-muted-foreground text-xs">
           scored by the organizer — {group.filter((m) => m.status === "completed").length}/{group.length} played
         </span>
       </div>
@@ -149,7 +160,7 @@ function MatchesView({ tournamentId }) {
 
       {playoff.length > 0 && (
         <>
-          <h3 className="text-slate-700 font-medium text-sm mt-5 mb-2">Tiebreaker playoff</h3>
+          <h3 className="font-medium text-sm mt-5 mb-2">Tiebreaker playoff</h3>
           <div className="space-y-2">{playoff.map((m) => <Row key={m._id} m={m} />)}</div>
         </>
       )}
@@ -164,7 +175,7 @@ function ScheduleSection({ tournamentId }) {
   const [bulk, setBulk] = useState({});       // round -> { schedule, venue, group }
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-    const [openRounds, setOpenRounds] = useState({});
+  const [openRounds, setOpenRounds] = useState({});
 
   async function load() {
     setLoading(true);
@@ -223,7 +234,7 @@ function ScheduleSection({ tournamentId }) {
     finally { setBusy(false); }
   }
 
-    // Keyed by section, not round number: group round 1 and knockout round 1 are
+  // Keyed by section, not round number: group round 1 and knockout round 1 are
   // different sections that happen to share a number.
   async function applyRound(key) {
     const b = bulk[key] || {};
@@ -244,7 +255,7 @@ function ScheduleSection({ tournamentId }) {
     finally { setBusy(false); }
   }
 
-   // Round numbers restart in the knockout, so group-stage round 1 and the first
+  // Round numbers restart in the knockout, so group-stage round 1 and the first
   // knockout round collide. Group-stage matches carry a `group`; knockout matches
   // don't — that's what separates them.
   const stageOf = (m) => (m.group ? "group" : "knockout");
@@ -266,123 +277,119 @@ function ScheduleSection({ tournamentId }) {
     return `Round ${m.round}`;
   };
 
-  const input = "rounded-lg border border-slate-300 px-2 py-1.5 text-sm";
-
   return (
-    <div className="mt-8 border-t border-slate-200 pt-5">
+    <div className="mt-8 border-t pt-5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
-        <h3 className="text-slate-800 font-semibold">Schedule</h3>
-        <span className="text-slate-400 text-sm">{dated} of {matches.length} dated</span>
+        <h3 className="font-semibold">Schedule</h3>
+        <span className="text-muted-foreground text-sm">{dated} of {matches.length} dated</span>
       </div>
-      <p className="text-slate-500 text-sm mb-4">
+      <p className="text-muted-foreground text-sm mb-4">
         Dates are guidance, not a lock — an organizer can still start an undated match,
         or one being played on a different day. Times are Philippine time.
       </p>
 
-      {msg && <p className="text-sm text-slate-600 bg-slate-50 rounded px-3 py-2 mb-3">{msg}</p>}
+      {msg && <p className="text-sm bg-muted rounded px-3 py-2 mb-3">{msg}</p>}
 
       {loading ? (
-        <p className="text-slate-500 text-sm">Loading matches…</p>
+        <Skeleton className="h-32 w-full rounded-xl" />
       ) : matches.length === 0 ? (
-        <p className="text-slate-500 text-sm">No matches to schedule yet.</p>
+        <p className="text-muted-foreground text-sm">No matches to schedule yet.</p>
       ) : (
         <div className="space-y-6">
-                    {sections.map((key) => {
-                        const r = Number(key.split("-")[1]);
+          {sections.map((key) => {
             const inRound = matches.filter((m) => keyOf(m) === key);
-                                    const b = bulk[key] || {};
+            const b = bulk[key] || {};
 
-                        // A round where everything has been played is history — collapse it so
+            // A round where everything has been played is history — collapse it so
             // it doesn't bury the rounds still needing dates.
             const played = inRound.filter((m) => m.status === "completed").length;
             const allPlayed = played === inRound.length;
-                        const open = openRounds[key] ?? !allPlayed;
+            const open = openRounds[key] ?? !allPlayed;
             return (
-                            <div key={key} className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-                                                      <button onClick={() => setOpenRounds({ ...openRounds, [key]: !open })}
+              <Card key={key} className="p-0 gap-0 overflow-hidden">
+                <div className="bg-muted/60 px-4 py-3 border-b">
+                  <button onClick={() => setOpenRounds({ ...openRounds, [key]: !open })}
                     className="flex items-baseline gap-2 mb-2 w-full text-left">
-                    <span className="text-slate-400 text-xs">{open ? "▾" : "▸"}</span>
-                    <h4 className="text-slate-800 font-medium text-sm">{roundLabel(inRound[0])}</h4>
-                    <span className="text-slate-400 text-xs">
+                    {open ? <ChevronDown className="size-3.5 text-muted-foreground" /> : <ChevronRight className="size-3.5 text-muted-foreground" />}
+                    <h4 className="font-medium text-sm">{roundLabel(inRound[0])}</h4>
+                    <span className="text-muted-foreground text-xs">
                       {inRound.length} match{inRound.length === 1 ? "" : "es"} ·{" "}
                       {allPlayed ? "all played" : `${inRound.filter((m) => m.schedule).length} dated`}
                     </span>
                   </button>
                   {open && (
-                  <div className="flex items-end gap-2 flex-wrap">
-                  
-                    <div>
-                      <label className="block text-slate-500 text-[11px] mb-1">Date &amp; time</label>
-                                            <input type="datetime-local" value={b.schedule || ""}
-                        onChange={(e) => setBulk({ ...bulk, [key]: { ...b, schedule: e.target.value } })}
-                        className={input} />
-                    </div>
-                    <div>
-                      <label className="block text-slate-500 text-[11px] mb-1">Venue</label>
-                                            <input type="text" placeholder="Covered court" value={b.venue || ""}
-                        onChange={(e) => setBulk({ ...bulk, [key]: { ...b, venue: e.target.value } })}
-                        className={`${input} w-44`} />
-                    </div>
-                    {groups.length > 0 && (
-                      <div>
-                        <label className="block text-slate-500 text-[11px] mb-1">Group</label>
-                                                <select value={b.group || ""}
-                          onChange={(e) => setBulk({ ...bulk, [key]: { ...b, group: e.target.value } })}
-                          className={input}>
-                          <option value="">All groups</option>
-                          {groups.map((g) => <option key={g} value={g}>Group {g}</option>)}
-                        </select>
+                    <div className="flex items-end gap-2 flex-wrap">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-normal text-muted-foreground">Date &amp; time</Label>
+                        <Input type="datetime-local" value={b.schedule || ""}
+                          onChange={(e) => setBulk({ ...bulk, [key]: { ...b, schedule: e.target.value } })} />
                       </div>
-                    )}
-                    <button onClick={() => applyRound(key)} disabled={busy}
-                      className="text-xs font-medium px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-                      Apply to round
-                    </button>
-                  </div>
-                    )}
-                </div>
-                     {open && (
-                <div className="divide-y divide-slate-100">
-                  {inRound.map((m) => {
-                                        const done = m.status === "completed" || m.status === "forfeited";
-                    return (
-                      <div key={m._id} className={`px-4 py-2.5 ${done ? "bg-slate-50/60" : ""}`}>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-slate-400 text-xs w-16 shrink-0">
-                            {m.group ? `Grp ${m.group}` : m.bracket}
-                          </span>
-                          <span className="flex-1 min-w-[12rem] truncate text-sm text-slate-700">
-                            {m.teamA?.teamName || "TBD"}
-                            <span className="text-slate-400"> vs </span>
-                            {m.teamB?.teamName || "TBD"}
-                          </span>
-
-                          {done ? (
-                            <span className="text-slate-400 text-xs">
-                               {m.status === "forfeited" ? "forfeited" : "played"}
-                            </span>
-                          ) : (
-                            <>
-                              <input type="datetime-local" value={valueOf(m, "schedule")}
-                                onChange={(e) => edit(m._id, "schedule", e.target.value)}
-                                className={`${input} text-xs shrink-0`} />
-                              <input type="text" placeholder="Venue" value={valueOf(m, "venue")}
-                                onChange={(e) => edit(m._id, "venue", e.target.value)}
-                                className={`${input} text-xs w-36 shrink-0`} />
-                              <button onClick={() => saveOne(m)} disabled={busy || !isDirty(m)}
-                                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-30 shrink-0">
-                                Save
-                              </button>
-                            </>
-                          )}
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-normal text-muted-foreground">Venue</Label>
+                        <Input type="text" placeholder="Covered court" value={b.venue || ""}
+                          onChange={(e) => setBulk({ ...bulk, [key]: { ...b, venue: e.target.value } })}
+                          className="w-44" />
+                      </div>
+                      {groups.length > 0 && (
+                        <div className="space-y-1">
+                          <Label className="text-[11px] font-normal text-muted-foreground">Group</Label>
+                          <Select value={b.group || "all"} onValueChange={(v) => setBulk({ ...bulk, [key]: { ...b, group: v === "all" ? "" : v } })}>
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All groups</SelectItem>
+                              {groups.map((g) => <SelectItem key={g} value={g}>Group {g}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
-                    );
-                  })}
+                      )}
+                      <Button size="sm" onClick={() => applyRound(key)} disabled={busy}>
+                        Apply to round
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                 )}
-              </div>
+                {open && (
+                  <div className="divide-y">
+                    {inRound.map((m) => {
+                      const done = m.status === "completed" || m.status === "forfeited";
+                      return (
+                        <div key={m._id} className={cn("px-4 py-2.5", done && "bg-muted/30")}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-muted-foreground text-xs w-16 shrink-0">
+                              {m.group ? `Grp ${m.group}` : m.bracket}
+                            </span>
+                            <span className="flex-1 min-w-[12rem] truncate text-sm">
+                              {m.teamA?.teamName || "TBD"}
+                              <span className="text-muted-foreground"> vs </span>
+                              {m.teamB?.teamName || "TBD"}
+                            </span>
+
+                            {done ? (
+                              <span className="text-muted-foreground text-xs">
+                                {m.status === "forfeited" ? "forfeited" : "played"}
+                              </span>
+                            ) : (
+                              <>
+                                <Input type="datetime-local" value={valueOf(m, "schedule")}
+                                  onChange={(e) => edit(m._id, "schedule", e.target.value)}
+                                  className="text-xs shrink-0 w-auto" />
+                                <Input type="text" placeholder="Venue" value={valueOf(m, "venue")}
+                                  onChange={(e) => edit(m._id, "venue", e.target.value)}
+                                  className="text-xs w-36 shrink-0" />
+                                <Button size="sm" onClick={() => saveOne(m)} disabled={busy || !isDirty(m)} className="shrink-0">
+                                  Save
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
             );
           })}
         </div>
@@ -507,9 +514,9 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
   }
 
   const ErrorBox = () => error ? (
-    <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3">
-      <p className="text-red-600 text-sm">{error}</p>
-    </div>
+    <Alert variant="destructive" className="mb-3">
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
   ) : null;
 
   return (
@@ -519,13 +526,15 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
       ) : (
         <>
           <div className="mb-4">
-            <button
+            <Button
+              size="sm"
+              variant="outline"
               onClick={simulateGroups}
               disabled={simulating}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-dashed border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 transition"
+              className="border-dashed border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10"
             >
-              {simulating ? "Simulating…" : "⚡ Dev: Auto-score all group matches"}
-            </button>
+              <Zap /> {simulating ? "Simulating…" : "Dev: Auto-score all group matches"}
+            </Button>
           </div>
 
           {isML ? (
@@ -539,11 +548,11 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
           )}
 
           {(isML ? groupsComplete : readiness) && (
-            <div className="mt-6 pt-6 border-t border-slate-200">
+            <div className="mt-6 pt-6 border-t">
               {isML && anyNeedsTiebreaker && !readiness?.ready ? (
                 <>
-                  <h3 className="text-slate-800 font-semibold mb-1">Tie at the cutoff</h3>
-                  <p className="text-amber-600 text-sm mb-3">
+                  <h3 className="font-semibold mb-1">Tie at the cutoff</h3>
+                  <p className="text-amber-600 dark:text-amber-400 text-sm mb-3">
                     Some groups have a tie for the last qualifying spot. Generate a
                     single-elimination playoff among the tied teams to settle it.
                   </p>
@@ -554,8 +563,8 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
                 </>
               ) : readiness?.ready ? (
                 <>
-                  <h3 className="text-slate-800 font-semibold mb-1">Group stage complete</h3>
-                  <p className="text-slate-500 text-sm mb-3">
+                  <h3 className="font-semibold mb-1">Group stage complete</h3>
+                  <p className="text-muted-foreground text-sm mb-3">
                     {readiness.ids.length} teams qualified.
                   </p>
                   <ErrorBox />
@@ -565,15 +574,15 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
                 </>
               ) : (
                 <>
-                  <h3 className="text-slate-800 font-semibold mb-1">Not ready yet</h3>
-                  <p className="text-slate-500 text-sm">
+                  <h3 className="font-semibold mb-1">Not ready yet</h3>
+                  <p className="text-muted-foreground text-sm">
                     {readiness?.contested?.length
                       ? `Group ${readiness.contested.join(", ")} still has a tie to settle.`
                       : readiness?.short?.length
                         ? `Group ${readiness.short.join(", ")} hasn't produced both qualifiers yet.`
                         : "Finish the group stage first."}
                   </p>
-                  <p className="text-slate-400 text-xs mt-1">
+                  <p className="text-muted-foreground text-xs mt-1">
                     {readiness?.ids?.length || 0} of {readiness?.expected || "?"} qualifiers decided.
                   </p>
                 </>
@@ -589,6 +598,9 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
 
 // Read-only. Scoring belongs to the organizer's courtside screen — an admin
 // entering a score here would bypass PlayerMatchStats and the period record.
+// Kept as a plain <div ref={innerRef}> (not a shadcn Card) — BracketTree
+// measures this exact DOM node with getBoundingClientRect() to draw the SVG
+// connector wires, and Card doesn't forward refs.
 function MatchBox({ m, innerRef, onRevert }) {
   const done = m.status === "completed";
   const live = m.status === "ongoing";
@@ -603,31 +615,35 @@ function MatchBox({ m, innerRef, onRevert }) {
   const bScore = m.liveScoreB || total("scoreB");
 
   const Side = ({ name, score, won }) => (
-    <div className={`flex items-center gap-2 px-3 py-2 ${won ? "bg-green-50" : ""}`}>
-      <span className={`flex-1 min-w-0 truncate ${won ? "font-semibold text-slate-900" : "text-slate-600"}`}>
+    <div className={cn("flex items-center gap-2 px-3 py-2", won && "bg-green-500/10")}>
+      <span className={cn("flex-1 min-w-0 truncate", won ? "font-semibold" : "text-muted-foreground")}>
         {name || "TBD"}
       </span>
-      {(done || live) && <span className="text-slate-600 font-medium w-6 text-center tabular-nums">{score}</span>}
-      
+      {(done || live) && <span className="font-medium w-6 text-center tabular-nums">{score}</span>}
     </div>
   );
 
   return (
     <div ref={innerRef}
-      className={`border rounded-lg overflow-hidden text-sm w-56 shrink-0 bg-white ${live ? "border-red-300" : "border-slate-200"}`}>
+      className={cn("border rounded-lg overflow-hidden text-sm w-56 shrink-0 bg-card", live ? "border-red-500/40" : "border-border")}>
       <Side name={m.teamA?.teamName} score={aScore} won={aWin} />
-      <div className="border-t border-slate-100" />
+      <div className="border-t" />
       <Side name={m.teamB?.teamName} score={bScore} won={bWin} />
-      {live && <div className="px-3 py-1 bg-red-50 text-red-600 text-[10px] font-semibold">● LIVE</div>}
+      {live && (
+        <div className="px-3 py-1 bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-semibold">
+          ● LIVE
+        </div>
+      )}
       {done && onRevert && (
         <button onClick={() => onRevert(m)}
-          className="w-full px-3 py-1 border-t border-slate-100 text-[11px] text-slate-400 hover:text-slate-600 hover:bg-slate-50">
+          className="w-full px-3 py-1 border-t text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent">
           Revert
         </button>
       )}
     </div>
   );
 }
+
 // The last match of a bracket has nothing to its right, so the tree just stops
 // and nobody can see what winning it earned. This card says so.
 function WinnerCard({ match, label, sublabel, bothQualify }) {
@@ -638,22 +654,23 @@ function WinnerCard({ match, label, sublabel, bothQualify }) {
   const loser = done ? sides.find((t) => t && String(t._id) !== winnerId) : null;
 
   return (
-    <div className={`w-52 shrink-0 rounded-lg border px-3 py-2.5 ${
-      done ? "border-green-300 bg-green-50" : "border-dashed border-slate-300 bg-white"
-    }`}>
-      <p className={`text-[10px] uppercase tracking-wide ${done ? "text-green-700" : "text-slate-400"}`}>
+    <div className={cn(
+      "w-52 shrink-0 rounded-lg border px-3 py-2.5",
+      done ? "border-green-500/40 bg-green-500/5" : "border-dashed bg-card"
+    )}>
+      <p className={cn("text-[10px] uppercase tracking-wide", done ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
         {label}
       </p>
-      <p className={`text-sm mt-0.5 truncate ${done ? "text-slate-900 font-medium" : "text-slate-400"}`}>
+      <p className={cn("text-sm mt-0.5 truncate", done ? "font-medium" : "text-muted-foreground")}>
         {winner?.teamName || "TBD"}
       </p>
       {/* A 2-team group plays one match that decides both qualifiers. */}
       {bothQualify && (
-        <p className={`text-[13px] truncate ${done ? "text-slate-600" : "text-slate-400"}`}>
+        <p className={cn("text-[13px] truncate", done ? "text-muted-foreground" : "text-muted-foreground")}>
           {loser?.teamName || "TBD"}
         </p>
       )}
-      {sublabel && <p className="text-[11px] text-slate-400 mt-1">{sublabel}</p>}
+      {sublabel && <p className="text-[11px] text-muted-foreground mt-1">{sublabel}</p>}
     </div>
   );
 }
@@ -665,22 +682,17 @@ function finalOf(matches) {
   return matches.find((m) => !targets.has(String(m._id)) && !m.nextMatchWin)
     || matches.reduce((hi, m) => (!hi || (m.round || 0) > (hi.round || 0) ? m : hi), null);
 }
-// One tree, with elbows measured from the DOM.
+
+// One tree, with elbows measured from the DOM. The outer stage div keeps
+// `relative` positioning (for the absolutely-positioned SVG overlay) and plain
+// <div> boxes throughout — every coordinate here comes from a live
+// getBoundingClientRect() measurement, not a hardcoded layout assumption, so
+// restyling spacing/colors is safe as long as MatchBox keeps forwarding its ref.
 function BracketTree({ title, matches, labelFor, onRevert, winner }) {
   const stageRef = useRef(null);
   const boxRefs = useRef({});
   const [wires, setWires] = useState([]);
-    const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
-    // Round numbers restart in the knockout, so round 1 of the group stage and the
-  // first knockout round collide. Group-stage matches carry a `group`; knockout
-  // matches don't — that's what separates them.
-  const stageOf = (m) => (m.group ? "group" : "knockout");
-  const keyOf = (m) => `${stageOf(m)}-${m.round}`;
-  const sections = [...new Set(matches.map(keyOf))].sort((a, b) => {
-    const [sa, ra] = a.split("-"); const [sb, rb] = b.split("-");
-    if (sa !== sb) return sa === "group" ? -1 : 1;
-    return Number(ra) - Number(rb);
-  });
+  const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
 
   useLayoutEffect(() => {
     function measure() {
@@ -711,27 +723,27 @@ function BracketTree({ title, matches, labelFor, onRevert, winner }) {
 
   return (
     <div className="mb-6">
-      {title && <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide mb-2">{title}</p>}
+      {title && <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">{title}</p>}
       <div className="overflow-x-auto pb-2">
         <div ref={stageRef} className="relative flex gap-10 min-w-min">
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
-            {wires.map((d, i) => <path key={i} d={d} stroke="#cbd5e1" strokeWidth="2" fill="none" />)}
+            {wires.map((d, i) => <path key={i} d={d} className="stroke-border" strokeWidth="2" fill="none" />)}
           </svg>
           {rounds.map((r, i) => (
             <div key={r} className="relative z-10 flex flex-col">
-              <p className="text-slate-400 text-xs font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
+              <p className="text-muted-foreground text-xs font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
               <div className="flex-1 flex flex-col justify-around gap-3">
                 {matches.filter((m) => m.round === r).map((m) => (
-                                    <MatchBox key={m._id} m={m} onRevert={onRevert}
+                  <MatchBox key={m._id} m={m} onRevert={onRevert}
                     innerRef={(el) => (boxRefs.current[m._id] = el)} />
                 ))}
               </div>
             </div>
-                    ))}
+          ))}
 
           {winner && (
             <div className="relative z-10 flex flex-col">
-              <p className="text-slate-400 text-xs font-medium mb-2">&nbsp;</p>
+              <p className="text-muted-foreground text-xs font-medium mb-2">&nbsp;</p>
               <div className="flex-1 flex flex-col justify-around">
                 <WinnerCard {...winner} />
               </div>
@@ -755,7 +767,8 @@ function BracketView({ tournamentId }) {
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [tournamentId]);
-    async function revert(m) {
+
+  async function revert(m) {
     const ok = window.confirm(
       `Revert ${m.teamA?.teamName} vs ${m.teamB?.teamName}?\n\n` +
       `The score, periods and player stats are discarded, and both teams are pulled ` +
@@ -771,8 +784,8 @@ function BracketView({ tournamentId }) {
     }
   }
 
-  if (loading) return <p className="text-slate-500 text-sm">Loading bracket…</p>;
-  if (matches.length === 0) return <p className="text-slate-500 text-sm">No bracket yet.</p>;
+  if (loading) return <Skeleton className="h-56 w-full rounded-xl" />;
+  if (matches.length === 0) return <p className="text-muted-foreground text-sm">No bracket yet.</p>;
 
   // Physical sports run FOUR separate double-elims, one per group. Filtering on
   // bracket alone merges them into a single unreadable tree — the group is what
@@ -781,7 +794,7 @@ function BracketView({ tournamentId }) {
   const knockout = matches.filter((m) => !m.group);
   const groups = [...new Set(grouped.map((m) => m.group))].sort();
 
-    // Name rounds by how many teams are left, not by position — the third-place
+  // Name rounds by how many teams are left, not by position — the third-place
   // match shares the final's round number and throws off counting backwards.
   const koLabel = (r) => {
     const inRound = koMain.filter((m) => m.round === r).length;
@@ -793,16 +806,16 @@ function BracketView({ tournamentId }) {
   const koMain = knockout.filter((m) => !(m.bracket || "").includes("third"));
   const koThird = knockout.find((m) => (m.bracket || "").includes("third"));
 
-    return (
+  return (
     <div>
       {koMain.length > 0 && (
         <div className="mb-8">
-          <h3 className="text-slate-800 font-semibold mb-3">Knockout</h3>
-                    <BracketTree matches={koMain} labelFor={koLabel} onRevert={revert}
+          <h3 className="font-semibold mb-3">Knockout</h3>
+          <BracketTree matches={koMain} labelFor={koLabel} onRevert={revert}
             winner={{ match: finalOf(koMain), label: "Champion", sublabel: null }} />
-                    {koThird && (
+          {koThird && (
             <div>
-              <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>
+              <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>
               <div className="flex items-center gap-10">
                 <MatchBox m={koThird} innerRef={() => {}} onRevert={revert} />
                 <WinnerCard match={koThird} label="Third place" sublabel={null} />
@@ -814,8 +827,8 @@ function BracketView({ tournamentId }) {
 
       {groups.map((g) => (
         <div key={g} className="mb-8">
-          <h3 className="text-slate-800 font-semibold mb-3">Group {g}</h3>
-                    {(() => {
+          <h3 className="font-semibold mb-3">Group {g}</h3>
+          {(() => {
             const w = grouped.filter((m) => m.group === g && m.bracket === "winners");
             const l = grouped.filter((m) => m.group === g && m.bracket === "losers");
             return (
@@ -827,7 +840,7 @@ function BracketView({ tournamentId }) {
                     sublabel: l.length === 0 ? "Both teams qualify" : "Qualifies as seed 1",
                     bothQualify: l.length === 0,
                   } : null} />
-                                <BracketTree title="Losers" onRevert={revert} matches={l} labelFor={(r, i) => `Round ${i + 1}`}
+                <BracketTree title="Losers" onRevert={revert} matches={l} labelFor={(r, i) => `Round ${i + 1}`}
                   winner={l.length > 0 ? {
                     match: finalOf(l),
                     label: "Winner",
@@ -881,7 +894,7 @@ export default function Tournaments() {
   useEffect(() => { setDivision(""); setError(""); }, [sportId]);
 
   const selectedSport = sports.find((s) => String(s._id) === String(sportId));
-    // Physical sports always run four groups into a Top 8, so there's nothing to
+  // Physical sports always run four groups into a Top 8, so there's nothing to
   // choose. Esports pick their knockout size.
   const isEsports = selectedSport?.category === "esports";
 
@@ -913,99 +926,100 @@ export default function Tournaments() {
   }
 
   return (
-    <AdminLayout title={selectedSport?.name || "Tournaments"} menu={superAdminMenu}>
+    <AdminLayout title={selectedSport?.name || "Tournaments"} menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <p className="text-slate-500">Loading…</p>
+        <div className="max-w-5xl space-y-3">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
       ) : !selectedSport ? (
-        <p className="text-slate-500">Pick a sport from the sidebar.</p>
+        <p className="text-muted-foreground">Pick a sport from the sidebar.</p>
       ) : (
         <div className="max-w-5xl space-y-6">
           {divisions.length > 1 && (
             <div className="flex flex-wrap gap-2">
               {divisions.map((d) => (
-                <button
+                <Button
                   key={d}
+                  variant={activeDivision === d ? "default" : "secondary"}
                   onClick={() => { setDivision(d); setError(""); }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    activeDivision === d
-                      ? "bg-indigo-600 text-white"
-                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
-                  }`}
                 >
                   {DIVISION_LABEL[d] || d}
-                </button>
+                </Button>
               ))}
             </div>
           )}
 
-          <Card className="p-6">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-              <h2 className="text-slate-800 font-semibold text-lg">
-                {selectedSport.name}
-                {divisions.length > 1 && (
-                  <span className="text-slate-400 font-normal text-base ml-2">
-                    {DIVISION_LABEL[activeDivision] || activeDivision}
-                  </span>
+          <Card>
+            <CardContent>
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                <h2 className="font-semibold text-lg">
+                  {selectedSport.name}
+                  {divisions.length > 1 && (
+                    <span className="text-muted-foreground font-normal text-base ml-2">
+                      {DIVISION_LABEL[activeDivision] || activeDivision}
+                    </span>
+                  )}
+                </h2>
+                {currentTournament && (
+                  <Badge className="bg-primary/15 text-primary">
+                    {currentTournament.format === "round_robin" ? "Group stage" : "Elimination"} · {currentTournament.stage}
+                  </Badge>
                 )}
-              </h2>
-              {currentTournament && (
-                <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm font-medium">
-                  {currentTournament.format === "round_robin" ? "Group stage" : "Elimination"} · {currentTournament.stage}
-                </span>
+              </div>
+
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
-            </div>
 
-            {error && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-4">
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
+              {!currentTournament ? (
+                <div>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    No {divisions.length > 1 ? `${DIVISION_LABEL[activeDivision] || activeDivision} ` : ""}
+                    tournament generated for {selectedSport.name} yet. Generate one from the
+                    verified teams. {isEsports
+                      ? "This sport uses a grouped round-robin."
+                      : "This sport uses four groups of double-elimination."}
+                  </p>
 
-            {!currentTournament ? (
-              <div>
-                <p className="text-slate-500 text-sm mb-4">
-                  No {divisions.length > 1 ? `${DIVISION_LABEL[activeDivision] || activeDivision} ` : ""}
-                  tournament generated for {selectedSport.name} yet. Generate one from the
-                                    verified teams. {isEsports
-                    ? "This sport uses a grouped round-robin."
-                    : "This sport uses four groups of double-elimination."}
-                </p>
-
-                {isEsports && (
-                  <div className="mb-4">
-                    <label className="block text-slate-700 text-sm font-medium mb-1.5">Knockout size</label>
-                    <div className="flex gap-2">
-                      {[8, 16].map((n) => (
-                        <button key={n} type="button" onClick={() => setKnockoutSize(n)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                            Number(knockoutSize) === n
-                              ? "bg-indigo-600 text-white"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}>
-                          Top {n}
-                        </button>
-                      ))}
+                  {isEsports && (
+                    <div className="mb-4 space-y-1.5">
+                      <Label>Knockout size</Label>
+                      <div className="flex gap-2">
+                        {[8, 16].map((n) => (
+                          <Button
+                            key={n}
+                            type="button"
+                            variant={Number(knockoutSize) === n ? "default" : "secondary"}
+                            onClick={() => setKnockoutSize(n)}
+                          >
+                            Top {n}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-muted-foreground text-xs">
+                        The system creates 8 groups and funnels down to the Top {knockoutSize}.
+                        Needs at least {knockoutSize} verified teams.
+                      </p>
                     </div>
-                    <p className="text-slate-400 text-xs mt-1">
-                      The system creates 8 groups and funnels down to the Top {knockoutSize}.
-                      Needs at least {knockoutSize} verified teams.
-                    </p>
-                  </div>
-                )}
+                  )}
 
-                <Button onClick={generate} disabled={busy}>
-                  {busy ? "Generating…" : `Generate ${selectedSport.name} Tournament`}
-                </Button>
-              </div>
-            ) : (
-              <TournamentDetail
-                key={currentTournament._id}
-                tournamentId={currentTournament._id}
-                stage={currentTournament.stage}
-                isML={isEsports}
-                onBracketGenerated={loadAll}
-              />
-            )}
+                  <Button onClick={generate} disabled={busy}>
+                    {busy ? "Generating…" : `Generate ${selectedSport.name} Tournament`}
+                  </Button>
+                </div>
+              ) : (
+                <TournamentDetail
+                  key={currentTournament._id}
+                  tournamentId={currentTournament._id}
+                  stage={currentTournament.stage}
+                  isML={isEsports}
+                  onBracketGenerated={loadAll}
+                />
+              )}
+            </CardContent>
           </Card>
         </div>
       )}

@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import Cropper from "react-easy-crop";
+import { ImageIcon, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
-import { Card } from "../../components/ui";
 import { superAdminMenu } from "../../components/menus";
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Dialog, DialogContent } from "../../components/ui/dialog";
+import { Label } from "../../components/ui/label";
+import { Skeleton } from "../../components/ui/skeleton";
 
 // Widest we'll store. A phone photo is far larger than any slot renders, and a
 // 12-megapixel banner is just bandwidth nobody sees.
@@ -63,17 +69,17 @@ function CropModal({ slot, file, onCancel, onDone }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl w-full max-w-2xl overflow-hidden shadow-xl">
-        <div className="px-5 py-3 border-b border-slate-200">
-          <h3 className="text-slate-800 font-semibold text-sm">Position the photo — {slot.label}</h3>
-          <p className="text-slate-500 text-xs mt-0.5">
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent showCloseButton={false} className="sm:max-w-2xl! p-0 gap-0 overflow-hidden">
+        <div className="px-5 py-3 border-b">
+          <h3 className="font-semibold text-sm">Position the photo — {slot.label}</h3>
+          <p className="text-muted-foreground text-xs mt-0.5">
             Drag to move, and use the slider to zoom. What's inside the frame is
             what appears on the site.
           </p>
         </div>
 
-        <div className="relative bg-slate-900" style={{ height: 340 }}>
+        <div className="relative bg-black" style={{ height: 340 }}>
           {src && (
             <Cropper
               image={src}
@@ -88,8 +94,8 @@ function CropModal({ slot, file, onCancel, onDone }) {
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200">
-          <label className="block text-slate-600 text-xs font-medium mb-1.5">Zoom</label>
+        <div className="px-5 py-3 border-t">
+          <Label className="text-xs font-normal text-muted-foreground mb-1.5">Zoom</Label>
           <input
             type="range"
             min={1}
@@ -97,28 +103,18 @@ function CropModal({ slot, file, onCancel, onDone }) {
             step={0.01}
             value={zoom}
             onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full"
+            className="w-full accent-primary"
           />
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            disabled={busy}
-            className="text-sm font-medium px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={busy || !area}
-            className="text-sm font-medium px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
+        <div className="px-5 py-3 border-t flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button onClick={save} disabled={busy || !area}>
             {busy ? "Saving…" : "Save photo"}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -165,64 +161,62 @@ function Slot({ slot, onChanged, onError }) {
   }
 
   return (
-    <div className="flex flex-col sm:flex-row gap-4 border border-slate-200 rounded-lg p-4">
-      <div className="w-full sm:w-64 shrink-0">
-        {slot.hasImage ? (
-          <img
-            src={`/api/public/site-image/${slot.key}?v=${v}`}
-            alt=""
-            className="w-full object-cover rounded bg-slate-100"
-            style={{ aspectRatio: String(slot.aspect || 1.6) }}
+    <Card>
+      <CardContent className="flex flex-col sm:flex-row gap-4">
+        <div className="w-full sm:w-64 shrink-0">
+          {slot.hasImage ? (
+            <img
+              src={`/api/public/site-image/${slot.key}?v=${v}`}
+              alt=""
+              className="w-full object-cover rounded bg-muted"
+              style={{ aspectRatio: String(slot.aspect || 1.6) }}
+            />
+          ) : (
+            <div
+              className="w-full rounded bg-muted border border-dashed flex items-center justify-center gap-1.5 text-muted-foreground text-xs"
+              style={{ aspectRatio: String(slot.aspect || 1.6) }}
+            >
+              <ImageIcon className="size-4" /> No image
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <h3 className="font-medium text-sm">{slot.label}</h3>
+          <p className="text-muted-foreground text-xs mt-0.5">{slot.where}</p>
+          <p className="text-muted-foreground text-xs mt-1">{slot.hint}</p>
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const f = e.target.files[0];
+              if (f) setPending(f);
+              e.target.value = "";   // so picking the same file twice still opens the cropper
+            }}
+            className="block w-full text-sm text-muted-foreground mt-3 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/15 cursor-pointer"
           />
-        ) : (
-          <div
-            className="w-full rounded bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center"
-            style={{ aspectRatio: String(slot.aspect || 1.6) }}
-          >
-            <span className="text-slate-400 text-xs">No image</span>
-          </div>
+          <p className="text-muted-foreground text-[11px] mt-1">
+            You'll be able to position and zoom it before it's saved.
+          </p>
+
+          {slot.hasImage && (
+            <Button size="sm" variant="destructive" onClick={remove} disabled={busy} className="mt-3">
+              <Trash2 /> Remove
+            </Button>
+          )}
+        </div>
+
+        {pending && (
+          <CropModal
+            slot={slot}
+            file={pending}
+            onCancel={() => setPending(null)}
+            onDone={uploadBlob}
+          />
         )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <h3 className="text-slate-800 font-medium text-sm">{slot.label}</h3>
-        <p className="text-slate-500 text-xs mt-0.5">{slot.where}</p>
-        <p className="text-slate-400 text-xs mt-1">{slot.hint}</p>
-
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => {
-            const f = e.target.files[0];
-            if (f) setPending(f);
-            e.target.value = "";   // so picking the same file twice still opens the cropper
-          }}
-          className="block w-full text-sm text-slate-600 mt-3 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium hover:file:bg-indigo-100 cursor-pointer"
-        />
-        <p className="text-slate-400 text-[11px] mt-1">
-          You'll be able to position and zoom it before it's saved.
-        </p>
-
-        {slot.hasImage && (
-          <button
-            onClick={remove}
-            disabled={busy}
-            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 mt-3"
-          >
-            Remove
-          </button>
-        )}
-      </div>
-
-      {pending && (
-        <CropModal
-          slot={slot}
-          file={pending}
-          onCancel={() => setPending(null)}
-          onDone={uploadBlob}
-        />
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -245,25 +239,32 @@ export default function SiteImages() {
   useEffect(() => { load(); }, []);
 
   return (
-    <AdminLayout title="Site Images" menu={superAdminMenu}>
+    <AdminLayout title="Site Images" menu={superAdminMenu} enableDarkMode>
       <div className="max-w-4xl space-y-6">
         {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        <Card className="p-5">
-          <h2 className="text-slate-800 font-semibold mb-1">Photos on the public site</h2>
-          <p className="text-slate-500 text-sm">
-            These images appear on the public pages. Pick a photo, position it in
-            the frame, and it's live — no code change needed. Every image here is
-            public, so don't upload anything you wouldn't put on a poster.
-          </p>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="size-4 text-blue-500" /> Photos on the public site
+            </CardTitle>
+            <CardDescription>
+              These images appear on the public pages. Pick a photo, position it in
+              the frame, and it's live — no code change needed. Every image here is
+              public, so don't upload anything you wouldn't put on a poster.
+            </CardDescription>
+          </CardHeader>
         </Card>
 
         {loading ? (
-          <p className="text-slate-500">Loading…</p>
+          <div className="space-y-4">
+            <Skeleton className="h-40 w-full rounded-xl" />
+            <Skeleton className="h-40 w-full rounded-xl" />
+          </div>
         ) : (
           <div className="space-y-4">
             {slots.map((s) => (

@@ -1,9 +1,22 @@
 import { useEffect, useState } from "react";
+import { Check, Copy, KeyRound, Trash2, TriangleAlert, UserPlus } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
-import { Button, Card } from "../../components/ui";
 import { superAdminMenu } from "../../components/menus";
-
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
+import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
 const ROLE_LABEL = {
   super_admin: "Super Admin",
@@ -22,7 +35,6 @@ function AddAccountForm({ onCreated, onError }) {
 
   // Load barangay + sport options for the dropdowns.
   useEffect(() => {
-    
     Promise.all([
       api("/api/barangays").catch(() => ({ barangays: [] })),
       api("/api/sports").catch(() => ({ sports: [] })),
@@ -56,60 +68,70 @@ function AddAccountForm({ onCreated, onError }) {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         {["super_admin", "barangay_admin", "organizer"].map((r) => (
-          <button
+          <Button
             key={r}
             type="button"
+            size="sm"
+            variant={role === r ? "default" : "secondary"}
             onClick={() => setRole(r)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-              role === r ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
           >
-            {r === "super_admin" ? "Super Admin" : r === "barangay_admin" ? "Barangay Admin" : "Organizer"}
-          </button>
+            {ROLE_LABEL[r]}
+          </Button>
         ))}
       </div>
 
       {role === "barangay_admin" && (
-        <select
-          value={barangayId}
-          onChange={(e) => setBarangayId(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        >
-          <option value="">Select a barangay…</option>
-          {barangays.map((b) => (
-            <option key={b._id} value={b._id}>{b.name}</option>
-          ))}
-        </select>
+        <Select value={barangayId || undefined} onValueChange={setBarangayId}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select a barangay…" />
+          </SelectTrigger>
+          <SelectContent>
+            {barangays.map((b) => <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       )}
 
       {role === "organizer" && (
-        <select
-          value={assignedSportId}
-          onChange={(e) => setAssignedSportId(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        >
-          <option value="">Select a sport…</option>
-          {sports.map((s) => (
-            <option key={s._id} value={s._id}>{s.name}</option>
-          ))}
-        </select>
+        <Select value={assignedSportId || undefined} onValueChange={setAssignedSportId}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select a sport…" />
+          </SelectTrigger>
+          <SelectContent>
+            {sports.map((s) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       )}
 
-      <input
+      <Input
         type="text"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         placeholder={role === "super_admin" ? "Username (e.g. lydo_head_2)" : "Username (optional — auto-generated if blank)"}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
       />
 
       <Button
         onClick={submit}
         disabled={busy || (role === "barangay_admin" && !barangayId) || (role === "organizer" && !assignedSportId) || (role === "super_admin" && !username.trim())}
       >
-        {busy ? "Creating…" : "Create account"}
+        <UserPlus /> {busy ? "Creating…" : "Create account"}
       </Button>
     </div>
+  );
+}
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      size="sm"
+      onClick={() => {
+        navigator.clipboard?.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      }}
+    >
+      {copied ? <Check /> : <Copy />} {copied ? "Copied" : "Copy"}
+    </Button>
   );
 }
 
@@ -182,80 +204,78 @@ export default function Accounts() {
     }
   }
 
-  function copy(text) {
-    navigator.clipboard?.writeText(text);
-  }
-
   // Group accounts by role for display.
   const grouped = { super_admin: [], barangay_admin: [], organizer: [] };
   accounts.forEach((a) => { (grouped[a.role] = grouped[a.role] || []).push(a); });
 
   return (
-    <AdminLayout title="Accounts" menu={superAdminMenu}>
+    <AdminLayout title="Accounts" menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <p className="text-slate-500">Loading…</p>
+        <div className="max-w-4xl space-y-3">
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-40 w-full rounded-xl" />
+        </div>
       ) : (
         <div className="max-w-4xl space-y-6">
           {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-              <p className="text-red-600 text-sm">{error}</p>
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           {/* Add a single account */}
-          <Card className="p-5">
-            <h2 className="text-slate-800 font-semibold mb-1">Add an account</h2>
-            <p className="text-slate-500 text-sm mb-3">
-              For anything outside the standard set — like a second super admin. Barangay admins and
-              organizers are limited to one per barangay / sport.
-            </p>
-            <AddAccountForm
-              onCreated={(data) => {
-                setReveals((prev) => [
-                  { username: data.account.username, tempPassword: data.tempPassword },
-                  ...prev,
-                ]);
-                load();
-              }}
-              onError={(msg) => setError(msg)}
-            />
+          <Card className="border-l-4 border-l-blue-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="size-4 text-blue-500" /> Add an account
+              </CardTitle>
+              <CardDescription>
+                For anything outside the standard set — like a second super admin. Barangay admins and
+                organizers are limited to one per barangay / sport.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AddAccountForm
+                onCreated={(data) => {
+                  setReveals((prev) => [
+                    { username: data.account.username, tempPassword: data.tempPassword },
+                    ...prev,
+                  ]);
+                  load();
+                }}
+                onError={(msg) => setError(msg)}
+              />
+            </CardContent>
           </Card>
 
           {/* One-time password reveals */}
           {reveals.length > 0 && (
-            <Card className="p-5 border-amber-200 bg-amber-50">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-amber-800 font-semibold text-sm">
-                  New passwords — copy now, they won't be shown again
-                </h3>
-                <button
-                  onClick={() => setReveals([])}
-                  className="text-amber-700 text-xs hover:underline"
-                >
-                  Dismiss
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                {reveals.map((r) => (
-                  <div key={r.username} className="flex items-center gap-2 text-sm bg-white rounded-lg border border-amber-200 px-3 py-2">
-                    <span className="font-medium text-slate-700 flex-1 truncate">
-                      {r.username}{r.label ? <span className="text-slate-400"> · {r.label}</span> : null}
-                    </span>
-                    <code className="font-mono text-slate-900 bg-slate-100 rounded px-2 py-0.5">{r.tempPassword}</code>
-                    <button
-                      onClick={(e) => {
-                        copy(r.tempPassword);
-                        const b = e.currentTarget;
-                        b.textContent = "Copied";
-                        setTimeout(() => { b.textContent = "Copy"; }, 1200);
-                      }}
-                      className="text-xs font-medium px-2 py-1 rounded bg-slate-800 text-white hover:bg-slate-700"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                ))}
-              </div>
+            <Card className="border-amber-500/30 bg-amber-500/5">
+              <CardContent>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="flex items-center gap-1.5 font-semibold text-sm text-amber-700 dark:text-amber-400">
+                    <TriangleAlert className="size-4" />
+                    New passwords — copy now, they won't be shown again
+                  </h3>
+                  <button
+                    onClick={() => setReveals([])}
+                    className="text-amber-700 dark:text-amber-400 text-xs hover:underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {reveals.map((r) => (
+                    <div key={r.username} className="flex items-center gap-2 text-sm bg-card rounded-lg border border-amber-500/30 px-3 py-2">
+                      <span className="font-medium flex-1 truncate">
+                        {r.username}{r.label ? <span className="text-muted-foreground"> · {r.label}</span> : null}
+                      </span>
+                      <code className="font-mono bg-muted rounded px-2 py-0.5">{r.tempPassword}</code>
+                      <CopyButton text={r.tempPassword} />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
             </Card>
           )}
 
@@ -264,61 +284,61 @@ export default function Accounts() {
             const list = grouped[role] || [];
             if (list.length === 0) return null;
             return (
-              <Card key={role} className="p-5">
-                <h3 className="text-slate-800 font-semibold mb-3">
-                  {ROLE_LABEL[role]}
-                  <span className="text-slate-400 font-normal text-sm ml-2">({list.length})</span>
-                </h3>
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-slate-500 text-left">
-                      <tr>
-                        <th className="px-3 py-2 font-medium">Username</th>
-                        <th className="px-3 py-2 font-medium">Assigned to</th>
-                        <th className="px-3 py-2 font-medium text-center">Password status</th>
-                        <th className="px-3 py-2 font-medium text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {list.map((a) => (
-                        <tr key={a._id} className="text-slate-700">
-                          <td className="px-3 py-2 font-medium">{a.username}</td>
-                          <td className="px-3 py-2 text-slate-500">
-                            {a.barangay?.name || a.assignedSport?.name || "—"}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {a.mustChangePassword ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                Needs change
-                              </span>
-                            ) : (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                Set
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <div className="inline-flex gap-2">
-                              <button
-                                onClick={() => resetPassword(a)}
-                                disabled={resettingId === a._id}
-                                className="text-xs font-medium px-3 py-1 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                              >
-                                {resettingId === a._id ? "…" : "Reset password"}
-                              </button>
-                              <button
-                                onClick={() => deleteAccount(a)}
-                                className="text-xs font-medium px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
+              <Card key={role}>
+                <CardHeader>
+                  <CardTitle>
+                    {ROLE_LABEL[role]}
+                    <span className="font-normal text-sm text-muted-foreground ml-2">({list.length})</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted text-muted-foreground text-left">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Username</th>
+                          <th className="px-3 py-2 font-medium">Assigned to</th>
+                          <th className="px-3 py-2 font-medium text-center">Password status</th>
+                          <th className="px-3 py-2 font-medium text-right">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y">
+                        {list.map((a) => (
+                          <tr key={a._id}>
+                            <td className="px-3 py-2 font-medium">{a.username}</td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {a.barangay?.name || a.assignedSport?.name || "—"}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <Badge className={cn(
+                                a.mustChangePassword
+                                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                  : "bg-green-500/15 text-green-600 dark:text-green-400"
+                              )}>
+                                {a.mustChangePassword ? "Needs change" : "Set"}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <div className="inline-flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => resetPassword(a)}
+                                  disabled={resettingId === a._id}
+                                >
+                                  <KeyRound /> {resettingId === a._id ? "…" : "Reset password"}
+                                </Button>
+                                <Button size="sm" variant="destructive" onClick={() => deleteAccount(a)}>
+                                  <Trash2 /> Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
               </Card>
             );
           })}

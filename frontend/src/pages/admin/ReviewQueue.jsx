@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
+import { ChevronDown, ChevronUp, FileText, ShieldCheck, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Dialog, DialogContent } from "../../components/ui/dialog";
+import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
 const DOC_LABEL = {
   birth_certificate: "Birth Certificate",
@@ -10,12 +17,27 @@ const DOC_LABEL = {
   parental_consent: "Parental Consent",
 };
 
+const STATUS_BADGE = {
+  eligible: "bg-green-500/15 text-green-600 dark:text-green-400",
+  flagged: "bg-red-500/15 text-red-600 dark:text-red-400",
+  needs_document: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  pending: "bg-muted text-muted-foreground",
+};
+
+const STATUS_LABEL = {
+  eligible: "Eligible",
+  flagged: "Flagged",
+  needs_document: "Needs document",
+  pending: "Pending",
+};
+
 function Lightbox({ src, onClose }) {
   return (
-    <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
-      <img src={src} alt="" className="max-h-full max-w-full object-contain rounded" onClick={(e) => e.stopPropagation()} />
-      <button onClick={onClose} className="absolute top-4 right-5 text-white text-3xl leading-none">×</button>
-    </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent showCloseButton={false} className="sm:max-w-[90vw] p-2 bg-black/90 border-0">
+        <img src={src} alt="" className="max-h-[85vh] w-full object-contain rounded" />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -26,7 +48,6 @@ function DocumentView({ doc, large }) {
   const [type, setType] = useState("");
   const [err, setErr] = useState("");
   const [zoom, setZoom] = useState(false);
-  
 
   useEffect(() => {
     let revoked = null;
@@ -49,27 +70,27 @@ function DocumentView({ doc, large }) {
   }, [doc._id]);
 
   return (
-    <div className="border border-slate-200 rounded-lg p-2 bg-slate-50">
+    <div className="rounded-lg border p-2 bg-muted/40">
       <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-xs font-medium text-slate-600">{DOC_LABEL[doc.docType] || doc.docType}</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${
-          doc.verifyStatus === "approved" ? "bg-green-100 text-green-700"
-          : doc.verifyStatus === "rejected" ? "bg-red-100 text-red-700"
-          : "bg-slate-200 text-slate-600"
-        }`}>{doc.verifyStatus}</span>
+        <span className="text-xs font-medium text-muted-foreground">{DOC_LABEL[doc.docType] || doc.docType}</span>
+        <Badge className={
+          doc.verifyStatus === "approved" ? "bg-green-500/15 text-green-600 dark:text-green-400"
+          : doc.verifyStatus === "rejected" ? "bg-red-500/15 text-red-600 dark:text-red-400"
+          : "bg-muted text-muted-foreground"
+        }>{doc.verifyStatus}</Badge>
       </div>
-                        {err && <p className="text-xs text-red-600">{err}</p>}
-      {!url && !err && <p className="text-xs text-slate-400">Loading…</p>}
+      {err && <p className="text-xs text-destructive">{err}</p>}
+      {!url && !err && <Skeleton className="h-32 w-full" />}
       {url && (
         <>
           {type.startsWith("image/") ? (
             <>
               <img src={url} alt="" onClick={() => setZoom(true)}
-                className={`cursor-zoom-in ${large ? "max-h-[26rem] w-full object-contain rounded border border-slate-200" : "max-h-48 rounded border border-slate-200"}`} />
+                className={cn("cursor-zoom-in rounded border", large ? "max-h-[26rem] w-full object-contain" : "max-h-48")} />
               {zoom && <Lightbox src={url} onClose={() => setZoom(false)} />}
             </>
           ) : (
-            <a href={url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline">
+            <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
               Open file in a new tab
             </a>
           )}
@@ -78,24 +99,13 @@ function DocumentView({ doc, large }) {
     </div>
   );
 }
-// Colored pill for a player's eligibility status.
-function StatusPill({ status }) {
-  const styles = {
-    eligible: "bg-green-50 text-green-700",
-    flagged: "bg-amber-50 text-amber-700",
-    needs_document: "bg-blue-50 text-blue-700",
-    pending: "bg-slate-100 text-slate-500",
-  };
-  const label = {
-    eligible: "Eligible",
-    flagged: "Flagged",
-    needs_document: "Needs document",
-    pending: "Pending",
-  };
+
+function Field({ label, value }) {
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] || styles.pending}`}>
-      {label[status] || status}
-    </span>
+    <div>
+      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }
 
@@ -104,35 +114,37 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
   const p = player;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:p-8"
-         onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-auto" onClick={(e) => e.stopPropagation()}>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent showCloseButton={false} className="sm:max-w-3xl! p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b border-slate-100">
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b shrink-0">
           <div>
-            <h2 className="text-slate-900 font-semibold text-lg">{p.lastName}, {p.firstName} {p.middleName || ""}</h2>
+            <h2 className="font-semibold text-lg">{p.lastName}, {p.firstName} {p.middleName || ""}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <StatusPill status={p.eligibilityStatus} />
-              {p.flagReason && <span className="text-xs text-slate-500">{p.flagReason}</span>}
+              <Badge className={STATUS_BADGE[p.eligibilityStatus] || STATUS_BADGE.pending}>
+                {STATUS_LABEL[p.eligibilityStatus] || p.eligibilityStatus}
+              </Badge>
+              {p.flagReason && <span className="text-xs text-muted-foreground">{p.flagReason}</span>}
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+          <Button variant="ghost" size="icon-sm" onClick={onClose}><X /></Button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 px-6 pt-3">
+        <div className="flex gap-1 px-6 pt-3 shrink-0">
           {[["info", "Information"], ["docs", `Documents${p.documents?.length ? ` (${p.documents.length})` : ""}`]].map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${
-                tab === k ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:text-slate-700"
-              }`}>
+              className={cn(
+                "px-4 py-2 text-sm font-medium rounded-t-lg transition",
+                tab === k ? "bg-muted" : "text-muted-foreground hover:text-foreground"
+              )}>
               {label}
             </button>
           ))}
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 min-h-[18rem]">
+        <div className="px-6 py-5 min-h-[18rem] overflow-y-auto flex-1">
           {tab === "info" ? (
             <div className="flex flex-col sm:flex-row gap-6">
               <dl className="flex-1 space-y-3 text-sm order-2 sm:order-1">
@@ -148,9 +160,9 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
               <div className="order-1 sm:order-2 shrink-0">
                 {p.photo ? (
                   <img src={`/api/teams/players/${p._id}/photo`} alt=""
-                    className="w-48 h-48 rounded-xl object-cover bg-slate-100 border border-slate-200" />
+                    className="w-48 h-48 rounded-xl object-cover bg-muted border" />
                 ) : (
-                  <div className="w-48 h-48 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-sm">
+                  <div className="w-48 h-48 rounded-xl bg-muted border flex items-center justify-center text-muted-foreground text-sm">
                     No photo
                   </div>
                 )}
@@ -159,7 +171,7 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
           ) : (
             <div className="space-y-4">
               {!p.documents?.length ? (
-                <p className="text-slate-500 text-sm">
+                <p className="text-muted-foreground text-sm">
                   No documents uploaded. The Barangay Admin submits these from their
                   Document Submission page.
                 </p>
@@ -171,8 +183,8 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
         </div>
 
         {/* Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-xs text-slate-500">
+        <div className="px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap shrink-0">
+          <p className="text-xs text-muted-foreground">
             Approving also marks this player's pending documents as approved.
             Rejecting removes the player and their files, and reopens the roster.
           </p>
@@ -189,17 +201,8 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, value }) {
-  return (
-    <div>
-      <dt className="text-slate-400 text-xs">{label}</dt>
-      <dd className="text-slate-700">{value}</dd>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -282,99 +285,107 @@ export default function ReviewQueue() {
   const allEligible = players.length > 0 && players.every((p) => p.eligibilityStatus === "eligible");
 
   return (
-    <AdminLayout title="Review Queue" menu={superAdminMenu}>
+    <AdminLayout title="Review Queue" menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <p className="text-slate-500">Loading…</p>
-      ) : teams.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm max-w-xl">
-          <h2 className="text-slate-800 font-semibold mb-1">Nothing to review</h2>
-          <p className="text-slate-500 text-sm">
-            No submitted teams are awaiting review in the current season. Teams appear here once a
-            Barangay Admin submits their roster.
-          </p>
+        <div className="max-w-5xl space-y-3">
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
         </div>
+      ) : teams.length === 0 ? (
+        <Card className="max-w-xl">
+          <CardHeader>
+            <CardTitle>Nothing to review</CardTitle>
+            <CardDescription>
+              No submitted teams are awaiting review in the current season. Teams appear here once a
+              Barangay Admin submits their roster.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       ) : (
         <div className="space-y-3 max-w-5xl">
           {teams.map((t) => (
-            <div key={t.teamId} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <Card key={t.teamId} className="overflow-hidden py-0 gap-0">
               {/* Team header row — click to expand */}
               <button
                 onClick={() => openTeamDetail(t.teamId)}
-                className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 hover:bg-slate-50 transition text-left"
+                className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 hover:bg-accent/50 transition text-left"
               >
                 <div>
-                  <p className="font-semibold text-slate-800">{t.teamName}</p>
-                  <p className="text-slate-500 text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>
+                  <p className="font-semibold">{t.teamName}</p>
+                  <p className="text-muted-foreground text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {t.tally.flagged > 0 && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium whitespace-nowrap">{t.tally.flagged} flagged</span>}
-                  {t.tally.needs_document > 0 && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium whitespace-nowrap">{t.tally.needs_document} need doc</span>}
-                  {t.tally.eligible > 0 && <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-medium whitespace-nowrap">{t.tally.eligible} eligible</span>}
-                  <span className="text-slate-400 hidden sm:inline">{openTeam === t.teamId ? "▲" : "▼"}</span>
+                  {t.tally.flagged > 0 && <Badge className={cn(STATUS_BADGE.flagged, "whitespace-nowrap")}>{t.tally.flagged} flagged</Badge>}
+                  {t.tally.needs_document > 0 && <Badge className={cn(STATUS_BADGE.needs_document, "whitespace-nowrap")}>{t.tally.needs_document} need doc</Badge>}
+                  {t.tally.eligible > 0 && <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>{t.tally.eligible} eligible</Badge>}
+                  {openTeam === t.teamId ? <ChevronUp className="size-4 text-muted-foreground hidden sm:block" /> : <ChevronDown className="size-4 text-muted-foreground hidden sm:block" />}
                 </div>
               </button>
 
               {/* Expanded player list */}
               {openTeam === t.teamId && (
-                <div className="border-t border-slate-100 px-5 py-4">
+                <div className="border-t px-5 py-4">
                   {playersLoading ? (
-                    <p className="text-slate-500 text-sm">Loading players…</p>
+                    <div className="space-y-2">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
                   ) : (
                     <>
-                      {msg && <p className="text-sm text-slate-600 mb-3 bg-slate-50 rounded px-3 py-2">{msg}</p>}
+                      {msg && <p className="text-sm mb-3 bg-muted rounded px-3 py-2">{msg}</p>}
                       <div className="space-y-2">
                         {players.map((p) => (
-                                                    <button
+                          <button
                             key={p._id}
                             onClick={() => setModalPlayer(p)}
-                            className="w-full flex items-center gap-3 py-2 border-b border-slate-50 last:border-0 text-left hover:bg-slate-50 rounded-lg px-2 transition"
+                            className="w-full flex items-center gap-3 py-2 border-b last:border-0 text-left hover:bg-accent/50 rounded-lg px-2 transition"
                           >
                             {p.photo ? (
                               <img src={`/api/teams/players/${p._id}/photo`} alt=""
-                                className="h-10 w-10 rounded-full object-cover bg-slate-100 shrink-0" />
+                                className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
                             ) : (
-                              <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs shrink-0">
+                              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
                                 {p.lastName?.[0]}{p.firstName?.[0]}
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-slate-700 text-sm">{p.lastName}, {p.firstName}</span>
-                                <StatusPill status={p.eligibilityStatus} />
+                                <span className="text-sm">{p.lastName}, {p.firstName}</span>
+                                <Badge className={STATUS_BADGE[p.eligibilityStatus] || STATUS_BADGE.pending}>
+                                  {STATUS_LABEL[p.eligibilityStatus] || p.eligibilityStatus}
+                                </Badge>
                                 {p.documents?.length > 0 && (
-                                  <span className="text-xs text-slate-400">{p.documents.length} doc{p.documents.length > 1 ? "s" : ""}</span>
+                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <FileText className="size-3" /> {p.documents.length} doc{p.documents.length > 1 ? "s" : ""}
+                                  </span>
                                 )}
                               </div>
-                              {p.flagReason && <p className="text-xs text-slate-500 mt-0.5">{p.flagReason}</p>}
+                              {p.flagReason && <p className="text-xs text-muted-foreground mt-0.5">{p.flagReason}</p>}
                             </div>
-                            <span className="text-slate-300 text-xs shrink-0">View →</span>
+                            <span className="text-muted-foreground text-xs shrink-0">View →</span>
                           </button>
                         ))}
                       </div>
 
                       {/* Verify team */}
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <p className="text-xs text-slate-500">
+                      <div className="mt-4 pt-3 border-t flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">
                           {allEligible ? "All players eligible — ready to verify." : "Resolve all flagged / needs-document players to verify."}
                         </p>
-                        <button
-                          onClick={() => verify(t.teamId)}
-                          disabled={busy || !allEligible}
-                          className="text-sm font-medium px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition"
-                        >
-                          Verify Team
-                        </button>
+                        <Button onClick={() => verify(t.teamId)} disabled={busy || !allEligible}>
+                          <ShieldCheck /> Verify Team
+                        </Button>
                       </div>
                     </>
                   )}
                 </div>
               )}
-            </div>
+            </Card>
           ))}
         </div>
-        
       )}
- {modalPlayer && (
+
+      {modalPlayer && (
         <PlayerModal
           player={modalPlayer}
           teamId={openTeam}
@@ -384,7 +395,6 @@ export default function ReviewQueue() {
           onReject={async (tid, pid) => { await reject(tid, pid); setModalPlayer(null); }}
         />
       )}
-           
     </AdminLayout>
   );
 }

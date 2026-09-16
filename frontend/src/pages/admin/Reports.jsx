@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
+import { Printer, Trophy } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
-import { Button, Card } from "../../components/ui";
 import { superAdminMenu } from "../../components/menus";
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
@@ -51,54 +56,57 @@ function championOf(matches) {
 
 function TournamentTable({ s }) {
   return (
-    <Card className="p-5 print-block print-plain mb-6">
-      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
-        <h3 className="text-slate-800 font-semibold">
-          {s.sport}
-          <span className="text-slate-400 font-normal text-sm ml-2">
-            {DIVISION_LABEL[s.division] || s.division}
-          </span>
-        </h3>
-        <span className="text-slate-400 text-xs">{s.played} of {s.total} matches played</span>
-      </div>
+    <Card className="print-block print-plain mb-6">
+      <CardHeader>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <CardTitle>
+            {s.sport}
+            <span className="font-normal text-sm text-muted-foreground ml-2">
+              {DIVISION_LABEL[s.division] || s.division}
+            </span>
+          </CardTitle>
+          <span className="text-muted-foreground text-xs">{s.played} of {s.total} matches played</span>
+        </div>
+        <CardDescription>
+          {s.champion ? (
+            <span className="flex items-center gap-1.5 text-foreground">
+              <Trophy className="size-3.5 text-amber-500" />
+              Champion: <span className="font-medium">{s.champion}</span>
+            </span>
+          ) : (
+            "Not yet decided — tournament in progress."
+          )}
+        </CardDescription>
+      </CardHeader>
 
-      <p className="text-sm mb-3">
-        {s.champion ? (
-          <>
-            <span className="text-slate-500">Champion: </span>
-            <span className="text-slate-800 font-medium">{s.champion}</span>
-          </>
+      <CardContent>
+        {s.rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No teams yet.</p>
         ) : (
-          <span className="text-slate-400">Not yet decided — tournament in progress.</span>
-        )}
-      </p>
-
-      {s.rows.length === 0 ? (
-        <p className="text-slate-500 text-sm">No teams yet.</p>
-      ) : (
-        <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
-          <thead className="bg-slate-50 text-slate-500 text-left">
-            <tr>
-              <th className="px-3 py-2 font-medium w-10">#</th>
-              <th className="px-3 py-2 font-medium">Team</th>
-              <th className="px-3 py-2 font-medium text-center w-14">P</th>
-              <th className="px-3 py-2 font-medium text-center w-14">W</th>
-              <th className="px-3 py-2 font-medium text-center w-14">L</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {s.rows.map((row, i) => (
-              <tr key={row.id} className="text-slate-700">
-                <td className="px-3 py-2 text-slate-400 tabular-nums">{i + 1}</td>
-                <td className="px-3 py-2 font-medium">{row.name}</td>
-                <td className="px-3 py-2 text-center tabular-nums text-slate-500">{row.played}</td>
-                <td className="px-3 py-2 text-center tabular-nums font-semibold">{row.wins}</td>
-                <td className="px-3 py-2 text-center tabular-nums text-slate-500">{row.losses}</td>
+          <table className="w-full text-sm border rounded-lg overflow-hidden">
+            <thead className="bg-muted text-muted-foreground text-left">
+              <tr>
+                <th className="px-3 py-2 font-medium w-10">#</th>
+                <th className="px-3 py-2 font-medium">Team</th>
+                <th className="px-3 py-2 font-medium text-center w-14">P</th>
+                <th className="px-3 py-2 font-medium text-center w-14">W</th>
+                <th className="px-3 py-2 font-medium text-center w-14">L</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody className="divide-y">
+              {s.rows.map((row, i) => (
+                <tr key={row.id}>
+                  <td className="px-3 py-2 text-muted-foreground tabular-nums">{i + 1}</td>
+                  <td className="px-3 py-2 font-medium">{row.name}</td>
+                  <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">{row.played}</td>
+                  <td className="px-3 py-2 text-center tabular-nums font-semibold">{row.wins}</td>
+                  <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">{row.losses}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -159,7 +167,7 @@ export default function Reports() {
   });
 
   return (
-    <AdminLayout title="Reports" menu={superAdminMenu}>
+    <AdminLayout title="Reports" menu={superAdminMenu} enableDarkMode>
       {/* Tabs are for reading. The printout is the WHOLE season — a records
           report handed to the SK Federation shouldn't depend on which tab
           happened to be open. */}
@@ -176,20 +184,23 @@ export default function Reports() {
       `}</style>
 
       {loading ? (
-        <p className="text-slate-500">Loading…</p>
+        <div className="max-w-4xl space-y-3">
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
       ) : (
         <div className="max-w-4xl space-y-5">
           {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 no-print">
-              <p className="text-red-600 text-sm">{error}</p>
-            </div>
+            <Alert variant="destructive" className="no-print">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
-          <Card className="p-5 no-print">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
+          <Card className="no-print">
+            <CardContent className="flex items-start justify-between gap-3 flex-wrap">
               <div className="min-w-0">
-                <h2 className="text-slate-800 font-semibold mb-1">Season records</h2>
-                <p className="text-slate-500 text-sm">
+                <h2 className="font-semibold mb-1">Season records</h2>
+                <p className="text-muted-foreground text-sm">
                   Every registered team, ranked by wins across the whole tournament —
                   group stage and knockout combined. This is a record of results, not the
                   competition standing: the bracket decides the title, so the champion is
@@ -197,34 +208,35 @@ export default function Reports() {
                   on screen.
                 </p>
               </div>
-              <Button onClick={() => window.print()}>Print / Save as PDF</Button>
-            </div>
+              <Button onClick={() => window.print()}>
+                <Printer /> Print / Save as PDF
+              </Button>
+            </CardContent>
           </Card>
 
           {/* Printed header — paper only. */}
           <div className="hidden print-only mb-4">
             <h1 className="text-xl font-semibold">Inter-Barangay Sports League — Season Records</h1>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-muted-foreground">
               {season?.name || "Current season"} · Municipality of Kolambugan · Printed {printedOn}
             </p>
           </div>
 
           {sections.length === 0 ? (
-            <Card className="p-5">
-              <p className="text-slate-500 text-sm">
+            <Card>
+              <CardContent className="text-muted-foreground text-sm">
                 No tournaments have been generated this season yet.
-              </p>
+              </CardContent>
             </Card>
           ) : (
             <>
-              <div className="flex gap-4 overflow-x-auto border-b border-slate-200 no-print">
+              <div className="flex gap-4 overflow-x-auto border-b no-print">
                 {sports.map((s) => (
                   <button key={s} onClick={() => setSport(s)}
-                    className={`px-1 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition ${
-                      sport === s
-                        ? "text-indigo-700 border-indigo-600"
-                        : "text-slate-500 border-transparent hover:text-slate-700"
-                    }`}>
+                    className={cn(
+                      "px-1 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition",
+                      sport === s ? "text-primary border-primary" : "text-muted-foreground border-transparent hover:text-foreground"
+                    )}>
                     {s}
                   </button>
                 ))}

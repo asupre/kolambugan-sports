@@ -250,8 +250,8 @@ round-robin in League Setup takes the same path ML does.
   organizer must never be blocked from recording a game being played in front
   of them. A match with NO date is always startable (which also keeps the
   September evaluation usable).
-- NOTE: the day comparison uses server-local time. On Render that is UTC, 8h
-  behind Kolambugan — compare in Asia/Manila before deploying.
+- Day comparisons run in Asia/Manila time via `config/time.js` (fixed —
+  Render's server-local time is UTC, 8h behind Kolambugan).
 
 **Unavailable team = FORFEIT** (confirmed). No reschedule/re-pair.
 
@@ -365,8 +365,9 @@ so a bug in one route cannot expose the other.
 - Real security = JWT + RBAC middleware + bcrypt + **rate-limited login**.
   plus frontend route guards (`RequireRole`) — the API also rejects
   unauthorized calls regardless, so there is no gap even if a guard is missed.
-- Token expiry is 8h; an expired token currently shows "Authentication required"
-  instead of redirecting to login (polish item).
+- Token expiry is 8h; an expired token now redirects to login — a 401 handler
+  in `api.js` clears the session and redirects (previously showed
+  "Authentication required" with no redirect).
 
 ---
 
@@ -386,8 +387,9 @@ so a bug in one route cannot expose the other.
   who is winning. No decoration needed.
 - **Schedule** follows PBA's fixture list: a date header bar, then per match the
   time + venue on the LEFT and the two teams stacked with crest slots.
-- `Crest` component renders a monogram tile now; it is the SINGLE swap point for
-  barangay logos once those are built.
+- `Crest` component renders a monogram tile, falling back to the barangay's
+  uploaded `logo` where one exists (built) — a cached `/api/barangays` lookup
+  tells it which barangays have one, so crests don't fire 150 404s per page.
 - Sport tabs are underlined text, not chips.
 - Minimal animation. Live pages poll every 10s so scores tick over on their own —
   that is the one "live" effect.
@@ -395,13 +397,30 @@ so a bug in one route cannot expose the other.
 - Public lineups show **surname, first name, jersey, age, stats, and photo**.
   NO birthdate, NO address, NO documents.
 
-**Admin pages (Super Admin, Barangay Admin) — shadcn/ui, deferred:**
-- Currently hand-rolled Tailwind + `components/ui.jsx`
-  (Button/Card/Input/Label/Pill) and a generic `AdminLayout` that takes a
-  `menu` prop.
-- DECIDED: a single shadcn/ui conversion pass over ALL admin pages, with light
-  animation, AFTER the features are finished. Doing it once keeps them
-  consistent; doing it now would mean converting twice.
+**Admin pages — shadcn/ui pass STARTED on Barangay Admin only (Sep 2026):**
+- Super Admin is still hand-rolled Tailwind + `components/ui.jsx`
+  (Button/Card/Input/Label/Pill). Barangay Admin (`BrgyDashboard.jsx`,
+  `BrgyMatches.jsx`, `Documents.jsx`) now uses real shadcn/ui components
+  (`src/components/ui/*`, the "Nova" preset, neutral base) instead — a
+  deliberate early exception to the "one pass over everything" plan below,
+  so expect a visual mismatch between Barangay Admin and Super Admin until
+  the rest catches up. `RosterEditor` is now a proper shadcn `Dialog`
+  instead of a hand-rolled fixed-overlay div.
+- This REQUIRED upgrading the whole project from Tailwind v3 to v4 (shadcn's
+  current CLI only targets v4) — `tailwind.config.js` is gone; theme tokens
+  now live in `src/index.css` as CSS variables. This is global, so it also
+  affects Super Admin, Organizer, and Public, even though their JSX wasn't
+  touched; both still render off explicit utility classes (not shadcn
+  tokens), and a build was verified clean after the upgrade.
+- shadcn's default font (Geist) was deliberately NOT applied globally — kept
+  Inter, since `index.css` is shared by every page including Public/Organizer,
+  whose look is decided and out of scope. `--primary`/`--ring` were set to
+  the existing indigo so Barangay Admin reads as a polish pass, not a re-brand.
+- Still DECIDED: one more shadcn/ui conversion pass over the REMAINING admin
+  pages (Super Admin), with light animation, once its own remaining features
+  are finished. Doing it once keeps them consistent; doing it piecemeal
+  everywhere would mean converting twice — Barangay Admin is the deliberate
+  exception, not a reversal of this plan.
 
 **Organizer scoring screen — dark, courtside:**
 - Dark navy, very large scores, big touch targets. Tablet/phone first.
@@ -679,8 +698,8 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 - Route guards: `RequireRole` + a 401 handler in `api.js` that clears the
   session and redirects to login.
 - Shared `AdminLayout` (generic, takes a `menu` prop), `ui.jsx` components,
-  and `components/menus.js` (`superAdminMenu`, `organizerMenu` — previously
-  copy-pasted into every page).
+  and `components/menus.js` (`superAdminMenu`, `organizerMenu`, `brgyMenu` —
+  previously copy-pasted into every page).
 
 ## IN PROGRESS / NEXT (priority order)
 

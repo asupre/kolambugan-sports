@@ -163,3 +163,54 @@ says WebSockets and must be corrected.
   body renders "TBD" with correct scores beside it. Bit us twice.
 - Filename casing — Windows hides a mismatch, Linux won't. Check every
   `require` before deploying.
+
+## 2026-09 — Session: shadcn/ui started on Barangay Admin, Tailwind v4
+
+- **Barangay Admin (`BrgyDashboard.jsx`, `BrgyMatches.jsx`, `Documents.jsx`)
+  converted to real shadcn/ui components.** Deliberate exception to the
+  "one shadcn pass over all admin pages, after features are done" decision —
+  Super Admin stays on the old hand-rolled Tailwind set for now, so there's a
+  visual mismatch between the two until the rest catches up. `RosterEditor`
+  is now a proper shadcn `Dialog` (focus trap, ESC/overlay-click to close)
+  instead of a hand-rolled fixed-overlay div. All other logic/handlers were
+  left untouched — this was a presentation-only pass.
+- **Tailwind upgraded v3 → v4**, required because shadcn's current CLI only
+  generates v4-style output (CSS-variable theme, no `tailwind.config.js`).
+  Ran `@tailwindcss/upgrade`, then hand-fixed two things it got wrong for
+  our setup: (1) it wrapped `@import 'shadcn/tailwind.css'` in `layer(base)`,
+  which crashes v4 with "`@utility` cannot be nested" since that file defines
+  utilities — import it unlayered. (2) it never emitted the `@theme inline`
+  block mapping `--color-border` etc. to the raw `:root` variables, so
+  `@apply border-border` failed with "unknown utility class" — re-ran
+  `shadcn init --force` against the now-v4 project to regenerate it correctly.
+- This upgrade is global (`src/index.css`), so it also touches Public,
+  Organizer, and Super Admin even though their JSX wasn't edited. Deliberately
+  did NOT let shadcn's default Geist font apply globally (kept Inter) and set
+  `--primary`/`--ring` to the existing indigo rather than shadcn's neutral
+  default, specifically so the shared file wouldn't silently reskin pages
+  outside this pass. `npm run build` verified clean after every step; Public/
+  Organizer were not visually re-checked in a browser this session.
+- `brgyMenu` — copied identically into all three Barangay Admin files despite
+  `menus.js` existing for exactly this — moved into `menus.js` alongside
+  `superAdminMenu`/`organizerMenu` while converting these files anyway.
+- **Primary color pass** — `--primary`/`--ring` deepened from plain
+  indigo-600 toward a richer indigo-violet (`oklch(0.53 0.26 285)`), then a
+  second pass made status badges (eligibility, doc verify, Draft/Submitted,
+  Won/Lost) solid/vivid instead of pastel outlines, and gave each Card a
+  colored left-border + icon tied to its meaning (blue=info/scheduled,
+  green=success/done, amber=needs attention, red=urgent/negative) — the flat
+  pastel badges were the main reason the pages read as "bland."
+- **Dark mode — Barangay Admin only.** `AdminLayout` takes a new
+  `enableDarkMode` prop (only the three Barangay Admin pages pass it); when
+  on, a header toggle flips `document.documentElement` between the existing
+  `:root`/`.dark` token sets already written by the shadcn init. Deliberately
+  toggles the real `<html>` class, not a scoped wrapper div — Radix `Dialog`/
+  `Select` render into a portal on `document.body`, outside any local
+  wrapper, so a div-scoped approach would leave the roster modal and dropdowns
+  stuck in light mode. Scoped to the component's mount lifecycle (added on
+  mount, always removed on unmount) specifically so a saved dark preference
+  can never leak onto Super Admin/Organizer, which don't pass the prop and
+  still render hardcoded light colors — those would show a half-dark shell
+  with light content if `.dark` ever reached them. Preference persists in
+  `localStorage` under `brgy-theme`, a key namespaced away from the shared
+  session so it can't collide with a future Super Admin dark mode.

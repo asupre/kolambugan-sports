@@ -1,13 +1,29 @@
 import { useEffect, useState } from "react";
+import { CalendarClock, Circle, Inbox, ListChecks, MapPin, Radio } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
+import { brgyMenu } from "../../components/menus";
 import { api } from "../../api";
-import { Card } from "../../components/ui";
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
-const brgyMenu = [
-  { label: "My Teams", path: "/brgy", icon: "⛃" },
-  { label: "Verification Status", path: "/brgy/documents", icon: "🗎" },
-  { label: "Matches", path: "/brgy/matches", icon: "◷" },
-];
+function MatchRowSkeleton() {
+  return (
+    <div className="rounded-lg border px-3 py-2.5 space-y-2">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-3 w-10" />
+      </div>
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-4 flex-1" />
+        <Skeleton className="h-3 w-6" />
+        <Skeleton className="h-4 flex-1" />
+      </div>
+    </div>
+  );
+}
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
@@ -42,39 +58,43 @@ function MatchRow({ m, myTeamIds }) {
   const won = done && m.winner && myTeamIds.has(String(m.winner));
 
   const Side = ({ team, score }) => (
-    <div className={`flex items-center gap-2 min-w-0 ${mine(team) ? "" : "text-slate-500"}`}>
-      <span className={`truncate text-sm ${mine(team) ? "text-slate-800 font-medium" : ""}`}>
+    <div className={cn("flex items-center gap-2 min-w-0", !mine(team) && "text-muted-foreground")}>
+      <span className={cn("truncate text-sm", mine(team) && "font-medium text-foreground")}>
         {team?.name || "TBD"}
       </span>
       {(done || live) && (
-        <span className="text-sm font-semibold tabular-nums text-slate-700 shrink-0">{score}</span>
+        <span className="text-sm font-semibold tabular-nums shrink-0">{score}</span>
       )}
     </div>
   );
 
   return (
-    <div className="border border-slate-200 rounded-lg px-3 py-2.5">
+    <div className="rounded-lg border px-3 py-2.5">
       <div className="flex items-center justify-between gap-3 mb-1">
-        <span className="text-slate-400 text-xs truncate">{context(m)}</span>
+        <span className="text-xs text-muted-foreground truncate">{context(m)}</span>
         {live ? (
-          <span className="text-red-600 text-xs font-semibold shrink-0">● LIVE</span>
-        ) : done ? (
-          <span className={`text-xs font-medium shrink-0 ${won ? "text-green-700" : "text-slate-400"}`}>
-            {won ? "Won" : "Lost"}
+          <span className="flex items-center gap-1 text-red-600 text-xs font-semibold shrink-0">
+            <Circle className="size-2 fill-current" /> LIVE
           </span>
+        ) : done ? (
+          <Badge className={cn("shrink-0", won ? "bg-green-500/15 text-green-600 dark:text-green-400" : "bg-red-500/15 text-red-600 dark:text-red-400")}>
+            {won ? "Won" : "Lost"}
+          </Badge>
         ) : (
-          <span className="text-slate-400 text-xs shrink-0">{timeOf(m.schedule) || "Time TBD"}</span>
+          <span className="text-xs text-muted-foreground shrink-0">{timeOf(m.schedule) || "Time TBD"}</span>
         )}
       </div>
 
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0"><Side team={m.teamA} score={m.scoreA} /></div>
-        <span className="text-slate-300 text-xs shrink-0">vs</span>
+        <span className="text-xs text-muted-foreground shrink-0">vs</span>
         <div className="flex-1 min-w-0"><Side team={m.teamB} score={m.scoreB} /></div>
       </div>
 
       {m.venue && !done && (
-        <p className="text-slate-400 text-xs mt-1.5">{m.venue}</p>
+        <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
+          <MapPin className="size-3" /> {m.venue}
+        </p>
       )}
     </div>
   );
@@ -117,7 +137,7 @@ export default function BrgyMatches() {
 
   const live = ours.filter((m) => m.status === "ongoing");
   const upcoming = ours.filter((m) => m.status === "scheduled");
-    const done = ours.filter((m) => m.status === "completed" || m.status === "forfeited").reverse();
+  const done = ours.filter((m) => m.status === "completed" || m.status === "forfeited").reverse();
 
   // Upcoming groups by date; undated fixtures fall into their own bucket at the end.
   const byDate = {};
@@ -129,76 +149,107 @@ export default function BrgyMatches() {
   const wins = done.filter((m) => m.winner && myTeamIds.has(String(m.winner))).length;
 
   return (
-    <AdminLayout title="Matches" menu={brgyMenu}>
+    <AdminLayout title="Matches" menu={brgyMenu} enableDarkMode>
       {loading ? (
-        <p className="text-slate-500">Loading…</p>
+        <div className="max-w-3xl space-y-5">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-52" />
+              <Skeleton className="h-3.5 w-full" />
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-28" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <MatchRowSkeleton />
+              <MatchRowSkeleton />
+              <MatchRowSkeleton />
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <div className="max-w-3xl space-y-5">
           {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-              <p className="text-red-600 text-sm">{error}</p>
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
-          <Card className="p-5">
-            <h2 className="text-slate-800 font-semibold mb-1">Your barangay's matches</h2>
-            <p className="text-slate-500 text-sm">
-              Every match involving one of your teams this season. Scores are entered
-              courtside by the organizer and appear here as they're played.
-            </p>
+          <Card className="border-l-4 border-l-blue-500">
+            <CardHeader>
+              <CardTitle>Your barangay's matches</CardTitle>
+              <CardDescription>
+                Every match involving one of your teams this season. Scores are entered
+                courtside by the organizer and appear here as they're played.
+              </CardDescription>
+            </CardHeader>
             {done.length > 0 && (
-              <p className="text-slate-600 text-sm mt-2">
-                {wins} won · {done.length - wins} lost · {upcoming.length} still to play
-              </p>
+              <CardContent>
+                <p className="text-sm">
+                  {wins} won · {done.length - wins} lost · {upcoming.length} still to play
+                </p>
+              </CardContent>
             )}
           </Card>
 
           {ours.length === 0 && (
-            <Card className="p-5">
-              <p className="text-slate-500 text-sm">
+            <Card>
+              <CardContent className="flex items-center gap-3 text-muted-foreground text-sm">
+                <Inbox className="size-5 shrink-0" />
                 No matches yet. Fixtures appear once your teams are verified and the
                 SK Federation has drawn the tournament.
-              </p>
+              </CardContent>
             </Card>
           )}
 
           {live.length > 0 && (
-            <Card className="p-5">
-              <h3 className="text-slate-800 font-semibold mb-3">
-                Playing now <span className="text-slate-400 font-normal text-sm">({live.length})</span>
-              </h3>
-              <div className="space-y-2">
+            <Card className="border-l-4 border-l-red-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Radio className="size-4 text-red-500" />
+                  Playing now <span className="font-normal text-sm text-muted-foreground">({live.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
                 {live.map((m) => <MatchRow key={m.id} m={m} myTeamIds={myTeamIds} />)}
-              </div>
+              </CardContent>
             </Card>
           )}
 
           {upcoming.length > 0 && (
-            <Card className="p-5">
-              <h3 className="text-slate-800 font-semibold mb-3">
-                Upcoming <span className="text-slate-400 font-normal text-sm">({upcoming.length})</span>
-              </h3>
-              <div className="space-y-4">
+            <Card className="border-l-4 border-l-blue-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarClock className="size-4 text-blue-500" />
+                  Upcoming <span className="font-normal text-sm text-muted-foreground">({upcoming.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 {dateKeys.map((date) => (
                   <div key={date}>
-                    <p className="text-slate-600 text-xs font-semibold mb-1.5">{date}</p>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">{date}</p>
                     <div className="space-y-2">
                       {byDate[date].map((m) => <MatchRow key={m.id} m={m} myTeamIds={myTeamIds} />)}
                     </div>
                   </div>
                 ))}
-              </div>
+              </CardContent>
             </Card>
           )}
 
           {done.length > 0 && (
-            <Card className="p-5">
-              <h3 className="text-slate-800 font-semibold mb-3">
-                Results <span className="text-slate-400 font-normal text-sm">({done.length})</span>
-              </h3>
-              <div className="space-y-2">
+            <Card className="border-l-4 border-l-green-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ListChecks className="size-4 text-green-500" />
+                  Results <span className="font-normal text-sm text-muted-foreground">({done.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
                 {done.map((m) => <MatchRow key={m.id} m={m} myTeamIds={myTeamIds} />)}
-              </div>
+              </CardContent>
             </Card>
           )}
         </div>

@@ -1,13 +1,31 @@
 import { useEffect, useState } from "react";
+import { ImageIcon, ImageOff, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
+import { brgyMenu } from "../../components/menus";
 import { api } from "../../api";
-import { Button, Card } from "../../components/ui";
-
-const brgyMenu = [
-  { label: "My Teams", path: "/brgy", icon: "⛃" },
-  { label: "Verification Status", path: "/brgy/documents", icon: "🗎" },
-  { label: "Matches", path: "/brgy/matches", icon: "◷" },
-];
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
+import { Button, buttonVariants } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
+import { Separator } from "../../components/ui/separator";
+import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
 const ROSTER_LIMITS = {
   team: { min: 10, max: 15 },
@@ -20,6 +38,12 @@ const DIVISION_LABEL = {
   under17: "Under 17", under30: "Under 30",
 };
 
+const ELIGIBILITY_BADGE = {
+  eligible: "bg-green-500/15 text-green-600 dark:text-green-400",
+  flagged: "bg-red-500/15 text-red-600 dark:text-red-400",
+  needs_document: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+};
+
 // Matches MINOR_AGE in the pre-screen service. Under this age a player can't be
 // on the SK voters' list at all, so documents are needed regardless of spelling.
 const MINOR_AGE = 15;
@@ -30,6 +54,19 @@ const DOC_TYPES = [
   { value: "barangay_clearance", label: "Barangay clearance" },
   { value: "voters_id", label: "Voter's ID" },
 ];
+
+function RowSkeleton() {
+  return (
+    <div className="rounded-lg border px-3 py-2.5 flex items-center gap-3">
+      <Skeleton className="size-9 rounded-full shrink-0" />
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <Skeleton className="h-3.5 w-2/5" />
+        <Skeleton className="h-3 w-1/4" />
+      </div>
+      <Skeleton className="h-5 w-16 rounded-full" />
+    </div>
+  );
+}
 
 function ageFrom(birthdate) {
   if (!birthdate) return null;
@@ -79,22 +116,23 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
     }
   }
 
-  const input = "rounded-lg border border-slate-300 px-3 py-2 text-sm w-full";
-
   return (
-    <div className="border border-indigo-200 bg-indigo-50/40 rounded-lg p-3 mt-1.5">
-      <p className="text-slate-700 text-sm font-medium mb-2">Correct this player</p>
+    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-1.5">
+      <p className="text-sm font-medium mb-2">Correct this player</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-        <input placeholder="First name" value={form.firstName}
-          onChange={(e) => setForm({ ...form, firstName: e.target.value })} className={input} />
-        <input placeholder="Last name" value={form.lastName}
-          onChange={(e) => setForm({ ...form, lastName: e.target.value })} className={input} />
-        <input placeholder="Middle name" value={form.middleName}
-          onChange={(e) => setForm({ ...form, middleName: e.target.value })} className={input} />
-        <input type="date" value={form.birthdate}
-          onChange={(e) => setForm({ ...form, birthdate: e.target.value })} className={input} />
-        <input type="number" placeholder="Jersey #" value={form.jerseyNumber}
-          onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} className={input} />
+        <Input placeholder="First name" value={form.firstName}
+          onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+        <Input placeholder="Last name" value={form.lastName}
+          onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+        <Input placeholder="Middle name" value={form.middleName}
+          onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
+        <div className="space-y-1">
+          <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
+          <Input type="date" className="w-full" value={form.birthdate}
+            onChange={(e) => setForm({ ...form, birthdate: e.target.value })} />
+        </div>
+        <Input type="number" placeholder="Jersey #" value={form.jerseyNumber}
+          onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
       </div>
 
       {identityChanged && (
@@ -102,17 +140,13 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
           Changing the name or birthdate re-runs the residency check for this player.
         </p>
       )}
-      {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
+      {error && <p className="text-destructive text-sm mb-2">{error}</p>}
 
       <div className="flex gap-2">
-        <button onClick={save} disabled={busy || !form.firstName.trim() || !form.lastName.trim()}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+        <Button size="sm" onClick={save} disabled={busy || !form.firstName.trim() || !form.lastName.trim()}>
           {busy ? "Saving…" : "Save"}
-        </button>
-        <button onClick={onCancel}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50">
-          Cancel
-        </button>
+        </Button>
+        <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
   );
@@ -152,20 +186,26 @@ function DocumentUpload({ teamId, playerId, onUploaded }) {
 
   return (
     <div className="flex items-center gap-2 flex-wrap mt-1.5">
-      <select value={docType} onChange={(e) => setDocType(e.target.value)}
-        className="rounded border border-slate-300 px-2 py-1 text-xs">
-        {DOC_TYPES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-      </select>
-      <label className="text-xs font-medium px-2 py-1 rounded border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 cursor-pointer">
+      <Select value={docType} onValueChange={setDocType}>
+        <SelectTrigger className="h-7 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {DOC_TYPES.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <label className={cn(buttonVariants({ variant: "outline", size: "sm" }), "cursor-pointer text-primary border-primary/20 bg-primary/5 hover:bg-primary/10")}>
+        <Upload />
         {busy ? "Uploading…" : done ? "Upload another" : "Attach document"}
         <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden"
           onChange={(e) => { upload(e.target.files[0]); e.target.value = ""; }} />
       </label>
-      {done && <span className="text-green-600 text-xs">Uploaded — awaiting review</span>}
-      {error && <span className="text-red-600 text-xs">{error}</span>}
+      {done && <span className="text-xs text-green-600">Uploaded — awaiting review</span>}
+      {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   );
 }
+
 // The barangay crest, shown on every public page beside this barangay's teams.
 // Uploaded here rather than by the federation: 26 barangays, and each one knows
 // its own logo.
@@ -221,39 +261,49 @@ function LogoCard() {
   if (!myId) return null;
 
   return (
-    <Card className="p-5">
-      <h2 className="text-slate-800 font-semibold mb-1">Barangay logo</h2>
-      <p className="text-slate-500 text-sm mb-4">
-        Shown beside your teams everywhere on the public site — match results,
-        standings, brackets. Square images work best. JPEG, PNG or WebP, up to 2&nbsp;MB.
-      </p>
-
-      {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-
-      <div className="flex items-center gap-4">
-        {barangay?.hasLogo ? (
-          <img src={`/api/barangays/${myId}/logo?v=${v}`} alt=""
-            className="h-20 w-20 rounded-lg object-cover bg-slate-100 border border-slate-200" />
-        ) : (
-          <div className="h-20 w-20 rounded-lg bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-xs text-center px-2">
-            No logo
-          </div>
+    <Card className="border-l-4 border-l-blue-500">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ImageIcon className="size-4 text-blue-500" /> Barangay logo
+        </CardTitle>
+        <CardDescription>
+          Shown beside your teams everywhere on the public site — match results,
+          standings, brackets. Square images work best. JPEG, PNG or WebP, up to 2&nbsp;MB.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer w-fit">
-            {busy ? "Working…" : barangay?.hasLogo ? "Replace logo" : "Upload logo"}
-            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-              onChange={(e) => { upload(e.target.files[0]); e.target.value = ""; }} />
-          </label>
-          {barangay?.hasLogo && (
-            <button onClick={remove} disabled={busy}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 w-fit">
-              Remove
-            </button>
+        <div className="flex items-center gap-4">
+          {barangay?.hasLogo ? (
+            <img src={`/api/barangays/${myId}/logo?v=${v}`} alt=""
+              className="h-20 w-20 rounded-lg object-cover bg-muted border" />
+          ) : (
+            <div className="h-20 w-20 rounded-lg bg-muted border border-dashed flex flex-col items-center justify-center gap-1 text-muted-foreground text-xs text-center px-2">
+              <ImageOff className="size-4" />
+              No logo
+            </div>
           )}
+
+          <div className="flex flex-col gap-2">
+            <label className={cn(buttonVariants({ size: "sm" }), "cursor-pointer w-fit")}>
+              <Upload />
+              {busy ? "Working…" : barangay?.hasLogo ? "Replace logo" : "Upload logo"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={(e) => { upload(e.target.files[0]); e.target.value = ""; }} />
+            </label>
+            {barangay?.hasLogo && (
+              <Button size="sm" variant="destructive" onClick={remove} disabled={busy} className="w-fit">
+                <Trash2 /> Remove
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      </CardContent>
     </Card>
   );
 }
@@ -360,43 +410,47 @@ function RosterEditor({ team, sports, onClose }) {
   const newAge = ageFrom(form.birthdate);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8">
-      <Card className="p-5 w-full max-w-2xl my-auto">
-        <div className="flex items-start justify-between gap-3 mb-3">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-2xl! max-h-[85vh] overflow-y-auto">
+        <DialogHeader className="flex-row items-start justify-between gap-3 space-y-0">
           <div>
-            <h2 className="text-slate-800 font-semibold">{team.teamName}</h2>
-            <p className="text-slate-500 text-sm">
+            <DialogTitle>{team.teamName}</DialogTitle>
+            <DialogDescription>
               {sport?.name}
               {team.division && team.division !== "open" ? ` · ${DIVISION_LABEL[team.division] || team.division}` : ""}
               {" · "}{players.length}/{limits.max} player{limits.max === 1 ? "" : "s"}
               {locked ? " · submitted" : ""}
-            </p>
+            </DialogDescription>
           </div>
-          <button onClick={onClose} className="text-slate-400 text-sm hover:text-slate-600">Close</button>
-        </div>
+          <Button variant="ghost" size="icon-sm" onClick={onClose}><X /></Button>
+        </DialogHeader>
 
         {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3">
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
         {notice && (
-          <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 mb-3">
-            <p className="text-green-700 text-sm">{notice}</p>
-          </div>
+          <Alert className="border-green-200 bg-green-50 text-green-700 [&_*]:text-green-700">
+            <AlertDescription>{notice}</AlertDescription>
+          </Alert>
         )}
 
         {loading ? (
-          <p className="text-slate-500 text-sm">Loading roster…</p>
+          <div className="space-y-1.5">
+            <RowSkeleton />
+            <RowSkeleton />
+            <RowSkeleton />
+          </div>
         ) : (
           <>
-            <p className="text-slate-400 text-xs mb-2">
+            <p className="text-xs text-muted-foreground">
               Player photos: close-up headshot, face clearly visible, plain background if possible.
               JPEG or PNG, max 3&nbsp;MB. Photos appear on the public team roster.
             </p>
 
-            <div className="space-y-1.5 mb-4">
-              {players.length === 0 && <p className="text-slate-500 text-sm">No players yet.</p>}
+            <div className="space-y-1.5">
+              {players.length === 0 && <p className="text-muted-foreground text-sm">No players yet.</p>}
               {players.map((p) => {
                 const age = p.age ?? ageFrom(p.birthdate);
                 const isMinor = age !== null && age < MINOR_AGE;
@@ -405,45 +459,38 @@ function RosterEditor({ team, sports, onClose }) {
                   || p.eligibilityStatus === "flagged";
 
                 return (
-                  <div key={p._id} className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                    <div className="flex items-center gap-2">
+                  <div key={p._id} className="rounded-lg border px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {p.photo ? (
                         <img src={`/api/teams/players/${p._id}/photo`} alt=""
-                          className="h-9 w-9 rounded-full object-cover bg-slate-100 shrink-0" />
+                          className="h-9 w-9 rounded-full object-cover bg-muted shrink-0" />
                       ) : (
-                        <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs shrink-0">
+                        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
                           {p.lastName?.[0]}{p.firstName?.[0]}
                         </div>
                       )}
-                      <label className="text-xs text-indigo-600 hover:underline cursor-pointer shrink-0">
+                      <label className="text-xs text-primary hover:underline cursor-pointer shrink-0">
                         {uploadingId === p._id ? "…" : p.photo ? "Change" : "Photo"}
                         <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
                           onChange={(e) => { uploadPhoto(p._id, e.target.files[0]); e.target.value = ""; }} />
                       </label>
-                      <span className="text-slate-400 text-xs w-8">{p.jerseyNumber ?? "—"}</span>
-                      <span className="flex-1 min-w-0 truncate text-slate-700">
+                      <span className="text-muted-foreground text-xs w-8 shrink-0">{p.jerseyNumber ?? "—"}</span>
+                      <span className="flex-1 min-w-[8rem] truncate">
                         {p.lastName}, {p.firstName} {p.middleName || ""}
                       </span>
-                      <span className="text-slate-400 text-xs">{age ?? "—"}</span>
+                      <span className="text-muted-foreground text-xs shrink-0">{age ?? "—"}</span>
                       {p.eligibilityStatus && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
-                          p.eligibilityStatus === "eligible" ? "bg-green-100 text-green-700"
-                          : p.eligibilityStatus === "flagged" ? "bg-red-100 text-red-700"
-                          : "bg-amber-100 text-amber-700"
-                        }`}>
+                        <Badge variant="outline" className={cn("whitespace-nowrap", ELIGIBILITY_BADGE[p.eligibilityStatus])}>
                           {p.eligibilityStatus.replace("_", " ")}
-                        </span>
+                        </Badge>
                       )}
-                      <button
-                        onClick={() => setEditingId(editingId === p._id ? null : p._id)}
-                        className="text-xs font-medium px-2 py-1 rounded border border-slate-300 text-slate-600 hover:bg-slate-50">
-                        Edit
-                      </button>
+                      <Button size="icon-sm" variant="outline" onClick={() => setEditingId(editingId === p._id ? null : p._id)}>
+                        <Pencil />
+                      </Button>
                       {!locked && (
-                        <button onClick={() => removePlayer(p._id)}
-                          className="text-xs font-medium px-2 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50">
-                          Remove
-                        </button>
+                        <Button size="icon-sm" variant="destructive" onClick={() => removePlayer(p._id)}>
+                          <Trash2 />
+                        </Button>
                       )}
                     </div>
 
@@ -454,7 +501,8 @@ function RosterEditor({ team, sports, onClose }) {
                     {needsDoc && (
                       <>
                         {isMinor && !p.eligibilityStatus && (
-                          <p className="text-xs text-slate-500 mt-1.5">
+                          <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
+                            <ShieldAlert className="size-3.5 shrink-0" />
                             Under {MINOR_AGE} — too young for the voters' list, so a document is needed.
                           </p>
                         )}
@@ -484,59 +532,62 @@ function RosterEditor({ team, sports, onClose }) {
             </div>
 
             {!locked && players.length < limits.max && (
-              <div className="border-t border-slate-200 pt-4 mb-4">
-                <h3 className="text-slate-700 font-medium text-sm mb-2">Add a player</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                  <input placeholder="First name" value={form.firstName}
-                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                  <input placeholder="Last name" value={form.lastName}
-                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                  <input placeholder="Middle name (optional)" value={form.middleName}
-                    onChange={(e) => setForm({ ...form, middleName: e.target.value })}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                  <input type="date" value={form.birthdate}
-                    onChange={(e) => setForm({ ...form, birthdate: e.target.value })}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                  <input placeholder="Address (optional)" value={form.address}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                  <input type="number" placeholder="Jersey # (optional)" value={form.jerseyNumber}
-                    onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <>
+                <Separator />
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Add a player</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                    <Input placeholder="First name" value={form.firstName}
+                      onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+                    <Input placeholder="Last name" value={form.lastName}
+                      onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+                    <Input placeholder="Middle name (optional)" value={form.middleName}
+                      onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
+                    <div className="space-y-1">
+                      <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
+                      <Input type="date" className="w-full" value={form.birthdate}
+                        onChange={(e) => setForm({ ...form, birthdate: e.target.value })} />
+                    </div>
+                    <Input placeholder="Address (optional)" value={form.address}
+                      onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                    <Input type="number" placeholder="Jersey # (optional)" value={form.jerseyNumber}
+                      onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
+                  </div>
+
+                  {newAge !== null && newAge < MINOR_AGE && (
+                    <p className="text-amber-700 text-xs mb-2">
+                      Age {newAge} — under {MINOR_AGE}s aren't on the voters' list, so you'll be asked
+                      to attach a birth certificate or parental consent once they're added.
+                    </p>
+                  )}
+
+                  <Button onClick={addPlayer}
+                    disabled={busy || !form.firstName.trim() || !form.lastName.trim() || !form.birthdate}>
+                    {busy ? "Adding…" : "Add player"}
+                  </Button>
                 </div>
-
-                {newAge !== null && newAge < MINOR_AGE && (
-                  <p className="text-amber-700 text-xs mb-2">
-                    Age {newAge} — under {MINOR_AGE}s aren't on the voters' list, so you'll be asked
-                    to attach a birth certificate or parental consent once they're added.
-                  </p>
-                )}
-
-                <Button onClick={addPlayer}
-                  disabled={busy || !form.firstName.trim() || !form.lastName.trim() || !form.birthdate}>
-                  {busy ? "Adding…" : "Add player"}
-                </Button>
-              </div>
+              </>
             )}
 
             {!locked && (
-              <div className="border-t border-slate-200 pt-4">
-                <p className="text-slate-500 text-sm mb-2">
-                  {canSubmit
-                    ? "Roster is ready to submit. Once submitted it's locked and screened."
-                    : `Need ${limits.min}–${limits.max} players to submit (currently ${players.length}).`}
-                </p>
-                <Button onClick={submitRoster} disabled={!canSubmit || busy}>
-                  {busy ? "Submitting…" : "Submit roster"}
-                </Button>
-              </div>
+              <>
+                <Separator />
+                <div>
+                  <p className="text-muted-foreground text-sm mb-2">
+                    {canSubmit
+                      ? "Roster is ready to submit. Once submitted it's locked and screened."
+                      : `Need ${limits.min}–${limits.max} players to submit (currently ${players.length}).`}
+                  </p>
+                  <Button onClick={submitRoster} disabled={!canSubmit || busy}>
+                    {busy ? "Submitting…" : "Submit roster"}
+                  </Button>
+                </div>
+              </>
             )}
           </>
         )}
-      </Card>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -593,104 +644,147 @@ export default function BrgyDashboard() {
   }
 
   return (
-    <AdminLayout title="Team Registration" menu={brgyMenu}>
+    <AdminLayout title="Team Registration" menu={brgyMenu} enableDarkMode>
       {loading ? (
-        <p className="text-slate-500">Loading…</p>
+        <div className="max-w-4xl space-y-6">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3.5 w-2/3" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-20 w-20 rounded-lg" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3.5 w-3/4" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-28" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-24" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <RowSkeleton />
+              <RowSkeleton />
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <div className="max-w-4xl space-y-6">
           {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-              <p className="text-red-600 text-sm">{error}</p>
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
-            <LogoCard />
-          <Card className="p-5">
-            <h2 className="text-slate-800 font-semibold mb-1">Register a team</h2>
-            <p className="text-slate-500 text-sm mb-4">
-              Pick a sport and division. Roster size depends on the sport's format.
-            </p>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-slate-700 text-sm font-medium mb-1.5">Sport</label>
-                <select value={sportId}
-                  onChange={(e) => { setSportId(e.target.value); setDivision(""); }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                  <option value="">Select a sport…</option>
-                  {sports.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
-                </select>
+          <LogoCard />
+
+          <Card className="border-l-4 border-l-green-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="size-4 text-green-500" /> Register a team
+              </CardTitle>
+              <CardDescription>
+                Pick a sport and division. Roster size depends on the sport's format.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Sport</Label>
+                <Select value={sportId} onValueChange={(v) => { setSportId(v); setDivision(""); }}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a sport…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sports.map((s) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
 
               {selectedSport && divisions.length > 1 && (
-                <div>
-                  <label className="block text-slate-700 text-sm font-medium mb-1.5">Division</label>
+                <div className="space-y-1.5">
+                  <Label>Division</Label>
                   <div className="flex flex-wrap gap-2">
                     {divisions.map((d) => (
-                      <button key={d} type="button" onClick={() => setDivision(d)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                          (division || divisions[0]) === d
-                            ? "bg-indigo-600 text-white"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}>
+                      <Button
+                        key={d}
+                        type="button"
+                        size="sm"
+                        variant={(division || divisions[0]) === d ? "default" : "secondary"}
+                        onClick={() => setDivision(d)}
+                      >
                         {DIVISION_LABEL[d] || d}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
               )}
 
               {selectedSport && (
-                <p className="text-slate-400 text-xs">
+                <p className="text-xs text-muted-foreground">
                   {entryFormat === "team"
                     ? `Squad entry — ${limits.min}–${limits.max} players.`
                     : `${entryFormat === "singles" ? "Singles" : "Doubles"} entry — ${limits.max} player${limits.max > 1 ? "s" : ""}.`}
                 </p>
               )}
 
-              <div>
-                <label className="block text-slate-700 text-sm font-medium mb-1.5">Team name</label>
-                <input type="text" value={teamName} onChange={(e) => setTeamName(e.target.value)}
-                  placeholder="e.g. Baybay Warriors"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <div className="space-y-1.5">
+                <Label>Team name</Label>
+                <Input value={teamName} onChange={(e) => setTeamName(e.target.value)}
+                  placeholder="e.g. Baybay Warriors" />
               </div>
 
               <Button onClick={createTeam} disabled={busy || !sportId || !teamName.trim()}>
                 {busy ? "Creating…" : "Create team"}
               </Button>
-            </div>
+            </CardContent>
           </Card>
 
-          <Card className="p-5">
-            <h2 className="text-slate-800 font-semibold mb-3">
-              My teams <span className="text-slate-400 font-normal text-sm">({teams.length})</span>
-            </h2>
-            {teams.length === 0 ? (
-              <p className="text-slate-500 text-sm">No teams registered yet this season.</p>
-            ) : (
-              <div className="space-y-2">
-                {teams.map((t) => (
-                  <div key={t._id} className="border border-slate-200 rounded-lg px-3 py-2.5 flex items-center gap-3 flex-wrap">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-800 font-medium text-sm truncate">{t.teamName}</p>
-                      <p className="text-slate-500 text-xs">
-                        {t.sport?.name}
-                        {t.division && t.division !== "open" ? ` · ${DIVISION_LABEL[t.division] || t.division}` : ""}
-                        {" · "}{t.playerCount} player{t.playerCount === 1 ? "" : "s"}
-                      </p>
+          <Card className="border-l-4 border-l-amber-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="size-4 text-amber-500" />
+                My teams <span className="font-normal text-sm text-muted-foreground">({teams.length})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {teams.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No teams registered yet this season.</p>
+              ) : (
+                <div className="space-y-2">
+                  {teams.map((t) => (
+                    <div key={t._id} className="rounded-lg border px-3 py-2.5 flex items-center gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{t.teamName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.sport?.name}
+                          {t.division && t.division !== "open" ? ` · ${DIVISION_LABEL[t.division] || t.division}` : ""}
+                          {" · "}{t.playerCount} player{t.playerCount === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <Badge
+                        className={t.submittedAt
+                          ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                          : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}
+                      >
+                        {t.submittedAt ? "Submitted" : "Draft"}
+                      </Badge>
+                      <Button size="sm" variant="outline" onClick={() => setOpenTeam(t)}>
+                        {t.submittedAt ? "View roster" : "Edit roster"}
+                      </Button>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      t.submittedAt ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                    }`}>
-                      {t.submittedAt ? "Submitted" : "Draft"}
-                    </span>
-                    <button onClick={() => setOpenTeam(t)}
-                      className="text-xs font-medium px-3 py-1 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50">
-                      {t.submittedAt ? "View roster" : "Edit roster"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </CardContent>
           </Card>
 
           {openTeam && (

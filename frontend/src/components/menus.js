@@ -23,3 +23,9 @@ export const superAdminMenu = [
 export const organizerMenu = [
   { label: "Matches", path: "/organizer", icon: "⛃" },
 ];
+
+export const brgyMenu = [
+  { label: "My Teams", path: "/brgy", icon: "⛃" },
+  { label: "Verification Status", path: "/brgy/documents", icon: "🗎" },
+  { label: "Matches", path: "/brgy/matches", icon: "◷" },
+];

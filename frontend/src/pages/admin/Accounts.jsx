@@ -81,7 +81,7 @@ function AddAccountForm({ onCreated, onError }) {
       </div>
 
       {role === "barangay_admin" && (
-        <Select value={barangayId || undefined} onValueChange={setBarangayId}>
+        <Select value={barangayId} onValueChange={setBarangayId}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select a barangay…" />
           </SelectTrigger>
@@ -92,7 +92,7 @@ function AddAccountForm({ onCreated, onError }) {
       )}
 
       {role === "organizer" && (
-        <Select value={assignedSportId || undefined} onValueChange={setAssignedSportId}>
+        <Select value={assignedSportId} onValueChange={setAssignedSportId}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select a sport…" />
           </SelectTrigger>

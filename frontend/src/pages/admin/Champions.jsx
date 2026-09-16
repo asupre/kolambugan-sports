@@ -167,7 +167,7 @@ export default function Champions() {
                   </div>
                 ) : (
                   <Select
-                    value={form.sport || undefined}
+                    value={form.sport}
                     onValueChange={(v) => v === "__other"
                       ? (setOtherSport(true), setForm({ ...form, sport: "" }))
                       : setForm({ ...form, sport: v })}
@@ -193,7 +193,7 @@ export default function Champions() {
                   </div>
                 ) : (
                   <Select
-                    value={form.barangay || undefined}
+                    value={form.barangay}
                     onValueChange={(v) => v === "__other"
                       ? (setOtherBarangay(true), setForm({ ...form, barangay: "" }))
                       : setForm({ ...form, barangay: v })}

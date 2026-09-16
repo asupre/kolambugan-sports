@@ -7,7 +7,6 @@ import {
   Eye,
   EyeOff,
   Gamepad2,
-  Loader2,
   LockKeyhole,
   Medal,
   ShieldCheck,
@@ -19,6 +18,7 @@ import {
   Whistle,
 } from "lucide-react";
 import { api } from "../api";
+import LoadingScreen from "../components/LoadingScreen";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -86,26 +86,31 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) {
         setError(data.message || "Login failed.");
-      } else {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        if (data.mustChangePassword) {
-          navigate("/change-password");
-          return;
-        }
-        const dest = {
-          super_admin: "/admin",
-          barangay_admin: "/brgy",
-          organizer: "/organizer",
-        }[data.user.role] || "/";
-        navigate(dest);
+        setLoading(false);
+        return;
       }
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.mustChangePassword) {
+        navigate("/change-password");
+        return;
+      }
+      const dest = {
+        super_admin: "/admin",
+        barangay_admin: "/brgy",
+        organizer: "/organizer",
+      }[data.user.role] || "/";
+      navigate(dest);
+      // loading stays true — this page unmounts on navigate, no reset needed,
+      // and it keeps the full-screen loader up through the route change
+      // instead of flashing the form again for a frame.
     } catch {
       setError("Could not reach the server. Is the backend running?");
-    } finally {
       setLoading(false);
     }
   }
+
+  if (loading) return <LoadingScreen message="Signing in…" />;
 
   return (
     <div className="min-h-screen bg-background grid lg:grid-cols-2">
@@ -208,14 +213,8 @@ export default function Login() {
               </Alert>
             )}
 
-            <Button type="submit" disabled={loading} className="w-full h-9">
-              {loading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Signing in…
-                </>
-              ) : (
-                "Sign in"
-              )}
+            <Button type="submit" className="w-full h-9">
+              Sign in
             </Button>
           </form>
 

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { api } from "../api";
+import LoadingScreen from "./LoadingScreen";
 import { getStoredTheme, storeTheme } from "../lib/theme";
 import { cn } from "../lib/utils";
 
@@ -16,6 +17,7 @@ function flattenItems(menu) {
 export default function AdminLayout({ title, menu, children, enableDarkMode = false }) {
   const [open, setOpen] = useState(false);          // mobile: sidebar shown as an overlay
   const [rail, setRail] = useState(false);           // desktop: whole sidebar collapsed to an icon rail
+  const [loggingOut, setLoggingOut] = useState(false);
   const [sports, setSports] = useState([]);
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
   const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme() : "light"));
@@ -58,9 +60,15 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   }
 
   function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/login");
+    // No API call here, so this is instant enough to feel like nothing
+    // happened — a short deliberate pause makes it read as a real
+    // transition instead of an abrupt jump back to the login screen.
+    setLoggingOut(true);
+    setTimeout(() => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      navigate("/login");
+    }, 450);
   }
 
   function go(path) {
@@ -135,6 +143,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       </button>
     );
   }
+
+  if (loggingOut) return <LoadingScreen message="Signing out…" />;
 
   return (
     <div className="min-h-screen bg-background flex">

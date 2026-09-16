@@ -384,3 +384,25 @@ says WebSockets and must be corrected.
   List) and the Barangay Admin / Organizer pages from earlier in this
   session — left alone pending a decision on whether to extend the same
   "professional over decorative" treatment everywhere.
+
+## 2026-09 — Session: full-screen loading on login/logout
+
+- **Added `components/LoadingScreen.jsx`** — a full-screen takeover (K mark
+  + spinner + message) for the login/logout transition, which previously
+  either showed nothing (logout: instant, jarring, zero feedback since it's
+  a synchronous localStorage clear with no API call) or just a small spinner
+  inside the submit button (login). Theme-token-based, so it renders dark
+  automatically when shown from inside `AdminLayout` with dark mode on.
+- **Login**: `handleLogin`'s `loading` state now stays `true` all the way
+  through a successful attempt instead of resetting in a `finally` — the
+  page early-returns `<LoadingScreen>` while `loading` is true, replacing
+  the whole form rather than just disabling the submit button. Only resets
+  to `false` on the error paths (bad credentials, unreachable server), which
+  reveals the form again with the error shown.
+- **Logout** (`AdminLayout.jsx`, shared by all three roles): clicking Sign
+  out has no real async work to wait on, so a bare instant swap to the login
+  page would read as nothing happened. Added a `loggingOut` state and a
+  450ms deliberate pause (`<LoadingScreen message="Signing out…">` shown for
+  that window) before the actual `localStorage` clear + navigate — an
+  intentional minimum-duration pattern, not a real load, purely so the
+  transition reads as deliberate rather than abrupt.

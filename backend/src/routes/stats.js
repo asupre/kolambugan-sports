@@ -54,7 +54,17 @@ router.get('/dashboard', authenticate, authorize('super_admin'), async (req, res
       const matches = await Match.find({ tournament: { $in: tournamentIds }, schedule: { $ne: null } })
         .populate('teamA', 'teamName')
         .populate('teamB', 'teamName');
-      const todays = matches.filter((m) => isManilaToday(m.schedule));
+
+      // "Today's games" also carries forward anything scheduled for a PAST day
+      // that never got played — the league running behind schedule doesn't make
+      // those games disappear, they're still today's business until someone
+      // scores or forfeits them. Already-decided matches (completed/forfeited)
+      // from past days are done and drop off normally.
+      const UNRESOLVED = ['scheduled', 'ongoing'];
+      const todays = matches.filter((m) =>
+        isManilaToday(m.schedule) ||
+        (new Date(m.schedule).getTime() < Date.now() && UNRESOLVED.includes(m.status))
+      );
 
       const involvedTeamIds = [...new Set(
         todays.flatMap((m) => [m.teamA?._id, m.teamB?._id]).filter(Boolean).map(String)

@@ -1,27 +1,32 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Moon, Sun } from "lucide-react";
+import { ChevronDown, ChevronRight, Moon, Sun } from "lucide-react";
 import { api } from "../api";
 import { getStoredTheme, storeTheme } from "../lib/theme";
 import { cn } from "../lib/utils";
 
+// menu can be flat ([{label, path, icon}, ...]) or grouped
+// ([{header, items: [...]}, ...]) — grouped renders each header as a
+// collapsible section. Flattened once here so the sports-submenu and
+// active-route effects don't need to know which shape they got.
+function flattenItems(menu) {
+  return menu[0]?.header !== undefined ? menu.flatMap((g) => g.items) : menu;
+}
+
 export default function AdminLayout({ title, menu, children, enableDarkMode = false }) {
   const [open, setOpen] = useState(false);       // mobile sidebar toggle
   const [sports, setSports] = useState([]);
-  const [expanded, setExpanded] = useState({});  // which groups are open
+  const [expanded, setExpanded] = useState({});  // which sport-submenus are open
+  const [collapsed, setCollapsed] = useState({}); // which header groups are collapsed
   const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme() : "light"));
   const navigate = useNavigate();
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
-  const needsSports = menu.some((m) => m.dynamic === "sports");
+  const grouped = menu[0]?.header !== undefined;
+  const items = flattenItems(menu);
+  const needsSports = items.some((m) => m.dynamic === "sports");
 
-  // Applied to <html>, not a wrapper div — Radix portals (Dialog, Select) render
-  // into document.body, outside any local wrapper, so scoping dark mode to a
-  // div would leave the roster modal and dropdowns stuck in light mode. Scoped
-  // to this component's own lifecycle (added on mount, always removed on
-  // unmount) so it can never leak into Super Admin/Organizer, which don't use
-  // enableDarkMode and still render with hardcoded light colors.
   useLayoutEffect(() => {
     if (!enableDarkMode) return;
     const root = document.documentElement;
@@ -40,7 +45,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   // a sport page doesn't hide where you are.
   useEffect(() => {
     const next = {};
-    menu.forEach((m) => {
+    items.forEach((m) => {
       if (m.dynamic && location.pathname.startsWith(m.path)) next[m.path] = true;
     });
     setExpanded((prev) => ({ ...prev, ...next }));
@@ -69,6 +74,59 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       active ? "bg-primary/10 text-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
     );
 
+  function renderItem(item) {
+    const active = location.pathname === item.path;
+
+    if (item.dynamic === "sports") {
+      const isOpen = !!expanded[item.path];
+      const inside = location.pathname.startsWith(item.path);
+      return (
+        <div key={item.path}>
+          <button
+            onClick={() => setExpanded((e) => ({ ...e, [item.path]: !isOpen }))}
+            className={itemClass(inside && location.pathname === item.path)}
+          >
+            <span className="text-base">{item.icon}</span>
+            <span className="flex-1 text-left">{item.label}</span>
+            <span className="text-sidebar-foreground/40 text-xs">{isOpen ? "▾" : "▸"}</span>
+          </button>
+
+          {isOpen && (
+            <div className="mt-1 ml-4 pl-3 border-l border-sidebar-border space-y-0.5">
+              {sports.length === 0 && (
+                <p className="px-3 py-1.5 text-sidebar-foreground/40 text-xs">Loading…</p>
+              )}
+              {sports.map((s) => {
+                const path = `${item.path}/${s._id}`;
+                return (
+                  <button
+                    key={s._id}
+                    onClick={() => go(path)}
+                    className={cn(
+                      "w-full text-left px-3 py-1.5 rounded-lg text-[13px] transition",
+                      location.pathname === path
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent"
+                    )}
+                  >
+                    {s.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <button key={item.path} onClick={() => go(item.path)} className={itemClass(active)}>
+        <span className="text-base">{item.icon}</span>
+        {item.label}
+      </button>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex">
       <aside
@@ -84,59 +142,28 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
           <span className="font-semibold text-sidebar-foreground text-sm">Kolambugan Sports</span>
         </div>
 
-        <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
-          {menu.map((item) => {
-            const active = location.pathname === item.path;
-
-            if (item.dynamic === "sports") {
-              const isOpen = !!expanded[item.path];
-              const inside = location.pathname.startsWith(item.path);
-              return (
-                <div key={item.path}>
-                  <button
-                    onClick={() => setExpanded((e) => ({ ...e, [item.path]: !isOpen }))}
-                    className={itemClass(inside && location.pathname === item.path)}
-                  >
-                    <span className="text-base">{item.icon}</span>
-                    <span className="flex-1 text-left">{item.label}</span>
-                    <span className="text-sidebar-foreground/40 text-xs">{isOpen ? "▾" : "▸"}</span>
-                  </button>
-
-                  {isOpen && (
-                    <div className="mt-1 ml-4 pl-3 border-l border-sidebar-border space-y-0.5">
-                      {sports.length === 0 && (
-                        <p className="px-3 py-1.5 text-sidebar-foreground/40 text-xs">Loading…</p>
-                      )}
-                      {sports.map((s) => {
-                        const path = `${item.path}/${s._id}`;
-                        return (
-                          <button
-                            key={s._id}
-                            onClick={() => go(path)}
-                            className={cn(
-                              "w-full text-left px-3 py-1.5 rounded-lg text-[13px] transition",
-                              location.pathname === path
-                                ? "bg-primary/10 text-primary font-medium"
-                                : "text-sidebar-foreground/60 hover:bg-sidebar-accent"
-                            )}
-                          >
-                            {s.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <button key={item.path} onClick={() => go(item.path)} className={itemClass(active)}>
-                <span className="text-base">{item.icon}</span>
-                {item.label}
-              </button>
-            );
-          })}
+        <nav className="p-3 space-y-1 flex-1 overflow-y-auto scrollbar-thin">
+          {grouped
+            ? menu.map((group) => {
+                const isCollapsed = !!collapsed[group.header];
+                return (
+                  <div key={group.header} className="pb-1">
+                    <button
+                      onClick={() => setCollapsed((c) => ({ ...c, [group.header]: !isCollapsed }))}
+                      className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition"
+                    >
+                      {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+                      {group.header}
+                    </button>
+                    {!isCollapsed && (
+                      <div className="space-y-1">
+                        {group.items.map((item) => renderItem(item))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            : items.map((item) => renderItem(item))}
         </nav>
 
         <div className="p-3 border-t border-sidebar-border shrink-0">

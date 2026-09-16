@@ -283,3 +283,29 @@ says WebSockets and must be corrected.
   warns about this for good reason (it can silently drop the first render's
   state in edge cases). Radix's Select supports `""` as the controlled
   "nothing selected" value, so passing the raw state string directly fixed it.
+
+## 2026-09 — Session: today's-games logic fixed, Super Admin sidebar regrouped
+
+- **"Today's games" now carries forward overdue backlog.** The dashboard
+  carousel's query only matched `isManilaToday(schedule)`, which correctly
+  covers every sport (it was never basketball-only — that read was just this
+  season's test data only having games dated today), but silently dropped
+  anything scheduled for a PAST day that never got played. A league running
+  behind schedule doesn't make those games disappear — they're still today's
+  business until someone scores or forfeits them. Now includes any match
+  scheduled in the past whose status is still `scheduled`/`ongoing`;
+  completed/forfeited ones drop off normally. Verified live: surfaced a
+  2-day-old unresolved Mobile Legends match alongside today's Basketball games.
+- **Super Admin sidebar regrouped into collapsible, named sections.** Ten
+  items in one flat list read as cluttered. `superAdminMenu` in `menus.js` is
+  now an array of `{header, items}` groups instead of a flat array — grouped
+  by what each screen is FOR: **Overview** (Dashboard), **Season &
+  Verification** (Season, Reference List, Review Queue), **Competition**
+  (League Setup, Tournaments), **Content** (Champions, Reports, Site Images),
+  **Administration** (Accounts). `AdminLayout` renders each group as a
+  collapsible section (chevron + header toggles it) and still supports the
+  old flat-array shape for `organizerMenu`/`brgyMenu`, which don't need
+  headers for 1–3 items. Also fixes the actual bug behind "the scroll looks
+  bad when I click Tournaments": expanding Tournaments' 8-sport submenu could
+  make the sidebar nav scroll, and it had the bare OS scrollbar — now uses
+  the same `.scrollbar-thin` utility as everywhere else.

@@ -460,9 +460,17 @@ so a bug in one route cannot expose the other.
 - **Dashboard analytics** (Sep 2026): `GET /api/stats/dashboard` also
   returns `sports`, `accounts: { barangayAdmins, organizers }`, and
   `todayMatches` (today's matches in Manila time, each carrying both teams'
-  summed roster size as `players`). The Super Admin Dashboard shows these as
-  a stat column (Sports / Barangay admins / Organizers) beside a `Carousel`
-  of today's games.
+  summed roster size as `players`, PLUS any past-dated match still
+  `scheduled`/`ongoing` — a league running behind schedule doesn't drop those
+  from "today's business" until they're resolved). The Super Admin Dashboard
+  shows these as a stat column (Sports / Barangay admins / Organizers) beside
+  a `Carousel` of today's games.
+- **Super Admin sidebar is grouped, not flat** (Sep 2026): `superAdminMenu`
+  in `menus.js` is `[{header, items}, ...]` — Overview, Season &
+  Verification, Competition, Content, Administration — each a collapsible
+  section in `AdminLayout` (chevron toggles it, default expanded).
+  `organizerMenu`/`brgyMenu` stay flat arrays; `AdminLayout` renders whichever
+  shape it's given (`menu[0].header !== undefined` ⇒ grouped).
 
 **Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
 - CORRECTION: this was long documented as permanently "dark navy... the one

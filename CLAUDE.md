@@ -5,7 +5,7 @@ Verification and Real-Time Match Analytics for the Municipality of Kolambugan,
 Lanao del Norte, Philippines.
 
 Undergraduate BSCS thesis (Lanao School of Science and Technology Inc.).
-Final defense: **October 2026**. Development window: **Jul–Aug 2026** —
+Final defense: **October 2026**. Development window: **Jul–Sep 2026** —
 favor shipping Must-haves over polish. Online evaluation with ~33 real
 respondents happens **September 2026**, so the system must be deployed
 and stable by early September.
@@ -68,8 +68,8 @@ score tallying, no public visibility, records lost every season.
 The Super Admin role is held by BOTH the **SK Federation** and the
 **Head of LYDO** (Local Youth Development Office). LYDO handles the
 municipality's sports program and is the only body that can obtain the
-COMELEC voters' list. Both accounts are provisioned (`sk_federation`,
-`lydo_head`).
+SK voters' list (ages 15–30 — not the COMELEC general register). Both
+accounts are provisioned (`sk_federation`, `lydo_head`).
 
 ## CRITICAL: the verification rule (CONFIRMED by stakeholder)
 
@@ -77,18 +77,24 @@ COMELEC voters' list. Both accounts are provisioned (`sk_federation`,
   Municipal residents are eligible.
 - **Cross-barangay play is allowed ONLY for players from designated
   small/remote barangays** (a whitelist, because those barangays are too
-  small to field their own teams). Confirmed list:
+  small to field their own teams). Confirmed list (as validated by the
+  stakeholder — `allowsCrossBarangay` is now editable per barangay from
+  League Setup, so the live database may have since diverged from this list):
   Small Banisilon, Matampay, Bubong, Pantaon, Inudaran, San Roque,
   Palao, Sto. Niño, Sucodan, Lumbac.
   Players from the larger barangays play for their OWN barangay.
-  (`allowsCrossBarangay` boolean on the barangays collection.)
+  (`allowsCrossBarangay` boolean on the barangays collection, editable via
+  League Setup at `/admin/config`.)
 - **Verification is DOCUMENT-based** (confirmed): each player proves
   Kolambugan residency with a Valid ID, Voter's Certification, or Birth
   Certificate. New players / those under 15 also need PARENTAL CONSENT
   plus supporting documents.
-- The COMELEC voters' list can power an automatic pre-check, but it can
+- The **SK voters' list** (ages 15–30 — confirmed by the SK Chairperson; NOT
+  the COMELEC general register) can power an automatic pre-check, but it can
   only be obtained through the **LYDO**. **Still EXPECTED, not in hand**
-  (Aug 2026). Until then, verification runs on the SK Federation's own
+  (Aug 2026). Because the list starts at 15, players under 15 route straight
+  to `needs_document` with no lookup — they cannot be on it by definition.
+  Until then, verification runs on the SK Federation's own
   reference list + uploaded documents + Super Admin review. When the
   voters' list arrives it drops into the SAME reference-list upload (it is
   just another CSV) — no code change anticipated beyond column mapping.
@@ -193,10 +199,15 @@ which contradicted the meeting notes.)
 **BRACKET LABELS (important — they are NOT interchangeable):**
 - Group stage: `winners` / `losers` (double-elim), `group` (ML round-robin and
   tiebreakers)
-- Finals: `knockout` / `ko_final` / `ko_third` (physical sports Top 8)
-- ML knockout still uses `winners` / `final` / `third`
+- Finals: `knockout` / `ko_final` / `ko_third` — ML knockout now shares these
+  same labels with any round-robin sport, rather than the earlier
+  special-cased `winners` / `final` / `third`.
 This separation exists because group-stage upper brackets and the Top 8 both used
 to be `winners`, which broke match counts and made the two indistinguishable.
+`GET /:id/bracket` branches on the tournament's `tournamentFormat` field, not
+on the sport's name — the earlier hardcoded "Mobile Legends" / 8-team
+double-elim special case has been removed, so any sport configured as
+round-robin in League Setup takes the same path ML does.
 
 **Advancement is SCORE-DRIVEN, never organizer-chosen (integrity):**
 - The bracket SKELETON is generated and LOCKED at draw time — every slot and
@@ -244,8 +255,8 @@ to be `winners`, which broke match counts and made the two indistinguishable.
 
 **Unavailable team = FORFEIT** (confirmed). No reschedule/re-pair.
 
-**Also recorded per match:** fouls, individual player points, MVP
-(PlayerMatchStats — model exists, nothing writes to it yet).
+**Also recorded per match:** points, fouls, rebounds, assists, MVP
+(PlayerMatchStats).
 
 ---
 
@@ -253,8 +264,8 @@ to be `winners`, which broke match counts and made the two indistinguishable.
 
 Each sport runs **one bracket per division**, and a division's roster size comes
 from the sport's **entry format**. Both are per-season settings the Super Admin
-decides (currently seeded by `src/config/seedSportConfig.js` — the config UI is
-still to build).
+configures from **League Setup** (`/admin/config`), which replaced
+`src/config/seedSportConfig.js`.
 
 **Sport model:** `divisions: [String]` (which divisions run this season) and
 `entryFormat: 'team' | 'singles' | 'doubles'`.
@@ -285,12 +296,17 @@ and `format` (`team` | `singles` | `doubles`).
 ```
 Season         name, status ∈ {setup, registration_open, verification,
                ongoing, completed}, openedBy, openedAt, closedAt
-Barangay       name, allowsCrossBarangay
+Barangay       name, allowsCrossBarangay, logo(GridFS id)
 User           username, passwordHash, role ∈ {super_admin, barangay_admin,
                organizer}, barangay(FK|null), assignedSport(FK|null),
                mustChangePassword
 Sport          name, category ∈ {physical, esports}, tournamentFormat,
-               isDivided, divisions[], entryFormat
+               divisions[], entryFormat, scoringMode, pointValues,
+               periodLabel, periodOptions, statTypes, onCourt,
+               teamsPerBarangay, numGroups, knockoutSize  ← per-sport rules
+               from League Setup; null by default, falls back to the
+               built-in for the seven seeded sports (`isDivided` is DEAD —
+               nothing reads it)
 Team           teamName, barangay, sport, season, status ∈ {pending, verified,
                rejected}, submittedAt, division, format
 Player         firstName, middleName, lastName, birthdate, age, photo(GridFS id),
@@ -313,13 +329,20 @@ Match          tournament, bracket ∈ {winners, losers, final, group, third,
                seriesWinner, nextMatchWin, nextMatchLose, isTiebreaker,
                status ∈ {scheduled, ongoing, completed, forfeited},
                schedule, venue, liveScoreA, liveScoreB  ← running totals,
-               startedAt, mvp(FK Player), enteredBy, enteredAt
-PlayerMatchStats  match, player, points, fouls   ← unique(match, player);
-                  NOTHING WRITES TO THIS YET (organizer screen pending)
+               startedAt, mvp(FK Player), enteredBy, enteredAt,
+               lastAction{type, side, player, amount, label}  ← one step of
+               undo history, names what it reverses
+PlayerMatchStats  match, player, points, fouls, rebounds, assists  ←
+                  unique(match, player); written by the organizer
+Champion       season/year, sport, division, teamName, playerName,
+               proofPhoto(GridFS id)  ← free text, no FK to Team/Player
+               (a past champion may predate the Team/Player records)
+SiteImage      key ∈ {hero, league, barangay, about}, image(GridFS id), crop
 ```
 
-GridFS buckets: **`photos`** (public) and **`documents`** (super-admin only).
-Kept separate on purpose so a bug in one route cannot expose the other.
+GridFS buckets: **`photos`**, **`champions`**, **`site`**, and **`logos`**
+(all public) and **`documents`** (super-admin only). Kept separate on purpose
+so a bug in one route cannot expose the other.
 
 ---
 
@@ -340,9 +363,8 @@ Kept separate on purpose so a bug in one route cannot expose the other.
   (would orphan the `enteredBy` audit trail) and refuses to delete the last
   super admin.
 - Real security = JWT + RBAC middleware + bcrypt + **rate-limited login**.
-  The frontend has no route guards yet (a role guard is a small polish item) —
-  but the API rejects unauthorized calls, so no data leaks; an unauthorized
-  user just sees an empty shell. Verified by testing.
+  plus frontend route guards (`RequireRole`) — the API also rejects
+  unauthorized calls regardless, so there is no gap even if a guard is missed.
 - Token expiry is 8h; an expired token currently shows "Authentication required"
   instead of redirecting to login (polish item).
 
@@ -351,10 +373,11 @@ Kept separate on purpose so a bug in one route cannot expose the other.
 ## Design system (two looks, one product)
 
 **Public Viewer — DARK, "ESPN structure" (decided Aug 2026):**
-- Near-black background `#0B1017`; panels `#0F141C`; borders `#1C2430`;
-  accent gold `#F5A524`. (Supersedes the earlier "R7 navy" note — the real R7
-  site turned out to be a full-bleed image + translucent cards, which we did
-  NOT adopt.)
+- Background `#0A1220`; header and footer `#060C16`; panels `#0F141C`;
+  `PublicLayout` borders use `slate-500/15` while panel borders use
+  `#1C2430`; accent gold `#F5A524`. (Supersedes the earlier "R7 navy" note —
+  the real R7 site turned out to be a full-bleed image + translucent cards,
+  which we did NOT adopt.)
 - Structure follows ESPN / PBA, not a betting site: panels with a header row
   and thin dividers, no card gaps, no gradients, no emoji, no VS badges.
 - **Scoreboard strip** is the core pattern: a context line (sport · division ·
@@ -645,49 +668,52 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 - Barangay Admin: Team Registration (sport → division → name), roster editor
   (modal) with photo upload, Document Submission page.
 - Organizer: match list + live scoring screen.
-- Public Viewer (IN PROGRESS): `pages/public/PublicLayout.jsx` (header, nav,
-  3-column footer, `<Outlet/>`), `Home.jsx`, `Matches.jsx`, `Standings.jsx`,
-  `components/SportGrid.jsx`. Polls every 10s.
-- Shared `AdminLayout` (generic, takes a `menu` prop), `ui.jsx` components.
+- Public Viewer — COMPLETE, eight pages: Home, Matches, Standings, Brackets,
+  Teams, Team detail, Players, Champions, About. `pages/public/PublicLayout.jsx`
+  (header, nav, 3-column footer, `<Outlet/>`); shared primitives live in
+  `components/PublicUI.jsx` (Crest, PlayerAvatar, Panel, SportTabs,
+  SearchInput, SiteImage, DIVISION_LABEL) — `components/ui.jsx` is the LIGHT
+  admin set and is not usable on the dark public pages. Polling varies by
+  page: 10s on Matches and Home, 15s on Brackets and Standings, 20s on the
+  barangay match page.
+- Route guards: `RequireRole` + a 401 handler in `api.js` that clears the
+  session and redirects to login.
+- Shared `AdminLayout` (generic, takes a `menu` prop), `ui.jsx` components,
+  and `components/menus.js` (`superAdminMenu`, `organizerMenu` — previously
+  copy-pasted into every page).
 
 ## IN PROGRESS / NEXT (priority order)
 
-1. **Finish the Public Viewer** — remaining pages: Brackets (reuse SportGrid),
-   Teams + team detail (lineup with photos), Players (top scorers from
-   `/leaders`), Champions, About. Plus a venue input in the Super Admin
-   scheduling UI so venues can actually be set.
-2. **Barangay logos** — `logo` GridFS field on **Barangay** (per barangay, NOT
-   per team), upload UI for the barangay admin, public serve route. The `Crest`
-   component in the public pages is the single swap point.
-3. **Instruction modal** — first-login orientation. REQUIRED: promised in the
-   thesis and the September evaluation depends on it.
-4. **Super Admin config UI** for per-sport `divisions` + `entryFormat`, AND the
-   ability to generate a divided tournament from the UI. Right now that is
-   PowerShell-only, which BLOCKS anyone but the developer from running the
-   system — more urgent than it sounds.
-5. Barangay Admin remaining HIPO modules: Dashboard, Verification Status page,
-   Match Information.
-6. Champions archive on season complete; forfeit handling.
-7. `verified_residents` collection (approvals persisting across seasons).
-8. **shadcn/ui pass over ALL admin pages** + light animation. Deliberately
+1. **Instruction modal** — first-login orientation. REQUIRED: promised in
+   Chapter 3's data collection procedure and the September evaluation depends
+   on it.
+2. Barangay Admin dashboard (last remaining HIPO module — Match Information
+   and Document Submission/verification status are built).
+3. `verified_residents` collection (approvals persisting across seasons).
+4. **shadcn/ui pass over ALL admin pages** + light animation. Deliberately
    deferred until the features are done.
-9. Polish: frontend role guards, 401 → redirect to login, cosmetic bugs below.
-10. Full end-to-end test on a CLEAN database (create season → register →
-    verify → generate → score → check the public viewer), then deploy
-    (Render + Vercel + Atlas) and delete all dev-only code.
+5. Bulk player import.
+6. Tournament delete from the UI.
+7. Super admin password recovery when both super admins are locked out.
+8. Full end-to-end test on a CLEAN database (create season → register →
+   verify → generate → score → check the public viewer), then deploy
+   (Render + Vercel + Atlas) and delete all dev-only code.
 
 ## KNOWN COSMETIC BUGS (low priority)
-- Group standings display shows combined group+playoff points after a
-  tiebreaker; should show only group games and mark qualified teams.
-- Tiebreaker matches labeled "R100/R101/R102" — relabel "Playoff".
-- Expired token shows "Authentication required" instead of redirecting.
+- None outstanding. The R100/R101/R102 tiebreaker labels are fixed (now
+  "Playoff" / "Playoff decider"), and the expired-token redirect is fixed
+  (see Accounts & authentication). Group standings after a tiebreaker
+  deliberately include playoff wins in the DISPLAYED table while excluding
+  them from tie detection — intentional, not a bug (see CHANGES.md).
 
 ## DEV-ONLY SCRIPTS + ROUTES — DELETE BEFORE DEPLOYMENT
 In `backend/src/config/` (these write DIRECTLY to the DB, bypassing app rules):
 seedTestTeams.js, seedReviewTest.js, showOrReset.js, clearTournaments.js,
 seedTiebreakerTest.js, seedTie5Test.js, seed52WithTies.js,
-seedVerifiedTeams.js, seedPlayersForTeams.js, **seedSportConfig.js** (keep
-until the config UI exists).
+seedVerifiedTeams.js, seedPlayersForTeams.js, **seedSportConfig.js** (the
+config UI now exists — this can go), and `wipe.js`, `makeReferenceCsv.js`,
+`seedSportTeams.js`, `deleteSeason.js` if/where created. **KEEP `seed.js`** —
+a fresh install needs the 26 barangays and 7 sports from somewhere.
 Routes/UI: `POST /api/tournaments/:id/simulate-groups`, the temp
 `POST /api/tournaments/:id/test-de`, and the amber "Auto-score all group
 matches" button in Tournaments.jsx.

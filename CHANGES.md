@@ -331,3 +331,31 @@ says WebSockets and must be corrected.
   admin page's width for the same mismatch — none found; the rest were
   already consistent (`max-w-4xl` for form/settings pages, `max-w-5xl` for
   table/bracket-heavy ones), so nothing else needed changing.
+
+## 2026-09 — Session: sidebar polish round 2, Season actually fixed, time input
+
+- **Rail toggle moved to the top of the sidebar**, right under the logo —
+  it had been placed above Sign out at the bottom, which read as buried.
+- **Mobile header button is a real icon now**, not the `☰` text character —
+  same `PanelLeftOpen` icon the desktop rail toggle uses, for one consistent
+  visual language instead of two.
+- **Season's space problem, actually fixed this time.** Widening the outer
+  container to `max-w-4xl` last round was the wrong lever — the real issue
+  was that the "Current season" card's content (a compact title+badge row
+  and a left-clustered stage stepper) has no reason to fill a wide card, so
+  widening the wrapper just made the empty gutter on the right bigger, not
+  smaller. Restructured into a `grid grid-cols-1 lg:grid-cols-2` layout
+  instead: the season-status card spans both columns (a stepper reads fine
+  compact — that part was never broken), and during the `setup` stage,
+  `SportSetupSummary` and "Advance the season" sit side by side in the two
+  columns rather than stacked, actually using the row instead of just being
+  wider. Outside `setup`, "Advance the season" is the only card left, so it
+  spans both columns alone — consistent with how every other page's
+  single-card empty/status state looks.
+- **Time input redesigned.** The bare native `<input type="time">` next to
+  the fully-themed date button looked like an afterthought. Added a leading
+  clock icon (matching the date button's calendar icon) and hid the native
+  `::-webkit-calendar-picker-indicator` — Chrome's own little clock glyph,
+  redundant now and the main source of the mismatched look, since the rest
+  of the field's internal segments (hour/minute/AM-PM) can't be restyled by
+  CSS in any browser.

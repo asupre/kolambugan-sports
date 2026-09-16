@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Clock } from "lucide-react";
 import { Button } from "./ui/button";
 import { Calendar } from "./ui/calendar";
 import { Input } from "./ui/input";
@@ -90,13 +90,16 @@ export function DateTimePicker({ value, onChange, placeholder = "Pick date & tim
           />
         </PopoverContent>
       </Popover>
-      <Input
-        type="time"
-        value={time}
-        disabled={disabled || !date}
-        onChange={(e) => onChange(joinDateTime(date || new Date(), e.target.value))}
-        className="w-28 shrink-0"
-      />
+      <div className="relative shrink-0">
+        <Clock className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="time"
+          value={time}
+          disabled={disabled || !date}
+          onChange={(e) => onChange(joinDateTime(date || new Date(), e.target.value))}
+          className="w-28 pl-8 [&::-webkit-calendar-picker-indicator]:hidden"
+        />
+      </div>
     </div>
   );
 }

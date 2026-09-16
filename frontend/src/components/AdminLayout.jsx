@@ -152,6 +152,19 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
           <span className={cn("font-semibold text-sidebar-foreground text-sm", rail && "lg:hidden")}>Kolambugan Sports</span>
         </div>
 
+        {/* Desktop-only rail toggle, right under the logo — mobile has its own
+            open/close via the header button, a separate overlay concept. */}
+        <button
+          onClick={() => setRail((r) => !r)}
+          className={cn(
+            "hidden lg:flex items-center gap-2 mx-3 mt-3 mb-1 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition shrink-0",
+            rail && "lg:justify-center lg:mx-2 lg:px-0"
+          )}
+          title={rail ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {rail ? <PanelLeftOpen className="size-4" /> : <><PanelLeftClose className="size-4" /> Collapse</>}
+        </button>
+
         <nav className={cn("py-3 space-y-1 flex-1 overflow-y-auto scrollbar-thin", rail ? "lg:px-2 px-3" : "px-3")}>
           {grouped
             ? menu.map((group) => (
@@ -169,18 +182,6 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
               ))
             : items.map((item) => renderItem(item))}
         </nav>
-
-        {/* Desktop-only rail toggle — mobile already has its own open/close via the hamburger. */}
-        <button
-          onClick={() => setRail((r) => !r)}
-          className={cn(
-            "hidden lg:flex items-center gap-2 mx-3 mb-2 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition",
-            rail && "lg:justify-center lg:mx-2 lg:px-0"
-          )}
-          title={rail ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {rail ? <PanelLeftOpen className="size-4" /> : <><PanelLeftClose className="size-4" /> Collapse</>}
-        </button>
 
         <div className="p-3 border-t border-sidebar-border shrink-0">
           <button
@@ -204,8 +205,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-3">
-            <button onClick={() => setOpen(true)} className="lg:hidden text-foreground text-xl" aria-label="Open menu">
-              ☰
+            <button onClick={() => setOpen(true)} className="lg:hidden text-foreground" aria-label="Open menu">
+              <PanelLeftOpen className="size-5" />
             </button>
             <h1 className="text-foreground font-semibold">{title}</h1>
           </div>

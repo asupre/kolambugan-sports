@@ -206,9 +206,12 @@ export default function Season() {
   return (
     <AdminLayout title="Season" menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <div className="max-w-4xl space-y-3">
+        <div className="max-w-5xl space-y-3">
           <Skeleton className="h-32 w-full rounded-xl" />
-          <Skeleton className="h-24 w-full rounded-xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
         </div>
       ) : !season ? (
         <Card className="max-w-md">
@@ -223,8 +226,8 @@ export default function Season() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6 max-w-4xl">
-          <Card className="border-l-4 border-l-blue-500">
+        <div className="max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <Card className="lg:col-span-2 border-l-4 border-l-blue-500">
             <CardContent className="space-y-5">
               <div className="flex items-start justify-between flex-wrap gap-3">
                 <div>
@@ -248,7 +251,7 @@ export default function Season() {
 
           {season.status === "setup" && <SportSetupSummary />}
 
-          <Card>
+          <Card className={season.status === "setup" ? "" : "lg:col-span-2"}>
             <CardHeader>
               <CardTitle>Advance the season</CardTitle>
             </CardHeader>

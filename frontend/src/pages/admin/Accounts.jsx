@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Copy, KeyRound, Trash2, TriangleAlert, UserPlus } from "lucide-react";
+import { Check, Copy, KeyRound, Trash2, TriangleAlert, UserPlus, Wand2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
@@ -222,6 +222,26 @@ export default function Accounts() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
+          {/* Bulk-fill anything missing */}
+          <Card className="border-l-4 border-l-green-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wand2 className="size-4 text-green-500" /> Provision all
+              </CardTitle>
+              <CardDescription>
+                Creates any missing barangay admin (one per barangay) and organizer (one per
+                sport) account with a random temp password. Safe to run any time — anything
+                that already has an account is skipped, so adding a new sport or barangay
+                only fills in that one gap.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={provisionAll} disabled={busy}>
+                <Wand2 /> {busy ? "Provisioning…" : "Provision all"}
+              </Button>
+            </CardContent>
+          </Card>
 
           {/* Add a single account */}
           <Card className="border-l-4 border-l-blue-500">

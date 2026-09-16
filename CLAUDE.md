@@ -397,48 +397,58 @@ so a bug in one route cannot expose the other.
 - Public lineups show **surname, first name, jersey, age, stats, and photo**.
   NO birthdate, NO address, NO documents.
 
-**Admin pages — shadcn/ui pass STARTED on Barangay Admin + Organizer (Sep 2026):**
-- Super Admin is still hand-rolled Tailwind + `components/ui.jsx`
-  (Button/Card/Input/Label/Pill). Barangay Admin (`BrgyDashboard.jsx`,
-  `BrgyMatches.jsx`, `Documents.jsx`) and the Organizer scoring screen
-  (`OrganizerScoring.jsx`) now use real shadcn/ui components
-  (`src/components/ui/*`, the "Nova" preset, neutral base) instead — a
-  deliberate early exception to the "one pass over everything" plan below,
-  so expect a visual mismatch against Super Admin until it catches up.
-  `RosterEditor` and the Organizer's end-match confirmation are now proper
+**Admin pages — shadcn/ui pass COMPLETE, all three roles (Sep 2026):**
+- Barangay Admin (`BrgyDashboard.jsx`, `BrgyMatches.jsx`, `Documents.jsx`),
+  the Organizer scoring screen (`OrganizerScoring.jsx`), and all ten Super
+  Admin pages (Dashboard, Reference List, Season, Champions, Reports, Site
+  Images, Accounts, Review Queue, League Setup, Tournaments) now use real
+  shadcn/ui components (`src/components/ui/*`, the "Nova" preset, neutral
+  base) instead of the old hand-rolled `components/ui.jsx` set. Started as a
+  Barangay-Admin-only exception to "one pass over everything," then extended
+  to Organizer and finally Super Admin in the same session — `components/ui.jsx`
+  is no longer used by any admin page. All modals (`RosterEditor`, the
+  Organizer's end-match confirmation, Season's create-season dialog, Site
+  Images' crop dialog, Review Queue's player detail and lightbox) are now
   shadcn `Dialog`s instead of hand-rolled fixed-overlay divs.
-- Status badges across both use soft/transparent color (`bg-{c}-500/15
+- **`Tournaments.jsx` (1,013 lines) was the highest-risk file** — bracket
+  rendering with SVG connector-line math (`BracketTree`). Safe to restyle
+  because the wires are measured live via `getBoundingClientRect()` on every
+  render, not computed from hardcoded pixel assumptions. The one hard
+  constraint: shadcn's `Card` doesn't forward refs, so `MatchBox` and the
+  bracket stage container stay plain `<div>`s with the ref attached directly;
+  everything else in the file converted normally. No changes to bracket
+  generation, advancement, revert, or scheduling logic anywhere in this pass.
+- Status badges everywhere use soft/transparent color (`bg-{c}-500/15
   text-{c}-600 dark:text-{c}-400`), not solid fill or pastel outline —
   Cards get a colored left-border + icon tied to meaning (blue=info,
-  green=success, amber=needs attention, red=urgent). The Organizer's actual
-  courtside tap targets (score buttons, Start/End match) stay solid/vivid on
-  purpose — those are actions, not status, and need to read at a glance.
-- **Dark mode, opt-in, Barangay Admin + Organizer only.** `AdminLayout` takes
-  an `enableDarkMode` prop; only these pages pass it. A header toggle flips
+  green=success, amber=needs attention, red=urgent). Actual tap targets that
+  are ACTIONS rather than status (Organizer's score buttons and Start/End
+  match, Approve/Reject in the Review Queue) stay solid/vivid on purpose —
+  they need to read at a glance, unlike a status indicator.
+- **Dark mode, opt-in, all three roles.** `AdminLayout` takes an
+  `enableDarkMode` prop; every page that uses `AdminLayout` now passes it
+  (Public Viewer doesn't use `AdminLayout` at all — it's a separate, always-
+  dark design, unaffected by this toggle). A header toggle flips
   `document.documentElement`'s `dark` class (not a scoped wrapper div — Radix
   `Dialog`/`Select` portal to `document.body`, outside any local wrapper, so
   a div-scoped approach would leave modals/dropdowns stuck in light mode),
-  added on mount and always removed on unmount so a saved preference can
-  never leak onto Super Admin, which doesn't pass the prop and still renders
-  hardcoded light colors. Preference persists in `localStorage` under
-  `brgy-theme`. Defaults to light either way.
+  added on mount and always removed on unmount. Preference persists in
+  `localStorage` under `brgy-theme` (name predates the Super Admin rollout;
+  shared across all three roles now). Defaults to light everywhere.
 - This REQUIRED upgrading the whole project from Tailwind v3 to v4 (shadcn's
   current CLI only targets v4) — `tailwind.config.js` is gone; theme tokens
   now live in `src/index.css` as CSS variables. This is global, so it also
-  affects Super Admin and Public even though their JSX wasn't touched; both
-  still render off explicit utility classes (not shadcn tokens), and a build
-  was verified clean after the upgrade.
+  affects Public even though its JSX wasn't touched; Public still renders off
+  explicit utility classes (not shadcn tokens), and a build was verified
+  clean after the upgrade.
 - shadcn's default font (Geist) was deliberately NOT applied globally — kept
   Inter, since `index.css` is shared by every page including Public, whose
   look is decided and out of scope. `--primary`/`--ring` were set to a
   richer indigo-violet (`oklch(0.53 0.26 285)`, deeper/more saturated than
   plain indigo-600) so the converted pages read as a polish pass, not a
   re-brand.
-- Still DECIDED: one more shadcn/ui conversion pass over Super Admin, with
-  light animation, once its own remaining features are finished. Doing it
-  once keeps it consistent; doing it piecemeal would mean converting twice —
-  Barangay Admin and Organizer are the deliberate exception, not a reversal
-  of this plan.
+- `components/ui.jsx` (Button/Card/Input/Label/Pill) is now DEAD — nothing
+  imports it. Safe to delete once someone confirms nothing else references it.
 
 **Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
 - CORRECTION: this was long documented as permanently "dark navy... the one
@@ -732,11 +742,12 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 2. Barangay Admin dashboard (last remaining HIPO module — Match Information
    and Document Submission/verification status are built).
 3. `verified_residents` collection (approvals persisting across seasons).
-4. **shadcn/ui pass over ALL admin pages** + light animation. Deliberately
-   deferred until the features are done.
-5. Bulk player import.
-6. Tournament delete from the UI.
-7. Super admin password recovery when both super admins are locked out.
+4. Bulk player import.
+5. Tournament delete from the UI.
+6. Super admin password recovery when both super admins are locked out.
+7. Delete the now-dead `components/ui.jsx` (Button/Card/Input/Label/Pill) once
+   confirmed nothing still imports it — the shadcn/ui pass replaced it
+   everywhere. Light animation over the shadcn pages is still an open nice-to-have.
 8. Full end-to-end test on a CLEAN database (create season → register →
    verify → generate → score → check the public viewer), then deploy
    (Render + Vercel + Atlas) and delete all dev-only code.

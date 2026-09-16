@@ -214,3 +214,40 @@ says WebSockets and must be corrected.
   with light content if `.dark` ever reached them. Preference persists in
   `localStorage` under `brgy-theme`, a key namespaced away from the shared
   session so it can't collide with a future Super Admin dark mode.
+
+## 2026-09 — Session: Login redesign, Super Admin shadcn conversion (10/10)
+
+- **Login page redesigned**: split-screen layout (branded gradient panel with
+  a scattered generic sport-glyph texture — no team logos or copyrighted art
+  — on desktop, collapses on mobile), password visibility toggle, loading
+  spinner, and a note about the no-self-service password reset flow. The
+  panel's "N barangays / N sports" stats now come from `GET
+  /api/public/overview` instead of being hardcoded — the old "26 / 7" had
+  already gone stale the moment Call of Duty was added as an 8th sport.
+- **Super Admin: full shadcn/ui conversion, all 10 pages** (Dashboard,
+  Reference List, Season, Champions, Reports, Site Images, Accounts, Review
+  Queue, League Setup, Tournaments) plus dark mode via the same
+  `enableDarkMode` mechanism as Barangay Admin/Organizer. This completes the
+  shadcn pass across every admin role; `components/ui.jsx` is now dead code.
+- **Found and fixed a real bug in `Accounts.jsx`**: `provisionAll()` (bulk-
+  creates any missing barangay-admin/organizer account) existed but had no
+  button wired to it anywhere — not a styling issue, a missing entry point.
+  Confirmed with the user and restored the button. Mattered immediately:
+  the newly-added Call of Duty sport had no organizer account and no way to
+  bulk-create one.
+- **`Tournaments.jsx` (1,013 lines) was the one file that needed real care**
+  — `BracketTree`'s SVG connector wires are measured live via
+  `getBoundingClientRect()` in a `useLayoutEffect`, not computed from
+  hardcoded pixel math, so restyling turned out to be safe. The only actual
+  constraint: shadcn's `Card` doesn't forward refs, so `MatchBox` and the
+  bracket stage container were kept as plain `<div>`s with the ref wired
+  directly, instead of being wrapped in `Card`. No bracket generation,
+  advancement, revert, or scheduling logic was touched.
+- Harmonized a color inconsistency found along the way: `ReviewQueue.jsx` had
+  `needs_document` as blue while every other page used amber for the same
+  status. Both now use the shared soft-badge palette.
+- Full lint sweep at the end: 86 problems vs. 91 at the start of the
+  session — a net improvement. Several pre-existing unused-catch-binding
+  warnings (`catch (e)` where `e` was never read) were fixed opportunistically
+  while those exact lines were already being touched; no new issues were
+  introduced anywhere in this pass.

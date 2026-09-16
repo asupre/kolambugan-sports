@@ -397,34 +397,57 @@ so a bug in one route cannot expose the other.
 - Public lineups show **surname, first name, jersey, age, stats, and photo**.
   NO birthdate, NO address, NO documents.
 
-**Admin pages — shadcn/ui pass STARTED on Barangay Admin only (Sep 2026):**
+**Admin pages — shadcn/ui pass STARTED on Barangay Admin + Organizer (Sep 2026):**
 - Super Admin is still hand-rolled Tailwind + `components/ui.jsx`
   (Button/Card/Input/Label/Pill). Barangay Admin (`BrgyDashboard.jsx`,
-  `BrgyMatches.jsx`, `Documents.jsx`) now uses real shadcn/ui components
+  `BrgyMatches.jsx`, `Documents.jsx`) and the Organizer scoring screen
+  (`OrganizerScoring.jsx`) now use real shadcn/ui components
   (`src/components/ui/*`, the "Nova" preset, neutral base) instead — a
   deliberate early exception to the "one pass over everything" plan below,
-  so expect a visual mismatch between Barangay Admin and Super Admin until
-  the rest catches up. `RosterEditor` is now a proper shadcn `Dialog`
-  instead of a hand-rolled fixed-overlay div.
+  so expect a visual mismatch against Super Admin until it catches up.
+  `RosterEditor` and the Organizer's end-match confirmation are now proper
+  shadcn `Dialog`s instead of hand-rolled fixed-overlay divs.
+- Status badges across both use soft/transparent color (`bg-{c}-500/15
+  text-{c}-600 dark:text-{c}-400`), not solid fill or pastel outline —
+  Cards get a colored left-border + icon tied to meaning (blue=info,
+  green=success, amber=needs attention, red=urgent). The Organizer's actual
+  courtside tap targets (score buttons, Start/End match) stay solid/vivid on
+  purpose — those are actions, not status, and need to read at a glance.
+- **Dark mode, opt-in, Barangay Admin + Organizer only.** `AdminLayout` takes
+  an `enableDarkMode` prop; only these pages pass it. A header toggle flips
+  `document.documentElement`'s `dark` class (not a scoped wrapper div — Radix
+  `Dialog`/`Select` portal to `document.body`, outside any local wrapper, so
+  a div-scoped approach would leave modals/dropdowns stuck in light mode),
+  added on mount and always removed on unmount so a saved preference can
+  never leak onto Super Admin, which doesn't pass the prop and still renders
+  hardcoded light colors. Preference persists in `localStorage` under
+  `brgy-theme`. Defaults to light either way.
 - This REQUIRED upgrading the whole project from Tailwind v3 to v4 (shadcn's
   current CLI only targets v4) — `tailwind.config.js` is gone; theme tokens
   now live in `src/index.css` as CSS variables. This is global, so it also
-  affects Super Admin, Organizer, and Public, even though their JSX wasn't
-  touched; both still render off explicit utility classes (not shadcn
-  tokens), and a build was verified clean after the upgrade.
+  affects Super Admin and Public even though their JSX wasn't touched; both
+  still render off explicit utility classes (not shadcn tokens), and a build
+  was verified clean after the upgrade.
 - shadcn's default font (Geist) was deliberately NOT applied globally — kept
-  Inter, since `index.css` is shared by every page including Public/Organizer,
-  whose look is decided and out of scope. `--primary`/`--ring` were set to
-  the existing indigo so Barangay Admin reads as a polish pass, not a re-brand.
-- Still DECIDED: one more shadcn/ui conversion pass over the REMAINING admin
-  pages (Super Admin), with light animation, once its own remaining features
-  are finished. Doing it once keeps them consistent; doing it piecemeal
-  everywhere would mean converting twice — Barangay Admin is the deliberate
-  exception, not a reversal of this plan.
+  Inter, since `index.css` is shared by every page including Public, whose
+  look is decided and out of scope. `--primary`/`--ring` were set to a
+  richer indigo-violet (`oklch(0.53 0.26 285)`, deeper/more saturated than
+  plain indigo-600) so the converted pages read as a polish pass, not a
+  re-brand.
+- Still DECIDED: one more shadcn/ui conversion pass over Super Admin, with
+  light animation, once its own remaining features are finished. Doing it
+  once keeps it consistent; doing it piecemeal would mean converting twice —
+  Barangay Admin and Organizer are the deliberate exception, not a reversal
+  of this plan.
 
-**Organizer scoring screen — dark, courtside:**
-- Dark navy, very large scores, big touch targets. Tablet/phone first.
-- This is the one screen where dark is for legibility at arm's length.
+**Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
+- CORRECTION: this was long documented as permanently "dark navy... the one
+  screen where dark is for legibility at arm's length," but the screen was
+  never actually built that way — it shipped light-themed (`bg-white`,
+  `slate-*`) with no dark mode at all. Resolved by building the dark mode
+  the doc always assumed existed (see the Admin pages entry above), rather
+  than forcing the screen dark. Big touch targets and tablet/phone-first
+  layout are unchanged either way.
 
 Everything mobile-first and responsive. Public users are on phones.
 

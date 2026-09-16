@@ -459,6 +459,11 @@ so a bug in one route cannot expose the other.
   re-brand.
 - `components/ui.jsx` (Button/Card/Input/Label/Pill) is now DEAD — nothing
   imports it. Safe to delete once someone confirms nothing else references it.
+- A `.scrollbar-thin` utility class (in `index.css`, themed off `--border`/
+  `--muted-foreground`) replaces the bare OS scrollbar on every scrollable
+  panel across the admin pages (the bracket tree, long tables, modal bodies).
+  Apply it to any new `overflow-x-auto`/`overflow-y-auto` container instead
+  of leaving the default scrollbar.
 - **Native date/time inputs replaced with shadcn Calendar** (Sep 2026):
   `components/DateTimePicker.jsx` exports `DatePicker` and `DateTimePicker`
   (Popover + Calendar for the date, a themed time input alongside) — used in
@@ -481,14 +486,19 @@ so a bug in one route cannot expose the other.
   static labels, NOT collapse toggles — `organizerMenu`/`brgyMenu` stay flat
   arrays; `AdminLayout` renders whichever shape it's given
   (`menu[0].header !== undefined` ⇒ grouped).
-- **Whole-sidebar collapse** (Sep 2026): `AdminLayout` has a `rail` boolean
-  toggled by a dedicated button above Sign out (desktop-only, `hidden
-  lg:flex` — separate from the mobile hamburger's overlay open/close).
-  Collapses the ENTIRE sidebar to an icon-only `lg:w-16` rail — labels,
-  headers, and group dividers hide/simplify, items keep a `title` tooltip.
-  The Tournaments item's per-sport flyout has no room in a 4rem rail, so
-  collapsed it's a direct link to Tournaments (lands on the first sport)
-  instead of expanding inline.
+- **Whole-sidebar collapse** (Sep 2026): `AdminLayout` has a `rail` boolean,
+  toggled by an icon-only button (no visible "Collapse" label, just a
+  `title` tooltip) inline in the header row beside "Kolambugan Sports" —
+  desktop-only (`hidden lg:flex`; on mobile the sidebar is an overlay opened
+  from the main header instead, a separate concept). Collapses the ENTIRE
+  sidebar to an icon-only `lg:w-16` rail — logo, labels, headers, and group
+  dividers hide/simplify, items keep a `title` tooltip; collapsed, the
+  toggle button is the only thing left in that row and doubles as the way
+  back to expanded. The Tournaments item's per-sport flyout has no room in a
+  4rem rail, so collapsed it's a direct link to Tournaments (lands on the
+  first sport) instead of expanding inline. The mobile header's own
+  open-sidebar button uses the same `PanelLeftOpen` icon (not a `☰` hamburger
+  character) for one consistent icon language.
 
 **Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
 - CORRECTION: this was long documented as permanently "dark navy... the one

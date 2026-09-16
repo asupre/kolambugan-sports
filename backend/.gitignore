@@ -5,3 +5,4 @@ uploads/
 .DS_Store
 dev-setup.ps1
 test-reference-list.csv
+.claude/

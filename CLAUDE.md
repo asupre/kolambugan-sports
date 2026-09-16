@@ -115,7 +115,15 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
      the uploaded document inline — and gives the official verdict
      (approve / reject). Reject removes the player and REOPENS the roster.
   4. Verify locks the team (`status: 'verified'`); only verified teams enter
-     tournaments.
+     tournaments. **A later correction can un-verify it** (fixed Sep 2026):
+     the "correct this player" PATCH re-screens on a name/birthdate change,
+     and if that comes back non-eligible on an already-verified team,
+     `team.status` flips back to `pending` so it reappears in the Review
+     Queue — `submittedAt` is untouched, so the roster stays locked either
+     way. Before this fix, a verified team could sit with a flagged player
+     invisible to the Review Queue (which only lists `status: 'pending'`)
+     while `/api/stats/dashboard`'s count (raw, off `Player`, no team-status
+     filter) correctly disagreed with it — the tell that surfaced the bug.
   5. (PENDING) Approved players written to **verified_residents**, which
      persists across seasons and is checked alongside the reference list.
      NEVER write approvals into the reference list itself.

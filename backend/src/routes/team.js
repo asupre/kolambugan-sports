@@ -246,14 +246,32 @@ router.patch('/:id/players/:playerId', authenticate,
       before.birth !== String(player.birthdate);
 
     let screening = null;
-    if (identityChanged) screening = await prescreenPlayer(player, team);
+    let reopened = false;
+    if (identityChanged) {
+      screening = await prescreenPlayer(player, team);
+
+      // A correction can un-clear a previously eligible player. If that
+      // happens on a team the Super Admin already verified and locked, the
+      // team must NOT stay "verified" with a flagged/needs-document player
+      // sitting on it silently — that's exactly the Dayo gap verification
+      // exists to catch. Send it back to the Review Queue (status only;
+      // submittedAt is untouched, so the roster itself stays locked).
+      if (team.status === 'verified' && screening.status !== 'eligible') {
+        team.status = 'pending';
+        await team.save();
+        reopened = true;
+      }
+    }
 
     const fresh = await Player.findById(player._id);
     res.json({
-      message: identityChanged ? 'Player updated and re-screened.' : 'Player updated.',
+      message: reopened
+        ? 'Player updated and re-screened. This team no longer qualifies as verified, so it has been sent back to the Review Queue.'
+        : identityChanged ? 'Player updated and re-screened.' : 'Player updated.',
       player: fresh,
       rescreened: identityChanged,
       screening,
+      teamStatus: team.status,
     });
   } catch (err) {
     console.error('Update player error:', err);

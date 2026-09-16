@@ -406,3 +406,39 @@ says WebSockets and must be corrected.
   that window) before the actual `localStorage` clear + navigate — an
   intentional minimum-duration pattern, not a real load, purely so the
   transition reads as deliberate rather than abrupt.
+
+## 2026-09 — Bug: correcting a player on a VERIFIED team stayed verified
+
+- **Reported**: a Barangay Admin corrected a player on an already-submitted
+  team; the correction re-screened and came back `needs_document`. The Super
+  Admin's Review Queue showed nothing needing review, while the Dashboard's
+  "Players to review" stat correctly said 2 — the two numbers disagreed.
+- **Root cause**: `PATCH /api/teams/:id/players/:playerId` (the correction
+  route) re-screens the player on an identity change (name/birthdate) via
+  `prescreenPlayer()`, but never touched `team.status`. `GET
+  /api/review/queue` only lists teams with `status: 'pending'`. So a
+  correction that un-clears a player on an already-`verified` team leaves
+  that team silently `verified` with a flagged/needs-document player on its
+  roster — invisible to the one screen that's supposed to catch it, while
+  `/api/stats/dashboard` counts flagged players directly off `Player`
+  regardless of team status, so the two numbers necessarily disagreed. This
+  is exactly the residency-integrity gap the whole verification flow exists
+  to prevent, just reachable via the correction path rather than initial
+  submission.
+- **Fix**: the PATCH route now flips `team.status` from `verified` back to
+  `pending` when a re-screen's result isn't `eligible` (`submittedAt` is
+  left alone, so the roster itself stays locked — only the review-queue
+  visibility changes). Response now includes `teamStatus`, and
+  `BrgyDashboard.jsx`'s correction notice tells the Barangay Admin when this
+  happened ("...has returned to the Review Queue"), not just the player's
+  new status.
+- **Data repair**: two teams were already stuck in this state in the
+  current dev database — "Mukas 1" and "Mukas 2" (Call of Duty: Mobile),
+  each with one `needs_document` player, `verified` since Sep 12. Flipped
+  both to `pending` by hand (temporary scripts, run and deleted, not
+  committed) to match what the fixed route would have done automatically;
+  verified via the live API that they now appear in the Review Queue and
+  the Dashboard count still agrees (2). Also live-tested the fix itself end
+  to end against a real verified team (forced a re-screen to
+  `needs_document`, confirmed the reopen, then restored the team to its
+  original state and re-verified it).

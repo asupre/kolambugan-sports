@@ -518,10 +518,13 @@ function RosterEditor({ team, sports, onClose }) {
                         onCancel={() => setEditingId(null)}
                         onSaved={(res) => {
                           setEditingId(null);
+                          const status = res.screening?.status?.replace("_", " ");
                           setNotice(
-                            res.rescreened
-                              ? `Updated. Residency re-checked — now "${res.screening?.status?.replace("_", " ")}".`
-                              : "Player updated."
+                            !res.rescreened
+                              ? "Player updated."
+                              : res.teamStatus === "pending"
+                                ? `Updated. Residency re-checked — now "${status}". This team no longer qualifies as verified and has returned to the Review Queue.`
+                                : `Updated. Residency re-checked — now "${status}".`
                           );
                           load();
                         }}

@@ -212,10 +212,14 @@ which contradicted the meeting notes.)
   special-cased `winners` / `final` / `third`.
 This separation exists because group-stage upper brackets and the Top 8 both used
 to be `winners`, which broke match counts and made the two indistinguishable.
-`GET /:id/bracket` branches on the tournament's `tournamentFormat` field, not
-on the sport's name — the earlier hardcoded "Mobile Legends" / 8-team
-double-elim special case has been removed, so any sport configured as
-round-robin in League Setup takes the same path ML does.
+`POST /:id/bracket` (draw time) and `POST /generate` branch on the sport's
+`tournamentFormat` field — a field on **Sport**, read via the populated
+`tournament.sport`, not on Tournament itself — not on the sport's name.
+The earlier hardcoded "Mobile Legends" / 8-team double-elim special case
+has been removed, so any sport configured as round-robin in League Setup
+takes the same path ML does. `GET /:id/bracket` (what the frontend
+actually polls) doesn't branch at all — it just returns whatever was
+drawn.
 
 **Advancement is SCORE-DRIVEN, never organizer-chosen (integrity):**
 - The bracket SKELETON is generated and LOCKED at draw time — every slot and
@@ -345,7 +349,8 @@ PlayerMatchStats  match, player, points, fouls, rebounds, assists  ←
 Champion       season/year, sport, division, teamName, playerName,
                proofPhoto(GridFS id)  ← free text, no FK to Team/Player
                (a past champion may predate the Team/Player records)
-SiteImage      key ∈ {hero, league, barangay, about}, image(GridFS id), crop
+SiteImage      key ∈ {hero, league, barangay, about}, file(GridFS id),
+               focal ∈ {top, center, bottom} (default center)
 ```
 
 GridFS buckets: **`photos`**, **`champions`**, **`site`**, and **`logos`**
@@ -599,12 +604,12 @@ Everything mobile-first and responsive. Public users are on phones.
 
 **Must:** auto pre-screen verification + Super Admin review queue ✅; roster
 submission w/ conditional document upload ✅; bracket generation ✅; real-time
-live scoring ⬜; public dashboard ⬜; account provisioning panel ✅; in-app
+live scoring ✅; public dashboard ✅; account provisioning panel ✅; in-app
 first-login instruction modal ⬜ (promised in the thesis — REQUIRED).
 
-**Should:** RBAC across all roles ✅ (API) / ⬜ (frontend guards); permanent
-champions archive ⬜; password reset from Super Admin panel ✅; reschedule with
-audit trail ⬜.
+**Should:** RBAC across all roles ✅ (API + frontend guards, `RequireRole`);
+permanent champions archive ✅; password reset from Super Admin panel ✅;
+reschedule with audit trail ⬜.
 
 **Could:** PDF exports, municipal branding, announcement banners.
 
@@ -907,12 +912,15 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 
 ## DEV-ONLY SCRIPTS + ROUTES — DELETE BEFORE DEPLOYMENT
 In `backend/src/config/` (these write DIRECTLY to the DB, bypassing app rules):
-seedTestTeams.js, seedReviewTest.js, showOrReset.js, clearTournaments.js,
-seedTiebreakerTest.js, seedTie5Test.js, seed52WithTies.js,
-seedVerifiedTeams.js, seedPlayersForTeams.js, **seedSportConfig.js** (the
+seedTestTeams.js, showOrReset.js, clearTournament.js,
+seedTie5Test.js, seed52WithTies.js,
+seedVerifiedTeam.js, seedPlayersForTeams.js, **seedSportConfig.js** (the
 config UI now exists — this can go), and `wipe.js`, `makeReferenceCsv.js`,
-`seedSportTeams.js`, `deleteSeason.js` if/where created. **KEEP `seed.js`** —
-a fresh install needs the 26 barangays and 7 sports from somewhere.
+`seedSportTeams.js`, `deleteSeason.js` if/where created. **KEEP `seed.js`
+AND `seedData.js`** — `seed.js` imports `seedData.js` for the 26 barangays
+and 7 sports a fresh install needs, so deleting one without the other
+breaks it. (`seedReviewTest.js` / `seedTiebreakerTest.js`, previously
+listed here, no longer exist — already gone.)
 Routes/UI: `POST /api/tournaments/:id/simulate-groups`, the temp
 `POST /api/tournaments/:id/test-de`, and the amber "Auto-score all group
 matches" button in Tournaments.jsx.
@@ -944,7 +952,9 @@ Also gitignore any `dev-setup.ps1` (it holds a password).
   fallback. Without it, files DOWNLOAD instead of displaying. Files uploaded
   before this fix are permanently typeless; re-upload them.
 - **Mongoose `findOneAndUpdate({ new: true })` is deprecated** — use
-  `returnDocument: 'after'`.
+  `returnDocument: 'after'`. Fixed in `organizer.js`; `siteimage.js`'s
+  `PATCH /:key/focal` still uses the old `{ new: true }` and needs the
+  same fix.
 - **Don't read `games[0]` as the final score.** It is only period 1. The final
   score is `liveScoreA`/`liveScoreB` (they survive completion). Admin-entered
   results still write into `games[0]`, so displays need to handle both.

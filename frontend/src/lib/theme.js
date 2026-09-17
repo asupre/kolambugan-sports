@@ -1,7 +1,6 @@
-// Scoped to whichever AdminLayout instance opts in (enableDarkMode prop) —
-// Super Admin/Organizer never read this, so a saved "dark" preference from a
-// Barangay Admin session can't leak a half-dark shell onto their own pages,
-// which still use hardcoded light colors, not theme tokens.
+// Name predates the Super Admin/Organizer rollout — this key is now shared
+// across all three admin roles (every AdminLayout instance that passes
+// enableDarkMode), not just Barangay Admin.
 const KEY = "brgy-theme";
 
 export function getStoredTheme() {

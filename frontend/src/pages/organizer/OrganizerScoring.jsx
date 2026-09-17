@@ -118,11 +118,12 @@ function Crest({ team, size = 40 }) {
   );
 }
 
-// One card per player, with every action on the card itself. The previous screen
-// needed two taps — select a player, then a value — which is where mis-taps came
-// from, and it could fail with "pick a player first" in the middle of a game.
-// Score/stat buttons stay solid and oversized on purpose: these are the actual
-// tap targets at courtside, not status indicators — legibility beats restraint here.
+// One row per player, with every action on the row itself — no "pick a player
+// first" step. Kept to a SINGLE compact row (jersey chip + name/line + every
+// button) rather than the old stacked card, specifically so all 5 on-court
+// players fit on screen together at courtside without scrolling to reach the
+// last one. Score/stat buttons stay solid and oversized on purpose: these are
+// the actual tap targets, not status indicators — legibility beats restraint.
 function PlayerCard({ player, stat, pointValues, statTypes, busy, onScore, onStat }) {
   const s = stat || { points: 0, fouls: 0, rebounds: 0, assists: 0 };
   const line = [
@@ -133,35 +134,43 @@ function PlayerCard({ player, stat, pointValues, statTypes, busy, onScore, onSta
   ].filter(Boolean).join(" · ");
 
   return (
-    <Card className="px-3 py-2.5 gap-0">
-      <div className="flex items-baseline justify-between gap-2 mb-2">
-        <span className="text-sm truncate">
-          <span className="text-muted-foreground text-xs mr-1.5">{player.jerseyNumber ?? "—"}</span>
-          {player.lastName}
-        </span>
-        <span className="text-xs text-muted-foreground shrink-0">{line}</span>
+    // Below `sm` there isn't room for a jersey chip + name + every button on
+    // one line without either clipping the name or pushing buttons off-screen
+    // (the button group is a fixed-width cluster, not something that can
+    // shrink) — so name goes on its own line there and the button bar goes
+    // full-width underneath. From `sm` up it collapses back to one row.
+    <div className="flex flex-col gap-2 rounded-xl border bg-card px-2.5 py-2 shadow-sm sm:flex-row sm:items-center sm:gap-2.5">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-semibold tabular-nums">
+          {player.jerseyNumber ?? "—"}
+        </div>
+
+        <div className="min-w-0 flex-1 sm:w-28 sm:flex-none">
+          <p className="text-sm font-medium truncate">{player.lastName}</p>
+          <p className="text-[11px] text-muted-foreground truncate tabular-nums">{line}</p>
+        </div>
       </div>
 
-      <div className="flex gap-1.5 mb-1.5">
+      <div className="flex items-center gap-1.5 sm:ml-auto sm:shrink-0">
         {pointValues.map((v) => (
           <button key={v} onClick={() => onScore(player._id, v)} disabled={busy}
-            className="flex-1 h-10 rounded-lg bg-green-600 text-white text-[15px] font-semibold hover:bg-green-700 disabled:opacity-40">
+            className="h-11 flex-1 rounded-lg bg-green-600 px-2.5 text-[15px] font-bold text-white transition active:scale-95 hover:bg-green-700 disabled:opacity-40 disabled:active:scale-100 sm:flex-none sm:min-w-11">
             +{v}
           </button>
         ))}
-      </div>
 
-      {statTypes.length > 0 && (
-        <div className="flex gap-1.5">
-          {statTypes.map((t) => (
-            <button key={t} onClick={() => onStat(player._id, t)} disabled={busy}
-              className="flex-1 h-8 rounded-lg border text-muted-foreground text-xs hover:bg-accent disabled:opacity-40">
-              {STAT_LABEL[t] || t}
-            </button>
-          ))}
-        </div>
-      )}
-    </Card>
+        {statTypes.length > 0 && (
+          <div className="flex shrink-0 items-center gap-1 border-l pl-1.5 sm:pl-2">
+            {statTypes.map((t) => (
+              <button key={t} onClick={() => onStat(player._id, t)} disabled={busy} title={STAT_LABEL[t] || t}
+                className="h-9 w-9 shrink-0 rounded-lg border text-xs font-semibold text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:opacity-40">
+                {(STAT_LABEL[t] || t)[0]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -224,7 +233,7 @@ function ScoringView({ matchId, onBack }) {
 
   if (!data) {
     return (
-      <div className="max-w-4xl space-y-3">
+      <div className="space-y-3">
         <Skeleton className="h-4 w-24" />
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1 space-y-2">
@@ -347,7 +356,7 @@ function ScoringView({ matchId, onBack }) {
   );
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <button onClick={onBack} className="flex items-center gap-1 text-muted-foreground text-sm mb-3 hover:text-foreground">
         <ArrowLeft className="size-3.5" /> All matches
       </button>
@@ -464,8 +473,8 @@ function ScoringView({ matchId, onBack }) {
 
               {live && (
                 <>
-                  <div className="flex items-baseline justify-between mb-2">
-                    <p className="text-muted-foreground text-xs">On court · {court.length} of {limit}</p>
+                  <div className="flex items-baseline justify-between mb-1.5">
+                    <p className="text-muted-foreground text-xs font-medium">On court · {court.length} of {limit}</p>
                     <button onClick={() => setSubbing(!subbing)}
                       className="text-xs font-medium px-2.5 py-1 rounded-lg border text-muted-foreground hover:bg-accent">
                       {subbing ? "Done" : "Substitute"}
@@ -588,7 +597,7 @@ function ScoringView({ matchId, onBack }) {
 
 function ListSkeleton() {
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div className="space-y-2">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="h-24 w-full rounded-xl" />
@@ -685,16 +694,23 @@ export default function OrganizerScoring() {
         </div>
 
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Crest team={m.teamA} size={28} />
-            <span className={cn("text-sm truncate", ready ? "font-medium" : "text-muted-foreground")}>
-              {m.teamA?.teamName || "TBD"}
-            </span>
+          {/* Each team gets its own min-w-0 flex-1 slot so a long barangay name
+              on ONE side truncates on its own instead of starving (or being
+              starved by) the other side, at any screen width. */}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <Crest team={m.teamA} size={28} />
+              <span className={cn("min-w-0 truncate text-sm", ready ? "font-medium" : "text-muted-foreground")}>
+                {m.teamA?.teamName || "TBD"}
+              </span>
+            </div>
             <span className="text-muted-foreground text-xs shrink-0">vs</span>
-            <Crest team={m.teamB} size={28} />
-            <span className={cn("text-sm truncate", ready ? "font-medium" : "text-muted-foreground")}>
-              {m.teamB?.teamName || "TBD"}
-            </span>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <Crest team={m.teamB} size={28} />
+              <span className={cn("min-w-0 truncate text-sm", ready ? "font-medium" : "text-muted-foreground")}>
+                {m.teamB?.teamName || "TBD"}
+              </span>
+            </div>
           </div>
 
           {isLive ? (
@@ -725,7 +741,7 @@ export default function OrganizerScoring() {
 
   return (
     <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode>
-      <div className="max-w-2xl space-y-6">
+      <div className="space-y-6">
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>

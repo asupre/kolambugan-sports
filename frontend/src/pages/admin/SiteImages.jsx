@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import Cropper from "react-easy-crop";
+import { useEffect, useState } from "react";
 import { ImageIcon, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
@@ -7,116 +6,12 @@ import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
-import { Dialog, DialogContent } from "../../components/ui/dialog";
-import { Label } from "../../components/ui/label";
 import { Skeleton } from "../../components/ui/skeleton";
+import ImageCropDialog from "../../components/ImageCropDialog";
 
 // Widest we'll store. A phone photo is far larger than any slot renders, and a
 // 12-megapixel banner is just bandwidth nobody sees.
 const MAX_WIDTH = 1920;
-
-function createImage(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.addEventListener("load", () => resolve(img));
-    img.addEventListener("error", reject);
-    img.src = url;
-  });
-}
-
-// Cut the chosen region out of the original at full resolution, then scale it
-// down if it's wider than we need. Returns a JPEG blob ready to upload.
-async function getCroppedBlob(src, crop) {
-  const image = await createImage(src);
-  const scale = Math.min(1, MAX_WIDTH / crop.width);
-  const w = Math.round(crop.width * scale);
-  const h = Math.round(crop.height * scale);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, w, h);
-
-  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
-}
-
-function CropModal({ slot, file, onCancel, onDone }) {
-  const [src, setSrc] = useState(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [area, setArea] = useState(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setSrc(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  const onCropComplete = useCallback((_, pixels) => setArea(pixels), []);
-
-  async function save() {
-    if (!area) return;
-    setBusy(true);
-    try {
-      const blob = await getCroppedBlob(src, area);
-      await onDone(blob);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-2xl! p-0 gap-0 overflow-hidden">
-        <div className="px-5 py-3 border-b">
-          <h3 className="font-semibold text-sm">Position the photo — {slot.label}</h3>
-          <p className="text-muted-foreground text-xs mt-0.5">
-            Drag to move, and use the slider to zoom. What's inside the frame is
-            what appears on the site.
-          </p>
-        </div>
-
-        <div className="relative bg-black" style={{ height: 340 }}>
-          {src && (
-            <Cropper
-              image={src}
-              crop={crop}
-              zoom={zoom}
-              aspect={slot.aspect || 1.6}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-              restrictPosition={false}
-            />
-          )}
-        </div>
-
-        <div className="px-5 py-3 border-t">
-          <Label className="text-xs font-normal text-muted-foreground mb-1.5">Zoom</Label>
-          <input
-            type="range"
-            min={1}
-            max={4}
-            step={0.01}
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
-
-        <div className="px-5 py-3 border-t flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>
-          <Button onClick={save} disabled={busy || !area}>
-            {busy ? "Saving…" : "Save photo"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function Slot({ slot, onChanged, onError }) {
   const [pending, setPending] = useState(null);   // file awaiting crop
@@ -208,11 +103,14 @@ function Slot({ slot, onChanged, onError }) {
         </div>
 
         {pending && (
-          <CropModal
-            slot={slot}
+          <ImageCropDialog
             file={pending}
+            aspect={slot.aspect || 1.6}
+            maxWidth={MAX_WIDTH}
+            title={`Position the photo — ${slot.label}`}
+            description="Drag to move, and use the slider to zoom. What's inside the frame is what appears on the site."
             onCancel={() => setPending(null)}
-            onDone={uploadBlob}
+            onSave={uploadBlob}
           />
         )}
       </CardContent>
@@ -240,7 +138,7 @@ export default function SiteImages() {
 
   return (
     <AdminLayout title="Site Images" menu={superAdminMenu} enableDarkMode>
-      <div className="max-w-4xl space-y-6">
+      <div className="space-y-6">
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>

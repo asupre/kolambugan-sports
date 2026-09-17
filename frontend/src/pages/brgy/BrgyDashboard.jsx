@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ImageIcon, ImageOff, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { Camera, ImageIcon, Loader2, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
+import ImageCropDialog from "../../components/ImageCropDialog";
 import { brgyMenu } from "../../components/menus";
 import { api } from "../../api";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -215,6 +216,7 @@ function LogoCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [v, setV] = useState(Date.now());   // cache-buster after a change
+  const [pending, setPending] = useState(null);   // file awaiting crop
 
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const myId = user?.barangay?._id || user?.barangay;
@@ -228,12 +230,11 @@ function LogoCard() {
 
   useEffect(() => { if (myId) load(); }, [myId]);
 
-  async function upload(file) {
-    if (!file) return;
+  async function uploadBlob(blob) {
     setBusy(true); setError("");
     try {
       const fd = new FormData();
-      fd.append("logo", file);
+      fd.append("logo", blob, "logo.jpg");
       const token = localStorage.getItem("token");
       const res = await fetch(`/api/barangays/${myId}/logo`, {
         method: "POST",
@@ -242,6 +243,7 @@ function LogoCard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Upload failed.");
+      setPending(null);
       setV(Date.now());
       await load();
     } catch (e) { setError(e.message); }
@@ -269,7 +271,7 @@ function LogoCard() {
         </CardTitle>
         <CardDescription>
           Shown beside your teams everywhere on the public site — match results,
-          standings, brackets. Square images work best. JPEG, PNG or WebP, up to 2&nbsp;MB.
+          standings, brackets.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -279,31 +281,84 @@ function LogoCard() {
           </Alert>
         )}
 
-        <div className="flex items-center gap-4">
-          {barangay?.hasLogo ? (
-            <img src={`/api/barangays/${myId}/logo?v=${v}`} alt=""
-              className="h-20 w-20 rounded-lg object-cover bg-muted border" />
-          ) : (
-            <div className="h-20 w-20 rounded-lg bg-muted border border-dashed flex flex-col items-center justify-center gap-1 text-muted-foreground text-xs text-center px-2">
-              <ImageOff className="size-4" />
-              No logo
-            </div>
-          )}
+        <div className="flex items-center gap-5">
+          <label
+            className={cn(
+              "group relative h-24 w-24 shrink-0 rounded-xl overflow-hidden border bg-muted",
+              busy ? "cursor-wait" : "cursor-pointer"
+            )}
+          >
+            {barangay?.hasLogo ? (
+              <img
+                src={`/api/barangays/${myId}/logo?v=${v}`}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full flex flex-col items-center justify-center gap-1 text-muted-foreground">
+                <ImageIcon className="size-5" />
+                <span className="text-[11px]">No logo</span>
+              </div>
+            )}
 
-          <div className="flex flex-col gap-2">
-            <label className={cn(buttonVariants({ size: "sm" }), "cursor-pointer w-fit")}>
-              <Upload />
-              {busy ? "Working…" : barangay?.hasLogo ? "Replace logo" : "Upload logo"}
-              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-                onChange={(e) => { upload(e.target.files[0]); e.target.value = ""; }} />
-            </label>
+            {/* Hover-to-change overlay — the image itself is the upload
+                control, same pattern as a profile-photo picker. */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+              {busy ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : (
+                <>
+                  <Camera className="size-5" />
+                  <span className="text-[11px] font-medium">
+                    {barangay?.hasLogo ? "Change" : "Upload"}
+                  </span>
+                </>
+              )}
+            </div>
+
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => {
+                const f = e.target.files[0];
+                if (f) setPending(f);
+                e.target.value = "";   // so picking the same file twice still opens the cropper
+              }}
+            />
+          </label>
+
+          <div className="min-w-0 space-y-2">
+            <p className="text-muted-foreground text-xs">
+              JPEG, PNG or WebP, up to 2&nbsp;MB. You'll be able to position and
+              zoom it into a square before it's saved.
+            </p>
             {barangay?.hasLogo && (
-              <Button size="sm" variant="destructive" onClick={remove} disabled={busy} className="w-fit">
-                <Trash2 /> Remove
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={remove}
+                disabled={busy}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 /> Remove logo
               </Button>
             )}
           </div>
         </div>
+
+        {pending && (
+          <ImageCropDialog
+            file={pending}
+            aspect={1}
+            maxWidth={800}
+            title="Position the logo"
+            description="Drag to move, and use the slider to zoom. What's inside the frame is what appears on the public site."
+            onCancel={() => setPending(null)}
+            onSave={uploadBlob}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -650,7 +705,7 @@ export default function BrgyDashboard() {
   return (
     <AdminLayout title="Team Registration" menu={brgyMenu} enableDarkMode>
       {loading ? (
-        <div className="max-w-4xl space-y-6">
+        <div className="space-y-6">
           <Card>
             <CardHeader>
               <Skeleton className="h-5 w-32" />
@@ -682,7 +737,7 @@ export default function BrgyDashboard() {
           </Card>
         </div>
       ) : (
-        <div className="max-w-4xl space-y-6">
+        <div className="space-y-6">
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>

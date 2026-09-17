@@ -110,14 +110,13 @@ function Field({ label, value }) {
 }
 
 function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
-  const [tab, setTab] = useState("info");
   const p = player;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-3xl! p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col">
+      <DialogContent showCloseButton={false} className="sm:max-w-4xl! p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b shrink-0">
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b shrink-0">
           <div>
             <h2 className="font-semibold text-lg">{p.lastName}, {p.firstName} {p.middleName || ""}</h2>
             <div className="flex items-center gap-2 mt-1">
@@ -130,46 +129,34 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
           <Button variant="ghost" size="icon-sm" onClick={onClose}><X /></Button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 px-6 pt-3 shrink-0">
-          {[["info", "Information"], ["docs", `Documents${p.documents?.length ? ` (${p.documents.length})` : ""}`]].map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)}
-              className={cn(
-                "px-4 py-2 text-sm font-medium rounded-t-lg transition",
-                tab === k ? "bg-muted" : "text-muted-foreground hover:text-foreground"
-              )}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Body */}
+        {/* Body — photo and documents shown TOGETHER, not behind separate tabs,
+            since the whole point of this screen is comparing the player's face
+            against their submitted ID. The photo column stays sticky so it's
+            still visible while scrolling through several documents. */}
         <div className="px-6 py-5 min-h-[18rem] overflow-y-auto scrollbar-thin flex-1">
-          {tab === "info" ? (
-            <div className="flex flex-col sm:flex-row gap-6">
-              <dl className="flex-1 space-y-3 text-sm order-2 sm:order-1">
-                <Field label="Full name" value={`${p.firstName} ${p.middleName || ""} ${p.lastName}`.replace(/\s+/g, " ")} />
+          <div className="grid grid-cols-1 sm:grid-cols-[13rem_1fr] gap-6">
+            <div className="sm:sticky sm:top-0 space-y-4 self-start">
+              {p.photo ? (
+                <img src={`/api/teams/players/${p._id}/photo`} alt=""
+                  className="w-full aspect-square rounded-xl object-cover bg-muted border" />
+              ) : (
+                <div className="w-full aspect-square rounded-xl bg-muted border flex items-center justify-center text-muted-foreground text-sm text-center px-3">
+                  No photo
+                </div>
+              )}
+
+              <dl className="space-y-2.5 text-sm">
                 <Field label="Birthdate" value={p.birthdate ? new Date(p.birthdate).toLocaleDateString() : "—"} />
                 <Field label="Age" value={p.age ?? "—"} />
                 <Field label="Address" value={p.address || "—"} />
                 <Field label="Jersey number" value={p.jerseyNumber ?? "—"} />
-                <Field label="Eligibility" value={p.eligibilityStatus?.replace("_", " ")} />
-                {p.flagReason && <Field label="Flag reason" value={p.flagReason} />}
               </dl>
-
-              <div className="order-1 sm:order-2 shrink-0">
-                {p.photo ? (
-                  <img src={`/api/teams/players/${p._id}/photo`} alt=""
-                    className="w-48 h-48 rounded-xl object-cover bg-muted border" />
-                ) : (
-                  <div className="w-48 h-48 rounded-xl bg-muted border flex items-center justify-center text-muted-foreground text-sm">
-                    No photo
-                  </div>
-                )}
-              </div>
             </div>
-          ) : (
-            <div className="space-y-4">
+
+            <div className="space-y-4 min-w-0">
+              <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                Submitted documents{p.documents?.length ? ` (${p.documents.length})` : ""}
+              </p>
               {!p.documents?.length ? (
                 <p className="text-muted-foreground text-sm">
                   No documents uploaded. The Barangay Admin submits these from their
@@ -179,7 +166,7 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
                 p.documents.map((d) => <DocumentView key={d._id} doc={d} large />)
               )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Actions */}
@@ -190,14 +177,14 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
           </p>
           {p.eligibilityStatus !== "eligible" && (
             <div className="flex gap-2 shrink-0">
-              <button onClick={() => onApprove(teamId, p._id)} disabled={busy}
-                className="text-sm font-medium px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
+              <Button onClick={() => onApprove(teamId, p._id)} disabled={busy}
+                className="bg-green-600 text-white hover:bg-green-700 focus-visible:ring-green-500/40 dark:focus-visible:ring-green-500/40">
                 Approve
-              </button>
-              <button onClick={() => onReject(teamId, p._id)} disabled={busy}
-                className="text-sm font-medium px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+              </Button>
+              <Button onClick={() => onReject(teamId, p._id)} disabled={busy}
+                className="bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500/40 dark:focus-visible:ring-red-500/40">
                 Reject
-              </button>
+              </Button>
             </div>
           )}
         </div>

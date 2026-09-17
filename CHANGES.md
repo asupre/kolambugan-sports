@@ -549,3 +549,20 @@ says WebSockets and must be corrected.
   `SiteImage`'s existing `onError` fallback. The exact filenames needed are
   listed at the top of `instructionContent.js`. The feature is fully
   functional right now; the screenshots are a content task, not a blocker.
+
+## 2026-09 — Real instruction-modal screenshots added
+
+- **User dropped real screenshots into `public/instructions/`**, with more
+  descriptive filenames than the placeholder list and more of them than
+  originally planned — Super Admin split into 7 steps instead of 5 (Season
+  and Reference List separated; League Setup and Tournaments separated),
+  and Organizer gained a 5th step. Rewrote `instructionContent.js` to match
+  the actual filenames and step count exactly, and kept the folder's
+  `README.md` in sync.
+- **Added an Organizer "Substitute" step** (between Start & score and End
+  the match) — explains that tapping Substitute swaps which players are
+  shown on court and is purely a display filter, nothing about who's in or
+  out is recorded. Matches the actual confirmation copy already shown in
+  `OrganizerScoring.jsx`'s substitute panel.
+- Fixed a filename typo along the way (`organizer-substitue.png` →
+  `organizer-substitute.png`).

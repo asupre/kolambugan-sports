@@ -605,8 +605,8 @@ Everything mobile-first and responsive. Public users are on phones.
 **Must:** auto pre-screen verification + Super Admin review queue ✅; roster
 submission w/ conditional document upload ✅; bracket generation ✅; real-time
 live scoring ✅; public dashboard ✅; account provisioning panel ✅; in-app
-first-login instruction modal ✅ (real screenshots still pending — placeholder
-content otherwise complete, see `components/InstructionModal.jsx`).
+first-login instruction modal ✅ (real screenshots in, see
+`components/InstructionModal.jsx`).
 
 **Should:** RBAC across all roles ✅ (API + frontend guards, `RequireRole`);
 permanent champions archive ✅; password reset from Super Admin panel ✅;
@@ -886,18 +886,17 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   and `components/menus.js` (`superAdminMenu`, `organizerMenu`, `brgyMenu` —
   previously copy-pasted into every page).
 - **First-login instruction modal** (`components/InstructionModal.jsx` +
-  `lib/instructionContent.js`) — role-specific step-through content (5 steps
-  for Super Admin, 4 each for Barangay Admin/Organizer) shown automatically
-  once, right after a forced password change (`ChangePassword.jsx`) —
-  `mustChangePassword` only ever fires once per account, so this needed no
-  new backend field to key off. Also reopenable any time from a "?" button
-  in `AdminLayout`'s header, shared by all three roles, for existing
-  accounts and for evaluators wanting a refresher. Each step can carry a
-  `screenshot` path under `public/instructions/`; a step degrades to a
-  labeled placeholder (not a broken image) until the real PNG exists — none
-  do yet, so this ships fully functional with the content written, just
-  without the actual screenshots (see the file checklist atop
-  `instructionContent.js`, also item 8 in NEXT below).
+  `lib/instructionContent.js`) — role-specific step-through content (7 steps
+  for Super Admin, 4 for Barangay Admin, 5 for Organizer, including a
+  Substitute step) shown automatically once, right after a forced password
+  change (`ChangePassword.jsx`) — `mustChangePassword` only ever fires once
+  per account, so this needed no new backend field to key off. Also
+  reopenable any time from a "?" button in `AdminLayout`'s header, shared by
+  all three roles, for existing accounts and for evaluators wanting a
+  refresher. Each step carries a `screenshot` path under
+  `public/instructions/`; real screenshots are in for every step (a missing
+  one would degrade to a labeled placeholder, not a broken image — see
+  `StepImage` in the component).
 
 ## IN PROGRESS / NEXT (priority order)
 
@@ -913,10 +912,6 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 7. Full end-to-end test on a CLEAN database (create season → register →
    verify → generate → score → check the public viewer), then deploy
    (Render + Vercel + Atlas) and delete all dev-only code.
-8. Drop real screenshots into `frontend/public/instructions/` for the
-   instruction modal (see the file list at the top of
-   `frontend/src/lib/instructionContent.js`) — the modal itself is built and
-   works with placeholders, this is pure content.
 
 ## KNOWN COSMETIC BUGS (low priority)
 - None outstanding. The R100/R101/R102 tiebreaker labels are fixed (now

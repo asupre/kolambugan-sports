@@ -22,7 +22,7 @@ function StepImage({ src, caption }) {
       src={src}
       alt={caption}
       onError={() => setFailed(true)}
-      className="aspect-video w-full rounded-lg border bg-muted object-cover object-top"
+      className="aspect-video w-full rounded-lg border bg-muted object-contain"
     />
   );
 }

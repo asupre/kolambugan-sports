@@ -70,7 +70,7 @@ export default function ReferenceList() {
 
   return (
     <AdminLayout title="Reference List" menu={superAdminMenu} enableDarkMode>
-      <div className="max-w-5xl space-y-6">
+      <div className="space-y-6">
         {/* Current status */}
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader>
@@ -152,7 +152,16 @@ export default function ReferenceList() {
             </CardHeader>
             <CardContent>
               <div className="max-h-96 overflow-y-auto scrollbar-thin rounded-lg border">
-                <table className="w-full text-sm">
+                {/* table-layout: fixed makes column widths independent of cell
+                    content, so a sidebar-collapse reflow doesn't have to rescan
+                    every row to recompute them — with hundreds/thousands of
+                    residents, auto layout was the source of the collapse lag. */}
+                <table className="w-full text-sm table-fixed">
+                  <colgroup>
+                    <col className="w-[35%]" />
+                    <col className="w-[35%]" />
+                    <col className="w-[30%]" />
+                  </colgroup>
                   <thead className="bg-muted text-muted-foreground text-left sticky top-0">
                     <tr>
                       <th className="px-3 py-2 font-medium">Last name</th>
@@ -163,9 +172,9 @@ export default function ReferenceList() {
                   <tbody className="divide-y">
                     {records.map((r) => (
                       <tr key={r._id}>
-                        <td className="px-3 py-2">{r.lastName}</td>
-                        <td className="px-3 py-2">{r.firstName}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{r.barangay || "—"}</td>
+                        <td className="px-3 py-2 truncate">{r.lastName}</td>
+                        <td className="px-3 py-2 truncate">{r.firstName}</td>
+                        <td className="px-3 py-2 text-muted-foreground truncate">{r.barangay || "—"}</td>
                       </tr>
                     ))}
                   </tbody>

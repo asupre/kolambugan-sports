@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
+import { useDragScroll } from "../../hooks/useDragScroll";
 import { cn } from "../../lib/utils";
 
 const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under17: "U17", under30: "U30" };
@@ -691,6 +692,7 @@ function finalOf(matches) {
 // restyling spacing/colors is safe as long as MatchBox keeps forwarding its ref.
 function BracketTree({ title, matches, labelFor, onRevert, winner }) {
   const stageRef = useRef(null);
+  const dragRef = useDragScroll();
   const boxRefs = useRef({});
   const [wires, setWires] = useState([]);
   const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
@@ -725,7 +727,7 @@ function BracketTree({ title, matches, labelFor, onRevert, winner }) {
   return (
     <div className="mb-6">
       {title && <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">{title}</p>}
-      <div className="overflow-x-auto scrollbar-thin pb-4">
+      <div ref={dragRef} className="overflow-x-auto scrollbar-thin pb-4 cursor-grab">
         <div ref={stageRef} className="relative flex gap-10 min-w-min">
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
             {wires.map((d, i) => <path key={i} d={d} className="stroke-border" strokeWidth="2" fill="none" />)}
@@ -929,14 +931,14 @@ export default function Tournaments() {
   return (
     <AdminLayout title={selectedSport?.name || "Tournaments"} menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <div className="max-w-5xl space-y-3">
+        <div className="space-y-3">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-64 w-full rounded-xl" />
         </div>
       ) : !selectedSport ? (
         <p className="text-muted-foreground">Pick a sport from the sidebar.</p>
       ) : (
-        <div className="max-w-5xl space-y-6">
+        <div className="space-y-6">
           {divisions.length > 1 && (
             <div className="flex flex-wrap gap-2">
               {divisions.map((d) => (

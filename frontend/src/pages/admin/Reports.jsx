@@ -184,12 +184,12 @@ export default function Reports() {
       `}</style>
 
       {loading ? (
-        <div className="max-w-4xl space-y-3">
+        <div className="space-y-3">
           <Skeleton className="h-24 w-full rounded-xl" />
           <Skeleton className="h-48 w-full rounded-xl" />
         </div>
       ) : (
-        <div className="max-w-4xl space-y-5">
+        <div className="space-y-5">
           {error && (
             <Alert variant="destructive" className="no-print">
               <AlertDescription>{error}</AlertDescription>

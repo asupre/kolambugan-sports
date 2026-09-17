@@ -211,12 +211,12 @@ export default function Accounts() {
   return (
     <AdminLayout title="Accounts" menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <div className="max-w-4xl space-y-3">
+        <div className="space-y-3">
           <Skeleton className="h-40 w-full rounded-xl" />
           <Skeleton className="h-40 w-full rounded-xl" />
         </div>
       ) : (
-        <div className="max-w-4xl space-y-6">
+        <div className="space-y-6">
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>

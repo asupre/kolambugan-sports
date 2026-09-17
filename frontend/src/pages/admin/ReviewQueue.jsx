@@ -287,7 +287,7 @@ export default function ReviewQueue() {
   return (
     <AdminLayout title="Review Queue" menu={superAdminMenu} enableDarkMode>
       {loading ? (
-        <div className="max-w-5xl space-y-3">
+        <div className="space-y-3">
           <Skeleton className="h-20 w-full rounded-xl" />
           <Skeleton className="h-20 w-full rounded-xl" />
         </div>
@@ -302,7 +302,7 @@ export default function ReviewQueue() {
           </CardHeader>
         </Card>
       ) : (
-        <div className="space-y-3 max-w-5xl">
+        <div className="space-y-3">
           {teams.map((t) => (
             <Card key={t.teamId} className="overflow-hidden py-0 gap-0">
               {/* Team header row — click to expand */}

@@ -579,7 +579,7 @@ export default function SportConfig() {
 
   return (
     <AdminLayout title="League Setup" menu={superAdminMenu} enableDarkMode>
-      <div className="max-w-4xl space-y-5">
+      <div className="space-y-5">
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>

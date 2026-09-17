@@ -488,7 +488,11 @@ so a bug in one route cannot expose the other.
   fields. Both read/write the same `"YYYY-MM-DD"` / `"YYYY-MM-DDTHH:mm"`
   strings the native inputs did, so `config/time.js`'s `parseManila()`
   needed no changes. Built from theme tokens, so it's dark-mode-aware for
-  free under `enableDarkMode`.
+  free under `enableDarkMode`. `DatePicker` takes two opt-in props, default
+  off so match scheduling is unaffected: `captionLayout="dropdown"` (month
+  + year select instead of prev/next-only navigation — birthdates can be
+  decades back, scheduling dates aren't) and `disableFuture` (blocks
+  anything after today). Both are turned on for the birthdate fields only.
 - **Dashboard analytics** (Sep 2026): `GET /api/stats/dashboard` also
   returns `sports`, `accounts: { barangayAdmins, organizers }`, and
   `todayMatches` (today's matches in Manila time, each carrying both teams'

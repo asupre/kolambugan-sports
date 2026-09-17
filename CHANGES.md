@@ -566,3 +566,17 @@ says WebSockets and must be corrected.
   `OrganizerScoring.jsx`'s substitute panel.
 - Fixed a filename typo along the way (`organizer-substitue.png` →
   `organizer-substitute.png`).
+
+## 2026-09 — Barangay Admin: birthdate calendar fixed
+
+- **The shared `DatePicker` defaulted to prev/next-month-only navigation**
+  (`captionLayout="label"`), fine for scheduling a match a few weeks out
+  but painful for a birthdate 10–30 years back — over a hundred clicks to
+  reach a birth year. Also nothing blocked picking a future date.
+- Added two opt-in props to `DatePicker` (`components/DateTimePicker.jsx`),
+  both defaulting to the old behavior so `Tournaments.jsx`'s scheduling
+  usage is untouched: `captionLayout="dropdown"` (instant month/year
+  selection, react-day-picker's own default range of the last 100 years
+  through the end of this year) and `disableFuture` (blocks anything after
+  today). Turned both on for the birthdate fields in `BrgyDashboard.jsx`'s
+  "Add a player" and "Correct this player" forms only.

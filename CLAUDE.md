@@ -433,16 +433,20 @@ so a bug in one route cannot expose the other.
   are ACTIONS rather than status (Organizer's score buttons and Start/End
   match, Approve/Reject in the Review Queue) stay solid/vivid on purpose —
   they need to read at a glance, unlike a status indicator.
-  **EXCEPTION: `AdminDashboard.jsx` (Sep 2026)** — the colored-left-border
-  pattern was called out as reading like an "AI-generated dashboard" (a
-  distinct accent color decorating every static number, rather than color
-  marking an actual status) and was removed there: stat tiles are neutral
-  (muted icon in a plain gray square, no border accent), and the games
-  carousel keeps color ONLY for the real "Live" status — "Final" is plain
-  muted text, the sport name is a neutral secondary badge, not blue. The
-  other nine Super Admin pages plus Barangay Admin/Organizer still use the
-  colored-accent pattern above; whether to extend the neutral treatment
-  everywhere is an open question, not yet decided either way.
+  **EXCEPTION: `AdminDashboard.jsx` (Sep 2026, revised Sep 2026)** — the
+  colored-left-border pattern was called out as reading like an
+  "AI-generated dashboard" (a distinct accent color decorating every static
+  number, rather than color marking an actual status) and was removed
+  there. Later asked for "some color" back — resolved as icon-only tinting
+  (`TONE_ICON` in the file: a soft `bg-{c}-500/10 text-{c}-600` square
+  behind each stat's icon, one hue per tile just to tell them apart), never
+  a border and never the number itself, which stays plain foreground text
+  — a deliberately lighter touch than the left-border pattern below. The
+  games carousel still keeps color ONLY for the real "Live" status — "Final"
+  is plain muted text, the sport name is a neutral secondary badge, not
+  blue. The other nine Super Admin pages plus Barangay Admin/Organizer still
+  use the colored-accent pattern above; whether to extend the icon-tint
+  treatment everywhere is an open question, not yet decided either way.
 - **Dark mode, opt-in, all three roles.** `AdminLayout` takes an
   `enableDarkMode` prop; every page that uses `AdminLayout` now passes it
   (Public Viewer doesn't use `AdminLayout` at all — it's a separate, always-

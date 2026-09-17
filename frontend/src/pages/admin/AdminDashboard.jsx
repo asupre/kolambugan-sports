@@ -20,16 +20,29 @@ import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, useCarousel } from "../../components/ui/carousel";
 import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
-// Deliberately neutral — a colored accent on every tile is the thing that
-// reads as "AI-generated dashboard" rather than a real product. Color here
-// is reserved for what's actually a status (LIVE), not decoration.
-function StatCard({ label, value, sub, loading, Icon }) {
+// Color is on the ICON ONLY (a soft tint in its square), never a border or
+// the number itself — a full colored-border-per-tile was tried before and
+// read as "AI-generated dashboard" (decoration standing in for status). This
+// is one deliberate step lighter: just enough to tell the tiles apart at a
+// glance, with the actual data staying plain, legible foreground text.
+const TONE_ICON = {
+  blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  violet: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  teal: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
+  purple: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  green: "bg-green-500/10 text-green-600 dark:text-green-400",
+};
+
+function StatCard({ label, value, sub, loading, Icon, tone }) {
   return (
     <Card>
       <CardContent className="flex items-center gap-3.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <Icon className="size-5 text-muted-foreground" />
+        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", TONE_ICON[tone] || "bg-muted text-muted-foreground")}>
+          <Icon className="size-5" />
         </div>
         <div className="min-w-0">
           <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">{label}</p>
@@ -120,12 +133,14 @@ export default function AdminDashboard() {
           sub={stats?.season ? `Status: ${stats.season.status}` : "No active season"}
           loading={loading}
           Icon={CalendarClock}
+          tone="blue"
         />
         <StatCard
           label="Teams registered"
           value={stats?.teams ?? 0}
           loading={loading}
           Icon={Users2}
+          tone="violet"
         />
         <StatCard
           label="Players to review"
@@ -133,12 +148,14 @@ export default function AdminDashboard() {
           sub="Flagged or needs document"
           loading={loading}
           Icon={ShieldAlert}
+          tone="amber"
         />
         <StatCard
           label="Barangays"
           value={stats?.barangays ?? 0}
           loading={loading}
           Icon={Building2}
+          tone="teal"
         />
       </div>
 
@@ -149,18 +166,21 @@ export default function AdminDashboard() {
             value={stats?.sports ?? 0}
             loading={loading}
             Icon={Trophy}
+            tone="purple"
           />
           <StatCard
             label="Barangay admins"
             value={stats?.accounts?.barangayAdmins ?? 0}
             loading={loading}
             Icon={UserCog}
+            tone="sky"
           />
           <StatCard
             label="Organizers"
             value={stats?.accounts?.organizers ?? 0}
             loading={loading}
             Icon={Whistle}
+            tone="green"
           />
         </div>
 

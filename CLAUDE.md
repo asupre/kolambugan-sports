@@ -521,6 +521,55 @@ so a bug in one route cannot expose the other.
   nothing happened — so it shows the loading screen for a deliberate 450ms
   before the actual `localStorage` clear + navigate. That delay is
   intentional pacing, not a real load; don't "optimize" it away.
+- **Content fills the width the collapsed rail frees up** (Sep 2026): the
+  Dashboard's stat grid already had no max-width cap and simply reflowed
+  when the sidebar rail collapsed — every OTHER Super Admin page (Accounts,
+  Champions, Reference List, Reports, Review Queue, Season, Site Images,
+  League Setup, Tournaments) plus Barangay Admin (Team Registration,
+  Matches, Document Submission) and the Organizer scoring screen were
+  wrapped in a fixed `max-w-3xl`/`4xl`/`5xl` page container that stayed
+  pinned to that width and just left dead space on the right. Dropped those
+  wrappers everywhere (kept the genuinely-narrow bits: an empty-state card,
+  a lone input). Reference List's residents table separately lagged
+  visibly during the collapse animation — it used `table-layout: auto`,
+  which rescans every row to compute column widths on every reflow, and the
+  200ms collapse transition reflows continuously — switched to
+  `table-layout: fixed` with explicit `colgroup` widths, making layout cost
+  independent of row count.
+- **Bracket trees pan by mouse drag, not just scroll** (Sep 2026): a shared
+  `hooks/useDragScroll.js` (click-and-drag panning on a horizontally
+  scrollable container, like a map/canvas) wired into both `Tournaments.jsx`'s
+  `BracketTree` and the public `Brackets.jsx`'s `BracketSection`. A small
+  movement threshold plus a capture-phase click-suppression step stop a
+  drag from also firing whatever the pointer lands on (e.g. a match's
+  Revert button).
+- **Review Queue's player modal rebuilt around evidence comparison** (Sep
+  2026): it used to split the player's photo (an "Information" tab) from
+  their submitted ID (a separate "Documents" tab), so the Super Admin had
+  to flip tabs to compare a face against a document — the literal point of
+  this screen. Removed the tabs; photo + trimmed key fields (birthdate,
+  age, address, jersey — name and status already show in the header) now
+  sit in a sticky left column beside the documents, stacked on the right,
+  so both stay visible together while scrolling through however many
+  documents a player has. Also: the Approve/Reject buttons were plain
+  hand-rolled `<button>`s (a leftover the shadcn pass missed) — now shadcn
+  `Button`s with the solid green/red colors kept via `className`, since
+  shadcn's own `destructive` variant is a soft/muted style that doesn't fit
+  the "these stay vivid on purpose" rule above.
+- **Shared `components/ImageCropDialog.jsx` + `lib/imageCrop.js`** (Sep
+  2026): extracted Site Images' existing react-easy-crop position-and-zoom
+  dialog into one reusable implementation, then rebuilt the Barangay
+  Admin's logo uploader around it — a bigger preview with a hover-to-change
+  overlay (the image itself is the upload control), a spinner while
+  uploading, and a crop/zoom step before saving so every barangay's crest
+  actually comes out square regardless of the source photo's shape.
+- **Player address is now editable after a player is added** (Sep 2026): it
+  was only ever captured on the initial "Add a player" form — the "Correct
+  this player" edit form had no address field at all, and the roster list
+  never displayed it, so a typo or a skipped address was permanent. The
+  backend's `PATCH .../players/:playerId` route already accepted `address`;
+  added the missing input to the edit form and a small address line to
+  each roster row.
 
 **Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
 - CORRECTION: this was long documented as permanently "dark navy... the one
@@ -530,6 +579,17 @@ so a bug in one route cannot expose the other.
   the doc always assumed existed (see the Admin pages entry above), rather
   than forcing the screen dark. Big touch targets and tablet/phone-first
   layout are unchanged either way.
+- **Player rows redesigned for courtside speed** (Sep 2026): each on-court
+  player used to be a 3-line stacked card (a header row, then a full-width
+  row of point buttons, then a full-width row of stat buttons) — about
+  125px tall, so 5 players (~660px) ran past the fold before every score
+  button was reachable without scrolling. Collapsed to a single row (jersey
+  chip, name, and every button inline) on tablet/desktop, so the full
+  five-player lineup fits and is tappable without scrolling. Below `sm`
+  (~640px) it stacks instead — name on top, full-width button bar below —
+  because the button group is a fixed-width cluster that can't shrink;
+  forcing one row there either clipped the name or pushed buttons
+  off-screen.
 
 Everything mobile-first and responsive. Public users are on phones.
 
@@ -800,6 +860,20 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   admin set and is not usable on the dark public pages. Polling varies by
   page: 10s on Matches and Home, 15s on Brackets and Standings, 20s on the
   barangay match page.
+- **Professional-polish pass** (Sep 2026): every page's bare "Loading…" text
+  replaced with shaped skeleton placeholders (`Skeleton`/`PanelSkeleton`/
+  `TileGridSkeleton`/`PhotoRowSkeleton`, added to `PublicUI.jsx`) matching
+  each page's real layout — Team Detail specifically used to blank its
+  whole header (including the back link) while loading; now only the
+  roster is skeletoned. Added a genuine pulsing `LiveDot` (Tailwind
+  `animate-ping`) to every real "LIVE" indicator (nav badge, scoreboard
+  strips, bracket cards) — the one deliberate extra animation, reserved
+  strictly for an actual `ongoing` match, consistent with the existing
+  "color/motion means something" rule. Also fixed the browser tab: the
+  favicon was a generic scaffolding logo and the title was the raw
+  `kolambugan-sports` package name — both replaced with the site's actual
+  gold "K" mark and a real title. Brackets also picked up the mouse
+  drag-to-pan from the Super Admin bracket view (see above).
 - Route guards: `RequireRole` + a 401 handler in `api.js` that clears the
   session and redirects to login.
 - Shared `AdminLayout` (generic, takes a `menu` prop), `ui.jsx` components,

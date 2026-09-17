@@ -442,3 +442,74 @@ says WebSockets and must be corrected.
   to end against a real verified team (forced a re-screen to
   `needs_document`, confirmed the reopen, then restored the team to its
   original state and re-verified it).
+
+## 2026-09 — Session: flexible layout, bracket drag-pan, Review Queue rebuild, Public Viewer polish
+
+- **Flexible width on every Super Admin, Barangay Admin, and Organizer
+  page.** The Dashboard's stat grid had no max-width cap and reflowed
+  naturally when the sidebar rail collapsed; every other admin page was
+  pinned to a fixed `max-w-3xl`/`4xl`/`5xl` wrapper and just left dead
+  space on the right. Dropped those wrappers everywhere except the
+  genuinely-narrow bits (an empty-state card, a lone input).
+- **Reference List's collapse lag fixed.** The residents table used
+  `table-layout: auto`, which rescans every row to compute column widths on
+  each reflow — and the sidebar-collapse animation reflows continuously for
+  200ms, so with hundreds of residents loaded the collapse visibly lagged.
+  Switched to `table-layout: fixed` with explicit `colgroup` widths, making
+  layout cost independent of row count.
+- **Barangay logo uploader redesigned.** Extracted Site Images' existing
+  react-easy-crop position-and-zoom dialog into a shared
+  `components/ImageCropDialog.jsx` + `lib/imageCrop.js`, then rebuilt the
+  logo uploader around it: bigger preview, hover-to-change overlay (the
+  image itself is the upload control), spinner while uploading, and a
+  crop/zoom step before saving so every barangay's crest actually comes out
+  square regardless of the source photo's shape.
+- **Organizer scoring: player rows redesigned for courtside speed.** Each
+  on-court player used to be a 3-line stacked card (~125px), so 5 players
+  ran past the fold before every score button was reachable without
+  scrolling. Collapsed to one row (jersey chip, name, every button inline)
+  on tablet/desktop; stacks (name on top, buttons below) below `sm` because
+  the button group is a fixed-width cluster that can't shrink — forcing one
+  row there either clipped the name or pushed buttons off-screen. Also
+  fixed the match list's team-name truncation (each side now gets its own
+  `min-w-0` slot so a long barangay name on one side doesn't starve the
+  other).
+- **Dashboard color walked back partway.** The fully-neutral stat tiles
+  from the "de-AI'd" pass (see above) were asked to have "some color" back
+  — resolved as icon-only tinting (`TONE_ICON`): a soft tint behind each
+  stat's icon only, one hue per tile just to tell them apart, while the
+  card border and the number itself stay plain. Lighter than the
+  colored-left-border pattern still used on the other nine Super Admin
+  pages.
+- **Bracket trees pan by mouse drag, not just scroll.** Shared
+  `hooks/useDragScroll.js` (click-and-drag panning on a horizontally
+  scrollable container) wired into both the Super Admin `BracketTree` and
+  the public `Brackets.jsx`. A movement threshold plus a capture-phase
+  click-suppression step stop a drag from also firing whatever the pointer
+  lands on (e.g. a match's Revert button).
+- **Review Queue's player modal rebuilt around evidence comparison.** It
+  used to split the player's photo (an "Information" tab) from their
+  submitted ID (a "Documents" tab) — meaning the Super Admin had to flip
+  tabs to compare a face against a document, which is the actual point of
+  this screen. Removed the tabs; photo + trimmed fields now sit in a sticky
+  left column beside the documents, stacked on the right, both visible
+  together while scrolling. Also found and fixed the Approve/Reject buttons
+  were plain hand-rolled `<button>`s the shadcn pass had missed — now real
+  shadcn `Button`s, colors kept solid via `className` since shadcn's
+  `destructive` variant is a soft/muted style that doesn't fit the "these
+  stay vivid on purpose" rule.
+- **Player address editable after submission.** It was only ever captured
+  on the initial "Add a player" form — the "Correct this player" edit form
+  had no address field, and the roster list never displayed it, so a typo
+  or a skipped address was permanent. Backend already accepted `address` on
+  the correction route; added the missing input and a roster-row display.
+- **Public Viewer professional-polish pass.** Bare "Loading…" text replaced
+  with shaped skeleton placeholders on every page (new `Skeleton`/
+  `PanelSkeleton`/`TileGridSkeleton`/`PhotoRowSkeleton` primitives in
+  `PublicUI.jsx`) — Team Detail specifically used to blank its whole
+  header, including the back link, while loading. Added a genuine pulsing
+  `LiveDot` to every real "LIVE" indicator, the one deliberate extra
+  animation, reserved strictly for an actual `ongoing` match. Fixed the
+  browser tab: favicon was a generic scaffolding logo and the title was the
+  raw `kolambugan-sports` package name; both replaced with the site's gold
+  "K" mark and a real title.

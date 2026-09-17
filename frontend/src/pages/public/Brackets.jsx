@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import { Crest, Panel, DIVISION_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, PanelSkeleton, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
+import { useDragScroll } from "../../hooks/useDragScroll";
 
 
 // Stage split: group-stage matches carry a `group`, knockout matches don't.
@@ -39,7 +40,11 @@ function MatchCard({ m, innerRef }) {
       <Side team={m.teamA} score={m.scoreA} won={aWin} />
       <div className="border-t border-[#1C2430]" />
       <Side team={m.teamB} score={m.scoreB} won={bWin} />
-      {live && <div className="px-3 py-1 bg-red-500/10 text-red-400 text-[10px] font-semibold">LIVE</div>}
+      {live && (
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/10 text-red-400 text-[10px] font-semibold">
+          <LiveDot /> LIVE
+        </div>
+      )}
     </div>
   );
 }
@@ -90,6 +95,7 @@ function finalOf(matches) {
 // winners-bracket loser dropping into losers) resolve to nothing and are skipped.
 function BracketSection({ title, matches, labelFor, winner }) {
   const stageRef = useRef(null);
+  const dragRef = useDragScroll();
   const boxRefs = useRef({});
   const [wires, setWires] = useState([]);
 
@@ -124,7 +130,7 @@ function BracketSection({ title, matches, labelFor, winner }) {
   return (
     <div className="mb-6">
       {title && <h3 className="text-slate-400 text-[12px] font-semibold uppercase tracking-wide mb-3">{title}</h3>}
-      <div className="overflow-x-auto pb-2">
+      <div ref={dragRef} className="overflow-x-auto pb-2 cursor-grab">
         <div ref={stageRef} className="relative flex gap-10 min-w-min">
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
             {wires.map((d, i) => <path key={i} d={d} stroke="#1C2430" strokeWidth="2" fill="none" />)}
@@ -160,7 +166,6 @@ function BracketSection({ title, matches, labelFor, winner }) {
 // would be a lie. Show the table that actually decides who advances, with the
 // fixtures underneath.
 function RoundRobinGroup({ rows, matches, advance, qual }) {
-    console.log("qual", qual, "first row id", rows[0]?.teamId);
   const played = rows.some((r) => r.played > 0);
   const clear = new Set(qual?.clear || []);
   const contested = new Set(qual?.contested || []);
@@ -293,7 +298,7 @@ export default function Brackets() {
       </div>
 
       {loading ? (
-        <p className="text-slate-500 text-sm">Loading…</p>
+        <PanelSkeleton rows={6} />
       ) : matches.length === 0 ? (
         <Panel empty="No bracket drawn yet." />
       ) : (

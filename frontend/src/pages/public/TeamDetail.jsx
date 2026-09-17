@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, PlayerAvatar, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, PanelSkeleton, Skeleton, PlayerAvatar, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
 
 export default function TeamDetail() {
   const { id } = useParams();
@@ -20,7 +20,21 @@ export default function TeamDetail() {
     return () => { alive = false; };
   }, [id]);
 
-  if (loading) return <p className="text-slate-500 text-sm">Loading…</p>;
+  if (loading) {
+    return (
+      <>
+        <Skeleton className="h-4 w-16 mb-3" />
+        <div className="flex items-center gap-4 mt-3 mb-5">
+          <Skeleton className="h-14 w-14 rounded shrink-0" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-3.5 w-32" />
+          </div>
+        </div>
+        <PanelSkeleton rows={6} />
+      </>
+    );
+  }
 
   if (error || !data?.team) {
     return (

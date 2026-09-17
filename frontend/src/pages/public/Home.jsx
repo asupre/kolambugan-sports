@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, SiteImage, DIVISION_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, SiteImage, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
 
 
 
@@ -31,7 +31,8 @@ function MiniScore({ m }) {
   );
   return (
     <div className="px-4 py-3 border-b border-[#1C2430] last:border-0">
-      <div className="text-slate-600 text-[11px] mb-1 truncate">
+      <div className="flex items-center gap-1.5 text-slate-600 text-[11px] mb-1 truncate">
+        {m.status === "ongoing" && <LiveDot />}
         {m.sport} · {DIVISION_LABEL[m.division] || m.division}
         {m.group ? ` · Grp ${m.group}` : ""}
       </div>

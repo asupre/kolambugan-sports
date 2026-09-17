@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Panel, Crest, DIVISION_LABEL } from "../../components/PublicUI";
+import { Panel, PanelSkeleton, Crest, DIVISION_LABEL } from "../../components/PublicUI";
 
 // Reads /api/public/bracket — the same call the Brackets page makes, so the
 // table and the bracket can never disagree about who won what.
@@ -63,7 +63,10 @@ export default function Standings() {
       </div>
 
       {loading ? (
-        <p className="text-slate-500 text-sm">Loading…</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <PanelSkeleton rows={5} />
+          <PanelSkeleton rows={5} />
+        </div>
       ) : groups.length === 0 ? (
         <Panel empty="No group matches drawn yet." />
       ) : (

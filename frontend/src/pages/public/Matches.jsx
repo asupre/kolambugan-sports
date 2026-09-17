@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Crest, Panel, SportTabs, DIVISION_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, PanelSkeleton, SportTabs, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
 
 // Quarters in basketball, sets in the rally sports. "P1" is internal shorthand;
 // nobody watching says "period one".
@@ -80,7 +80,8 @@ function ScoreStrip({ m }) {
           {m.sport} · {context(m)}{m.venue ? ` · ${m.venue}` : ""}
         </span>
         {live ? (
-                   <span className="text-red-400 text-[11px] font-semibold">
+          <span className="flex items-center gap-1.5 text-red-400 text-[11px] font-semibold">
+            <LiveDot />
             {m.totalPeriods > 1
               ? `LIVE · ${PERIOD_PREFIX[m.sport] || "P"}${Math.min(m.periodsPlayed + 1, m.totalPeriods)}`
               : "LIVE"}
@@ -172,7 +173,10 @@ export default function Matches() {
       <SportTabs sports={sports} value={sport} onChange={setSport} />
 
       {loading ? (
-        <p className="text-slate-500 text-sm">Loading…</p>
+        <>
+          <PanelSkeleton rows={2} />
+          <PanelSkeleton rows={5} />
+        </>
       ) : (
         <>
           {live.length > 0 && (

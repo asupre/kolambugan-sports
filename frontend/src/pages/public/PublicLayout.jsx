@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
+import { LiveDot } from "../../components/PublicUI";
 
 const NAV = [
   { to: "/", label: "Home", icon: "home", end: true },
@@ -73,8 +74,8 @@ export default function PublicLayout() {
             </Link>
             <div className="flex items-center gap-1.5 shrink-0">
               {liveNow > 0 && (
-                <span className="bg-green-500/15 text-green-400 text-[10px] px-2 py-1 rounded whitespace-nowrap">
-                  ● {liveNow}
+                <span className="flex items-center gap-1.5 bg-red-500/15 text-red-400 text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap">
+                  <LiveDot /> {liveNow} LIVE
                 </span>
               )}
               {meta?.season?.name && (

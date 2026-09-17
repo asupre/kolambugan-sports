@@ -192,6 +192,94 @@ export function SiteImage({ slot, label, className = "" }) {
     />
   );
 }
+// ── Loading & live-state primitives ─────────────────────────────────────────
+// A bare "Loading…" line is the one thing that reliably reads as unfinished
+// on a sports site — ESPN/PBA-style pages always show shaped placeholders.
+// These mimic the real panel shapes so the page doesn't "jump" once data lands.
+
+export function Skeleton({ className = "" }) {
+  return <div className={`animate-pulse rounded bg-[#1C2430] ${className}`} />;
+}
+
+// Generic list-row panel — stands in for Matches, Standings, and any other
+// page whose loaded content is a stack of rows.
+export function PanelSkeleton({ rows = 4, title = true }) {
+  return (
+    <section className="rounded-lg border border-[#1C2430] bg-[#0F141C] mb-5 overflow-hidden">
+      {title && (
+        <div className="px-5 py-3.5 border-b border-[#1C2430]">
+          <Skeleton className="h-4 w-32" />
+        </div>
+      )}
+      <div className="divide-y divide-[#1C2430]">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 px-4 py-3.5">
+            <Skeleton className="h-6 w-6 rounded shrink-0" />
+            <Skeleton className="h-3.5 flex-1" />
+            <Skeleton className="h-3.5 w-10 shrink-0" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Grid-of-tiles panel — stands in for Teams and the Players "all" view.
+export function TileGridSkeleton({ tiles = 6, cols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" }) {
+  return (
+    <section className="rounded-lg border border-[#1C2430] bg-[#0F141C] mb-5 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-[#1C2430]">
+        <Skeleton className="h-4 w-32" />
+      </div>
+      <div className={`grid ${cols} gap-px bg-[#1C2430]`}>
+        {Array.from({ length: tiles }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 px-5 py-4 bg-[#0F141C]">
+            <Skeleton className="h-10 w-10 rounded shrink-0" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className="h-3.5 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Photo + text rows — stands in for Champions.
+export function PhotoRowSkeleton({ rows = 2 }) {
+  return (
+    <section className="rounded-lg border border-[#1C2430] bg-[#0F141C] mb-5 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-[#1C2430]">
+        <Skeleton className="h-4 w-24" />
+      </div>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex flex-col sm:flex-row gap-5 p-5 border-b border-[#1C2430] last:border-0">
+          <Skeleton className="shrink-0 w-full sm:w-72 h-48 sm:h-52 rounded" />
+          <div className="min-w-0 flex-1 space-y-2.5 py-2">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-6 w-2/3" />
+            <Skeleton className="h-3.5 w-1/3" />
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// The one purposeful animation on the public site (alongside the existing
+// live-poll refresh): a genuine pulsing dot on anything marked LIVE, the way
+// broadcast sports UIs do it. Never used for anything but a real "ongoing"
+// status — color/motion here still means something, it isn't decoration.
+export function LiveDot({ className = "" }) {
+  return (
+    <span className={`relative inline-flex h-2 w-2 shrink-0 ${className}`}>
+      <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-ping" />
+      <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+    </span>
+  );
+}
+
 export function SearchInput({ value, onChange, placeholder = "Search…" }) {
   return (
     <div className="relative mb-5">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Panel, Crest, SportTabs } from "../../components/PublicUI";
+import { Panel, PhotoRowSkeleton, Crest, SportTabs } from "../../components/PublicUI";
 
 // Sport tabs come from the CHAMPIONS themselves, not the current season — a
 // sport the league no longer runs still has a history worth showing.
@@ -46,7 +46,7 @@ export default function Champions() {
       )}
 
       {loading ? (
-        <p className="text-slate-500 text-sm">Loading…</p>
+        <PhotoRowSkeleton rows={2} />
       ) : shown.length === 0 ? (
         <Panel empty="No champions recorded yet." />
       ) : (

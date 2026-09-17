@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, TileGridSkeleton, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
 
 // Rosters don't change mid-game, so this page doesn't poll.
 export default function Teams() {
@@ -51,7 +51,10 @@ export default function Teams() {
             <SearchInput value={q} onChange={setQ} placeholder="Search a team or barangay…" />
 
       {loading ? (
-        <p className="text-slate-500 text-sm">Loading…</p>
+        <>
+          <TileGridSkeleton tiles={6} cols="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
+          <TileGridSkeleton tiles={3} cols="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
+        </>
             ) : visible.length === 0 ? (
         <Panel empty={q ? `No teams match "${q}".` : "No verified teams yet. Teams appear here once residency review is complete."} />
       ) : (

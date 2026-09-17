@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Panel, PlayerAvatar, SportTabs, SearchInput, DIVISION_LABEL, initials, playerPhotoUrl, SHOW_PLAYER_PHOTOS } from "../../components/PublicUI";
+import { Panel, PanelSkeleton, TileGridSkeleton, PlayerAvatar, SportTabs, SearchInput, DIVISION_LABEL, initials, playerPhotoUrl, SHOW_PLAYER_PHOTOS } from "../../components/PublicUI";
 
 // Points only compare WITHIN a sport, so a sport is always selected.
 const PREFERRED = "Basketball";
@@ -138,7 +138,9 @@ export default function Players() {
         placeholder={view === "leaders" ? "Search a player…" : "Search a player, team, or barangay…"} />
 
       {loading ? (
-        <p className="text-slate-500 text-sm">Loading…</p>
+        view === "leaders" ? <PanelSkeleton rows={8} /> : (
+          <TileGridSkeleton tiles={12} cols="grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6" />
+        )
       ) : view === "all" ? (
                 visibleTeams.length === 0 ? (
           <Panel empty={`No verified ${sport || ""} teams yet.`} />

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { HelpCircle, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { api } from "../api";
+import InstructionModal from "./InstructionModal";
 import LoadingScreen from "./LoadingScreen";
 import { getStoredTheme, storeTheme } from "../lib/theme";
 import { cn } from "../lib/utils";
@@ -18,6 +19,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const [open, setOpen] = useState(false);          // mobile: sidebar shown as an overlay
   const [rail, setRail] = useState(false);           // desktop: whole sidebar collapsed to an icon rail
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);   // on-demand reopen of the orientation modal
   const [sports, setSports] = useState([]);
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
   const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme() : "light"));
@@ -219,6 +221,14 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             <h1 className="text-foreground font-semibold">{title}</h1>
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <button
+              onClick={() => setShowHelp(true)}
+              aria-label="How this works"
+              title="How this works"
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground transition"
+            >
+              <HelpCircle className="size-4" />
+            </button>
             {enableDarkMode && (
               <button
                 onClick={toggleTheme}
@@ -237,6 +247,10 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
 
         <main className="flex-1 p-4 lg:p-6 bg-background">{children}</main>
       </div>
+
+      {showHelp && (
+        <InstructionModal role={user?.role} onClose={() => setShowHelp(false)} />
+      )}
     </div>
   );
 }

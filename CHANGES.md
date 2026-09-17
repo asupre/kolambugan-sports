@@ -513,3 +513,39 @@ says WebSockets and must be corrected.
   browser tab: favicon was a generic scaffolding logo and the title was the
   raw `kolambugan-sports` package name; both replaced with the site's gold
   "K" mark and a real title.
+
+## 2026-09 — Session: CLAUDE.md accuracy audit + first-login instruction modal
+
+- **Full read-only audit of CLAUDE.md against the actual codebase.** The
+  user needs the doc accurate for the thesis's own documentation. Found and
+  fixed six real staleness issues: `SiteImage`'s documented fields were
+  wrong (`image`/`crop` vs. actual `file`/`focal`); the bracket-generation
+  branching claim was misattributed to `GET /:id/bracket` (an unconditional
+  read) instead of `POST /:id/bracket`/`POST /generate`; the dev-scripts
+  delete-list named two files that don't exist and had two naming typos,
+  and didn't mention `seedData.js`, which the one script you're told to
+  KEEP (`seed.js`) actually imports; the `findOneAndUpdate({new:true})`
+  GOTCHA claimed a fix that wasn't applied to `siteimage.js`; and the
+  MoSCoW checklist marked live scoring, the public dashboard, the champions
+  archive, and frontend RBAC guards as not done when all four are built and
+  documented later in the same file.
+- **First-login instruction modal, built.** Promised in the thesis (Chapter
+  3, Data Collection) and required for the September evaluation, but never
+  built — this was the one MoSCoW checkbox the audit above confirmed was
+  genuinely still missing. `components/InstructionModal.jsx` +
+  `lib/instructionContent.js`: role-specific step-through content (5 steps
+  for Super Admin, 4 each for Barangay Admin/Organizer), written from what
+  each role's screens actually do. Triggered automatically once, right
+  after a forced password change — `mustChangePassword` only ever fires
+  once per account, so this needed no new backend field to key off it.
+  Also reopenable any time from a "?" button added to `AdminLayout`'s
+  header, shared by all three roles, so it's useful for a refresher and for
+  accounts that already changed their password before this shipped.
+- **Screenshots are placeholders, deliberately.** There's no browser-
+  automation tool available in this environment to capture real screenshots
+  of the running app, so each step's `screenshot` path (under
+  `public/instructions/`) degrades to a labeled "coming soon" box instead
+  of a broken image until the real PNG is dropped in — same pattern as
+  `SiteImage`'s existing `onError` fallback. The exact filenames needed are
+  listed at the top of `instructionContent.js`. The feature is fully
+  functional right now; the screenshots are a content task, not a blocker.

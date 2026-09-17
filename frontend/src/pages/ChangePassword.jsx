@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import InstructionModal from "../components/InstructionModal";
 
 export default function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -7,9 +8,15 @@ export default function ChangePassword() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
   const navigate = useNavigate();
 
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  const dest = {
+    super_admin: "/admin",
+    barangay_admin: "/brgy",
+    organizer: "/organizer",
+  }[user?.role] || "/";
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -40,13 +47,10 @@ export default function ChangePassword() {
       if (!res.ok) {
         setError(data.message || "Could not change password.");
       } else {
-        // Success — they're already logged in, send them to their dashboard.
-        const dest = {
-          super_admin: "/admin",
-          barangay_admin: "/brgy",
-          organizer: "/organizer",
-        }[user?.role] || "/";
-        navigate(dest);
+        // Success — this is a real first login (mustChangePassword only ever
+        // fires once), so show the orientation modal before sending them to
+        // their dashboard rather than navigating immediately.
+        setShowIntro(true);
       }
     } catch (err) {
       setError("Could not reach the server. Is the backend running?");
@@ -125,6 +129,10 @@ export default function ChangePassword() {
           </form>
         </div>
       </div>
+
+      {showIntro && (
+        <InstructionModal role={user?.role} onClose={() => navigate(dest)} />
+      )}
     </div>
   );
 }

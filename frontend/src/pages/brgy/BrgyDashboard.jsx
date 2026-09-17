@@ -87,6 +87,7 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
     middleName: player.middleName || "",
     lastName: player.lastName || "",
     birthdate: player.birthdate ? new Date(player.birthdate).toISOString().slice(0, 10) : "",
+    address: player.address || "",
     jerseyNumber: player.jerseyNumber ?? "",
   });
   const [busy, setBusy] = useState(false);
@@ -107,6 +108,7 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
           middleName: form.middleName.trim(),
           lastName: form.lastName.trim(),
           birthdate: form.birthdate,
+          address: form.address.trim(),
           jerseyNumber: form.jerseyNumber === "" ? null : Number(form.jerseyNumber),
         }),
       });
@@ -133,6 +135,8 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
           <DatePicker value={form.birthdate}
             onChange={(v) => setForm({ ...form, birthdate: v })} />
         </div>
+        <Input placeholder="Address (optional)" value={form.address}
+          onChange={(e) => setForm({ ...form, address: e.target.value })} />
         <Input type="number" placeholder="Jersey #" value={form.jerseyNumber}
           onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
       </div>
@@ -549,6 +553,10 @@ function RosterEditor({ team, sports, onClose }) {
                         </Button>
                       )}
                     </div>
+
+                    {p.address && (
+                      <p className="text-xs text-muted-foreground mt-1.5 truncate">{p.address}</p>
+                    )}
 
                     {p.flagReason && (
                       <p className="text-xs text-amber-700 mt-1.5">{p.flagReason}</p>

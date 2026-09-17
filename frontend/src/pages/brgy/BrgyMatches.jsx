@@ -151,7 +151,7 @@ export default function BrgyMatches() {
   return (
     <AdminLayout title="Matches" menu={brgyMenu} enableDarkMode>
       {loading ? (
-        <div className="max-w-3xl space-y-5">
+        <div className="space-y-5">
           <Card>
             <CardHeader>
               <Skeleton className="h-5 w-52" />
@@ -170,7 +170,7 @@ export default function BrgyMatches() {
           </Card>
         </div>
       ) : (
-        <div className="max-w-3xl space-y-5">
+        <div className="space-y-5">
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>

@@ -89,7 +89,7 @@ export default function Documents() {
   return (
     <AdminLayout title="Verification Status" menu={brgyMenu} enableDarkMode>
       {loading ? (
-        <div className="max-w-3xl space-y-4">
+        <div className="space-y-4">
           <Card>
             <CardHeader>
               <Skeleton className="h-5 w-56" />
@@ -116,7 +116,7 @@ export default function Documents() {
           ))}
         </div>
       ) : (
-        <div className="max-w-3xl space-y-4">
+        <div className="space-y-4">
           {error && (
             <Alert variant="destructive">
               <FileWarning />

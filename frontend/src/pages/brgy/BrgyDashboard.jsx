@@ -132,7 +132,7 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
           onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
         <div className="space-y-1">
           <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
-          <DatePicker value={form.birthdate}
+          <DatePicker value={form.birthdate} captionLayout="dropdown" disableFuture
             onChange={(v) => setForm({ ...form, birthdate: v })} />
         </div>
         <Input placeholder="Address (optional)" value={form.address}
@@ -612,7 +612,7 @@ function RosterEditor({ team, sports, onClose }) {
                       onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
                     <div className="space-y-1">
                       <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
-                      <DatePicker value={form.birthdate}
+                      <DatePicker value={form.birthdate} captionLayout="dropdown" disableFuture
                         onChange={(v) => setForm({ ...form, birthdate: v })} />
                     </div>
                     <Input placeholder="Address (optional)" value={form.address}

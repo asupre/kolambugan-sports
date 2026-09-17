@@ -23,7 +23,15 @@ function formatDateOnly(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function DatePicker({ value, onChange, placeholder = "Pick a date", className, disabled }) {
+export function DatePicker({
+  value,
+  onChange,
+  placeholder = "Pick a date",
+  className,
+  disabled,
+  captionLayout = "label",
+  disableFuture = false,
+}) {
   const [open, setOpen] = useState(false);
   const date = parseDateOnly(value);
 
@@ -43,8 +51,11 @@ export function DatePicker({ value, onChange, placeholder = "Pick a date", class
       <PopoverContent className="w-auto p-0">
         <Calendar
           mode="single"
+          captionLayout={captionLayout}
           selected={date}
+          defaultMonth={date}
           onSelect={(d) => { onChange(formatDateOnly(d)); setOpen(false); }}
+          disabled={disableFuture ? { after: new Date() } : undefined}
         />
       </PopoverContent>
     </Popover>

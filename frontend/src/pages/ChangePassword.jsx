@@ -63,9 +63,7 @@ export default function ChangePassword() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-6">
-          <div className="h-12 w-12 rounded-xl bg-indigo-600 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">K</span>
-          </div>
+          <img src="/logo/ksl-mark-simple.svg" alt="Kolambugan Sports" className="h-12 w-12" />
         </div>
 
         <div className="text-center mb-8">

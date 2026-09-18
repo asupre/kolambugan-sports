@@ -159,9 +159,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       >
         <div className={cn("h-16 flex items-center border-b border-sidebar-border shrink-0 px-5", rail && "lg:justify-center lg:px-2")}>
           <div className={cn("flex items-center gap-2 min-w-0 flex-1", rail && "lg:hidden")}>
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-              <span className="text-primary-foreground font-bold text-sm">K</span>
-            </div>
+            <img src="/logo/ksl-mark-simple.svg" alt="" className="h-8 w-8 shrink-0" />
             <span className="font-semibold text-sidebar-foreground text-sm truncate">Kolambugan Sports</span>
           </div>
           {/* Desktop-only rail toggle, beside the logo — mobile has its own

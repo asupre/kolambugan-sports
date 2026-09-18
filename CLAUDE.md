@@ -973,8 +973,33 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   "color/motion means something" rule. Also fixed the browser tab: the
   favicon was a generic scaffolding logo and the title was the raw
   `kolambugan-sports` package name — both replaced with the site's actual
-  gold "K" mark and a real title. Brackets also picked up the mouse
-  drag-to-pan from the Super Admin bracket view (see above).
+  gold "K" mark and a real title (superseded Sep 2026 — see the real-logo-
+  assets entry below; the hand-drawn "K" mark this refers to is gone).
+  Brackets also picked up the mouse drag-to-pan from the Super Admin
+  bracket view (see above).
+- **Real logo/favicon assets landed (Sep 2026)**, replacing every
+  hand-rolled "K"-in-a-colored-square placeholder app-wide (there were six:
+  `AdminLayout`'s sidebar, `Login.jsx` twice — the dark hero panel and the
+  mobile header, `LoadingScreen.jsx`, `ChangePassword.jsx`, and the public
+  site header in `PublicLayout.jsx`) and the placeholder SVG favicon.
+  Concept "Bay Crest" — sunrise disc over Mount Bucas, Panguil Bay below,
+  26 gold ring ticks (one per barangay). Assets live in
+  `frontend/public/logo/` (full set: crest variants, lockups, the simple
+  mark, source README with the palette/usage table) plus three favicon
+  files directly in `frontend/public/` (`favicon.ico`, `favicon-48.png`,
+  `favicon-180.png` — referenced from `index.html`). Currently wired in:
+  `ksl-mark-simple.svg` (the circular badge, self-contained navy
+  background — works on light or dark) for every sidebar/login/loading
+  mark; `ksl-lockup-horizontal-dark.svg` (mark + wordmark combined) for
+  the public header, replacing the old separately-styled "K" square +
+  two-line text. The remaining variants (light-background lockup, stacked
+  lockup, mono/reversed crests, larger PNGs) aren't wired to a UI spot
+  yet — see `frontend/public/logo/README.md` for which file fits which
+  use (documents, tarpaulin, dark pages, single-colour print, etc.).
+  `ksl-crest-1024.png` was seeded directly into the "league" Site Images
+  slot (GridFS, via the same `putFile` the real upload route uses) since
+  it was sitting empty — Super Admin can still replace it from the Site
+  Images page like any other slot.
 - Route guards: `RequireRole` + a 401 handler in `api.js` that clears the
   session and redirects to login.
 - Shared `AdminLayout` (generic, takes a `menu` prop), `ui.jsx` components,

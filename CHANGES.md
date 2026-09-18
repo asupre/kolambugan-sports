@@ -1103,3 +1103,45 @@ says WebSockets and must be corrected.
   flipped to eligible with no player-side action; reverted the flag,
   ran it again, confirmed it flipped back to flagged with the same
   reason as before.
+
+## 2026-09 — Real logo/favicon assets, replacing every placeholder "K" mark
+
+- The user dropped a finished logo folder ("Bay Crest" concept — sunrise
+  disc over Mount Bucas, Panguil Bay below, 26 gold ring ticks for the
+  26 barangays) in the repo root and asked for it to be moved/wired into
+  the system per its own README.
+- Moved `favicon.ico`, `favicon-48.png`, `favicon-180.png` into
+  `frontend/public/`; everything else (crest variants, lockups, the
+  simple mark, source PNGs, the README) into `frontend/public/logo/`.
+  Root `logo/` folder is gone.
+- `index.html`: replaced the single placeholder `<link rel="icon"
+  href="/favicon.svg">` with the real `favicon.ico` (16/32/48 bundled),
+  a PNG fallback, and an `apple-touch-icon`. Deleted the old placeholder
+  `public/favicon.svg`.
+- Replaced every hand-rolled "K in a colored square" placeholder with
+  `ksl-mark-simple.svg` (a self-contained circular badge with its own
+  navy background — same on light or dark, no per-theme variant needed):
+  `AdminLayout.jsx`'s sidebar, `Login.jsx` (the dark hero panel AND the
+  mobile header — two separate spots), `LoadingScreen.jsx`,
+  `ChangePassword.jsx`. Found all six occurrences with a repo-wide grep
+  for the `>K</span>` pattern rather than assuming — the fourth and
+  fifth (`LoadingScreen`, `ChangePassword`) weren't mentioned when this
+  started and would've been missed by only checking the "obvious" spots.
+- Replaced the public site header's separately-styled "K" square + a
+  manually laid out two-line "KOLAMBUGAN SPORTS / INTER-BARANGAY LEAGUE"
+  text block with a single `ksl-lockup-horizontal-dark.svg` (mark and
+  wordmark combined, already includes both lines) in `PublicLayout.jsx`.
+- Seeded the previously-empty "league" Site Images slot with
+  `ksl-crest-1024.png`, via the same `putFile()` the real upload route
+  uses — checked first that the slot was actually empty (it was) before
+  writing, so this couldn't silently clobber a real photo someone had
+  already uploaded. Verified it serves correctly via
+  `GET /api/public/site-image/league` afterward. Super Admin can still
+  replace it from the Site Images page like any other slot — this isn't
+  locked in any special way.
+- Not yet wired to a specific UI spot: `ksl-lockup-horizontal.svg`
+  (light-background variant — Public is always dark, so no current
+  caller), `ksl-lockup-stacked.svg` (title page/poster use), the mono/
+  reversed crest variants, and the larger PNGs (Word/PowerPoint/tarpaulin
+  use per the README) — left in `frontend/public/logo/` for whenever
+  a document or print piece needs them.

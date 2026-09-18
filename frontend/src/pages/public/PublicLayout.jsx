@@ -65,12 +65,12 @@ export default function PublicLayout() {
       <header className="bg-[#060C16]/95 border-b border-slate-500/15 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4">
                     <div className="flex items-center justify-between gap-2 py-3">
-            <Link to="/" className="flex items-center gap-2.5 min-w-0">
-              <div className="h-8 w-8 shrink-0 rounded-lg bg-[#F5A524] flex items-center justify-center text-[#0A1220] font-bold text-sm">K</div>
-              <div className="leading-tight min-w-0">
-                <div className="text-slate-100 font-semibold text-[13px] sm:text-sm tracking-wide truncate">KOLAMBUGAN SPORTS</div>
-                <div className="text-slate-500 text-[9px] tracking-[0.15em] truncate">INTER-BARANGAY LEAGUE</div>
-              </div>
+            <Link to="/" className="flex items-center min-w-0">
+              <img
+                src="/logo/ksl-lockup-horizontal-dark.svg"
+                alt="Kolambugan Sports — Inter-Barangay League"
+                className="h-9 w-auto shrink-0"
+              />
             </Link>
             <div className="flex items-center gap-1.5 shrink-0">
               {liveNow > 0 && (

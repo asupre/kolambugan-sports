@@ -122,9 +122,7 @@ export default function Login() {
         <div className="absolute bottom-0 left-0 size-72 rounded-full bg-[oklch(0.7_0.2_70)]/20 blur-3xl" />
 
         <div className="relative flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-lg bg-white/15 backdrop-blur flex items-center justify-center">
-            <span className="font-bold text-sm">K</span>
-          </div>
+          <img src="/logo/ksl-mark-simple.svg" alt="" className="h-9 w-9" />
           <span className="font-semibold">Kolambugan Sports</span>
         </div>
 
@@ -157,9 +155,7 @@ export default function Login() {
       <div className="flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
           <div className="flex lg:hidden justify-center mb-6">
-            <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">K</span>
-            </div>
+            <img src="/logo/ksl-mark-simple.svg" alt="Kolambugan Sports" className="h-12 w-12" />
           </div>
 
           <div className="mb-8">

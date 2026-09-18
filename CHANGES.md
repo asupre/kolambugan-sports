@@ -858,3 +858,205 @@ says WebSockets and must be corrected.
   template produced "Squad entry — 6–6 players." Now reads "Squad
   entry — exactly 6 players." when min equals max, and keeps the N–M
   range wording otherwise.
+
+## 2026-09 — Manual "Add a player" form: every field now required
+
+- Middle name, address, and jersey number were optional on the manual
+  add-player form — only first name, last name, and birthdate were
+  required. Decided to require all six fields (raised directly after
+  confirming the residency cross-reference does NOT use a player's
+  `address` at all, only the reference list's own `barangay` column —
+  so making address required here is a data-completeness decision, not
+  something the verification logic needed).
+- `frontend/src/pages/brgy/BrgyDashboard.jsx`: dropped the "(optional)"
+  placeholders, and the "Add player" button now stays disabled until
+  every field has a value (middle name, address non-empty; jersey
+  number not `""`).
+- `POST /api/teams/:id/players` (backend): now 400s if middle name,
+  address, or jersey number is missing, and separately validates the
+  jersey number is actually numeric. Enforced server-side, not just in
+  the form, since the route is reachable directly.
+- Deliberately NOT applied to `POST /api/teams/:id/players/import`
+  (CSV bulk import) or the "Correct this player" edit route — CSV data
+  is often incomplete by nature, and a correction has to keep working
+  on players who were added before this rule existed, some of whom
+  will have a blank middle name/address/jersey number on file forever.
+  The Player schema itself was NOT changed to `required: true` for this
+  reason — validation stays at the single-add route only.
+
+## 2026-09 — Two live debugging sessions on the residency cross-reference
+
+- Walked through why a test player kept coming back "needs_document"
+  instead of "flagged" after editing its address. Root cause traced to
+  `backend/src/config/makeReferenceCsv.js`'s test-data generator, which
+  appends an incrementing counter to every surname to manufacture 17,000
+  unique rows from a 60×50 name pool (`` `${pick(LAST)} ${n}` ``) — so
+  every reference-list surname is literally `"Dimaporo 8838"`, not
+  `"Dimaporo"`. A real player named "Dimaporo" can never exact-match
+  that, so every player fails to match by name and lands on
+  `needs_document` regardless of anything else — not a bug, just
+  synthetic test data structurally incompatible with typed-in names
+  unless the number is typed too.
+- Second round, after the tester deliberately typed the full synthetic
+  surname (`"Dimaporo 8838"`) to force a match: confirmed live in the
+  database that the match worked and correctly returned "eligible" —
+  that specific reference row's recorded barangay (Mukas) equals the
+  team's own barangay (Mukas), so there's no cross-barangay conflict.
+  Also confirmed, again, that changing the player's `address` field
+  has zero effect either way — `services/prescreen.js` never reads it.
+  Identified two other rows in the same test data (`"Dimaporo 4525"` →
+  Libertad, `"Dimaporo 16322"` → Austin Heights, neither whitelisted)
+  that would correctly flag against a Mukas team, as a way to actually
+  exercise that path with the existing synthetic dataset instead of
+  needing a hand-built clean reference list.
+- Follow-up confirmed the flagged result DID save correctly
+  (`eligibilityStatus: "flagged"`, with the exact expected
+  `flagReason`) despite the roster editor's Save button appearing stuck
+  on "Saving…" — traced to a `MongooseServerSelectionError: Server
+  selection timed out after 30000ms` independently hit against the same
+  Atlas cluster while diagnosing this, i.e. a transient Atlas replica-set
+  hiccup stalling the request, not application logic. Flagged as a real,
+  separate UX gap regardless of cause: the save button has no client-side
+  timeout, so any hung request leaves it stuck indefinitely with no
+  feedback and no automatic recovery — proposed adding one (not yet
+  implemented; pending confirmation).
+
+## 2026-09 — A player's address must mention their own barangay
+
+- Barangay admins could type any address at all when registering a
+  player — including one that read like a completely different
+  barangay — with nothing catching it. Since a player registers under
+  ONE specific barangay's team, their address should actually say so.
+- Added `addressMatchesBarangay(address, barangayName)` in
+  `backend/src/routes/team.js` — a loose substring check (case-
+  insensitive; "Purok 5, Mukas, Kolambugan" contains "Mukas"), not an
+  exact match, since real addresses vary in format and punctuation.
+  Applied to: `POST .../players` (barangay admin, always), the
+  "Correct this player" `PATCH` (only when address is actually part of
+  the request, and only for barangay_admin — Super Admin corrections
+  are exempt, trusted to enter the real address even if it doesn't
+  literally contain the barangay name), and `POST .../players/import`
+  (a non-matching address skips that CSV row with a reason, same
+  skipped-rows shape as everything else that route already skips —
+  doesn't fail the whole upload).
+- `GET /api/teams/mine` now also `.populate('barangay', 'name')` —
+  previously only populated `sport`, so the frontend had no way to know
+  its own barangay's name without a second request.
+- Frontend (`BrgyDashboard.jsx`): mirrored the same check
+  (`addressMatchesBarangay`), used to disable "Add player"/"Save" until
+  the address matches, show an inline "Must mention "X"." message, and
+  hint the expected format in the address field's placeholder
+  (`e.g. Purok 5, {barangayName}`) — client-side is instant feedback
+  only; the backend checks above are what actually enforce it.
+- Explicitly NOT wired into the residency cross-reference itself
+  (`services/prescreen.js`) — that stays exactly as it was, comparing
+  only the reference list's own barangay column against the team's
+  barangay. This is a separate, purely data-quality rule on the address
+  field.
+
+## 2026-09 — Pre-screen performance fix + request timeout (real measured problem)
+
+- Escalated from the debugging sessions above: add/correct-player saves
+  were hanging for a long time, sometimes needing a refresh, and — the
+  serious part — the SAME cross-barangay scenario intermittently came
+  back "eligible" one time and "needs_document" another. Measured
+  rather than guessed at the cause; found three real, separate issues.
+- **Measured cause of the slowness:** `prescreenPlayer()` (used by both
+  add-player and "Correct this player") called the same `buildContext()`
+  as the bulk roster-submit screen — loading the ENTIRE season's
+  reference list into memory just to check ONE player.
+  `ReferenceList.find({season}).lean()` on the real data timed at
+  924ms / 540ms / 633ms across three runs, for 17,000 rows fetched and
+  scanned in Node — real, measured overhead on every single player
+  save, not a one-off blip.
+- **Root cause of the inconsistency:** almost certainly a race, not a
+  logic bug — the matching decision itself was independently proven
+  correct three times earlier in this session. When a save hung, the
+  natural reaction was to refresh and retry; refreshing only abandons
+  the request on screen, the server keeps processing and still writes
+  whatever it computes whenever it finishes. Two overlapping PATCH
+  requests on the same player, no locking between them — whichever
+  finishes last wins, correct or not. The ~1s reference-list reload was
+  exactly the window that made duplicate submissions likely.
+- **Data bloat found along the way:** `referencelists` had 34,000
+  documents; a full 17,000 of them were tagged to a season id that no
+  longer exists in the `seasons` collection at all (the same "deleted
+  season left orphans behind" pattern as the orphaned teams/tournaments
+  cleaned up earlier — see that entry above). Deleted via a one-off
+  script filtering to `season: { $nin: <valid season ids> } }` — 17,000
+  rows removed, 17,000 real ones remain. Didn't affect correctness
+  (current-season queries were already properly scoped), just cut the
+  collection in half.
+- **The actual fix** — `backend/src/services/prescreen.js` rewritten:
+  - `decideFromCandidates(player, teamBarangay, candidates, brgyByName)`
+    replaces the old `decide()` — same decision logic, but takes
+    already-fetched candidate rows instead of an internal Map, so both
+    screening paths can share it.
+  - `prescreenTeam()` (roster submit) UNCHANGED in approach — still
+    fetches the season's list once and reuses it across all ~10-15
+    players, which is the right tradeoff at that scale.
+  - `prescreenPlayer()` (single-player add/correct) now queries the
+    reference list directly by name — `ReferenceList.find({ season,
+    lastName: looseRegex(...), firstName: looseRegex(...) })` — using
+    the existing `season+lastName+firstName` index instead of pulling
+    all 17,000 rows over the network into Node. `looseRegex()` is a
+    case/whitespace-tolerant anchored regex (`^word1\s+word2$`, `i`
+    flag) built to match the exact same tolerance the old in-memory
+    `norm()` comparison had, so matching behavior is unchanged —
+    verified against the real data: all 4 known cases (Mukas exact
+    match, Libertad exact match, a case/whitespace-mangled version of
+    the same name, and the known "Dimaporo" no-number miss) returned
+    identical results to before, now in 90-500ms instead of 600-900ms+.
+- **`frontend/src/api.js` now has a default 20s request timeout**
+  (`AbortController`, opt out per call with `{ timeoutMs: 0 }`) — a
+  hung request (Atlas hiccup, slow network, anything) now fails with a
+  clear "took too long to respond" error instead of leaving a button
+  stuck on "Saving…" forever with no way out but a refresh. This is the
+  fix for the "had to refresh or click outside the form" symptom, and
+  it also shrinks the window for the overlapping-request race described
+  above, since a hung request now gives up instead of lingering
+  indefinitely waiting to eventually land a stale write.
+
+## 2026-09 — "Correct this player" scrolls itself into view on open
+
+- The edit form renders inline inside the roster list, inside a
+  scrollable Dialog — clicking the pencil icon on a player further down
+  a long roster opened the form off-screen with no visual cue, so it
+  looked like nothing happened until the admin scrolled down manually.
+- `EditPlayer` (`BrgyDashboard.jsx`) now calls
+  `rootRef.current.scrollIntoView({ behavior: "smooth", block: "center" })`
+  in a mount-only `useEffect` — since the component only mounts when its
+  player's `editingId` becomes active, mounting IS the "user clicked
+  Edit" signal, no extra prop or state needed.
+
+## 2026-09 — Reverted: "address must mention the team's barangay"
+
+- The rule added earlier this session (player address must contain the
+  registering team's own barangay name) directly conflicts with the
+  cross-barangay whitelist: a resident of a whitelisted small/remote
+  barangay (Small Banisilon, Matampay, Bubong, Pantaon, Inudaran, San
+  Roque, Palao, Sto. Niño, Sucodan, Lumbac) legitimately plays for a
+  DIFFERENT barangay's team, while their real, honest address is their
+  own home barangay — not the team's. Enforcing the rule would have
+  forced exactly those players to either lie about their address or be
+  blocked from registering, which is backwards: the whitelist exists
+  specifically so they don't need to.
+- Fully reverted: removed `addressMatchesBarangay()` and its three call
+  sites in `backend/src/routes/team.js` (`POST .../players`, the
+  "Correct this player" `PATCH`, and the CSV import's per-row check),
+  the mirrored frontend check and disabled-button conditions in
+  `BrgyDashboard.jsx` (`RosterEditor`'s "Add a player" form and
+  `EditPlayer`), the `barangayName` prop threaded through for it, and
+  the now-unused `GET /api/teams/mine` `.populate('barangay', 'name')`
+  that only existed to support this. Address is back to being free
+  text with no relationship checked against anything, same as before
+  this session touched it.
+- Also fixed along the way: the CSV import's error path discarded the
+  per-row `skippedRows` reasons whenever EVERY row failed (a fully
+  failed import only ever showed the generic "No valid rows to add.").
+  This was the actual cause of "why can't I upload CSV" being
+  undiagnosable at the time. `importCsv()` now includes the skip
+  reasons in the thrown error either way, and `ErrorDialog`'s
+  `DialogDescription` gained `whitespace-pre-line` + a scrollable max
+  height so a multi-line reason list actually renders as line breaks
+  instead of running together, and doesn't overflow the dialog.

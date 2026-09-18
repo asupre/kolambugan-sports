@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, ImageIcon, Loader2, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import ImageCropDialog from "../../components/ImageCropDialog";
@@ -93,6 +93,14 @@ function ageFrom(birthdate) {
 // Correcting a player. Deliberately available AFTER submission too — a typo is
 // usually only noticed once screening flags it, which happens on submit.
 function EditPlayer({ teamId, player, onSaved, onCancel }) {
+  const rootRef = useRef(null);
+  // Scrolls itself into view on mount — this form renders inline in a long,
+  // scrollable player list, so clicking "Edit" on a player further down
+  // otherwise leaves the form open off-screen with no visual cue.
+  useEffect(() => {
+    rootRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
   const [form, setForm] = useState({
     firstName: player.firstName || "",
     middleName: player.middleName || "",
@@ -132,7 +140,7 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
   }
 
   return (
-    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-1.5">
+    <div ref={rootRef} className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-1.5">
       <p className="text-sm font-medium mb-2">Correct this player</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
         <Input placeholder="First name" value={form.firstName}
@@ -471,7 +479,19 @@ function RosterEditor({ team, sports, onClose }) {
         body: fd,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Import failed.");
+
+      // Even a fully-failed import (every row skipped) carries a skippedRows
+      // reason per row — show it instead of just the generic top-line
+      // message, or there's no way to tell why without guessing.
+      if (!res.ok) {
+        if (data.skippedRows?.length) {
+          const lines = data.skippedRows.slice(0, 10).map((s) => `Row ${s.row}: ${s.reason}`);
+          if (data.skippedRows.length > 10) lines.push(`…and ${data.skippedRows.length - 10} more.`);
+          throw new Error(`${data.message || "Import failed."}\n\n${lines.join("\n")}`);
+        }
+        throw new Error(data.message || "Import failed.");
+      }
+
       await load();
       if (data.skippedRows?.length) {
         const lines = data.skippedRows.slice(0, 10).map((s) => `Row ${s.row}: ${s.reason}`);
@@ -672,16 +692,16 @@ function RosterEditor({ team, sports, onClose }) {
                       onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
                     <Input placeholder="Last name" value={form.lastName}
                       onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
-                    <Input placeholder="Middle name (optional)" value={form.middleName}
+                    <Input placeholder="Middle name" value={form.middleName}
                       onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
                     <div className="space-y-1">
                       <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
                       <DatePicker value={form.birthdate} captionLayout="dropdown" disableFuture
                         onChange={(v) => setForm({ ...form, birthdate: v })} />
                     </div>
-                    <Input placeholder="Address (optional)" value={form.address}
+                    <Input placeholder="Address" value={form.address}
                       onChange={(e) => setForm({ ...form, address: e.target.value })} />
-                    <Input type="number" placeholder="Jersey # (optional)" value={form.jerseyNumber}
+                    <Input type="number" placeholder="Jersey #" value={form.jerseyNumber}
                       onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
                   </div>
 
@@ -693,7 +713,10 @@ function RosterEditor({ team, sports, onClose }) {
                   )}
 
                   <Button onClick={addPlayer}
-                    disabled={busy || !form.firstName.trim() || !form.lastName.trim() || !form.birthdate}>
+                    disabled={
+                      busy || !form.firstName.trim() || !form.middleName.trim() || !form.lastName.trim() ||
+                      !form.birthdate || !form.address.trim() || form.jerseyNumber === ""
+                    }>
                     {busy ? "Adding…" : "Add player"}
                   </Button>
                 </div>

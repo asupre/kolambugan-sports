@@ -68,7 +68,26 @@ score tallying, no public visibility, records lost every season.
   roster editor (`RosterEditor` in `BrgyDashboard.jsx`).
 - New players / under 15: require **parental consent + supporting documents**.
 - Player fields collected: full name, birthdate (age derived), **photo**, address,
-  jersey number.
+  jersey number. On the manual "Add a player" form (`POST /api/teams/:id/players`),
+  **every field is required** — first/middle/last name, birthdate, address, jersey
+  number (Sep 2026; middle name/address/jersey number used to be optional).
+  Enforced both in the form (Add button stays disabled until all are filled) and
+  in the route (400 if any is missing, and jersey number must be numeric). The
+  bulk CSV import (`/players/import`) and the "Correct this player" edit route
+  deliberately still tolerate a missing middle name/address/jersey number — CSV
+  data is often incomplete, and a correction has to work on players added before
+  this rule existed.
+- **Player addresses are free text — NOT required to mention the team's own
+  barangay** (tried and reverted, Sep 2026 — see CHANGES.md). A whitelisted
+  small/remote barangay's residents (Small Banisilon, Matampay, Bubong,
+  Pantaon, Inudaran, San Roque, Palao, Sto. Niño, Sucodan, Lumbac) legitimately
+  play for a DIFFERENT barangay's team while their real address is their own
+  home barangay — enforcing "address must contain the registering team's
+  barangay" would have made that address wrong by definition for exactly the
+  players the cross-barangay exception exists for. **Address plays NO part in
+  the residency cross-reference either way** (see `services/prescreen.js` —
+  that only ever compares the reference list's own recorded barangay against
+  the team's barangay); it's just stored, private, descriptive data.
 - **Player photos ARE PUBLIC** (changed Aug 2026 — see CHANGES.md). They appear on
   the public team roster so viewers can see who plays for a barangay. Standard:
   **close-up headshot, face clearly visible, plain background**; JPEG/PNG/WebP,
@@ -143,6 +162,27 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   5. (PENDING) Approved players written to **verified_residents**, which
      persists across seasons and is checked alongside the reference list.
      NEVER write approvals into the reference list itself.
+- **Matching mechanics** (`services/prescreen.js`): a player matches a
+  reference row on exact `lastName`+`firstName` (case/whitespace-tolerant —
+  "Dela  Cruz" and "dela cruz" are the same), tie-broken by birthdate only
+  when more than one row shares that name. A spelling difference is treated
+  as NOT FOUND (→ `needs_document`), never fuzzy-matched — deliberate, so
+  two different people with similar names can't cross-match. Multiple
+  candidates sharing a name but disagreeing on barangay is possible; only
+  `candidates[0]`'s barangay is used for the eligible/flagged decision once
+  narrowed.
+- **Performance (fixed Sep 2026):** roster-submit screening
+  (`prescreenTeam`) fetches the season's whole reference list ONCE and
+  reuses it across every player on the roster — correct tradeoff at
+  10-15 players. Single-player screening (`prescreenPlayer`, used by
+  add-player and "Correct this player") used to do the SAME whole-list
+  fetch just to check one player — measured at 600-900ms+ against a
+  17k-row list, and the direct cause of "Saving…" appearing stuck. Now
+  queries the reference list directly by name via the
+  `season+lastName+firstName` index (90-500ms measured, same matching
+  behavior verified against real data). `frontend/src/api.js` also
+  gained a default 20s request timeout so a genuinely hung request fails
+  visibly instead of leaving a button stuck forever.
 
 ---
 
@@ -1022,3 +1062,12 @@ Also gitignore any `dev-setup.ps1` (it holds a password).
 - Frontend paths must match `App.jsx` exactly — a redirect to `/barangay`
   when the route is `/brgy` silently bounces to the login page via the
   catch-all route.
+- **A Season document deleted directly in the DB (no in-app delete route
+  exists) leaves orphans everywhere that reference it by `season` ObjectId**
+  — Teams, Tournaments, AND ReferenceList rows all keep pointing at a season
+  id that no longer resolves. Nothing cascades from Season. Hit three times:
+  orphaned Teams/Tournaments blocking `DELETE /api/sports/:id` (see the
+  Orphaned teams/tournaments entries in CHANGES.md), then a full duplicate
+  17k-row ReferenceList copy tagged to a dead season id, doubling that
+  collection for no reason. When a season goes missing unexpectedly, check
+  all three collections for stale `season` references, not just Teams.

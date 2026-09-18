@@ -32,7 +32,9 @@ export function ErrorDialogProvider({ children }) {
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="size-4" /> Can't do that
             </DialogTitle>
-            <DialogDescription>{message}</DialogDescription>
+            <DialogDescription className="whitespace-pre-line max-h-[50vh] overflow-y-auto">
+              {message}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setMessage("")}>OK</Button>

@@ -238,18 +238,23 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
     }
 
     const { firstName, middleName, lastName, birthdate, address, jerseyNumber } = req.body;
-    if (!firstName || !lastName || !birthdate) {
-      return res.status(400).json({ message: 'First name, last name, and birthdate are required.' });
+    if (!firstName || !middleName || !lastName || !birthdate || !address || jerseyNumber === undefined || jerseyNumber === null || jerseyNumber === '') {
+      return res.status(400).json({
+        message: 'First name, middle name, last name, birthdate, address, and jersey number are all required.',
+      });
+    }
+    if (!Number.isFinite(Number(jerseyNumber))) {
+      return res.status(400).json({ message: 'Jersey number must be a number.' });
     }
 
     const player = await Player.create({
       firstName: firstName.trim(),
-      middleName: middleName ? middleName.trim() : undefined,
+      middleName: middleName.trim(),
       lastName: lastName.trim(),
       birthdate: new Date(birthdate),
       age: computeAge(birthdate),
-      address: address ? address.trim() : undefined,
-      jerseyNumber: jerseyNumber != null ? Number(jerseyNumber) : undefined,
+      address: address.trim(),
+      jerseyNumber: Number(jerseyNumber),
     });
 
     await TeamPlayer.create({ team: team._id, player: player._id });

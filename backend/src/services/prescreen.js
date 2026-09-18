@@ -6,6 +6,15 @@ const ReferenceList = require('../models/ReferenceList');
 const MINOR_AGE = 15;
 
 const norm = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A case/whitespace-tolerant exact-match regex — same tolerance as norm(),
+// just expressed so Mongo can run it: "Dela  Cruz" and "dela cruz" both match.
+function looseRegex(s) {
+  const parts = norm(s).split(' ').filter(Boolean).map(escapeRegex);
+  if (!parts.length) return /^$/;
+  return new RegExp(`^${parts.join('\\s+')}$`, 'i');
+}
 
 function ageFrom(birthdate) {
   if (!birthdate) return null;
@@ -21,28 +30,11 @@ function sameDay(a, b) {
   return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
 }
 
-// Build the lookup structures once. Shared by the team screen and the single
-// player re-screen so both decide by identical rules.
-async function buildContext(seasonId) {
-  const refs = await ReferenceList.find({ season: seasonId }).lean();
-
-  // Indexed by normalized "lastname|firstname" so each player is ONE hash lookup
-  // instead of a linear scan. Keeps screening flat against a 17k-row masterlist.
-  const refIndex = new Map();
-  for (const r of refs) {
-    const key = `${norm(r.lastName)}|${norm(r.firstName)}`;
-    if (!refIndex.has(key)) refIndex.set(key, []);
-    refIndex.get(key).push(r);
-  }
-
-  const brgyByName = {};
-  (await Barangay.find().lean()).forEach((b) => { brgyByName[norm(b.name)] = b; });
-
-  return { refIndex, brgyByName };
-}
-
-// The decision for ONE player. Returns { status, reason } and writes nothing.
-function decide(player, teamBarangay, ctx) {
+// The decision for ONE player, given reference rows already matched by name.
+// Pure function — same inputs always produce the same output, no I/O here,
+// so a batch screen and a single-player screen can share this exact logic
+// while fetching their candidates differently.
+function decideFromCandidates(player, teamBarangay, candidates, brgyByName) {
   const age = ageFrom(player.birthdate);
 
   // Under 15 can't be on a voters' list at all, so there's nothing to look up.
@@ -53,49 +45,66 @@ function decide(player, teamBarangay, ctx) {
     };
   }
 
-  const teamBrgyName = norm(teamBarangay && teamBarangay.name);
-  const fn = norm(player.firstName), ln = norm(player.lastName);
-  let candidates = ctx.refIndex.get(`${ln}|${fn}`) || [];
-
-  if (candidates.length > 1 && player.birthdate) {
-    const exact = candidates.filter((r) => r.birthdate && sameDay(r.birthdate, player.birthdate));
-    if (exact.length) candidates = exact;
+  let cands = candidates;
+  if (cands.length > 1 && player.birthdate) {
+    const exact = cands.filter((r) => r.birthdate && sameDay(r.birthdate, player.birthdate));
+    if (exact.length) cands = exact;
   }
 
-  if (candidates.length === 0) {
+  if (cands.length === 0) {
     return {
       status: 'needs_document',
       reason: 'Not found on the reference list — check the spelling, or upload a residency document',
     };
   }
 
+  const teamBrgyName = norm(teamBarangay && teamBarangay.name);
   if (
-    candidates.some((r) => teamBrgyName && norm(r.barangay) === teamBrgyName) ||
-    !candidates.some((r) => r.barangay)
+    cands.some((r) => teamBrgyName && norm(r.barangay) === teamBrgyName) ||
+    !cands.some((r) => r.barangay)
   ) {
     return { status: 'eligible', reason: '' };
   }
 
-  const home = ctx.brgyByName[norm(candidates[0].barangay)];
+  const home = brgyByName[norm(cands[0].barangay)];
   if (home && home.allowsCrossBarangay) return { status: 'eligible', reason: '' };
 
   return {
     status: 'flagged',
-    reason: `Listed under ${candidates[0].barangay}, not ${teamBarangay?.name || 'this barangay'} — cross-barangay not allowed`,
+    reason: `Listed under ${cands[0].barangay}, not ${teamBarangay?.name || 'this barangay'} — cross-barangay not allowed`,
   };
 }
 
-// Runs on roster submission. Sets each player's eligibilityStatus, returns a tally.
+// Shared by team-batch and single-player screening: every barangay by
+// normalized name, so the whitelist check doesn't need its own query. Only
+// 26ish rows — cheap regardless of reference-list size.
+async function loadBrgyByName() {
+  const brgyByName = {};
+  (await Barangay.find().lean()).forEach((b) => { brgyByName[norm(b.name)] = b; });
+  return brgyByName;
+}
+
+// Runs on roster submission. Screens every player on the team, so it fetches
+// the WHOLE season's reference list ONCE and reuses it in memory — cheaper
+// than one query per player when there are 10-15 of them.
 async function prescreenTeam(team) {
   const teamBarangay = await Barangay.findById(team.barangay);
   const links = await TeamPlayer.find({ team: team._id }).populate('player');
   const players = links.map((l) => l.player).filter(Boolean);
 
-  const ctx = await buildContext(team.season);
+  const refs = await ReferenceList.find({ season: team.season }).lean();
+  const refIndex = new Map();
+  for (const r of refs) {
+    const key = `${norm(r.lastName)}|${norm(r.firstName)}`;
+    if (!refIndex.has(key)) refIndex.set(key, []);
+    refIndex.get(key).push(r);
+  }
+  const brgyByName = await loadBrgyByName();
   const summary = { eligible: 0, needs_document: 0, flagged: 0 };
 
   for (const p of players) {
-    const { status, reason } = decide(p, teamBarangay, ctx);
+    const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
+    const { status, reason } = decideFromCandidates(p, teamBarangay, candidates, brgyByName);
     if (p.eligibilityStatus !== status || p.flagReason !== reason) {
       await Player.updateOne({ _id: p._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
     }
@@ -105,13 +114,22 @@ async function prescreenTeam(team) {
   return summary;
 }
 
-// Re-screen ONE player after their name or birthdate was corrected. The team is
-// needed for the barangay comparison, which is half the decision.
+// Re-screen ONE player after their name or birthdate was corrected. Queries
+// the reference list directly by name (season+lastName+firstName is
+// indexed) instead of loading the whole season's list just to check one
+// player — was the slow path: ~0.5-1s to fetch and scan 17k rows in Node
+// for a single correction, now a targeted lookup that returns at most a
+// handful of rows.
 async function prescreenPlayer(player, team) {
   const teamBarangay = await Barangay.findById(team.barangay);
-  const ctx = await buildContext(team.season);
-  const { status, reason } = decide(player, teamBarangay, ctx);
+  const candidates = await ReferenceList.find({
+    season: team.season,
+    lastName: looseRegex(player.lastName),
+    firstName: looseRegex(player.firstName),
+  }).lean();
+  const brgyByName = await loadBrgyByName();
 
+  const { status, reason } = decideFromCandidates(player, teamBarangay, candidates, brgyByName);
   await Player.updateOne({ _id: player._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
   return { status, reason };
 }

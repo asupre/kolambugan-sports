@@ -47,11 +47,11 @@ router.get('/barangays', async (req, res) => {
   });
 });
 
-const ALLOWED_DIVISIONS = ['open', 'boys', 'girls', 'under17', 'under30'];
+const ALLOWED_DIVISIONS = ['open', 'boys', 'girls', 'under15', 'under30'];
 const ALLOWED_FORMATS = ['team', 'singles', 'doubles'];
 
 // PATCH /api/sports/:id/config — super admin; replaces seedSportConfig.js.
-// body: { divisions: ['under17','under30'], entryFormat: 'team' }
+// body: { divisions: ['under15','under30'], entryFormat: 'team' }
 router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const sport = await Sport.findById(req.params.id);

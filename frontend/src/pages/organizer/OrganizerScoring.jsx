@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarClock, Circle, ListChecks, Radio, Undo2, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { organizerMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -27,7 +29,7 @@ import { cn } from "../../lib/utils";
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
-  under17: "U17", under30: "U30",
+  under15: "U15", under30: "U30",
 };
 
 const BRACKET_LABEL = {
@@ -175,9 +177,10 @@ function PlayerCard({ player, stat, pointValues, statTypes, busy, onScore, onSta
 }
 
 function ScoringView({ matchId, onBack }) {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [ending, setEnding] = useState(false);
   const [mvp, setMvp] = useState(null);
   const [periods, setPeriods] = useState(1);
@@ -200,12 +203,12 @@ function ScoringView({ matchId, onBack }) {
           .map((p) => String(p._id));
         return { A: pick(d.rosterA || []), B: pick(d.rosterB || []) };
       });
-    } catch (e) { setError(e.message); }
+    } catch (e) { showError(e.message); }
   }
   useEffect(() => { load(); }, [matchId]);
 
   async function call(path, body) {
-    setBusy(true); setError("");
+    setBusy(true);
     try {
       await api(`/api/organizer/matches/${matchId}/${path}`, {
         method: "POST",
@@ -216,17 +219,17 @@ function ScoringView({ matchId, onBack }) {
       // The start route returns 409 when the match is dated for another day.
       // Dates are guidance, not a lock — confirm and proceed.
       if (path === "start" && /scheduled for/i.test(e.message)) {
-        if (window.confirm(e.message)) {
+        if (await confirm(e.message, { confirmLabel: "Start anyway" })) {
           try {
             await api(`/api/organizer/matches/${matchId}/start`, {
               method: "POST",
               body: JSON.stringify({ ...(body || {}), confirmOffSchedule: true }),
             });
             await load();
-          } catch (e2) { setError(e2.message); }
+          } catch (e2) { showError(e2.message); }
         }
       } else {
-        setError(e.message);
+        showError(e.message);
       }
     } finally { setBusy(false); }
   }
@@ -339,12 +342,12 @@ function ScoringView({ matchId, onBack }) {
             End match
           </button>
           <button
-            onClick={() => {
+            onClick={async () => {
               const scored = (m.games?.length || 0) > 0 || (m.liveScoreA || 0) > 0 || (m.liveScoreB || 0) > 0;
               const msg = scored
                 ? `Cancel this match? The score (${m.liveScoreA}–${m.liveScoreB}) and everything recorded will be discarded.`
                 : "Cancel this match and return it to not-started?";
-              if (window.confirm(msg)) call("cancel");
+              if (await confirm(msg, { danger: true, confirmLabel: "Cancel match" })) call("cancel");
             }}
             disabled={busy}
             className="w-full h-9 flex items-center justify-center gap-1.5 rounded-lg border border-red-500/30 text-red-600 dark:text-red-400 text-[13px] hover:bg-red-500/10 disabled:opacity-40">
@@ -368,12 +371,6 @@ function ScoringView({ matchId, onBack }) {
           {" · "}{desc.stage}
         </span>
       </div>
-
-      {error && (
-        <Alert variant="destructive" className="mb-3">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {!live && !finished && !forfeited && (
         <Card className="p-4 mb-4 gap-0">
@@ -422,8 +419,8 @@ function ScoringView({ matchId, onBack }) {
                   const name = s === "A" ? m.teamA?.teamName : m.teamB?.teamName;
                   return (
                     <button key={s} disabled={busy}
-                      onClick={() => {
-                        if (window.confirm(`Record ${name} as forfeiting? The other team wins 1–0.`)) {
+                      onClick={async () => {
+                        if (await confirm(`Record ${name} as forfeiting? The other team wins 1–0.`, { danger: true, confirmLabel: "Record forfeit" })) {
                           call("forfeit", { forfeitingSide: s });
                         }
                       }}

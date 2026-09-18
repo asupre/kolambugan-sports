@@ -38,14 +38,14 @@ const teamSchema = new mongoose.Schema(
       default: null,
     },
         // Which division this entry competes in. Values used per sport:
-    //   Basketball  -> 'under17' | 'under30'   (age split)
+    //   Basketball  -> 'under15' | 'under30'   (age split)
     //   Volleyball  -> 'boys' | 'girls'
     //   Badminton   -> 'boys' | 'girls'        (crossed with the season's format)
     //   Pickleball  -> 'boys' | 'girls'        (always doubles)
     //   Billiards / Mobile Legends -> 'open'
     division: {
       type: String,
-      enum: ['open', 'boys', 'girls', 'under17', 'under30'],
+      enum: ['open', 'boys', 'girls', 'under15', 'under30'],
       default: 'open',
     },
     // Squad vs individual entry. Decides the roster size:

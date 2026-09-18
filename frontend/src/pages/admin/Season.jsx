@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, CalendarClock, ListTodo, Plus, Settings2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -27,7 +28,7 @@ const STAGES = [
   { key: "completed", label: "Completed", next: null },
 ];
 
-const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under17: "U17", under30: "U30" };
+const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under15: "U15", under30: "U30" };
 const FORMAT_LABEL = { team: "Team", doubles: "Doubles", singles: "Singles" };
 
 function StageTimeline({ current }) {
@@ -143,6 +144,7 @@ function SportSetupSummary() {
 }
 
 export default function Season() {
+  const confirm = useConfirm();
   const [season, setSeason] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -183,9 +185,10 @@ export default function Season() {
     // Opening registration freezes sport configuration, so make it a deliberate
     // step rather than something you discover afterwards.
     if (season.status === "setup") {
-      const ok = window.confirm(
+      const ok = await confirm(
         "Opening registration locks each sport's divisions and entry format — " +
-        "barangays will build rosters against them. Are they set up correctly?"
+        "barangays will build rosters against them. Are they set up correctly?",
+        { confirmLabel: "Open registration" }
       );
       if (!ok) return;
     }

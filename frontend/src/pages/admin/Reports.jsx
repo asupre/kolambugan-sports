@@ -11,7 +11,7 @@ import { cn } from "../../lib/utils";
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
-  under17: "Under 17", under30: "Under 30",
+  under15: "Under 15", under30: "Under 30",
 };
 
 // Win/loss across EVERY completed match in a tournament — group stage and

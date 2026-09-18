@@ -27,7 +27,7 @@ function MatchRowSkeleton() {
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
-  under17: "Under 17", under30: "Under 30",
+  under15: "Under 15", under30: "Under 30",
 };
 
 // A date-only schedule is stored as midnight UTC, which renders as 8:00 AM in

@@ -12,7 +12,7 @@ export const DIVISION_LABEL = {
   open: "Open",
   boys: "Boys",
   girls: "Girls",
-  under17: "U17",
+  under15: "U15",
   under30: "U30",
 };
 

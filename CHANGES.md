@@ -580,3 +580,281 @@ says WebSockets and must be corrected.
   through the end of this year) and `disableFuture` (blocks anything after
   today). Turned both on for the birthdate fields in `BrgyDashboard.jsx`'s
   "Add a player" and "Correct this player" forms only.
+
+## 2026-09 — Basketball division renamed: under17 → under15
+
+- Basketball's younger division is **under15**, not under17 (the "U17"
+  label was wrong everywhere it appeared). Renamed the enum value
+  (`under17` → `under15`) on the `Team` and `Tournament` models, the
+  `ALLOWED_DIVISIONS` list in `routes/reference.js`, `seedSportConfig.js`,
+  and every frontend `DIVISION_LABEL` map (Tournaments, Season, Reports,
+  BrgyDashboard, BrgyMatches, OrganizerScoring, SportConfig, SportGrid,
+  PublicUI). No numeric age-cutoff logic existed anywhere to update — the
+  division was only ever a label/enum, never derived from a player's
+  computed age.
+- No migration script was run for any existing `under17` data in the DB —
+  if a season/team/tournament was already created under the old value,
+  it needs a manual DB update (or recreate for a fresh dev DB) before this
+  will show correctly.
+
+## 2026-09 — Esports (Mobile Legends) roster capped at 6, not 10–15
+
+- Esports team rosters are capped at exactly **6** players (5 starters + 1
+  substitute), not the 10–15 range used by physical team sports. A
+  barangay's two ML entries (e.g. Mukas 1, Mukas 2) therefore total at
+  most 12 players combined — a natural consequence of the 6-per-team cap,
+  not a separate barangay-wide check.
+- `ROSTER_LIMITS.team` (10–15) previously applied to every `format: 'team'`
+  roster regardless of sport, including Mobile Legends. Added
+  `ROSTER_LIMITS.esportsTeam` (6–6) and a `getRosterLimits(team)` helper
+  that looks up the team's sport `category` (`'esports'` vs `'physical'`)
+  before picking a limit — used by both add-player and submit-roster in
+  `routes/team.js`. Applies to any current or future sport configured as
+  `category: 'esports'`, not just Mobile Legends by name.
+- League Setup's per-sport "Team" entry-format hint now reads "6 players
+  (5 + 1 sub)" for esports sports instead of the physical-sport "10–15
+  players" text.
+
+## 2026-09 — Action-failure errors moved into a centered modal, not a top banner
+
+- Action errors (e.g. "No active season" on Create team) rendered as an
+  `<Alert>` banner pinned to the TOP of the page or dialog, while the
+  button that triggered them could be far below (a long roster, a 26-row
+  accounts table, the last card in League Setup's 7-sport list). The
+  banner was effectively invisible unless the user scrolled up afterward.
+- Added `components/ErrorDialog.jsx`: an `ErrorDialogProvider` (mounted
+  once in `App.jsx`, wrapping the router) plus a `useErrorDialog()` hook
+  that returns `showError(message)` — pops a small centered Dialog with
+  an OK button, visible regardless of scroll position. Consistent with
+  the existing shadcn `Dialog` primitive, no new dependency.
+- Applied to every action-triggered catch block that was structurally far
+  from its own trigger: `BrgyDashboard.jsx` (create team, and every
+  RosterEditor action — add/remove player, submit, photo upload),
+  `Documents.jsx` (upload), `OrganizerScoring.jsx` (every scoring-screen
+  action — this also fixed a real bug: a failed `load()` left the screen
+  stuck on the skeleton forever, since the error state was set but the
+  component's early skeleton-return meant it was never actually
+  rendered), `SportConfig.jsx` (per-sport save/add/remove, barangay
+  cross-play toggle), `SiteImages.jsx` (per-slot upload/remove),
+  `Accounts.jsx` (reset password, delete — including the "has scored
+  matches and can't be deleted" guard message), `Champions.jsx` (delete),
+  and `ReviewQueue.jsx` (approve/reject/verify — worse than a banner
+  here, since the player modal that triggers these closes immediately
+  after the call regardless of success or failure, so the old inline
+  message was left behind a modal that had already closed).
+- Deliberately NOT converted: errors that already render immediately
+  next to their own trigger with no scroll gap (a Dialog's own inline
+  error above its Save button, a small per-row upload error, initial
+  page-load failures that show before anything else has rendered,
+  `MatchesView`'s revert error which already uses the browser's native
+  `alert()`). Converting those too would just be extra clicks for no
+  visibility gain.
+
+## 2026-09 — Delete team + delete tournament, wired into the UI
+
+- `DELETE /api/sports/:id` was already guarded against orphaning
+  `Team`/`Tournament`/organizer records, but there was no way to actually
+  clear those out: no delete route existed for a Team at all (only
+  removing one player from a draft roster), and `Tournament`'s delete
+  route existed but was never wired to a button anywhere in the
+  frontend. Surfaced by a sport (a test "Call of Duty: Mobile" esports
+  sport, plus Basketball/Mobile Legends) staying stuck even after
+  deleting the season — the season was gone, but the Teams and
+  Tournaments that reference the sport directly were untouched by that,
+  since nothing cascades from Season.
+- Added `DELETE /api/teams/:id` (super admin): refuses if the team still
+  appears in any match (delete the tournament first — same guard shape
+  as the sport-delete check), otherwise cascades — removes the
+  TeamPlayer links, deletes each player's Documents and their GridFS
+  files, deletes the player's photo from GridFS, deletes the Player
+  itself if it isn't shared with another team (multi-sport players are
+  common — CLAUDE.md's players↔teams many-to-many), then the Team.
+- Added `GET /api/teams?sportId=` (super admin): every team for a sport,
+  from **every** season, not just the current one — deliberately not
+  season-scoped, since a leftover team from a deleted season is exactly
+  what gets a sport stuck, so the cleanup view needs to see those
+  orphans rather than filter them out.
+- `DELETE /api/tournaments/:id` (already existed) now also deletes the
+  `PlayerMatchStats` for its matches — previously left orphaned,
+  pointing at a match id that no longer existed.
+- Frontend: `Tournaments.jsx` gets a "Delete tournament" button next to
+  the stage badge when one exists, and a new "Orphaned teams" card. Both
+  actions confirm and report failures through the modal dialogs below,
+  not `window.confirm` or a banner.
+- The "Orphaned teams" card is DELIBERATELY scoped to only the literal
+  orphan case — a team whose `season` populate comes back null, meaning
+  the season document itself is gone. First cut showed every team for
+  the sport+division regardless of season, which meant it would still
+  be sitting on the page listing perfectly normal, currently-active
+  teams once a new season replaced the deleted one — a recovery tool
+  that never went away. Filtered to `!t.season` so it's empty (renders
+  nothing) once there's no orphan left to clean up; a team on a real
+  season, current or a completed-but-still-existing past one, is a
+  legitimate record and isn't shown here at all — this is not a general
+  "delete any team" tool.
+- Deleting a team does NOT delete its barangay's other teams or touch
+  the barangay itself. Deleting a tournament does NOT delete its teams
+  — they become free to enter a newly generated tournament, which is
+  the normal "regenerate" use case this route was originally written
+  for.
+- Added a "Delete all N" bulk button to the Orphaned teams card header
+  (only shown once there's more than one) — surfaced immediately by a
+  real case: a 52-team esports test sport where every team hit the
+  same-match guard until its tournament was deleted, making 52
+  individual clicks the only option. Sends the deletes one at a time
+  (still subject to the same per-team match guard as a single delete —
+  it does not delete tournaments for you), then reports a partial
+  result via the error modal if some were blocked (e.g. run before
+  deleting the tournament) rather than silently swallowing failures.
+
+## 2026-09 — Orphaned tournaments were unreachable, so their teams were undeletable
+
+- Deleting a tournament is what unblocks its teams (Orphaned teams' own
+  error is literally "still appears in N match(es). Delete the
+  tournament first."), but the ONLY way to reach the "Delete tournament"
+  button was `Tournaments.jsx`'s `currentTournament`, matched out of
+  `GET /api/tournaments` — which is scoped to the CURRENT season only.
+  A tournament left behind by a deleted season never appears in that
+  list, so `currentTournament` never matches it, so its Delete button
+  was never reachable — a real dead end hit immediately: 26 orphaned
+  Basketball teams, all blocked, with no tournament visible anywhere to
+  delete. Bulk-deleting the teams first (see the entry above) doesn't
+  route around this either, since the per-team match guard fires on
+  every one of them for the same reason.
+- Added `GET /api/tournaments/by-sport?sportId=` (super admin): every
+  tournament for a sport, from any season — same shape and same reason
+  as `GET /api/teams?sportId=` above. Registered right after the public
+  `GET /` (before any `/:id/...` route, per the route-ordering gotcha in
+  CLAUDE.md), though as a literal single-segment path it wasn't actually
+  at risk of being swallowed.
+- Added `OrphanedTournamentsSection` to `Tournaments.jsx`: same shape and
+  placement logic as Orphaned teams (amber left border, `!t.season`
+  filter, per-item Delete, a bulk "Delete all N" once there's more than
+  one), mounted ABOVE Orphaned teams — deleting these first is the
+  actual unblocking step, so the page now reads top-to-bottom in the
+  order you'd actually use it in.
+
+## 2026-09 — Bulk delete shows progress instead of a static "Deleting…" label
+
+- The bulk "Delete all N" buttons (Orphaned teams, Orphaned tournaments)
+  send deletes one request at a time — for 52 teams that's a real,
+  visible stretch of time with only a disabled button and no sense of
+  how far along it is. Added `components/ui/progress.jsx`, a shadcn
+  wrapper over Radix's `Progress` primitive (already available — the app
+  depends on the unified `radix-ui` package, which bundles it; no new
+  dependency needed).
+- Both `removeAll()` functions now track `{ done, total }` in state,
+  updated after every request completes (success OR failure — a failed
+  delete still counts as "processed" so the bar keeps moving instead of
+  stalling on the first blocked item), rendered as a `<Progress>` bar
+  plus a "Deleting N of M…" line under the card description while the
+  bulk op is running.
+
+## 2026-09 — window.confirm() and alert() replaced app-wide with modals
+
+- Same motivation as the `ErrorDialog` entry above, extended to
+  confirmations and info messages: a native `window.confirm()`/`alert()`
+  blocks the tab and looks like a browser popup, not part of the app —
+  and unlike `ErrorDialog`, this wasn't even about visibility, just
+  consistency once one kind of native dialog was gone and the other
+  seventeen call sites weren't.
+- Added `components/ConfirmDialog.jsx`: a `ConfirmDialogProvider`
+  (mounted in `App.jsx` alongside `ErrorDialogProvider`) plus a
+  `useConfirm()` hook returning `confirm(message, opts) => Promise<boolean>`
+  — the same call shape as `window.confirm()`, so every site just gained
+  an `await`. `opts` covers `title`, `confirmLabel`/`cancelLabel`,
+  `danger` (red confirm button, for destructive actions), and
+  `alertOnly` (hides the Cancel button, single OK button — the
+  `alert()` replacement, reusing the same component instead of building
+  a second one).
+- Converted every `window.confirm()` (17 sites: remove barangay logo,
+  submit roster, revert a match — twice, two separate bracket views —,
+  simulate-groups' error alert, delete team, delete tournament, cancel
+  match, forfeit, the off-schedule "start anyway" confirmation — which
+  reuses the backend's error message as the question, an existing
+  pattern that now reads through `confirm()` instead of
+  `window.confirm()` — remove sport, remove barangay, remove a site
+  image, open registration, reject a player, reset password, delete
+  account) and every remaining bare `alert()` (roster submitted,
+  provision-all's success message) across the frontend. None left.
+- One behavior change worth knowing: `reject()` in `ReviewQueue.jsx` is
+  called from inside `PlayerModal`, which closes right after
+  `await reject(...)` resolves regardless of outcome — so confirming now
+  opens a second dialog stacked on top of the player modal before either
+  closes. Same nested-dialog shape Radix already handles elsewhere in
+  this codebase (e.g. a crop dialog opened from within another dialog).
+
+## 2026-09 — Tournament delete now shows real stakes before deleting
+
+- `DELETE /api/tournaments/:id` has no guard against deleting an
+  `ongoing` tournament with real, played matches — it's the same route
+  and the same button whether the tournament is a harmless orphan left
+  by a deleted season or the live, current-season bracket everyone's
+  actively scoring. Raised directly: "once a new season has scores and
+  everything, can it be deleted during that?" — answer was no
+  *technical* guard exists, only a generic confirm text nobody reads
+  closely before clicking through.
+- `deleteTournament()` in `Tournaments.jsx` now fetches the tournament's
+  matches first and counts how many are `completed` before showing the
+  confirmation. Zero completed matches keeps the original generic
+  wording; any completed matches switches to an explicit "N match(es)
+  have ALREADY BEEN PLAYED with real scores" warning, and the confirm
+  button itself is relabeled "Delete N played match(es)" instead of a
+  plain "Delete" — the number has to be read to click through. Best-
+  effort: if the match count fetch fails, falls back to the generic
+  message rather than blocking the whole flow.
+- Deliberately NOT applied to `OrphanedTournamentsSection`'s delete —
+  those are explicitly the recovery-tool case (season already gone), so
+  the generic wording stays there.
+- For reference, the other two guards in this cleanup feature set
+  predate or were added alongside it: `DELETE /api/teams/:id` refuses
+  while the team appears in ANY match (scored or not — see the Delete
+  team + delete tournament entry above), and account deletion
+  (pre-existing) refuses while the organizer has entered any match
+  result. Tournaments were the one gap.
+
+## 2026-09 — Bulk CSV player import for the Barangay Admin roster editor
+
+- Adding players one at a time was the only option even when a
+  barangay already had a full list on hand (a coach's spreadsheet, an
+  export from a prior season) — flagged directly: "sometimes the brgy
+  users or admins already has csv list of players." This was also
+  already on the backlog (CLAUDE.md's "Bulk player import").
+- Added `POST /api/teams/:id/players/import` (barangay admin, draft
+  rosters only — same `submittedAt` gate as adding one player).
+  Tolerant header mapping (`canonicalPlayerKey`, same shape as the SK
+  Federation's reference-list upload in `referenceList.js`): first/
+  last/middle name, birthdate, address, jersey number, several header
+  spellings each, case-insensitive. Reuses `csv-parse/sync` (already a
+  dependency, no new package) and `getRosterLimits()` so an esports
+  team's 6-player cap and a physical team's 10–15 are both respected
+  automatically — rows past the roster's remaining capacity, or missing
+  a required field, are skipped and reported (`{ row, reason }`) rather
+  than silently dropped or failing the whole upload, mirroring how the
+  reference-list upload reports `skippedRows`.
+- Frontend: an "Import CSV" button next to "Add a player" in
+  `RosterEditor` (`BrgyDashboard.jsx`). On completion, shows the result
+  through the `ConfirmDialog`'s `alertOnly` mode (added N, plus up to
+  10 skipped-row reasons with a "…and N more" tail for longer lists)
+  instead of a native `alert()`, consistent with the rest of the app.
+
+## 2026-09 — Barangay Admin still showed "10–15 players" for Mobile Legends
+
+- The esports roster-size fix (6, not 10–15 — see the earlier "Esports
+  roster capped at 6" entry) only changed the BACKEND limit and League
+  Setup's hint text. `BrgyDashboard.jsx` has its own separate, hardcoded
+  `ROSTER_LIMITS` constant (`{ team: {min:10,max:15}, singles, doubles }`)
+  used by both the "Register a team" hint ("Squad entry — N–N players")
+  and the roster editor's player-count display — it never knew about
+  `category: 'esports'` at all, so it kept showing the physical-sport
+  10–15 range for Mobile Legends specifically where a barangay would
+  actually see it: registering a team and editing its roster.
+- Added `rosterLimitsFor(sport)` in `BrgyDashboard.jsx`, mirroring the
+  backend's `getRosterLimits()` — `entryFormat === 'team'` AND
+  `sport.category === 'esports'` picks the 6–6 limit, everything else
+  unchanged. Replaces both direct `ROSTER_LIMITS[entryFormat]` lookups
+  (team registration and the roster editor).
+- Also fixed the resulting phrasing bug: with min===max===6, the old
+  template produced "Squad entry — 6–6 players." Now reads "Squad
+  entry — exactly 6 players." when min equals max, and keeps the N–M
+  range wording otherwise.

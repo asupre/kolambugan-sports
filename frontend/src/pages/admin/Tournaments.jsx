@@ -1,16 +1,19 @@
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight, RotateCcw, Zap } from "lucide-react";
+import { ChevronDown, ChevronRight, RotateCcw, Trash2, Zap } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { DateTimePicker } from "../../components/DateTimePicker";
+import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent } from "../../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Progress } from "../../components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -22,7 +25,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { useDragScroll } from "../../hooks/useDragScroll";
 import { cn } from "../../lib/utils";
 
-const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under17: "U17", under30: "U30" };
+const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under15: "U15", under30: "U30" };
 
 function StandingsView({ tournamentId }) {
   const [groups, setGroups] = useState(null);
@@ -79,6 +82,8 @@ function StandingsView({ tournamentId }) {
 }
 
 function MatchesView({ tournamentId }) {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -92,10 +97,11 @@ function MatchesView({ tournamentId }) {
   }, [tournamentId]);
 
   async function revert(m) {
-    const ok = window.confirm(
+    const ok = await confirm(
       `Revert ${m.teamA?.teamName} vs ${m.teamB?.teamName}?\n\n` +
       `The score, periods and player stats are discarded, and both teams are pulled ` +
-      `back out of the matches they advanced into. The organizer scores it again.`
+      `back out of the matches they advanced into. The organizer scores it again.`,
+      { danger: true, confirmLabel: "Revert" }
     );
     if (!ok) return;
     try {
@@ -103,7 +109,7 @@ function MatchesView({ tournamentId }) {
       const d = await api(`/api/tournaments/${tournamentId}/bracket`);
       setMatches(d.matches || []);
     } catch (e) {
-      alert(e.message);
+      showError(e.message);
     }
   }
 
@@ -171,6 +177,7 @@ function MatchesView({ tournamentId }) {
 }
 
 function ScheduleSection({ tournamentId }) {
+  const showError = useErrorDialog();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [edits, setEdits] = useState({});     // matchId -> { schedule, venue }
@@ -186,7 +193,7 @@ function ScheduleSection({ tournamentId }) {
       setMatches(data.matches || []);
       setEdits({});
     } catch (e) {
-      setMsg(e.message);
+      showError(e.message);
     } finally {
       setLoading(false);
     }
@@ -222,7 +229,7 @@ function ScheduleSection({ tournamentId }) {
   // Saved explicitly rather than on every keystroke — typing a venue would
   // otherwise fire a request per character.
   async function saveOne(m) {
-    setBusy(true); setMsg("");
+    setBusy(true);
     try {
       await api(`/api/tournaments/matches/${m._id}/schedule`, {
         method: "PATCH",
@@ -232,7 +239,7 @@ function ScheduleSection({ tournamentId }) {
         }),
       });
       await load();
-    } catch (e) { setMsg(e.message); }
+    } catch (e) { showError(e.message); }
     finally { setBusy(false); }
   }
 
@@ -241,7 +248,7 @@ function ScheduleSection({ tournamentId }) {
   async function applyRound(key) {
     const b = bulk[key] || {};
     const round = Number(String(key).split("-")[1]);
-    if (!b.schedule) { setMsg("Pick a date and time first."); return; }
+    if (!b.schedule) { showError("Pick a date and time first."); return; }
     setBusy(true); setMsg("");
     try {
       const body = { schedule: b.schedule, round: Number(round) };
@@ -253,7 +260,7 @@ function ScheduleSection({ tournamentId }) {
       });
       setMsg(res.message);
       await load();
-    } catch (e) { setMsg(e.message); }
+    } catch (e) { showError(e.message); }
     finally { setBusy(false); }
   }
 
@@ -401,6 +408,7 @@ function ScheduleSection({ tournamentId }) {
 }
 
 function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
+  const showError = useErrorDialog();
   const [refreshKey, setRefreshKey] = useState(0);
   const [qualification, setQualification] = useState(null);  // ML tiebreaker UI
   const [readiness, setReadiness] = useState(null);          // who actually qualified
@@ -414,7 +422,7 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
       await api(`/api/tournaments/${tournamentId}/simulate-groups`, { method: "POST" });
       setRefreshKey((k) => k + 1);
     } catch (e) {
-      alert(e.message);
+      showError(e.message);
     } finally {
       setSimulating(false);
     }
@@ -759,6 +767,8 @@ function BracketTree({ title, matches, labelFor, onRevert, winner }) {
 }
 
 function BracketView({ tournamentId }) {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -772,10 +782,11 @@ function BracketView({ tournamentId }) {
   }, [tournamentId]);
 
   async function revert(m) {
-    const ok = window.confirm(
+    const ok = await confirm(
       `Revert ${m.teamA?.teamName} vs ${m.teamB?.teamName}?\n\n` +
       `The score, periods and player stats are discarded, and both teams are pulled ` +
-      `back out of the matches they advanced into. The organizer scores it again.`
+      `back out of the matches they advanced into. The organizer scores it again.`,
+      { danger: true, confirmLabel: "Revert" }
     );
     if (!ok) return;
     try {
@@ -783,7 +794,7 @@ function BracketView({ tournamentId }) {
       const d = await api(`/api/tournaments/${tournamentId}/bracket`);
       setMatches(d.matches || []);
     } catch (e) {
-      alert(e.message);
+      showError(e.message);
     }
   }
 
@@ -858,7 +869,309 @@ function BracketView({ tournamentId }) {
   );
 }
 
+const TEAM_STATUS_BADGE = {
+  verified: "bg-green-500/15 text-green-600 dark:text-green-400",
+  rejected: "bg-red-500/15 text-red-600 dark:text-red-400",
+  pending: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+};
+
+// Orphaned TOURNAMENTS: the plain tournament list (loaded once, scoped to
+// the current season) never surfaces one left behind by a deleted season —
+// so there was no way to reach its "Delete tournament" button, which is
+// also the only thing standing between its teams and being deletable ("still
+// appears in N match(es)"). Shown above Orphaned teams since deleting these
+// first is the actual unblock step.
+function OrphanedTournamentsSection({ sportId, division, onChanged }) {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
+  const [tournaments, setTournaments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(null); // { done, total } while removeAll runs
+
+  async function load() {
+    setLoading(true);
+    try {
+      const data = await api(`/api/tournaments/by-sport?sportId=${sportId}`);
+      setTournaments(data.tournaments || []);
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, [sportId]);
+
+  const orphaned = tournaments.filter((t) => (t.division || "open") === division && !t.season);
+
+  async function remove(t) {
+    const ok = await confirm(
+      `Delete this orphaned tournament? Every match, score, and player stat in it is discarded ` +
+      `permanently — its teams are not deleted, they just become free (and, if orphaned themselves, ` +
+      `deletable).`,
+      { danger: true, confirmLabel: "Delete" }
+    );
+    if (!ok) return;
+    setBusyId(t._id);
+    try {
+      await api(`/api/tournaments/${t._id}`, { method: "DELETE" });
+      setTournaments((prev) => prev.filter((x) => x._id !== t._id));
+      onChanged && onChanged();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeAll() {
+    const ok = await confirm(
+      `Delete all ${orphaned.length} orphaned tournament(s) for this sport and division? This can't be undone.`,
+      { danger: true, confirmLabel: `Delete all ${orphaned.length}` }
+    );
+    if (!ok) return;
+    setBulkBusy(true);
+    const total = orphaned.length;
+    setBulkProgress({ done: 0, total });
+    let deleted = 0, processed = 0, lastError = "";
+    for (const t of orphaned) {
+      try {
+        await api(`/api/tournaments/${t._id}`, { method: "DELETE" });
+        deleted++;
+      } catch (e) {
+        lastError = e.message;
+      }
+      processed++;
+      setBulkProgress({ done: processed, total });
+    }
+    await load();
+    onChanged && onChanged();
+    setBulkBusy(false);
+    setBulkProgress(null);
+    if (deleted < orphaned.length) {
+      showError(`Deleted ${deleted} of ${orphaned.length}. Last error: "${lastError}"`);
+    }
+  }
+
+  if (loading || orphaned.length === 0) return null;
+
+  return (
+    <Card className="mt-6 border-l-4 border-l-amber-500">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <CardTitle className="text-base">Orphaned tournaments ({orphaned.length})</CardTitle>
+          {orphaned.length > 1 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/10 shrink-0"
+              onClick={removeAll}
+              disabled={bulkBusy || busyId !== null}
+            >
+              <Trash2 /> {bulkBusy ? "Deleting…" : `Delete all ${orphaned.length}`}
+            </Button>
+          )}
+        </div>
+        <CardDescription>
+          Left behind by a deleted season — this is why their teams can't be deleted below
+          ("still appears in N match(es)"). Delete these first.
+        </CardDescription>
+        {bulkProgress && (
+          <div className="space-y-1 pt-1">
+            <Progress value={(bulkProgress.done / bulkProgress.total) * 100} />
+            <p className="text-muted-foreground text-xs">
+              Deleting {bulkProgress.done} of {bulkProgress.total}…
+            </p>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {orphaned.map((t) => (
+          <div key={t._id} className="flex items-center gap-3 rounded-lg border px-3 py-2 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {t.format === "round_robin" ? "Group stage" : "Elimination"} · {t.stage}
+              </p>
+              <p className="text-muted-foreground text-xs">season deleted</p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/10"
+              onClick={() => remove(t)}
+              disabled={busyId === t._id || bulkBusy}
+            >
+              <Trash2 /> {busyId === t._id ? "…" : "Delete"}
+            </Button>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Orphaned teams for a sport+division: ones whose season was deleted out
+// from under them (the populate on `season` comes back null), which is
+// exactly what leaves a sport stuck — DELETE /api/sports/:id refuses while
+// they still exist. A team on a real season (current OR a completed, still-
+// existing past one) is a legitimate record, not shown here — this is a
+// recovery tool for the orphan case, not general team management, so it
+// stays out of the way during normal operation.
+function TeamsSection({ sportId, division, onChanged }) {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(null); // { done, total } while removeAll runs
+  const [open, setOpen] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const data = await api(`/api/teams?sportId=${sportId}`);
+      setTeams(data.teams || []);
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, [sportId]);
+
+  // Orphan = the season reference doesn't resolve to a real document anymore.
+  const inDivision = teams.filter((t) => (t.division || "open") === division && !t.season);
+
+  async function remove(t) {
+    const ok = await confirm(
+      `Delete "${t.teamName}"? This permanently removes its roster, and any of its ` +
+      `players' documents and photos who aren't on another team. This can't be undone.`,
+      { danger: true, confirmLabel: "Delete" }
+    );
+    if (!ok) return;
+    setBusyId(t._id);
+    try {
+      await api(`/api/teams/${t._id}`, { method: "DELETE" });
+      setTeams((prev) => prev.filter((x) => x._id !== t._id));
+      onChanged && onChanged();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // Deletes every orphaned team currently listed, one request at a time —
+  // still subject to the same per-team match guard as a single delete, so
+  // this reports a partial result rather than assuming they all succeed
+  // (e.g. the tournament hasn't been deleted yet, so all of them are blocked).
+  async function removeAll() {
+    const ok = await confirm(
+      `Delete all ${inDivision.length} orphaned team(s) for this sport and division? This permanently ` +
+      `removes each roster, and any of their players' documents and photos who aren't on another team. ` +
+      `This can't be undone.`,
+      { danger: true, confirmLabel: `Delete all ${inDivision.length}` }
+    );
+    if (!ok) return;
+    setBulkBusy(true);
+    const total = inDivision.length;
+    setBulkProgress({ done: 0, total });
+    let deleted = 0, failed = 0, lastError = "";
+    for (const t of inDivision) {
+      try {
+        await api(`/api/teams/${t._id}`, { method: "DELETE" });
+        deleted++;
+      } catch (e) {
+        failed++;
+        lastError = e.message;
+      }
+      setBulkProgress({ done: deleted + failed, total });
+    }
+    await load();
+    onChanged && onChanged();
+    setBulkBusy(false);
+    setBulkProgress(null);
+    if (failed > 0) {
+      showError(
+        `Deleted ${deleted} of ${inDivision.length} team(s). ${failed} couldn't be removed — ` +
+        `for example: "${lastError}"`
+      );
+    } else {
+      await confirm(`Deleted all ${deleted} orphaned team(s).`, { alertOnly: true });
+    }
+  }
+
+  if (loading || inDivision.length === 0) return null;
+
+  return (
+    <Card className="mt-6 border-l-4 border-l-amber-500">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2 text-left min-w-0">
+            {open ? <ChevronDown className="size-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />}
+            <CardTitle className="text-base">Orphaned teams ({inDivision.length})</CardTitle>
+          </button>
+          {inDivision.length > 1 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/10 shrink-0"
+              onClick={removeAll}
+              disabled={bulkBusy || busyId !== null}
+            >
+              <Trash2 /> {bulkBusy ? "Deleting…" : `Delete all ${inDivision.length}`}
+            </Button>
+          )}
+        </div>
+        <CardDescription>
+          These teams' season was deleted without them, so they're left over pointing at nothing —
+          that's what's blocking this sport (or its barangay) from being deleted. Delete one that's
+          still in a match by deleting its tournament first.
+        </CardDescription>
+        {bulkProgress && (
+          <div className="space-y-1 pt-1">
+            <Progress value={(bulkProgress.done / bulkProgress.total) * 100} />
+            <p className="text-muted-foreground text-xs">
+              Deleting {bulkProgress.done} of {bulkProgress.total}…
+            </p>
+          </div>
+        )}
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-2">
+          {inDivision.map((t) => (
+            <div key={t._id} className="flex items-center gap-3 rounded-lg border px-3 py-2 flex-wrap">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{t.teamName}</p>
+                <p className="text-muted-foreground text-xs">
+                  {t.barangay?.name || "—"} · {t.playerCount} player{t.playerCount === 1 ? "" : "s"} · season deleted
+                </p>
+              </div>
+              <Badge className={TEAM_STATUS_BADGE[t.status] || TEAM_STATUS_BADGE.pending}>{t.status}</Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/10"
+                onClick={() => remove(t)}
+                disabled={busyId === t._id || bulkBusy}
+              >
+                <Trash2 /> {busyId === t._id ? "…" : "Delete"}
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export default function Tournaments() {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
   const { sportId } = useParams();
   const navigate = useNavigate();
   const [sports, setSports] = useState([]);
@@ -928,6 +1241,39 @@ export default function Tournaments() {
     }
   }
 
+  async function deleteTournament() {
+    if (!currentTournament) return;
+
+    // DELETE /api/tournaments/:id has no guard against an ongoing tournament
+    // with real, played matches — so the confirmation shows the actual stakes
+    // instead of a generic warning nobody reads before clicking through.
+    let completedCount = 0;
+    try {
+      const d = await api(`/api/tournaments/${currentTournament._id}/matches`);
+      completedCount = (d.matches || []).filter((m) => m.status === "completed").length;
+    } catch { /* best-effort — fall back to the generic message below */ }
+
+    const ok = await confirm(
+      completedCount > 0
+        ? `Delete this ${selectedSport.name} tournament? ${completedCount} match(es) have ALREADY BEEN ` +
+          `PLAYED with real scores — those results, every player stat, and the whole bracket are discarded ` +
+          `permanently. Teams themselves are not deleted.`
+        : `Delete this ${selectedSport.name} tournament? Every match, score, and player stat in it is ` +
+          `discarded permanently. Teams themselves are not deleted — they're free to enter a new tournament.`,
+      { danger: true, confirmLabel: completedCount > 0 ? `Delete ${completedCount} played match(es)` : "Delete" }
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await api(`/api/tournaments/${currentTournament._id}`, { method: "DELETE" });
+      await loadAll();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <AdminLayout title={selectedSport?.name || "Tournaments"} menu={superAdminMenu} enableDarkMode>
       {loading ? (
@@ -965,9 +1311,20 @@ export default function Tournaments() {
                   )}
                 </h2>
                 {currentTournament && (
-                  <Badge className="bg-primary/15 text-primary">
-                    {currentTournament.format === "round_robin" ? "Group stage" : "Elimination"} · {currentTournament.stage}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-primary/15 text-primary">
+                      {currentTournament.format === "round_robin" ? "Group stage" : "Elimination"} · {currentTournament.stage}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/10"
+                      onClick={deleteTournament}
+                      disabled={busy}
+                    >
+                      <Trash2 /> Delete tournament
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -1024,6 +1381,9 @@ export default function Tournaments() {
               )}
             </CardContent>
           </Card>
+
+          <OrphanedTournamentsSection sportId={selectedSport._id} division={activeDivision} onChanged={loadAll} />
+          <TeamsSection sportId={selectedSport._id} division={activeDivision} onChanged={loadAll} />
         </div>
       )}
     </AdminLayout>

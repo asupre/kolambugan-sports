@@ -12,7 +12,7 @@ const championSchema = new mongoose.Schema(
   {
     year: { type: Number, required: true },
     sport: { type: String, required: true, trim: true },   // "Basketball"
-    division: { type: String, trim: true, default: '' },   // "U17", "Boys", "Open"
+    division: { type: String, trim: true, default: '' },   // "U15", "Boys", "Open"
     barangay: { type: String, required: true, trim: true },// the winning barangay
     teamName: { type: String, trim: true, default: '' },
     mvp: { type: String, trim: true, default: '' },

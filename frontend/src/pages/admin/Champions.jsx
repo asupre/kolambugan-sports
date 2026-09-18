@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Pencil, Trash2, Trophy, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -23,6 +25,8 @@ const BLANK = {
 };
 
 export default function Champions() {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [champions, setChampions] = useState([]);
   const [sports, setSports] = useState([]);
   const [barangays, setBarangays] = useState([]);
@@ -111,13 +115,12 @@ export default function Champions() {
   }
 
   async function remove(c) {
-    if (!window.confirm(`Delete the ${c.year} ${c.sport} champion (${c.barangay})? This can't be undone.`)) return;
-    setError("");
+    if (!(await confirm(`Delete the ${c.year} ${c.sport} champion (${c.barangay})? This can't be undone.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       await api(`/api/champions/${c.id}`, { method: "DELETE" });
       await load();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     }
   }
 
@@ -211,7 +214,7 @@ export default function Champions() {
 
               <div className="space-y-1.5">
                 <Label>Division</Label>
-                <Input value={form.division} onChange={set("division")} placeholder="U17, Boys, Open…" />
+                <Input value={form.division} onChange={set("division")} placeholder="U15, Boys, Open…" />
               </div>
 
               <div className="space-y-1.5">

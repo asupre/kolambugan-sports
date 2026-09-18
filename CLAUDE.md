@@ -45,11 +45,27 @@ score tallying, no public visibility, records lost every season.
 
 ## Roster & player rules (CONFIRMED)
 
-- Roster size depends on the sport's **entry format** (see Divisions below):
-  - `team` → **10–15 players** (basketball, volleyball, Mobile Legends)
+- Roster size depends on the sport's **entry format**, and for `team` also on the
+  sport's **category** (see Divisions below):
+  - `team`, physical (`category: 'physical'`) → **10–15 players** (basketball,
+    volleyball)
+  - `team`, esports (`category: 'esports'`) → **exactly 6** (Mobile Legends: 5
+    starters + 1 substitute). A barangay's two ML entries (e.g. Mukas 1, Mukas
+    2) therefore cap at 12 players combined — enforced per-team, not as a
+    separate barangay-total check.
   - `doubles` → **exactly 2** (pickleball always; badminton when the season runs doubles)
   - `singles` → **exactly 1** (billiards, chess; badminton when the season runs singles)
-  Enforced on add-player and on submit (`ROSTER_LIMITS` in routes/team.js).
+  Enforced on add-player and on submit (`ROSTER_LIMITS` / `getRosterLimits()` in
+  routes/team.js).
+- **Bulk CSV import** (Sep 2026): `POST /api/teams/:id/players/import` lets a
+  Barangay Admin upload a CSV instead of adding players one at a time — a
+  coach's spreadsheet or a prior season's export. Tolerant column mapping
+  (`canonicalPlayerKey` in routes/team.js) — first/last/middle name, birthdate,
+  address, jersey number, various header spellings. Same rules as a single
+  add: draft-only, capped at the roster's max; rows over the cap or missing a
+  required field are skipped and reported back (row number + reason), not
+  silently dropped. UI: an "Import CSV" button beside "Add a player" in the
+  roster editor (`RosterEditor` in `BrgyDashboard.jsx`).
 - New players / under 15: require **parental consent + supporting documents**.
 - Player fields collected: full name, birthdate (age derived), **photo**, address,
   jersey number.
@@ -281,13 +297,13 @@ configures from **League Setup** (`/admin/config`), which replaced
 
 **Sport model:** `divisions: [String]` (which divisions run this season) and
 `entryFormat: 'team' | 'singles' | 'doubles'`.
-**Team model:** `division` (`open` | `boys` | `girls` | `under17` | `under30`)
+**Team model:** `division` (`open` | `boys` | `girls` | `under15` | `under30`)
 and `format` (`team` | `singles` | `doubles`).
 **Tournament model:** `division` — one tournament per (sport, season, division).
 
 | Sport | Divisions | Entry format | Brackets |
 |---|---|---|---|
-| Basketball | under17, under30 | team | 2 |
+| Basketball | under15, under30 | team | 2 |
 | Volleyball | boys, girls | team | 2 |
 | Badminton | boys, girls | **singles OR doubles — Super Admin picks per season** | 2 |
 | Pickleball | boys, girls | doubles (always) | 2 |
@@ -298,7 +314,7 @@ and `format` (`team` | `singles` | `doubles`).
 - Basketball's split is by **age**, not gender. Badminton runs **one** format per
   season (not both simultaneously). Pickleball is doubles-only.
 - Registration rule: **one team per (barangay, sport, season, division)** — so a
-  barangay can enter both under17 and under30. ML still allows 2 teams.
+  barangay can enter both under15 and under30. ML still allows 2 teams.
 - A division only becomes a bracket if enough barangays entered it.
 
 ---
@@ -579,6 +595,20 @@ so a bug in one route cannot expose the other.
   backend's `PATCH .../players/:playerId` route already accepted `address`;
   added the missing input to the edit form and a small address line to
   each roster row.
+- **Native `window.confirm()`/`alert()` and top-of-page error banners
+  replaced app-wide with modals** (Sep 2026): `components/ErrorDialog.jsx`
+  (`useErrorDialog()` → `showError(message)`) and `components/ConfirmDialog.jsx`
+  (`useConfirm()` → `await confirm(message, opts)`, `opts.alertOnly` for a
+  single-button info dialog), both mounted once in `App.jsx`. Two problems
+  this fixed: an action's error used to render as a banner at the TOP of the
+  page/dialog while the button that triggered it could be scrolled well
+  below (a 26-row accounts table, the last of 7 sports in League Setup) —
+  now pops a centered modal, visible regardless of scroll position; and
+  every native browser confirm/alert looked like an OS popup, not part of
+  the app. Applied everywhere an action's error/confirmation was
+  structurally far from its own trigger — NOT applied to errors that
+  already render immediately next to their trigger (a form's own inline
+  error above its Save button), which would just add clicks for no benefit.
 
 **Organizer scoring screen — shadcn/ui, light by default, dark optional (Sep 2026):**
 - CORRECTION: this was long documented as permanently "dark navy... the one
@@ -831,6 +861,18 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   4 groups → played out → 8 qualifiers → knockout → champion + 3rd place).
 - Distinct bracket labels for group vs knockout (see Tournament format).
 - Per-sport division/format config seeded (`seedSportConfig.js`).
+- **Delete + cleanup (Sep 2026):** `DELETE /api/tournaments/:id` (removes a
+  tournament + its matches + PlayerMatchStats) is now wired to a "Delete
+  tournament" button in `Tournaments.jsx` — its confirmation counts completed
+  matches first and warns explicitly if real scores would be discarded, since
+  the route itself has no such guard. `DELETE /api/teams/:id` (new) cascades a
+  team's players/documents/photos, refusing while the team appears in any
+  match. Both feed an "Orphaned tournaments" / "Orphaned teams" recovery UI
+  (amber cards, `!season` filter, per-item + bulk delete with a shadcn
+  `Progress` bar) for teams/tournaments left behind by a season deleted
+  directly in the DB — invisible otherwise, since the plain list/generate
+  routes are scoped to the current season only. Normal, non-orphaned data is
+  unaffected and these cards stay empty/hidden.
 
 **Organizer live scoring (routes/organizer.js + pages/organizer/OrganizerScoring.jsx)**
 - Match feed scoped to the organizer's `assignedSport` (shows not-yet-ready
@@ -860,7 +902,8 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   (sport picker, standings, match entry, knockout generation, aligned bracket
   display with connector lines, Schedule section), Accounts.
 - Barangay Admin: Team Registration (sport → division → name), roster editor
-  (modal) with photo upload, Document Submission page.
+  (modal) with photo upload and CSV bulk import (Sep 2026), Document
+  Submission page.
 - Organizer: match list + live scoring screen.
 - Public Viewer — COMPLETE, eight pages: Home, Matches, Standings, Brackets,
   Teams, Team detail, Players, Champions, About. `pages/public/PublicLayout.jsx`
@@ -907,8 +950,10 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 1. Barangay Admin dashboard (last remaining HIPO module — Match Information
    and Document Submission/verification status are built).
 2. `verified_residents` collection (approvals persisting across seasons).
-3. Bulk player import.
-4. Tournament delete from the UI.
+3. ~~Bulk player import.~~ Done (Sep 2026) — CSV upload in the Barangay
+   Admin's roster editor, see Tournaments/Roster section below.
+4. ~~Tournament delete from the UI.~~ Done (Sep 2026) — see Tournaments below,
+   plus a new team-delete route/UI alongside it (there wasn't one before).
 5. Super admin password recovery when both super admins are locked out.
 6. Delete the now-dead `components/ui.jsx` (Button/Card/Input/Label/Pill) once
    confirmed nothing still imports it — the shadcn/ui pass replaced it

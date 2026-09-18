@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, FileText, ShieldCheck, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -194,6 +196,8 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
 }
 
 export default function ReviewQueue() {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openTeam, setOpenTeam] = useState(null);   // teamId currently expanded
@@ -240,22 +244,22 @@ export default function ReviewQueue() {
   }
 
   async function approve(teamId, playerId) {
-    setBusy(true); setMsg("");
+    setBusy(true);
     try {
       await api(`/api/review/teams/${teamId}/players/${playerId}/approve`, { method: "POST" });
       await refreshOpenTeam();
-    } catch (e) { setMsg(e.message); }
+    } catch (e) { showError(e.message); }
     finally { setBusy(false); }
   }
 
   async function reject(teamId, playerId) {
-    if (!window.confirm("Reject and remove this player? The roster will reopen for the barangay to add a replacement.")) return;
+    if (!(await confirm("Reject and remove this player? The roster will reopen for the barangay to add a replacement.", { danger: true, confirmLabel: "Reject" }))) return;
     setBusy(true); setMsg("");
     try {
       const data = await api(`/api/review/teams/${teamId}/players/${playerId}/reject`, { method: "POST" });
       setMsg(data.message || "Player rejected.");
       await refreshOpenTeam();
-    } catch (e) { setMsg(e.message); }
+    } catch (e) { showError(e.message); }
     finally { setBusy(false); }
   }
 
@@ -265,7 +269,7 @@ export default function ReviewQueue() {
       const data = await api(`/api/review/teams/${teamId}/verify`, { method: "POST" });
       setMsg(data.message || "Team verified.");
       await refreshOpenTeam();
-    } catch (e) { setMsg(e.message); } // backend blocks if not all eligible — shows here
+    } catch (e) { showError(e.message); } // backend blocks if not all eligible — pops now, not buried off-screen
     finally { setBusy(false); }
   }
 

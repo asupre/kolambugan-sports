@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Camera, ImageIcon, Loader2, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import ImageCropDialog from "../../components/ImageCropDialog";
+import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { brgyMenu } from "../../components/menus";
 import { api } from "../../api";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -30,14 +32,23 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
 
 const ROSTER_LIMITS = {
-  team: { min: 10, max: 15 },
-  singles: { min: 1, max: 1 },
-  doubles: { min: 2, max: 2 },
+  team:        { min: 10, max: 15 },
+  esportsTeam: { min: 6,  max: 6  },  // Mobile Legends / esports team sports
+  singles:     { min: 1,  max: 1  },
+  doubles:     { min: 2,  max: 2  },
 };
+
+// Mirrors getRosterLimits() in backend/src/routes/team.js — esports team
+// sports (Mobile Legends) cap at 6, not the 10–15 physical-sport range.
+function rosterLimitsFor(sport) {
+  const entryFormat = sport?.entryFormat || "team";
+  if (entryFormat === "team" && sport?.category === "esports") return ROSTER_LIMITS.esportsTeam;
+  return ROSTER_LIMITS[entryFormat] || ROSTER_LIMITS.team;
+}
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
-  under17: "Under 17", under30: "Under 30",
+  under15: "Under 15", under30: "Under 30",
 };
 
 const ELIGIBILITY_BADGE = {
@@ -216,6 +227,7 @@ function DocumentUpload({ teamId, playerId, onUploaded }) {
 // Uploaded here rather than by the federation: 26 barangays, and each one knows
 // its own logo.
 function LogoCard() {
+  const confirm = useConfirm();
   const [barangay, setBarangay] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -255,7 +267,7 @@ function LogoCard() {
   }
 
   async function remove() {
-    if (!window.confirm("Remove your barangay logo? A monogram will show instead.")) return;
+    if (!(await confirm("Remove your barangay logo? A monogram will show instead.", { danger: true, confirmLabel: "Remove" }))) return;
     setBusy(true); setError("");
     try {
       await api(`/api/barangays/${myId}/logo`, { method: "DELETE" });
@@ -369,6 +381,8 @@ function LogoCard() {
 }
 
 function RosterEditor({ team, sports, onClose }) {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -376,11 +390,12 @@ function RosterEditor({ team, sports, onClose }) {
   const [editingId, setEditingId] = useState(null);
   const [notice, setNotice] = useState("");
   const [uploadingId, setUploadingId] = useState(null);
+  const [importing, setImporting] = useState(false);
   const [form, setForm] = useState({ firstName: "", middleName: "", lastName: "", birthdate: "", address: "", jerseyNumber: "" });
 
   const sport = sports.find((s) => s._id === (team.sport?._id || team.sport));
   const entryFormat = sport?.entryFormat || "team";
-  const limits = ROSTER_LIMITS[entryFormat] || ROSTER_LIMITS.team;
+  const limits = rosterLimitsFor(sport);
   const locked = !!team.submittedAt;
 
   async function load() {
@@ -398,7 +413,7 @@ function RosterEditor({ team, sports, onClose }) {
   useEffect(() => { load(); }, [team._id]);
 
   async function addPlayer() {
-    setBusy(true); setError("");
+    setBusy(true);
     try {
       await api(`/api/teams/${team._id}/players`, {
         method: "POST",
@@ -414,39 +429,67 @@ function RosterEditor({ team, sports, onClose }) {
       setForm({ firstName: "", middleName: "", lastName: "", birthdate: "", address: "", jerseyNumber: "" });
       await load();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setBusy(false);
     }
   }
 
   async function removePlayer(playerId) {
-    setError("");
     try {
       await api(`/api/teams/${team._id}/players/${playerId}`, { method: "DELETE" });
       await load();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     }
   }
 
   async function submitRoster() {
-    if (!window.confirm("Submit this roster? It will be locked and screened for residency.")) return;
-    setBusy(true); setError("");
+    if (!(await confirm("Submit this roster? It will be locked and screened for residency.", { confirmLabel: "Submit" }))) return;
+    setBusy(true);
     try {
       await api(`/api/teams/${team._id}/submit`, { method: "POST" });
-      alert("Roster submitted. The residency pre-screen has run — check each player's status.");
+      await confirm("Roster submitted. The residency pre-screen has run — check each player's status.", { alertOnly: true });
       onClose();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setBusy(false);
     }
   }
 
+  async function importCsv(file) {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/teams/${team._id}/players/import`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Import failed.");
+      await load();
+      if (data.skippedRows?.length) {
+        const lines = data.skippedRows.slice(0, 10).map((s) => `Row ${s.row}: ${s.reason}`);
+        if (data.skippedRows.length > 10) lines.push(`…and ${data.skippedRows.length - 10} more.`);
+        await confirm(`${data.message}\n\n${lines.join("\n")}`, { alertOnly: true, title: "Import complete" });
+      } else {
+        await confirm(data.message, { alertOnly: true, title: "Import complete" });
+      }
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function uploadPhoto(playerId, file) {
     if (!file) return;
-    setUploadingId(playerId); setError("");
+    setUploadingId(playerId);
     try {
       const fd = new FormData();
       fd.append("photo", file);
@@ -460,7 +503,7 @@ function RosterEditor({ team, sports, onClose }) {
       if (!res.ok) throw new Error(data.message || "Upload failed.");
       await load();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setUploadingId(null);
     }
@@ -602,7 +645,28 @@ function RosterEditor({ team, sports, onClose }) {
               <>
                 <Separator />
                 <div>
-                  <h3 className="text-sm font-medium mb-2">Add a player</h3>
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                    <h3 className="text-sm font-medium">Add a player</h3>
+                    <label className={cn(
+                      buttonVariants({ variant: "outline", size: "sm" }),
+                      importing ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                    )}>
+                      <Upload /> {importing ? "Importing…" : "Import CSV"}
+                      <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="hidden"
+                        disabled={importing}
+                        onChange={(e) => { importCsv(e.target.files[0]); e.target.value = ""; }}
+                      />
+                    </label>
+                  </div>
+                  <p className="text-muted-foreground text-xs mb-3">
+                    Already have a list? Upload a CSV with columns for first name, last name,
+                    birthdate, and optionally middle name, address, and jersey number — column
+                    names don't have to match exactly. Rows are added up to the roster's limit;
+                    anything invalid or over the limit is skipped and reported.
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                     <Input placeholder="First name" value={form.firstName}
                       onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
@@ -659,6 +723,7 @@ function RosterEditor({ team, sports, onClose }) {
 }
 
 export default function BrgyDashboard() {
+  const showError = useErrorDialog();
   const [sports, setSports] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -688,10 +753,10 @@ export default function BrgyDashboard() {
   const selectedSport = sports.find((s) => s._id === sportId);
   const divisions = selectedSport?.divisions?.length ? selectedSport.divisions : ["open"];
   const entryFormat = selectedSport?.entryFormat || "team";
-  const limits = ROSTER_LIMITS[entryFormat] || ROSTER_LIMITS.team;
+  const limits = rosterLimitsFor(selectedSport);
 
   async function createTeam() {
-    setBusy(true); setError("");
+    setBusy(true);
     try {
       await api("/api/teams", {
         method: "POST",
@@ -704,7 +769,7 @@ export default function BrgyDashboard() {
       setTeamName(""); setSportId(""); setDivision("");
       await load();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setBusy(false);
     }
@@ -798,7 +863,9 @@ export default function BrgyDashboard() {
               {selectedSport && (
                 <p className="text-xs text-muted-foreground">
                   {entryFormat === "team"
-                    ? `Squad entry — ${limits.min}–${limits.max} players.`
+                    ? limits.min === limits.max
+                      ? `Squad entry — exactly ${limits.max} players.`
+                      : `Squad entry — ${limits.min}–${limits.max} players.`
                     : `${entryFormat === "singles" ? "Singles" : "Doubles"} entry — ${limits.max} player${limits.max > 1 ? "s" : ""}.`}
                 </p>
               )}

@@ -12,10 +12,10 @@ const tournamentSchema = new mongoose.Schema(
       required: true,          // which sport this tournament is for
     },
       // Which division of the sport this tournament is for. One tournament per
-    // (sport, season, division) — e.g. Basketball has 'under17' and 'under30'.
+    // (sport, season, division) — e.g. Basketball has 'under15' and 'under30'.
     division: {
       type: String,
-      enum: ['open', 'boys', 'girls', 'under17', 'under30'],
+      enum: ['open', 'boys', 'girls', 'under15', 'under30'],
       default: 'open',
     },
     season: {

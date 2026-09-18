@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { ImageIcon, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -14,6 +16,7 @@ import ImageCropDialog from "../../components/ImageCropDialog";
 const MAX_WIDTH = 1920;
 
 function Slot({ slot, onChanged, onError }) {
+  const confirm = useConfirm();
   const [pending, setPending] = useState(null);   // file awaiting crop
   const [busy, setBusy] = useState(false);
   const [v, setV] = useState(Date.now());         // cache-buster after a change
@@ -42,7 +45,7 @@ function Slot({ slot, onChanged, onError }) {
   }
 
   async function remove() {
-    if (!window.confirm(`Remove the image for "${slot.label}"? The placeholder will show instead.`)) return;
+    if (!(await confirm(`Remove the image for "${slot.label}"? The placeholder will show instead.`, { danger: true, confirmLabel: "Remove" }))) return;
     setBusy(true);
     try {
       await api(`/api/site-images/${slot.key}`, { method: "DELETE" });
@@ -119,6 +122,7 @@ function Slot({ slot, onChanged, onError }) {
 }
 
 export default function SiteImages() {
+  const showError = useErrorDialog();
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -166,7 +170,7 @@ export default function SiteImages() {
         ) : (
           <div className="space-y-4">
             {slots.map((s) => (
-              <Slot key={s.key} slot={s} onChanged={load} onError={setError} />
+              <Slot key={s.key} slot={s} onChanged={load} onError={showError} />
             ))}
           </div>
         )}

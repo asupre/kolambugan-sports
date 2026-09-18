@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Building2, Plus, Trophy } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -23,12 +25,12 @@ const DIVISIONS = [
   { value: "open", label: "Open", hint: "One bracket, everyone together" },
   { value: "boys", label: "Boys" },
   { value: "girls", label: "Girls" },
-  { value: "under17", label: "Under 17" },
+  { value: "under15", label: "Under 15" },
   { value: "under30", label: "Under 30" },
 ];
 
 const FORMATS = [
-  { value: "team", label: "Team", hint: "10–15 players" },
+  { value: "team", label: "Team", hint: "10–15 players", esportsHint: "6 players (5 + 1 sub)" },
   { value: "doubles", label: "Doubles", hint: "2 players" },
   { value: "singles", label: "Singles", hint: "1 player" },
 ];
@@ -51,6 +53,7 @@ const parseNums = (s) =>
   String(s).split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n) && n > 0);
 
 function SportCard({ sport, onSaved, onRemoved, onError }) {
+  const confirm = useConfirm();
   const [divisions, setDivisions] = useState(sport.divisions?.length ? sport.divisions : ["open"]);
   const [format, setFormat] = useState(sport.entryFormat || "team");
   const [advanced, setAdvanced] = useState(false);
@@ -137,7 +140,7 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
   }
 
   async function remove() {
-    if (!window.confirm(`Remove ${sport.name}? This only works if nothing references it.`)) return;
+    if (!(await confirm(`Remove ${sport.name}? This only works if nothing references it.`, { danger: true, confirmLabel: "Remove" }))) return;
     setBusy(true);
     try {
       await api(`/api/sports/${sport._id}`, { method: "DELETE" });
@@ -200,7 +203,9 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
                   <RadioGroupItem value={f.value} className="mt-0.5" />
                   <span className="min-w-0">
                     <span className="text-sm">{f.label}</span>
-                    <span className="block text-muted-foreground text-xs">{f.hint}</span>
+                    <span className="block text-muted-foreground text-xs">
+                      {sport.category === "esports" && f.esportsHint ? f.esportsHint : f.hint}
+                    </span>
                   </span>
                 </label>
               ))}
@@ -419,6 +424,7 @@ function AddSport({ onAdded, onError }) {
 // Barangays and their cross-barangay permission in one place — both are facts
 // about a barangay, and splitting them across two cards made no sense.
 function BarangayCard({ onError }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -464,7 +470,7 @@ function BarangayCard({ onError }) {
   }
 
   async function remove(b) {
-    if (!window.confirm(`Remove ${b.name}? This only works if nothing references it.`)) return;
+    if (!(await confirm(`Remove ${b.name}? This only works if nothing references it.`, { danger: true, confirmLabel: "Remove" }))) return;
     setBusyId(b._id);
     try {
       await api(`/api/barangays/${b._id}`, { method: "DELETE" });
@@ -562,6 +568,7 @@ function BarangayCard({ onError }) {
 }
 
 export default function SportConfig() {
+  const showError = useErrorDialog();
   const [sports, setSports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -604,7 +611,7 @@ export default function SportConfig() {
           </CardHeader>
         </Card>
 
-        <BarangayCard onError={setError} />
+        <BarangayCard onError={showError} />
 
         {loading ? (
           <div className="space-y-3">
@@ -618,23 +625,20 @@ export default function SportConfig() {
                 key={s._id}
                 sport={s}
                 onSaved={(updated) => {
-                  setError("");
                   setSports((prev) => prev.map((x) => (x._id === updated._id ? updated : x)));
                 }}
                 onRemoved={(id) => {
-                  setError("");
                   setSports((prev) => prev.filter((x) => x._id !== id));
                 }}
-                onError={setError}
+                onError={showError}
               />
             ))}
             <AddSport
               onAdded={(sport, message) => {
-                setError("");
                 setNotice(message);
                 setSports((prev) => [...prev, sport].sort((a, b) => a.name.localeCompare(b.name)));
               }}
-              onError={setError}
+              onError={showError}
             />
           </>
         )}

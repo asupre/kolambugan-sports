@@ -6,7 +6,7 @@ const SPORT_ACCENT = {
   Pickleball: "#A78BFA", Billiards: "#F472B6", Chess: "#94A3B8", "Mobile Legends": "#EF4444",
 };
 const DIVISION_LABEL = {
-  open: "Open", boys: "Boys", girls: "Girls", under17: "Under 17", under30: "Under 30",
+  open: "Open", boys: "Boys", girls: "Girls", under15: "Under 15", under30: "Under 30",
 };
 const SPORT_ICON = {
   Basketball: "🏀", Volleyball: "🏐", Badminton: "🏸", Pickleball: "🎾",

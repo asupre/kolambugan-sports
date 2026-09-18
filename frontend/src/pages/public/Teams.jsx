@@ -27,7 +27,7 @@ export default function Teams() {
     return () => { alive = false; };
   }, [sport]);
 
-   // Group by sport, then division — a barangay can field both U17 and U30.
+   // Group by sport, then division — a barangay can field both U15 and U30.
   const needle = q.trim().toLowerCase();
   const visible = needle
     ? teams.filter((t) => `${t.name} ${t.barangay || ""}`.toLowerCase().includes(needle))

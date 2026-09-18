@@ -1,24 +1,40 @@
 const express = require('express');
+const multer = require('multer');
+const { parse } = require('csv-parse/sync');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
 const Sport = require('../models/Sport');
 const Document = require('../models/Document');
+const Match = require('../models/Match');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
 const { prescreenTeam,  prescreenPlayer } = require('../services/prescreen');
 const { uploadPhoto, uploadDoc, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
 const router = express.Router();
+const uploadCsv = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
 const MIN_PLAYERS = 10;
 const MAX_PLAYERS = 15;
 
 const ROSTER_LIMITS = {
-  team:    { min: 10, max: 15 },
-  singles: { min: 1,  max: 1  },
-  doubles: { min: 2,  max: 2  },
+  team:        { min: 10, max: 15 },
+  esportsTeam: { min: 6,  max: 6  },  // Mobile Legends / esports team sports
+  singles:     { min: 1,  max: 1  },
+  doubles:     { min: 2,  max: 2  },
 };
+
+// Esports team sports (Mobile Legends) cap a roster at 6 (5 starters + 1 sub),
+// not the 10–15 physical-sport team range — so a barangay's 2 ML entries
+// (e.g. Mukas 1, Mukas 2) total at most 12 players between them.
+async function getRosterLimits(team) {
+  if (team.format === 'team') {
+    const sport = await Sport.findById(team.sport).select('category');
+    if (sport && sport.category === 'esports') return ROSTER_LIMITS.esportsTeam;
+  }
+  return ROSTER_LIMITS[team.format] || ROSTER_LIMITS.team;
+}
 
 // Age from birthdate.
 function computeAge(birthdate) {
@@ -135,6 +151,75 @@ router.get('/mine', authenticate, authorize('barangay_admin'), async (req, res) 
   }
 });
 
+// GET /api/teams?sportId=X  — SUPER ADMIN. Every team for a sport, from ANY
+// season — including ones left behind by a deleted season. Deliberately not
+// scoped to the current season: that's exactly how a sport ends up stuck
+// (DELETE /api/sports/:id refuses while teams still reference it), so the
+// cleanup view needs to see the orphans, not just this season's teams.
+router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.sportId) filter.sport = req.query.sportId;
+    const teams = await Team.find(filter)
+      .populate('barangay', 'name')
+      .populate('season', 'name')
+      .sort({ createdAt: -1 });
+
+    const withCounts = await Promise.all(teams.map(async (t) => {
+      const playerCount = await TeamPlayer.countDocuments({ team: t._id });
+      return { ...t.toObject(), playerCount };
+    }));
+
+    res.json({ teams: withCounts });
+  } catch (err) {
+    console.error('List all teams error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// DELETE /api/teams/:id — SUPER ADMIN. Permanently removes a team: its players
+// (unless shared with another team via TeamPlayer), those players' documents
+// and photos, and the team itself. Blocked while the team appears in any
+// match — delete the tournament first (which clears its matches), same
+// guard shape as DELETE /api/sports/:id.
+router.delete('/:id', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const team = await Team.findById(req.params.id);
+    if (!team) return res.status(404).json({ message: 'Team not found.' });
+
+    const inMatches = await Match.countDocuments({ $or: [{ teamA: team._id }, { teamB: team._id }] });
+    if (inMatches > 0) {
+      return res.status(409).json({
+        message: `${team.teamName} still appears in ${inMatches} match(es). Delete the tournament first.`,
+      });
+    }
+
+    const links = await TeamPlayer.find({ team: team._id });
+    for (const link of links) {
+      const player = await Player.findById(link.player);
+      if (!player) continue;
+
+      const docs = await Document.find({ player: player._id });
+      for (const doc of docs) {
+        await deleteFile('documents', doc.file);
+        await Document.deleteOne({ _id: doc._id });
+      }
+      if (player.photo) await deleteFile('photos', player.photo);
+
+      const otherLinks = await TeamPlayer.countDocuments({ player: player._id, team: { $ne: team._id } });
+      if (otherLinks === 0) await Player.findByIdAndDelete(player._id);
+    }
+
+    await TeamPlayer.deleteMany({ team: team._id });
+    await Team.deleteOne({ _id: team._id });
+
+    res.json({ message: `${team.teamName} deleted.` });
+  } catch (err) {
+    console.error('Delete team error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
 // POST /api/teams/:id/players  — add one player to a draft roster.
 router.post('/:id/players', authenticate, authorize('barangay_admin'),
   requireSeasonState('registration_open'), async (req, res) => {
@@ -146,7 +231,7 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
       return res.status(409).json({ message: 'This roster is already submitted and can no longer be edited.' });
     }
 
-        const limits = ROSTER_LIMITS[team.format] || ROSTER_LIMITS.team;
+        const limits = await getRosterLimits(team);
     const count = await TeamPlayer.countDocuments({ team: team._id });
     if (count >= limits.max) {
       return res.status(409).json({ message: `A ${team.format} roster can have at most ${limits.max} player(s).` });
@@ -172,6 +257,103 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
     res.status(201).json({ player, playerCount: count + 1 });
   } catch (err) {
     console.error('Add player error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// Tolerant header mapping for a barangay's own player CSV (a coach's
+// spreadsheet, a prior season's export) — matched loosely the same way the
+// SK Federation's reference-list upload matches its columns.
+function canonicalPlayerKey(h) {
+  const k = (h || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (['firstname', 'first', 'givenname', 'fname'].includes(k)) return 'firstName';
+  if (['middlename', 'middle', 'mname', 'mi'].includes(k)) return 'middleName';
+  if (['lastname', 'last', 'surname', 'familyname', 'lname'].includes(k)) return 'lastName';
+  if (['birthdate', 'birthday', 'dob', 'dateofbirth'].includes(k)) return 'birthdate';
+  if (['address', 'addr', 'homeaddress'].includes(k)) return 'address';
+  if (['jerseynumber', 'jersey', 'jerseyno', 'number', 'no', 'jerseynum'].includes(k)) return 'jerseyNumber';
+  return null;
+}
+
+// POST /api/teams/:id/players/import — bulk-add players to a draft roster
+// from a CSV. Same rules as adding one at a time (draft only, capped at the
+// roster's max) — rows beyond the cap or missing required fields are
+// skipped and reported, not silently dropped, mirroring the reference-list
+// upload's skippedRows shape.
+router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
+  requireSeasonState('registration_open'), uploadCsv.single('file'), async (req, res) => {
+  try {
+    const team = await loadOwnedTeam(req, res);
+    if (!team) return;
+
+    if (team.submittedAt) {
+      return res.status(409).json({ message: 'This roster is already submitted and can no longer be edited.' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'Please upload a CSV file (form field name: "file").' });
+    }
+
+    let rows;
+    try {
+      rows = parse(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true, bom: true });
+    } catch {
+      return res.status(400).json({ message: 'Could not parse the CSV. Check the file format.' });
+    }
+    if (!rows.length) return res.status(400).json({ message: 'The CSV has no data rows.' });
+
+    const limits = await getRosterLimits(team);
+    const existingCount = await TeamPlayer.countDocuments({ team: team._id });
+    const remaining = Math.max(0, limits.max - existingCount);
+
+    const skipped = [];
+    const toCreate = [];
+    rows.forEach((row, i) => {
+      const rowNum = i + 2; // +2 = header row + 1-based data row
+      const rec = {};
+      for (const [h, v] of Object.entries(row)) {
+        const key = canonicalPlayerKey(h);
+        if (key) rec[key] = v;
+      }
+      if (!rec.firstName || !rec.lastName || !rec.birthdate) {
+        skipped.push({ row: rowNum, reason: 'Missing first name, last name, or birthdate.' });
+        return;
+      }
+      const d = new Date(rec.birthdate);
+      if (isNaN(d.getTime())) {
+        skipped.push({ row: rowNum, reason: `Unreadable birthdate "${rec.birthdate}".` });
+        return;
+      }
+      if (toCreate.length >= remaining) {
+        skipped.push({ row: rowNum, reason: `Roster is full (max ${limits.max}).` });
+        return;
+      }
+      toCreate.push({
+        firstName: rec.firstName.trim(),
+        middleName: rec.middleName ? rec.middleName.trim() : undefined,
+        lastName: rec.lastName.trim(),
+        birthdate: d,
+        age: computeAge(d),
+        address: rec.address ? rec.address.trim() : undefined,
+        jerseyNumber: rec.jerseyNumber != null && rec.jerseyNumber !== '' ? Number(rec.jerseyNumber) : undefined,
+      });
+    });
+
+    if (!toCreate.length) {
+      return res.status(400).json({ message: 'No valid rows to add.', added: 0, skippedRows: skipped });
+    }
+
+    const created = await Player.insertMany(toCreate);
+    await TeamPlayer.insertMany(created.map((p) => ({ team: team._id, player: p._id })));
+
+    const playerCount = await TeamPlayer.countDocuments({ team: team._id });
+    res.status(201).json({
+      message: `${created.length} player(s) added${skipped.length ? `, ${skipped.length} row(s) skipped` : ''}.`,
+      added: created.length,
+      skippedRows: skipped,
+      playerCount,
+    });
+  } catch (err) {
+    console.error('Import players error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
@@ -321,7 +503,7 @@ router.post('/:id/submit', authenticate, authorize('barangay_admin'),
       return res.status(409).json({ message: 'This roster has already been submitted.' });
     }
 
-        const limits = ROSTER_LIMITS[team.format] || ROSTER_LIMITS.team;
+        const limits = await getRosterLimits(team);
     const count = await TeamPlayer.countDocuments({ team: team._id });
     if (count < limits.min || count > limits.max) {
       return res.status(400).json({

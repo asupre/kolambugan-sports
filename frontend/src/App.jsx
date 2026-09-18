@@ -26,6 +26,8 @@ import SportConfig from "./pages/admin/SportConfig";
 import BrgyMatches from "./pages/brgy/BrgyMatches";
 import Reports from "./pages/admin/Reports";
 import RequireRole from "./components/RequireRole";
+import { ErrorDialogProvider } from "./components/ErrorDialog";
+import { ConfirmDialogProvider } from "./components/ConfirmDialog";
 // Temporary placeholder pages so routes resolve while we build the real ones.
 function Placeholder({ title }) {
   return (
@@ -37,8 +39,10 @@ function Placeholder({ title }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-          <Routes>
+    <ErrorDialogProvider>
+    <ConfirmDialogProvider>
+      <BrowserRouter>
+        <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/change-password" element={<ChangePassword />} />
 
@@ -78,6 +82,8 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </ConfirmDialogProvider>
+    </ErrorDialogProvider>
   );
 }

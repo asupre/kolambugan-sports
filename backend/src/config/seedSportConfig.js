@@ -9,7 +9,7 @@ const Sport = require('../models/Sport');
 const BADMINTON_FORMAT = 'doubles';   // 'singles' or 'doubles'
 
 const CONFIG = {
-  'Basketball':     { divisions: ['under17', 'under30'], entryFormat: 'team' },
+  'Basketball':     { divisions: ['under15', 'under30'], entryFormat: 'team' },
   'Volleyball':     { divisions: ['boys', 'girls'],      entryFormat: 'team' },
   'Badminton':      { divisions: ['boys', 'girls'],      entryFormat: BADMINTON_FORMAT },
   'Pickleball':     { divisions: ['boys', 'girls'],      entryFormat: 'doubles' },

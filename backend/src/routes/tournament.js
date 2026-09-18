@@ -439,6 +439,27 @@ router.get('/', async (req, res) => {
   res.json({ tournaments });
 });
 
+// GET /api/tournaments/by-sport?sportId=X  — SUPER ADMIN. Every tournament for
+// a sport, from ANY season — mirrors GET /api/teams?sportId= for the same
+// reason: the plain GET / above is scoped to the current season only, so a
+// tournament left behind by a deleted season is invisible there, and with it
+// invisible to DELETE /api/tournaments/:id — the very thing standing between
+// its teams and DELETE /api/teams/:id ("still appears in N match(es)").
+router.get('/by-sport', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.sportId) filter.sport = req.query.sportId;
+    const tournaments = await Tournament.find(filter)
+      .populate('sport', 'name')
+      .populate('season', 'name')
+      .sort({ createdAt: -1 });
+    res.json({ tournaments });
+  } catch (err) {
+    console.error('List tournaments by sport error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
 // GET /api/tournaments/:id/matches  — public; fixtures.
 router.get('/:id/matches', async (req, res) => {
   const matches = await Match.find({ tournament: req.params.id })
@@ -504,10 +525,13 @@ router.get('/:id/standings', async (req, res) => {
   }
 });
 
-// DELETE /api/tournaments/:id  — super admin; removes a tournament + its matches (to regenerate).
+// DELETE /api/tournaments/:id  — super admin; removes a tournament + its matches
+// (to regenerate, or to clear the way for deleting its sport/teams).
 router.delete('/:id', authenticate, authorize('super_admin'), async (req, res) => {
   const t = await Tournament.findById(req.params.id);
   if (!t) return res.status(404).json({ message: 'Tournament not found.' });
+  const matches = await Match.find({ tournament: t._id }, '_id');
+  await PlayerMatchStats.deleteMany({ match: { $in: matches.map((m) => m._id) } });
   await Match.deleteMany({ tournament: t._id });
   await Tournament.deleteOne({ _id: t._id });
   res.json({ message: 'Tournament and its matches deleted.' });

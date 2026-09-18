@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Check, Copy, KeyRound, Trash2, TriangleAlert, UserPlus, Wand2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -136,6 +138,8 @@ function CopyButton({ text }) {
 }
 
 export default function Accounts() {
+  const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -166,7 +170,7 @@ export default function Accounts() {
       if (data.created?.length) {
         setReveals(data.created.map((c) => ({ username: c.username, tempPassword: c.tempPassword, label: c.label })));
       }
-      alert(data.message);
+      await confirm(data.message, { alertOnly: true });
       await load();
     } catch (e) {
       setError(e.message);
@@ -176,9 +180,8 @@ export default function Accounts() {
   }
 
   async function resetPassword(acc) {
-    if (!window.confirm(`Reset the password for ${acc.username}? Their current password will stop working.`)) return;
+    if (!(await confirm(`Reset the password for ${acc.username}? Their current password will stop working.`, { confirmLabel: "Reset" }))) return;
     setResettingId(acc._id);
-    setError("");
     try {
       const data = await api(`/api/accounts/${acc._id}/reset-password`, { method: "POST" });
       setReveals((prev) => [
@@ -187,20 +190,19 @@ export default function Accounts() {
       ]);
       await load();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setResettingId(null);
     }
   }
 
   async function deleteAccount(acc) {
-    if (!window.confirm(`Delete ${acc.username}? This can't be undone.`)) return;
-    setError("");
+    if (!(await confirm(`Delete ${acc.username}? This can't be undone.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       await api(`/api/accounts/${acc._id}`, { method: "DELETE" });
       await load();
     } catch (e) {
-      setError(e.message); // e.g. "has scored matches and can't be deleted"
+      showError(e.message); // e.g. "has scored matches and can't be deleted"
     }
   }
 

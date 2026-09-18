@@ -32,7 +32,7 @@ const sportSchema = new mongoose.Schema(
       default: false,
     },
     // Which divisions this sport runs THIS SEASON (set by Super Admin when opening
-    // registration). e.g. Basketball ['under17','under30']; Volleyball ['boys','girls'];
+    // registration). e.g. Basketball ['under15','under30']; Volleyball ['boys','girls'];
     // Billiards/ML ['open']. Drives one bracket per division.
     divisions: {
       type: [String],

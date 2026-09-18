@@ -104,7 +104,7 @@ router.get('/matches', async (req, res) => {
     tournaments.forEach((t) => { divisionByTournament[String(t._id)] = t.division || 'open'; });
 
     // barangay comes along so the courtside screen can show crests rather than
-    // blank tiles; division so a U17 match can't be mistaken for a U30 one.
+    // blank tiles; division so a U15 match can't be mistaken for a U30 one.
     const matches = await Match.find({ tournament: { $in: tIds } })
       .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .sort({ status: 1, round: 1, createdAt: 1 });

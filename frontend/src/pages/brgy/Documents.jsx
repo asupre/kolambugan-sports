@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FileText, FileWarning, Inbox, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { brgyMenu } from "../../components/menus";
+import { useErrorDialog } from "../../components/ErrorDialog";
 import { api } from "../../api";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -41,6 +42,7 @@ const VERIFY_BADGE = {
 };
 
 export default function Documents() {
+  const showError = useErrorDialog();
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -63,9 +65,9 @@ export default function Documents() {
 
   async function upload(p, file) {
     const type = docType[p.playerId];
-    if (!type) { setError("Pick a document type first."); return; }
+    if (!type) { showError("Pick a document type first."); return; }
     if (!file) return;
-    setUploadingId(p.playerId); setError("");
+    setUploadingId(p.playerId);
     try {
       const fd = new FormData();
       fd.append("document", file);
@@ -80,7 +82,7 @@ export default function Documents() {
       if (!res.ok) throw new Error(data.message || "Upload failed.");
       await load();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setUploadingId(null);
     }

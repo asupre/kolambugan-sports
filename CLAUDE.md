@@ -119,7 +119,15 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   Palao, Sto. Niño, Sucodan, Lumbac.
   Players from the larger barangays play for their OWN barangay.
   (`allowsCrossBarangay` boolean on the barangays collection, editable via
-  League Setup at `/admin/config`.)
+  League Setup at `/admin/config`.) **Toggling it re-screens the whole
+  season immediately** (`rescreenSeason()` in `services/prescreen.js`,
+  Sep 2026) — flipping this flag can change a player's eligibility in
+  either direction without that player's own name/birthdate changing at
+  all, so nothing else would ever trigger a re-check for them. Wired into
+  both `PATCH /api/barangays/:id/cross` and the general
+  `PATCH /api/barangays/:id`. Same safeguard as a player correction: if
+  this reopens a non-eligible player on an already-verified team, that
+  team flips back to `pending`.
 - **Verification is DOCUMENT-based** (confirmed): each player proves
   Kolambugan residency with a Valid ID, Voter's Certification, or Birth
   Certificate. New players / those under 15 also need PARENTAL CONSENT

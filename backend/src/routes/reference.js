@@ -9,6 +9,7 @@ const multer = require('multer');
 const { putFile, sendFile, deleteFile } = require('../config/gridfs');
 const Tournament = require('../models/Tournament');
 const User = require('../models/User');
+const { rescreenSeason } = require('../services/prescreen');
 
 router.get('/sports', async (req, res) => {
   const sports = await Sport.find().sort({ name: 1 });
@@ -182,12 +183,33 @@ router.patch('/barangays/:id/cross', authenticate, authorize('super_admin'), asy
     if (typeof allowed !== 'boolean') {
       return res.status(400).json({ message: 'allowsCrossBarangay must be true or false.' });
     }
+    const before = await Barangay.findById(req.params.id);
+    if (!before) return res.status(404).json({ message: 'Barangay not found.' });
+    const changed = before.allowsCrossBarangay !== allowed;
+
     const b = await Barangay.findByIdAndUpdate(
       req.params.id, { allowsCrossBarangay: allowed }, { new: true }
     );
-    if (!b) return res.status(404).json({ message: 'Barangay not found.' });
 
-    res.json({ message: `${b.name} updated.`, barangay: { _id: b._id, name: b.name, allowsCrossBarangay: b.allowsCrossBarangay } });
+    // This flag can flip a player's eligibility in either direction without
+    // touching the player at all, so the Review Queue would otherwise stay
+    // stale until someone happens to re-save that specific player.
+    let note = '';
+    if (changed) {
+      const season = await getCurrentSeason();
+      if (season) {
+        const result = await rescreenSeason(season._id);
+        if (result.changed > 0) {
+          note = ` ${result.changed} player(s) re-screened.` + (result.reopened > 0
+            ? ` ${result.reopened} verified team(s) reopened for review.` : '');
+        }
+      }
+    }
+
+    res.json({
+      message: `${b.name} updated.${note}`,
+      barangay: { _id: b._id, name: b.name, allowsCrossBarangay: b.allowsCrossBarangay },
+    });
   } catch (err) {
     console.error('Cross-barangay error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -319,13 +341,31 @@ router.patch('/barangays/:id', authenticate, authorize('super_admin'), async (re
       if (clash) return res.status(409).json({ message: `"${name}" already exists.` });
       b.name = name;
     }
+    let crossChanged = false;
     if (req.body.allowsCrossBarangay !== undefined) {
-      b.allowsCrossBarangay = !!req.body.allowsCrossBarangay;
+      const next = !!req.body.allowsCrossBarangay;
+      crossChanged = b.allowsCrossBarangay !== next;
+      b.allowsCrossBarangay = next;
     }
 
     await b.save();
+
+    // Same as PATCH /:id/cross — flipping this can change player eligibility
+    // in either direction without touching any player, so re-screen now.
+    let note = '';
+    if (crossChanged) {
+      const season = await getCurrentSeason();
+      if (season) {
+        const result = await rescreenSeason(season._id);
+        if (result.changed > 0) {
+          note = ` ${result.changed} player(s) re-screened.` + (result.reopened > 0
+            ? ` ${result.reopened} verified team(s) reopened for review.` : '');
+        }
+      }
+    }
+
     res.json({
-      message: `${b.name} updated.`,
+      message: `${b.name} updated.${note}`,
       barangay: { _id: b._id, name: b.name, allowsCrossBarangay: b.allowsCrossBarangay, hasLogo: !!b.logo },
     });
   } catch (err) {

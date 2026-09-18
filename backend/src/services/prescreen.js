@@ -2,6 +2,7 @@ const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
 const Barangay = require('../models/Barangay');
 const ReferenceList = require('../models/ReferenceList');
+const Team = require('../models/Team');
 
 const MINOR_AGE = 15;
 
@@ -134,4 +135,59 @@ async function prescreenPlayer(player, team) {
   return { status, reason };
 }
 
-module.exports = { prescreenTeam, prescreenPlayer, MINOR_AGE };
+// Re-screens every player on every team in a season. Needed when a
+// barangay's allowsCrossBarangay flag changes: that can flip a player's
+// status in EITHER direction (flagged -> eligible if now allowed, or
+// eligible -> flagged if a previously-allowed exception is revoked)
+// without that player's own name or birthdate changing at all — nothing
+// else would ever trigger a re-screen for them otherwise. Fetches the
+// season's reference list and the barangay list ONCE and reuses both
+// across every team, same tradeoff as prescreenTeam.
+async function rescreenSeason(seasonId) {
+  const teams = await Team.find({ season: seasonId });
+  if (!teams.length) return { screened: 0, changed: 0, reopened: 0 };
+
+  const refs = await ReferenceList.find({ season: seasonId }).lean();
+  const refIndex = new Map();
+  for (const r of refs) {
+    const key = `${norm(r.lastName)}|${norm(r.firstName)}`;
+    if (!refIndex.has(key)) refIndex.set(key, []);
+    refIndex.get(key).push(r);
+  }
+  const brgyByName = await loadBrgyByName();
+  const barangayCache = new Map();
+
+  let screened = 0, changed = 0, reopened = 0;
+  for (const team of teams) {
+    const bId = String(team.barangay);
+    if (!barangayCache.has(bId)) barangayCache.set(bId, await Barangay.findById(team.barangay));
+    const teamBarangay = barangayCache.get(bId);
+
+    const links = await TeamPlayer.find({ team: team._id }).populate('player');
+    const players = links.map((l) => l.player).filter(Boolean);
+
+    let anyNonEligible = false;
+    for (const p of players) {
+      const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
+      const { status, reason } = decideFromCandidates(p, teamBarangay, candidates, brgyByName);
+      screened++;
+      if (p.eligibilityStatus !== status || p.flagReason !== reason) {
+        await Player.updateOne({ _id: p._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
+        changed++;
+      }
+      if (status !== 'eligible') anyNonEligible = true;
+    }
+
+    // Same safeguard as the "correct this player" route: a verified team
+    // must never silently sit with a non-eligible player on it.
+    if (team.status === 'verified' && anyNonEligible) {
+      team.status = 'pending';
+      await team.save();
+      reopened++;
+    }
+  }
+
+  return { screened, changed, reopened };
+}
+
+module.exports = { prescreenTeam, prescreenPlayer, rescreenSeason, MINOR_AGE };

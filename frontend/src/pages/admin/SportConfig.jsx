@@ -423,7 +423,7 @@ function AddSport({ onAdded, onError }) {
 
 // Barangays and their cross-barangay permission in one place — both are facts
 // about a barangay, and splitting them across two cards made no sense.
-function BarangayCard({ onError }) {
+function BarangayCard({ onError, onNotice }) {
   const confirm = useConfirm();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -451,6 +451,10 @@ function BarangayCard({ onError }) {
         body: JSON.stringify({ allowsCrossBarangay: !b.allowsCrossBarangay }),
       });
       setRows((prev) => prev.map((x) => (x._id === b._id ? { ...x, allowsCrossBarangay: d.barangay.allowsCrossBarangay } : x)));
+      // Changing this can flip player eligibility in either direction without
+      // touching any player — surface it when it actually did something,
+      // so it's not a silent change the Review Queue quietly disagrees with.
+      if (onNotice && /re-screened/.test(d.message || "")) onNotice(d.message);
     } catch (e) { onError(e.message); }
     finally { setBusyId(null); }
   }
@@ -611,7 +615,7 @@ export default function SportConfig() {
           </CardHeader>
         </Card>
 
-        <BarangayCard onError={showError} />
+        <BarangayCard onError={showError} onNotice={setNotice} />
 
         {loading ? (
           <div className="space-y-3">

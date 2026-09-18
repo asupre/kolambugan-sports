@@ -1060,3 +1060,46 @@ says WebSockets and must be corrected.
   `DialogDescription` gained `whitespace-pre-line` + a scrollable max
   height so a multi-line reason list actually renders as line breaks
   instead of running together, and doesn't overflow the dialog.
+
+## 2026-09 — Toggling a barangay's cross-play flag re-screens instantly
+
+- Raised directly: flag one player in the Review Queue, go flip that
+  player's home barangay to `allowsCrossBarangay: true` in League
+  Setup, come back to the Review Queue — it still said flagged. The
+  only way to fix it was to open that exact player and re-save them,
+  which triggers a re-screen as a side effect of the name/birthdate
+  change check. Nothing should require a Barangay Admin to notice and
+  manually touch a player just because a Super Admin changed a
+  barangay-level policy.
+- Root cause: `eligibilityStatus` is a snapshot, only ever recomputed
+  when a PLAYER's own name/birthdate changes (`prescreenPlayer`) or a
+  roster is submitted (`prescreenTeam`). Flipping a barangay's
+  `allowsCrossBarangay` can flip a player's correct status in EITHER
+  direction — flagged to eligible if now allowed, or eligible to
+  flagged if a previously-granted exception is revoked — without that
+  player changing at all, so neither existing trigger ever fires for
+  them.
+- Added `rescreenSeason(seasonId)` to `services/prescreen.js`: fetches
+  the season's reference list and the barangay list ONCE (same
+  fetch-once-reuse tradeoff as `prescreenTeam`) and re-screens every
+  player on every team in that season, only writing the ones whose
+  status/reason actually changed. Same verified-team safeguard as a
+  player correction: if this makes an already-`verified` team hold a
+  non-eligible player, that team flips back to `pending` so it
+  reappears in the Review Queue.
+- Wired into both `PATCH /api/barangays/:id/cross` (League Setup's
+  dedicated toggle) and the general `PATCH /api/barangays/:id`
+  (covers `allowsCrossBarangay` if ever sent through that route too) —
+  only when the flag's value actually changed, not on every save.
+  Response message gains a note like "3 player(s) re-screened. 1
+  verified team(s) reopened for review." when something actually
+  happened; `BarangayCard` in `SportConfig.jsx` now surfaces that
+  through the page's notice banner instead of discarding it silently.
+- Verified against real data rather than trusting the logic blind:
+  found a live flagged player ("Grace T. Dimaporo 8838", home
+  barangay Mukas, registered under Austin Heights — flagged since
+  Mukas isn't whitelisted), flipped Mukas's `allowsCrossBarangay` to
+  `true` directly, ran `rescreenSeason()`, confirmed the player
+  flipped to eligible with no player-side action; reverted the flag,
+  ran it again, confirmed it flipped back to flagged with the same
+  reason as before.

@@ -9,7 +9,7 @@ const Document = require('../models/Document');
 const Match = require('../models/Match');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
-const { prescreenTeam,  prescreenPlayer } = require('../services/prescreen');
+const { prescreenTeam,  prescreenPlayer, norm } = require('../services/prescreen');
 const { uploadPhoto, uploadDoc, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
 const router = express.Router();
@@ -44,6 +44,41 @@ function computeAge(birthdate) {
   const m = now.getMonth() - d.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
   return age;
+}
+
+// Identity key for the same-sport duplicate-roster check below — name
+// (case/whitespace-tolerant, same convention as prescreen.js) + birthdate,
+// so two unrelated people who happen to share a name aren't conflated.
+function playerKey(lastName, firstName, birthdate) {
+  return `${norm(lastName)}|${norm(firstName)}|${birthdate ? new Date(birthdate).toDateString() : ''}`;
+}
+
+// A barangay may field more than one team in the same sport (esports allows
+// 2; teamsPerBarangay can allow more for others), but the SAME athlete can't
+// be on two of them — nothing stopped a Barangay Admin from typing the same
+// player into both team 1 and team 2's roster. Builds a lookup of every
+// player already on one of this barangay's OTHER teams in the same sport
+// this season, keyed by playerKey(), so add-player and CSV import can both
+// check against it before creating a new Player record.
+async function siblingTeamRosterIndex(team) {
+  const siblingTeams = await Team.find({
+    barangay: team.barangay,
+    sport: team.sport,
+    season: team.season,
+    _id: { $ne: team._id },
+  }).select('teamName');
+  if (!siblingTeams.length) return new Map();
+
+  const teamNameById = new Map(siblingTeams.map((t) => [String(t._id), t.teamName]));
+  const links = await TeamPlayer.find({ team: { $in: siblingTeams.map((t) => t._id) } }).populate('player');
+
+  const index = new Map();
+  for (const link of links) {
+    const p = link.player;
+    if (!p) continue;
+    index.set(playerKey(p.lastName, p.firstName, p.birthdate), teamNameById.get(String(link.team)));
+  }
+  return index;
 }
 
 // Load a team and confirm this barangay admin owns it (super_admin may access any).
@@ -261,6 +296,14 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
       return res.status(400).json({ message: 'Jersey number must be a number.' });
     }
 
+    const dupIndex = await siblingTeamRosterIndex(team);
+    const dupTeamName = dupIndex.get(playerKey(lastName, firstName, birthdate));
+    if (dupTeamName) {
+      return res.status(409).json({
+        message: `${firstName.trim()} ${lastName.trim()} is already on ${dupTeamName}'s roster for this sport — the same player can't be on two of your barangay's teams in one sport.`,
+      });
+    }
+
     const player = await Player.create({
       firstName: firstName.trim(),
       middleName: middleName.trim(),
@@ -323,6 +366,10 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
     const limits = await getRosterLimits(team);
     const existingCount = await TeamPlayer.countDocuments({ team: team._id });
     const remaining = Math.max(0, limits.max - existingCount);
+    // Also updated as rows are accepted below, so two rows in the SAME CSV
+    // naming the same player get caught too, not just ones matched against
+    // an already-saved sibling team.
+    const dupIndex = await siblingTeamRosterIndex(team);
 
     const skipped = [];
     const toCreate = [];
@@ -342,6 +389,12 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
         skipped.push({ row: rowNum, reason: `Unreadable birthdate "${rec.birthdate}".` });
         return;
       }
+      const key2 = playerKey(rec.lastName, rec.firstName, d);
+      const dupTeamName = dupIndex.get(key2);
+      if (dupTeamName) {
+        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on ${dupTeamName}'s roster for this sport.` });
+        return;
+      }
       if (toCreate.length >= remaining) {
         skipped.push({ row: rowNum, reason: `Roster is full (max ${limits.max}).` });
         return;
@@ -355,6 +408,7 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
         address: rec.address ? rec.address.trim() : undefined,
         jerseyNumber: rec.jerseyNumber != null && rec.jerseyNumber !== '' ? Number(rec.jerseyNumber) : undefined,
       });
+      dupIndex.set(key2, team.teamName);
     });
 
     if (!toCreate.length) {
@@ -437,6 +491,19 @@ router.patch('/:id/players/:playerId', authenticate,
       if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid birthdate.' });
       player.birthdate = d;
       player.age = computeAge(d);
+    }
+
+    // A correction can rename a player into matching someone already on
+    // one of the barangay's OTHER teams in this same sport just as easily
+    // as adding them fresh would — same guard as POST /:id/players.
+    if (firstName !== undefined || lastName !== undefined || birthdate !== undefined) {
+      const dupIndex = await siblingTeamRosterIndex(team);
+      const dupTeamName = dupIndex.get(playerKey(player.lastName, player.firstName, player.birthdate));
+      if (dupTeamName) {
+        return res.status(409).json({
+          message: `${player.firstName} ${player.lastName} is already on ${dupTeamName}'s roster for this sport — the same player can't be on two of your barangay's teams in one sport.`,
+        });
+      }
     }
 
     await player.save();

@@ -30,6 +30,16 @@ function sameDay(a, b) {
   const x = new Date(a), y = new Date(b);
   return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
 }
+// Compares just the first letter (case-insensitive) — a reference list
+// realistically carries "Dela Cruz, Juan M." while a roster might have the
+// full "Miguel", so requiring the full middle name to match verbatim would
+// reject legitimate matches. Either side missing a middle name entirely
+// returns false — can't confirm what isn't there.
+function sameMiddleInitial(a, b) {
+  const ai = norm(a).charAt(0);
+  const bi = norm(b).charAt(0);
+  return !!ai && !!bi && ai === bi;
+}
 
 // The decision for ONE player, given reference rows already matched by name.
 // `teamBarangay` must be a FULL Barangay doc/object including allowsCrossBarangay.
@@ -49,16 +59,22 @@ function decideFromCandidates(player, teamBarangay, candidates) {
     };
   }
 
-  let cands = candidates;
-  if (cands.length > 1 && player.birthdate) {
-    const exact = cands.filter((r) => r.birthdate && sameDay(r.birthdate, player.birthdate));
-    if (exact.length) cands = exact;
-  }
+  // Middle initial + birthdate are now REQUIRED to agree, not just a
+  // tie-break used when more than one candidate shared the name (Sep
+  // 2026 — a first+last-only match isn't accurate enough for a
+  // municipality this size; common names collide). A candidate row (or
+  // the player) missing either field can't be confirmed either way, so
+  // it's excluded rather than assumed — same "never guess" principle as
+  // the no-fuzzy-matching rule below.
+  const cands = candidates.filter((r) =>
+    r.birthdate && player.birthdate && sameDay(r.birthdate, player.birthdate) &&
+    sameMiddleInitial(r.middleName, player.middleName)
+  );
 
   if (cands.length === 0) {
     return {
       status: 'needs_document',
-      reason: 'Not found on the reference list — check the spelling, or upload a residency document',
+      reason: 'Not found on the reference list (name, middle initial, and birthdate must all match) — check the spelling, or upload a residency document',
       matchedReferenceId: null,
     };
   }

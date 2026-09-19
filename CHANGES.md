@@ -2153,3 +2153,158 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
 - Verified live: typing "muk" filters the Teams list down to Mukas's
   entries with the clear button animating in, confirming the shared
   component still behaves correctly on top of the new animation/width.
+
+## 2026-09 — Bug: the same player could be rostered on two of a barangay's teams
+
+- **Reported**: for esports, a barangay can field 2 teams (Mobile
+  Legends), and nothing stopped the same real player from being typed
+  into BOTH rosters — team 1 already submitted, and its players could
+  still be re-entered on team 2, letting one athlete effectively play for
+  both of a barangay's entries in the same sport.
+- **Root cause**: `POST /api/teams/:id/players` always `Player.create()`s
+  a brand-new record — there was no check at all against players already
+  on the barangay's OTHER teams. Two forms, typed independently, just
+  become two separate `Player` documents with no link between them.
+- **Fix** (`backend/src/routes/team.js`): added `siblingTeamRosterIndex(team)`
+  — for the SAME barangay + sport + season, finds every OTHER team and
+  indexes their players by `playerKey()` (name, case/whitespace-tolerant
+  via `norm()` from `prescreen.js`, + birthdate — same identity-matching
+  convention the residency cross-reference already uses, so two different
+  people who happen to share a name aren't wrongly conflated). Wired into
+  all three player-entry points:
+  - `POST /:id/players` (manual add) — 409s before creating the `Player`.
+  - `POST /:id/players/import` (CSV bulk) — the offending row is skipped
+    and reported (`{row, reason}`), same shape as every other skip
+    reason; the index is also updated as rows are accepted, so two rows
+    in the SAME csv naming the same player are caught too, not just ones
+    that clash with an already-saved sibling team.
+  - `PATCH /:id/players/:playerId` ("Correct this player") — a rename
+    that turns a player into a name+birthdate match for someone on
+    another team is blocked the same way; only runs the check when the
+    identity fields actually changed.
+  - Deliberately NOT applied across different SPORTS or divisions — one
+    athlete legitimately playing multiple sports this season is the
+    confirmed, intentional many-to-many design (`players↔teams`); this
+    only blocks the same barangay + same sport case.
+- No frontend changes needed — both the manual add form and the CSV
+  import already surface backend error/skip messages through the
+  existing `ErrorDialog`/skipped-rows UI.
+- **Verified against live data**: the HTTP route itself needs a real
+  `barangay_admin` login (blocked by the 15-minute login rate limiter
+  after repeated test attempts), so verified the underlying query logic
+  directly against the real dev DB instead (temporary script, run and
+  deleted, not committed) — confirmed a real player already on Matampay 1
+  (Mobile Legends, submitted) is correctly BLOCKED from being re-added to
+  Matampay 2 (draft, same barangay+sport), while a genuinely new name is
+  correctly ALLOWED.
+- Also double-checked the "esports only" report itself directly against
+  the exact same query logic, cross-division (Austin Heights Basketball
+  U15 vs U30, same barangay+sport, different divisions — `siblingTeamRosterIndex`
+  doesn't filter by division at all) — confirmed the sibling-team lookup
+  correctly finds a U30 team as a "sibling" when checking U15's context and
+  vice versa, so the guard was never actually esports-specific. User
+  retested and agreed — no code change was needed for that part.
+
+## 2026-09 — Reference-list matching now REQUIRES middle initial + birthdate
+
+- Requested: name-only matching (with birthdate only ever breaking a tie
+  among same-name candidates) isn't accurate enough for a municipality this
+  size — common surnames collide. Matching should require middle initial
+  AND birthdate to agree, not just help disambiguate.
+- **`ReferenceList` model** (`backend/src/models/ReferenceList.js`) gained
+  a `middleName` field — NOT `required: true` at the schema level (the
+  source list, still the SK Federation's own export today, may not always
+  carry one, and a snapshot-replace upload shouldn't hard-fail over a
+  missing column), but the matching logic below now treats a row missing
+  it the same as a row missing `birthdate` always effectively did: it can
+  never confirm a match on its own.
+- **`decideFromCandidates`** (`backend/src/services/prescreen.js`): the
+  candidate-narrowing step used to only apply a birthdate filter when MORE
+  THAN ONE row shared the exact name (a tie-break), and never looked at
+  middle name at all. Now EVERY candidate must have BOTH birthdate
+  (exact day, `sameDay()`, already existed) AND middle initial
+  (`sameMiddleInitial()`, new — compares just the first letter,
+  case-insensitive, so a reference row's "Miguel" and a roster's "M."
+  still match) agree with the player's own, before it's considered a
+  candidate at all. Either side missing either field is excluded, not
+  assumed — same "never guess, treat as NOT FOUND" principle the existing
+  no-fuzzy-name-matching rule already used.
+- **CSV upload** (`backend/src/routes/referenceList.js`): `canonicalKey()`
+  now recognizes a middle name/initial column (`middle`, `mname`, `mi`,
+  `middleinitial`, …). The upload response gained `hasMiddleNames` and
+  `missingForMatch` (rows missing middle name and/or birthdate) so the
+  Super Admin sees the gap immediately instead of discovering it later as
+  an unexplained wave of `needs_document` results.
+- **Reference List page** (`frontend/src/pages/admin/ReferenceList.jsx`):
+  added a "Middle" column to the residents table; updated the upload result
+  banner to show middle-name coverage and warn on `missingForMatch`; search
+  now also matches against `middleName` (a single-letter token like "M" is
+  no longer dropped as noise — it used to be, back when middle initials
+  never existed anywhere in this data at all); updated the stale "no jersey
+  numbers or middle initials" copy in two places.
+- **⚠️ Real, immediate consequence on the live dev data, worth knowing
+  before this ships anywhere real**: verified directly against the current
+  17,000-row dev reference list — 100% have a birthdate, **0% have a
+  middle name** (uploaded before this feature existed). Re-ran the new
+  logic against 5 currently-`eligible` players: all 5 flipped to
+  `needs_document`, because the reference ROW they'd have matched has no
+  middle name to compare against — never mind that the player's own record
+  does. **This isn't a bug — it's the direct, correct consequence of
+  "require middle initial to be more accurate."** But it means NOTHING
+  currently on the list can confirm a match until the Super Admin
+  re-uploads a CSV that actually includes a middle-name column. Until
+  then, expect a re-screen (editing a barangay's cross-play flag,
+  correcting a player, etc.) to move previously-`eligible` players back to
+  `needs_document` across the board.
+
+## 2026-09 — Reference List: birthdate was never actually shown in the table
+
+- **Asked**: why doesn't the Reference List table show birthdate?
+- **Answer**: it never has — the table has always been Last name / First
+  name / Barangay / Matched player, even though `birthdate` was already a
+  real field on every record (`GET /api/reference-list` was already
+  returning it; nothing was hidden server-side, the column was just never
+  added to the table). Same gap the Middle column filled a moment ago,
+  just not caught in that same pass.
+- Added a **Birthdate** column between Middle and Barangay
+  (`r.birthdate ? new Date(r.birthdate).toLocaleDateString() : "—"`),
+  `colgroup`/`colSpan` updated for the 6th column. Verified live — every
+  row in the current 17,000-row list shows a real date (matches the
+  earlier finding that this list is 100% birthdates / 0% middle names).
+
+## 2026-09 — Bug: uploading a new reference list didn't re-screen anyone
+
+- **Reported**: a Mukas Badminton player still showed a `needs_document`
+  warning on the roster even though the Reference List page showed them
+  as fully matched.
+- **Root cause**: between the last two sessions, the reference list was
+  actually already replaced with a new CSV that includes middle names
+  (checked live: went from 0/17,000 rows with a middle name to
+  17,000/17,000). But `POST /api/reference-list` (the upload route) only
+  ever did `deleteMany` + `insertMany` — it never re-ran anyone's
+  screening. So this player's `Player.eligibilityStatus` was still
+  whatever it was decided to be against the OLD list (when nothing could
+  match, since that list had no middle names at all) — needs_document,
+  and stuck there. The Reference List page itself was never wrong: its
+  "matches" column is computed LIVE on every load (`decideFromCandidates`
+  re-run fresh, not read from a stored field), so it correctly showed
+  "Matched" against the NEW list the moment it was uploaded. The
+  inconsistency was real: one view live, one view stale.
+- **Fix**: `POST /api/reference-list` now calls `rescreenSeason()` right
+  after replacing the list — same helper, same response shape
+  (`{screened, changed, reopened}`), as the existing `allowsCrossBarangay`
+  toggle in `reference.js`, which already re-screens for exactly this
+  reason ("can move a player's eligibility in either direction without
+  the player changing at all"). Replacing the WHOLE reference list is at
+  least as consequential as flipping one barangay's flag — arguably more,
+  since it can move every player in the season, not just one barangay's.
+  The upload result message now reports how many players were
+  re-screened and how many verified teams reopened, same wording the
+  cross-barangay toggle already uses.
+- **Data repair**: ran `rescreenSeason()` once by hand against the
+  current live season (temporary script, run and deleted, not committed)
+  to fix everyone already stuck stale from the list swap that already
+  happened before this fix existed — **22 players changed status, 3
+  verified teams reopened for review**. Confirmed the reported player
+  (Manuel Abdullah, Mukas Badminton) now correctly reads `eligible` with
+  no `flagReason`.

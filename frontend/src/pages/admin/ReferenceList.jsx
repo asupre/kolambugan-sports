@@ -71,21 +71,23 @@ export default function ReferenceList() {
   // filter/render (`deferredSearch`) until the browser has a spare moment.
   const deferredSearch = useDeferredValue(search);
 
-  // The reference list only ever has firstName/lastName/barangay (see
-  // ReferenceList.js) — no jersey number, no middle name. Typing a full
-  // roster-style entry ("Rivera 3101, Antonio S.") used to zero out every
-  // result, because the old search matched the WHOLE typed string as one
-  // substring: the jersey number and middle initial don't exist anywhere
-  // in the reference data, so nothing could ever contain them verbatim —
-  // even for a resident who really is on the list. Tokenize instead, drop
-  // tokens that can never match anything here (pure numbers, bare
-  // initials), and require only the remaining name/barangay words.
+  // The reference list has firstName/middleName/lastName/barangay (see
+  // ReferenceList.js) — no jersey number. Typing a full roster-style entry
+  // ("Rivera 3101, Antonio S.") used to zero out every result, because the
+  // old search matched the WHOLE typed string as one substring: the jersey
+  // number doesn't exist anywhere in the reference data (and middle name
+  // didn't either, before middle initial became required for matching —
+  // Sep 2026), so nothing could ever contain it verbatim. Tokenize
+  // instead, drop tokens that can never match anything here (pure
+  // numbers — a jersey number), and require only the remaining words.
+  // Single-letter tokens are no longer dropped: "Antonio M" now legitimately
+  // matches a stored middle initial.
   const searchTokens = useMemo(
     () => deferredSearch.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
     [deferredSearch]
   );
   const meaningfulTokens = useMemo(
-    () => searchTokens.filter((t) => t.length > 1 && !/^\d+$/.test(t)),
+    () => searchTokens.filter((t) => !/^\d+$/.test(t)),
     [searchTokens]
   );
   const searchIsNoiseOnly = searchTokens.length > 0 && meaningfulTokens.length === 0;
@@ -93,7 +95,7 @@ export default function ReferenceList() {
   const filteredRecords = useMemo(() => {
     if (!meaningfulTokens.length) return searchIsNoiseOnly ? [] : records;
     return records.filter((r) => {
-      const haystack = `${r.lastName} ${r.firstName} ${r.barangay || ""}`.toLowerCase();
+      const haystack = `${r.lastName} ${r.firstName} ${r.middleName || ""} ${r.barangay || ""}`.toLowerCase();
       return meaningfulTokens.every((t) => haystack.includes(t));
     });
   }, [records, meaningfulTokens, searchIsNoiseOnly]);
@@ -171,8 +173,10 @@ export default function ReferenceList() {
             <CardTitle>Upload a new list</CardTitle>
             <CardDescription>
               Upload a CSV of eligible residents. This <span className="font-medium text-foreground">replaces</span> the
-              current list for this season. Columns can be named flexibly (first/last name, birthdate,
-              barangay).
+              current list for this season. Columns can be named flexibly (first/middle/last name, birthdate,
+              barangay). <span className="font-medium text-foreground">Middle name and birthdate are now
+              required for a match</span> — a row missing either can never confirm a player as eligible,
+              so include them if you have them.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -202,9 +206,16 @@ export default function ReferenceList() {
                     </p>
                   )}
                   <p className="text-muted-foreground text-xs mt-1">
-                    Birthdates: {result.hasBirthdates ? "yes" : "no"} · Barangays:{" "}
-                    {result.hasBarangays ? "yes" : "no"}
+                    Middle names: {result.hasMiddleNames ? "yes" : "no"} · Birthdates:{" "}
+                    {result.hasBirthdates ? "yes" : "no"} · Barangays: {result.hasBarangays ? "yes" : "no"}
                   </p>
+                  {result.missingForMatch > 0 && (
+                    <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
+                      {result.missingForMatch} of {result.inserted} row(s) are missing a middle name and/or
+                      birthdate — those residents can never auto-clear a player (name alone isn't enough
+                      anymore), only ever needs_document until a document is reviewed by hand.
+                    </p>
+                  )}
                 </AlertDescription>
               </Alert>
             )}
@@ -221,9 +232,11 @@ export default function ReferenceList() {
             <CardHeader>
               <CardTitle>Loaded residents</CardTitle>
               <CardDescription>
-                Search by name or barangay to look up a specific resident's record. This
-                list only has names and barangays — no jersey numbers or middle initials,
-                those live on the player's roster entry instead. A row highlighted{" "}
+                Search by name or barangay to look up a specific resident's record. Matching a
+                player now requires middle initial AND birthdate to agree, not just the name — a
+                blank middle name or birthdate here means that row can never confirm a match on
+                its own. Jersey numbers still aren't tracked here; those live on the player's
+                roster entry instead. A row highlighted{" "}
                 <span className="text-purple-600 dark:text-purple-400 font-medium">purple</span>{" "}
                 is a same-name hint for a player under 15 — they still need a document
                 regardless (the list starts at 15), but a same-name/same-barangay row is
@@ -242,8 +255,7 @@ export default function ReferenceList() {
               </div>
               {searchIsNoiseOnly ? (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Jersey numbers and middle initials aren't on the reference list — try just
-                  the last name (and first name, if it's a common surname).
+                  Jersey numbers aren't on the reference list — try a name instead.
                 </p>
               ) : search ? (
                 <p className="text-xs text-muted-foreground">
@@ -263,15 +275,19 @@ export default function ReferenceList() {
                     residents, auto layout was the source of the collapse lag. */}
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
-                    <col className="w-[24%]" />
-                    <col className="w-[24%]" />
-                    <col className="w-[18%]" />
-                    <col className="w-[34%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[28%]" />
                   </colgroup>
                   <thead className="bg-muted text-muted-foreground text-left sticky top-0">
                     <tr>
                       <th className="px-3 py-2 font-medium">Last name</th>
                       <th className="px-3 py-2 font-medium">First name</th>
+                      <th className="px-3 py-2 font-medium">Middle</th>
+                      <th className="px-3 py-2 font-medium">Birthdate</th>
                       <th className="px-3 py-2 font-medium">Barangay</th>
                       <th className="px-3 py-2 font-medium">Matched player</th>
                     </tr>
@@ -279,7 +295,7 @@ export default function ReferenceList() {
                   <tbody className="divide-y">
                     {visibleRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                        <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
                           No residents match your search.
                         </td>
                       </tr>
@@ -322,6 +338,10 @@ export default function ReferenceList() {
                           >
                             <td className="px-3 py-2 truncate">{r.lastName}</td>
                             <td className="px-3 py-2 truncate">{r.firstName}</td>
+                            <td className="px-3 py-2 text-muted-foreground truncate">{r.middleName || "—"}</td>
+                            <td className="px-3 py-2 text-muted-foreground truncate">
+                              {r.birthdate ? new Date(r.birthdate).toLocaleDateString() : "—"}
+                            </td>
                             <td className="px-3 py-2 text-muted-foreground truncate">{r.barangay || "—"}</td>
                             <td className="px-3 py-2 space-y-1">
                               {rowTone === "multi" && (

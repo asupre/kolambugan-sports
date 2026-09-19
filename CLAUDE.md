@@ -52,7 +52,14 @@ score tallying, no public visibility, records lost every season.
   - `team`, esports (`category: 'esports'`) → **exactly 6** (Mobile Legends: 5
     starters + 1 substitute). A barangay's two ML entries (e.g. Mukas 1, Mukas
     2) therefore cap at 12 players combined — enforced per-team, not as a
-    separate barangay-total check.
+    separate barangay-total headcount check. **The same athlete can't be
+    rostered on BOTH teams, though** (fixed Sep 2026 — was a real bug, nothing
+    stopped it before): `siblingTeamRosterIndex()` in `routes/team.js` blocks
+    add/import/correct whenever the name (case/whitespace-tolerant) +
+    birthdate matches a player already on another of the barangay's teams in
+    the SAME sport this season. Scoped to same-barangay-same-sport only —
+    one athlete playing multiple DIFFERENT sports is the confirmed,
+    intentional many-to-many design below and is untouched.
   - `doubles` → **exactly 2** (pickleball always; badminton when the season runs doubles)
   - `singles` → **exactly 1** (billiards, chess; badminton when the season runs singles)
   Enforced on add-player and on submit (`ROSTER_LIMITS` / `getRosterLimits()` in
@@ -141,6 +148,16 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   Kolambugan residency with a Valid ID, Voter's Certification, or Birth
   Certificate. New players / those under 15 also need PARENTAL CONSENT
   plus supporting documents.
+- **Uploading a NEW reference list also re-screens the whole season
+  immediately** (fixed Sep 2026 — was a real bug: `POST
+  /api/reference-list` used to just `deleteMany`+`insertMany` and stop,
+  leaving every already-screened `Player` stale against the OLD list
+  until something else happened to touch them). Replacing the list is at
+  least as consequential as the `allowsCrossBarangay` toggle above — it
+  can move any player's eligibility either direction without the player
+  changing at all — so it calls the same `rescreenSeason()`. The upload
+  response reports how many players changed and how many verified teams
+  reopened, same shape as the cross-barangay toggle.
 - The **SK voters' list** (ages 15–30 — confirmed by the SK Chairperson; NOT
   the COMELEC general register) can power an automatic pre-check, but it can
   only be obtained through the **LYDO**. **Still EXPECTED, not in hand**
@@ -190,13 +207,28 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
      NEVER write approvals into the reference list itself.
 - **Matching mechanics** (`services/prescreen.js`): a player matches a
   reference row on exact `lastName`+`firstName` (case/whitespace-tolerant —
-  "Dela  Cruz" and "dela cruz" are the same), tie-broken by birthdate only
-  when more than one row shares that name. A spelling difference is treated
-  as NOT FOUND (→ `needs_document`), never fuzzy-matched — deliberate, so
-  two different people with similar names can't cross-match. Multiple
+  "Dela  Cruz" and "dela cruz" are the same), **AND, since Sep 2026, middle
+  initial + birthdate must ALSO both agree** — no longer just a tie-break
+  used when more than one row shared the name. `sameMiddleInitial()`
+  compares only the first letter (case-insensitive), so a reference row's
+  full "Miguel" still matches a roster's abbreviated "M." A row (on either
+  side) missing its middle name or birthdate can never confirm a match —
+  excluded, not assumed, same as a spelling difference is treated as NOT
+  FOUND (→ `needs_document`), never fuzzy-matched — deliberate, so two
+  different people with similar names can't cross-match. Multiple
   candidates sharing a name but disagreeing on barangay is possible; only
   `candidates[0]`'s barangay is used for the eligible/flagged decision once
-  narrowed.
+  narrowed. **`ReferenceList` now has a `middleName` field** (not
+  `required: true` — the source list may not always carry one), and the
+  CSV upload's `canonicalKey()` recognizes a middle name/initial column.
+  **Consequence hit immediately on the real dev data**: the existing
+  17k-row reference list has birthdates on every row but a middle name on
+  NONE of them (uploaded before this existed) — until the Super Admin
+  re-uploads a CSV that actually includes middle names, literally nothing
+  on the list can confirm a match, and any re-screen flips previously
+  `eligible` players back to `needs_document` across the board. This is
+  the intended, correct effect of the stricter rule, not a bug — but it
+  means the feature isn't USEFUL yet without a re-upload.
 - **Reference List page — informational highlight for under-15 same-name
   rows** (Sep 2026): `decideFromCandidates` deliberately never matches a
   player under 15 to a reference row (the list starts at 15), so a minor's

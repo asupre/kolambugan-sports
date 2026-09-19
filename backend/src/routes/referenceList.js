@@ -6,7 +6,7 @@ const Team = require('../models/Team');
 const TeamPlayer = require('../models/TeamPlayer');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
-const { decideFromCandidates, norm, ageFrom, MINOR_AGE } = require('../services/prescreen');
+const { decideFromCandidates, norm, ageFrom, MINOR_AGE, rescreenSeason } = require('../services/prescreen');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -15,6 +15,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 function canonicalKey(h) {
   const k = (h || '').toLowerCase().replace(/[^a-z]/g, '');
   if (['firstname', 'first', 'givenname', 'fname'].includes(k)) return 'firstName';
+  if (['middlename', 'middle', 'mname', 'mi', 'middleinitial'].includes(k)) return 'middleName';
   if (['lastname', 'last', 'surname', 'familyname', 'lname'].includes(k)) return 'lastName';
   if (['birthdate', 'birthday', 'dob', 'dateofbirth'].includes(k)) return 'birthdate';
   if (['barangay', 'brgy', 'barangayname'].includes(k)) return 'barangay';
@@ -64,12 +65,39 @@ router.post('/', authenticate, authorize('super_admin'), upload.single('file'), 
     await ReferenceList.deleteMany({ season: season._id });
     await ReferenceList.insertMany(docs);
 
+    // Matching now REQUIRES middle name + birthdate to agree (Sep 2026 —
+    // name alone was no longer accurate enough, see prescreen.js) — a row
+    // missing either can never confirm a match, so surface how many are
+    // short of that rather than let it look like a silent, unexplained
+    // wave of needs_document results later.
+    const missingForMatch = docs.filter((d) => !d.middleName || !d.birthdate).length;
+
+    // Replacing the list is exactly as consequential as flipping a
+    // barangay's allowsCrossBarangay flag — it can move ANY player's
+    // eligibility in either direction without the player themselves
+    // changing at all, so re-screen the whole season now instead of
+    // leaving every already-screened Player stale until something else
+    // happens to touch them (a correction, a cross-barangay toggle...).
+    // Reported directly: a Mukas Badminton player still showed
+    // needs_document on the roster even though the just-replaced list
+    // now matched them — because nothing had re-run their decision since
+    // the old (no-middle-name) list was still in effect when they were
+    // last screened. Same helper, same shape, as reference.js's toggle.
+    const rescreen = await rescreenSeason(season._id);
+
     res.status(201).json({
-      message: 'Reference list uploaded.',
+      message: 'Reference list uploaded.'
+        + (rescreen.changed > 0
+          ? ` ${rescreen.changed} player(s) re-screened against the new list.`
+            + (rescreen.reopened > 0 ? ` ${rescreen.reopened} verified team(s) reopened for review.` : '')
+          : ''),
       inserted: docs.length,
       skippedRows: skipped,
       hasBirthdates: docs.some((d) => d.birthdate),
+      hasMiddleNames: docs.some((d) => d.middleName),
       hasBarangays: docs.some((d) => d.barangay),
+      missingForMatch,
+      rescreen,
     });
   } catch (err) {
     console.error('Reference list upload error:', err);

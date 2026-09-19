@@ -79,9 +79,9 @@ score tallying, no public visibility, records lost every season.
   this rule existed.
 - **Player addresses are free text — NOT required to mention the team's own
   barangay** (tried and reverted, Sep 2026 — see CHANGES.md). A whitelisted
-  small/remote barangay's residents (Small Banisilon, Matampay, Bubong,
+  small/remote barangay's TEAM (Small Banisilon, Matampay, Bubong,
   Pantaon, Inudaran, San Roque, Palao, Sto. Niño, Sucodan, Lumbac) legitimately
-  play for a DIFFERENT barangay's team while their real address is their own
+  fields players from OTHER barangays, whose real address is their own
   home barangay — enforcing "address must contain the registering team's
   barangay" would have made that address wrong by definition for exactly the
   players the cross-barangay exception exists for. **Address plays NO part in
@@ -110,25 +110,34 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
 
 - A **"Dayo"** is a player from **outside the Municipality of Kolambugan**.
   Municipal residents are eligible.
-- **Cross-barangay play is allowed ONLY for players from designated
+- **Cross-barangay recruiting is allowed ONLY for TEAMS of designated
   small/remote barangays** (a whitelist, because those barangays are too
-  small to field their own teams). Confirmed list (as validated by the
-  stakeholder — `allowsCrossBarangay` is now editable per barangay from
-  League Setup, so the live database may have since diverged from this list):
+  small to field their own teams). **Direction matters — corrected Sep
+  2026:** the `allowsCrossBarangay` checkbox is read from the TEAM's
+  barangay, NOT the player's home barangay (the code used to check the
+  player's home barangay — exactly backwards). A CHECKED barangay's team may
+  field a resident of ANY barangay, checked or unchecked; an UNCHECKED
+  barangay's team may field ONLY its own residents (anything else is
+  `flagged`: "Listed under X, not Y — Y doesn't allow cross-barangay
+  players"). Confirmed list (as validated by the stakeholder —
+  `allowsCrossBarangay` is now editable per barangay from League Setup, so
+  the live database may have since diverged from this list):
   Small Banisilon, Matampay, Bubong, Pantaon, Inudaran, San Roque,
   Palao, Sto. Niño, Sucodan, Lumbac.
-  Players from the larger barangays play for their OWN barangay.
+  Teams from the larger barangays field their OWN barangay's residents.
   (`allowsCrossBarangay` boolean on the barangays collection, editable via
   League Setup at `/admin/config`.) **Toggling it re-screens the whole
   season immediately** (`rescreenSeason()` in `services/prescreen.js`,
-  Sep 2026) — flipping this flag can change a player's eligibility in
-  either direction without that player's own name/birthdate changing at
-  all, so nothing else would ever trigger a re-check for them. Wired into
+  Sep 2026) — flipping this flag can change the eligibility of every
+  non-native player on that barangay's teams, in either direction, without
+  any player's own name/birthdate changing, so nothing else would ever
+  trigger a re-check for them. Wired into
   both `PATCH /api/barangays/:id/cross` and the general
   `PATCH /api/barangays/:id`. Same safeguard as a player correction: if
   this reopens a non-eligible player on an already-verified team, that
-  team flips back to `pending`.
-- **Verification is DOCUMENT-based** (confirmed): each player proves
+  team flips back to `pending`. **After deploying the Sep 2026 direction
+  fix, statuses saved under the old logic are stale until a re-screen runs**
+  (toggle any barangay's checkbox off/on, or call `rescreenSeason`).
   Kolambugan residency with a Valid ID, Voter's Certification, or Birth
   Certificate. New players / those under 15 also need PARENTAL CONSENT
   plus supporting documents.
@@ -455,14 +464,13 @@ so a bug in one route cannot expose the other.
   borders use `slate-500/15` while panel borders use `#1C2430`; accent gold
   `#F5A524`. (Supersedes the earlier "R7 navy" note — the real R7 site
   turned out to be a full-bleed image + translucent cards, which we did NOT
-  adopt.) **Header is `#0A1220/90` with a blur, no border** (changed Sep
-  2026, see the Home hero entry below) — it used to match the footer's
-  `#060C16` with a `border-b`, but that color step plus the border was
-  making the logo/nav read as a strip stacked ABOVE the Home hero instead of
-  part of the same panel. Matching the header to the PAGE background instead
-  of the footer's shade means it blends into whatever sits directly below it
-  (the hero on Home, plain content elsewhere) rather than announcing itself
-  as a separate bar.
+  adopt.) **Header is `#0A1220/90` with a blur, no border**, sticky at the top
+  (Sep 2026). It used to be tuned to blend into a same-coloured Home hero;
+  the hero is now a solid `#0C3550` panel, so on Home the header reads as its
+  own dark strip above it — that is intentional. **The sticky behaviour was
+  actually broken until Sep 2026** (the layout root's `overflow-x-hidden`
+  turned it into a scroll container) — now `overflow-x-clip`; don't put
+  `overflow-hidden`/`-x-hidden` on any ancestor of a sticky element.
 - `PublicLayout`'s content container is `max-w-[1400px]` (Sep 2026 — was
   `max-w-6xl`/1152px, which on any desktop screen wider than that left large
   dead gutters either side of every public page, not just Home).
@@ -480,6 +488,67 @@ so a bug in one route cannot expose the other.
 - Sport tabs are underlined text, not chips.
 - Minimal animation. Live pages poll every 10s so scores tick over on their own —
   that is the one "live" effect.
+- **Scroll-reveal (Sep 2026, Motion — `npm i motion`, import from
+  `"motion/react"`, NOT framer-motion):** `components/Reveal.jsx` exports
+  `Reveal` (fade in + up 24px once, `viewport {once:true, margin:"-80px"}`,
+  0.5s ease `[0.22,1,0.36,1]`, `delay` in SECONDS, `y` prop), plus
+  `RevealGroup`/`RevealItem` (parent `staggerChildren: 0.08`, child variants)
+  for card grids. **Always plays — it deliberately IGNORES prefers-reduced-motion** (Super Admin decision, Sep 2026: a Windows PC with "Show animations" off saw a static site and assumed it was broken; to restore, wrap the app in `<MotionConfig reducedMotion="user">`). It
+  REPLACED the older CSS `Reveal` in `PublicUI.jsx` (and `hooks/useInView.js`,
+  deleted). **Rules because the public pages poll for live data:** `once`
+  everywhere; key list items by stable id (`t.id`/`p.id`; the API's field is
+  `id`, not `_id`), never index; NEVER wrap live score strips, the LIVE NOW
+  tile, or in-progress match cards. Wrapped: Home (two static stat tiles,
+  Today, About-league, Kolambugan, Recent results), Standings (each group
+  table), Brackets (each PANEL — Knockout + groups — not the round columns:
+  the SVG wires are measured from box positions, so the boxes must move
+  together with the stage), Teams + Players (card grids, staggered), About
+  (every section). NOT wrapped: the hero, Home's LIVE NOW tile + "Live now"
+  panel, Matches, Champions, TeamDetail, Players' "Top scorers" list.
+  Card grids use per-card borders (`border-r border-b` inside an
+  `overflow-hidden` wrapper with `-mr-px -mb-px`), not the old
+  `gap-px bg-[#1C2430]` trick — with that, unrevealed cards showed as grey
+  blocks. No hover animations, no page transitions, no springs.
+- **Sports marquee (Sep 2026, `components/SportsMarquee.jsx`, Home, between
+  the Live panel and Today):** one continuous right-to-left strip of sport
+  NAMES (Anton, 28px, uppercase, white/70, gold diamond separators, 10%-white
+  top/bottom rules, edge fades). Data = `GET /api/sports` (public) —
+  never hardcoded; one entry per sport NAME (deduped, so never split by
+  division); a failed request or empty list renders nothing. Pure CSS loop
+  (`.marquee-track` / `@keyframes marquee-scroll` in `index.css`), NOT Motion:
+  the track holds two identical copies (2nd is `aria-hidden`) and slides
+  -50%, so the loop point is invisible. If one copy is narrower than the
+  screen, each copy repeats the list until it isn't. Speed is constant
+  (80px/s), measured from the real rendered width (re-measured when Anton
+  loads / on resize), so the loop time scales with the number of sports
+  (~34s at 7 sports on a wide screen). Pauses on hover. **Honours
+  `prefers-reduced-motion: reduce`** (spec): static centred row, duplicate
+  copy + fades hidden — unlike the scroll-reveals, which deliberately ignore
+  it. Edge-to-edge via `w-screen ml-[calc(50%-50vw)]` — the technique banned
+  for the hero (it clipped TEXT on mobile) is acceptable here because this
+  only carries a decorative loop and the layout root clips horizontal overflow (`overflow-x-clip`).
+- **Smooth scrolling — Lenis (Sep 2026), PUBLIC layout only.** Initialised in
+  `PublicLayout.jsx` (`useLenis`) and nowhere else, so admin/organizer keep
+  native scrolling (verified: `/login` and the admin guard redirect have no
+  `html.lenis`). `duration: 1.1`, expo ease-out, `smoothWheel: true`,
+  `syncTouch: false` (Lenis v1's name for the old `smoothTouch: false` —
+  touch keeps NATIVE momentum), `autoRaf: true`. **Not initialised at all under
+  `prefers-reduced-motion: reduce`** (spec) — so a PC with Windows "Show
+  animations" OFF gets plain native scrolling, exactly like the marquee. Destroyed on unmount
+  (removes the `html.lenis` classes; verified it comes back on return).
+  It drives the real window scroll (no transforms), so the sticky header,
+  IntersectionObserver-based Motion reveals and hash links are untouched —
+  no Lenis↔Motion rAF sync was needed (verified: reveals fire after a glide).
+  `ScrollToTop` jumps through `lenis.scrollTo(0, {immediate, force})` when
+  Lenis is running. Browser back restores the previous scroll position, same as
+  without Lenis. No scroll-jacking/snapping/horizontal sections. `lenis.css`
+  is imported in the layout (its rules only apply under `html.lenis`).
+- **Sticky public header FIXED (Sep 2026, was broken before Lenis):** the
+  layout root had `overflow-x-hidden`, which silently makes that div a scroll
+  container (`overflow-y` becomes `auto`), so `position: sticky` stuck to the
+  div instead of the page and the header scrolled away. Now `overflow-x-clip`
+  (clips, creates no scroll container). Don't put `overflow-hidden`/`-x-hidden`
+  on any ancestor of a sticky element.
 - NEVER use Mobile Legends / Moonton art or any copyrighted game assets.
 - Public lineups show **surname, first name, jersey, age, stats, and photo**.
   NO birthdate, NO address, NO documents.
@@ -491,20 +560,11 @@ so a bug in one route cannot expose the other.
   tables/brackets/rosters across 7 sports and 26 barangays; borrowed just the
   bold typography and individually-bordered tile style onto the Home hero
   instead of restructuring anything else. `Home.jsx`:
-  - Oversized two-line uppercase headline ("INTER-BARANGAY" / "SPORTS
-    LEAGUE" in gold), pill-shaped CTA buttons. The `hero` SiteImage renders
-    as a full absolute background layer with a `bg-gradient-to-r` overlay
-    (dark on the left where the text sits, lighter on the right so the
-    photo shows) instead of the old fixed-height strip — restore the same
-    treatment if this section is touched again, don't revert to a plain
-    `<img>` strip.
-  - The hero's own background is pulled up ~56px underneath the sticky
-    header via a conservative negative margin (`-mt-20` on the section,
-    compensating extra top padding so the headline text doesn't shift) so
-    the panel/photo reaches the actual top of the page instead of stopping
-    short below the nav — the header's ~90% opacity + blur lets it show
-    through. Sized to stay well under the header's shortest real height so
-    it can never overshoot and peek out above it.
+  - (Superseded — see the hero bullet below.) The first bolder version put
+    an oversized two-line headline over the `hero` SiteImage with a
+    `bg-gradient-to-r` overlay and pulled the hero up under the header with
+    `-mt-20`. Both are gone: the hero now sits flush BELOW the nav (`-mt-6`)
+    and uses a top-to-bottom scrim.
   - **A true viewport-edge "full-bleed" (`w-screen` + `-50vw` margins) was
     tried and reverted** — on a page this tall, Chromium's `100vw` includes
     the vertical scrollbar's width, so it overshot the real viewport and
@@ -513,6 +573,34 @@ so a bug in one route cannot expose the other.
     for a full-bleed section anywhere on this site; use a fixed-width
     ancestor-relative margin trick instead (see `-mx-4 lg:-mx-8` on the same
     section, which cancels exactly `<main>`'s own padding).
+  - **Hero (Super Admin's spec, Sep 2026 — third revision; supersedes the
+    photo-background/`HeroMatchCard` version, the absolutely-positioned
+    three-layer version, and the faint `opacity-25 mix-blend-luminosity`
+    photo, which was too faint to see).** Layers: (1) the **Site Images
+    `hero` slot** at FULL opacity and full colour, `object-cover`,
+    full-bleed — rendered with `SiteImage`'s `hideOnFail` prop so an empty
+    slot draws nothing and the section's own solid `#0C3550` shows instead;
+    upload/crop/focal code is untouched; (2) ONE scrim,
+    `linear-gradient(180deg, rgba(8,35,52,.55) 0%, rgba(8,35,52,.30) 45%,
+    rgba(8,35,52,.88) 100%)` — nothing else tints the photo, and it is drawn
+    even with no photo so the fallback looks the same; (3) content in normal
+    flow, bottom-anchored (the scrim is darkest at the bottom): a
+    LEFT-aligned two-line Anton headline (line 1 white, line 2 `#D9A441`,
+    `leading-[0.82] tracking-tight`, sized `clamp(2.5rem, min(15vw, 28svh),
+    14rem)` — "INTER-BARANGAY" is ~5.8em wide in Anton, so 15vw fills ~87% of
+    the container at any width), then the copy block `mt-7` (28px) below:
+    28px subhead, one line of 15px body at `white/70`, gold `#D9A441` "View
+    matches" pill + outlined "Standings". Nothing overlaps the headline —
+    the optional `/hero-player.png` cut-out layer was REMOVED (re-add it
+    deliberately if a subject PNG is ever supplied). Section is
+    `min-h-[calc(100svh - nav)]`, flush under the nav (`-mt-6` cancels
+    `<main>`'s py-6), so the stat tiles start below the fold; no fade-ins.
+    Anton is loaded via the Google Fonts link in `index.html`. **Upload a
+    large hero photo (>= ~1920px wide):** it now renders full-bleed at full
+    colour, so a tiny/low-res file (the dev DB's is ~7 KB) looks blurry.
+    Header: logo, nav centred at `lg+`, season-name pill at the right.
+    Verified with Edge screenshots (1440x800, 1440x600, 600x1000; with and
+    without a hero image).
   - The 3-stat row became `StatTile`: individually-bordered cards with an
     inline SVG icon each (no lucide-react on Public — matched the existing
     inline-SVG convention from `SearchInput`), instead of one shared strip
@@ -589,8 +677,10 @@ so a bug in one route cannot expose the other.
   `Dialog`/`Select` portal to `document.body`, outside any local wrapper, so
   a div-scoped approach would leave modals/dropdowns stuck in light mode),
   added on mount and always removed on unmount. Preference persists in
-  `localStorage` under `brgy-theme` (name predates the Super Admin rollout;
-  shared across all three roles now). Defaults to light everywhere.
+  `localStorage` under `brgy-theme:<userId>` — PER ACCOUNT (Sep 2026), not
+  shared: it used to be one `brgy-theme` key for the whole browser, so a
+  Super Admin choosing dark made the next Barangay Admin to log in on that
+  browser get dark too. The old shared key is ignored. Defaults to light.
 - This REQUIRED upgrading the whole project from Tailwind v3 to v4 (shadcn's
   current CLI only targets v4) — `tailwind.config.js` is gone; theme tokens
   now live in `src/index.css` as CSS variables. This is global, so it also
@@ -835,7 +925,7 @@ respondents); deployment Sep–Oct; FINAL DEFENSE OCTOBER 2026.)
   Key answers:
   - Verification is DOCUMENT-based (Valid ID / Voter's Certification /
     Birth Cert per player); under-15/new also need parental consent.
-  - Cross-barangay play allowed ONLY for a whitelist of small/remote
+  - Cross-barangay recruiting allowed ONLY for TEAMS of a whitelist of small/remote
     barangays. Dayo = outside Kolambugan.
   - Voters' list only via **LYDO**. Need to present the system to LYDO.
   - Physical sports = DOUBLE ELIMINATION (win 3 → Big 8; lose 2 → out),
@@ -1078,18 +1168,18 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   per account, so this needed no new backend field to key off. Also
   reopenable any time from a "?" button in `AdminLayout`'s header, shared by
   all three roles, for existing accounts and for evaluators wanting a
-  refresher. **Text + icon only, not screenshots (Sep 2026)** — each step
-  used to carry a `screenshot` path under `public/instructions/` (real
-  screenshots were captured for every step, once). Dropped the screenshots
-  and the whole folder entirely: every UI pass this project goes through
-  makes them stale again (several admin pages changed again in the very
-  same session the screenshots were captured), and a stale screenshot of an
-  old layout misleads a first-time user worse than no screenshot would.
-  Each step now carries an `icon` (a lucide-react component reference)
-  instead, shown large in a soft-tinted box (`StepIcon` in
-  `InstructionModal.jsx`) — an icon can't go stale the way a screenshot of a
-  page that keeps changing does. If this modal is ever revisited, keep it
-  icon+text; don't reintroduce screenshots.
+  refresher. **Wide two-pane layout with screenshots again (Sep 2026)** —
+  the earlier "text + icon only, no screenshots" decision (dropped because
+  every UI pass makes them stale) was reversed at the Super Admin's request:
+  the modal is now `sm:max-w-5xl`, explanation on the LEFT (title,
+  description, shadcn `Separator`s, and a clickable numbered step list) and
+  the step's screenshot on the RIGHT, click to enlarge (nested `Dialog`
+  lightbox in `StepShot`). Images live in `frontend/public/instructions/`
+  named `<role>-<step>.png` (`super-admin-1.png`, `barangay-admin-3.png`,
+  `organizer-5.png`… — see that folder's README.md); `instructionContent.js`
+  derives each step's `image` path from its position. A missing/failed image
+  falls back to the step's icon, so nothing breaks before the files exist.
+  Re-capture the affected screenshots after any UI pass on those pages.
 
 ## IN PROGRESS / NEXT (priority order)
 

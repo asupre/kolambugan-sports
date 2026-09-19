@@ -210,3 +210,40 @@
     transform: translateX(300%);
   }
 }
+
+/* Home page sports marquee (components/SportsMarquee.jsx). The track holds two
+   identical copies of the list side by side and slides left by exactly one
+   copy (-50% of the track), so the loop point is invisible. Duration is set
+   inline (--marquee-duration) from the measured width, so speed stays constant
+   whatever the number of sports. */
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee-scroll var(--marquee-duration, 30s) linear infinite;
+  will-change: transform;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+/* prefers-reduced-motion: no animation — one static, centred row (the
+   duplicate copy, the fades and the trailing separator are dropped). */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .marquee-track ul {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 0.5rem;
+  }
+  .marquee-track > div { flex-wrap: wrap; justify-content: center; flex-shrink: 1; max-width: 100%; }
+  .marquee-track ul { flex-shrink: 1; }
+  .marquee-dup,
+  .marquee-fade { display: none; }
+  .marquee-track li:last-child > span:last-child { display: none; }
+}

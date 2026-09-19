@@ -1562,3 +1562,154 @@ says WebSockets and must be corrected.
     stuck invisible) — a static screenshot can't demonstrate the scroll-
     triggered transition itself, only that the pattern doesn't break
     anything at rest.
+## Sep 2026 — Cross-barangay flag direction fixed (bug)
+
+- **Bug:** `allowsCrossBarangay` (League Setup checkbox) was being read off
+  the PLAYER's home barangay in `decideFromCandidates()`
+  (`services/prescreen.js`) — so a checked barangay's *residents* could play
+  for other barangays, while a checked barangay's *own team* got no extra
+  freedom. That is the opposite of the intended rule.
+- **Correct rule (Super Admin):** the flag is read from the TEAM's barangay. A
+  checked barangay's team may field players from ANY barangay (checked or
+  unchecked); an unchecked barangay's team may field only its own
+  residents. Anything else is `flagged` with the reason "Listed under X, not
+  Y — Y doesn't allow cross-barangay players".
+- **Changed:** `services/prescreen.js` (decision + removed the now-unused
+  `loadBrgyByName` plumbing), `routes/referenceList.js` (the team's barangay
+  is now populated with `allowsCrossBarangay` — it previously selected only
+  `name`, which would have made the Reference List page's live cross-check
+  see the flag as undefined), League Setup's description text, and the
+  comments on the Barangay model / cross route.
+- **Verified:** 6 unit cases on `decideFromCandidates` (own barangay, outsider
+  on an unchecked team, checked team taking players from unchecked AND
+  checked barangays, checked team's own resident, and an unchecked team +
+  player from a checked home barangay — which used to pass and now flags).
+- **Follow-up needed:** players screened BEFORE this fix carry stale
+  statuses until a re-screen runs (toggle any barangay's checkbox off/on, or
+  run `rescreenSeason`). Not run automatically — it can reopen verified teams.
+
+## 2026-09 — Instruction modal: wide two-pane layout, screenshots back (reverses the entry above)
+
+- Super Admin asked for the modal to be wider: explanation on the LEFT (with
+  shadcn `Separator`s), the step's screenshot on the RIGHT, click to enlarge.
+  This reverses "screenshots out, icon + text in" — the stale-screenshot risk
+  is still real, so the icon stays as the fallback and the README says to
+  re-capture after UI passes.
+- `InstructionModal.jsx` rebuilt: `sm:max-w-5xl`, left = title + description +
+  `Separator`s + a clickable numbered step list; right = `StepShot` (image
+  button that opens a nested `Dialog` lightbox, "Click to enlarge" hint).
+  Stacks and scrolls on narrow screens. A missing/failed image falls back to
+  the step's icon, so nothing breaks before the files exist.
+- `instructionContent.js`: each step now derives `image` =
+  `/instructions/<role>-<step>.png` (`super-admin-1..7`, `barangay-admin-1..4`,
+  `organizer-1..5`). Re-added `frontend/public/instructions/` with a README
+  listing the expected filenames — **the PNGs themselves still need to be
+  captured and dropped in.**
+
+## 2026-09 — Bug: dark/light mode applied to every account in the browser
+
+- **Bug:** the theme preference lived under ONE `localStorage` key
+  (`brgy-theme`), so a Super Admin choosing dark made the next Barangay
+  Admin / Organizer to log in on that browser get dark too.
+- **Fix:** the key is now `brgy-theme:<userId>` (`lib/theme.js`;
+  `AdminLayout.jsx` passes `user.id`). The old shared key is ignored — every
+  account starts on light once. Still browser-local (a second device starts on
+  light).
+
+## 2026-09 — Public Home: hero rebuilt (several passes), header re-laid-out
+
+Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
+(`public ui.jpg`, "Bounce") and then explicit written specs. Final state:
+- **Header** (`PublicLayout.jsx`): logo left, nav centred at `lg+` (wraps to
+  its own row below `lg`; phones keep the icon nav), season name as a bordered
+  pill on the right.
+- **Hero** (`Home.jsx`): the Site Images `hero` slot at full opacity/colour
+  under ONE gradient scrim; a left-aligned two-line **Anton** headline
+  (white / `#D9A441`, `leading-[0.82]`, `clamp()`-sized on width AND height so
+  it can't outgrow short screens); copy block 28px below in normal flow
+  (subhead, one line of body, gold "View matches" pill + outlined
+  "Standings"); solid `#0C3550` + the same scrim when no hero image is set.
+  Sits flush below the nav; the stat tiles start below the fold. Intermediate
+  versions tried and dropped: photo at 25% + luminosity blend (too faint), an
+  absolutely-positioned cut-out layer over the headline (removed — needs a
+  transparent player PNG that doesn't exist), a live-match `HeroMatchCard`.
+- `SiteImage` (`PublicUI.jsx`) gained an opt-in `hideOnFail` prop (renders
+  nothing instead of the dashed "Sample image" box). Upload/crop/focal code
+  untouched. Anton added to the Google Fonts link in `index.html`.
+- Heads-up: the hero photo now renders full-bleed at full colour, so a tiny
+  file (the dev DB's is ~7 KB) looks blurry — upload >= ~1920px wide.
+- The "no viewport-edge full-bleed" rule is unchanged for the hero (it
+  clipped text on mobile); the new marquee is the one exception.
+
+## 2026-09 — Scroll-reveal moved to Motion (`components/Reveal.jsx`)
+
+- `npm i motion`; imported from `"motion/react"`. New `Reveal` (fade + up 24px
+  once, `margin: "-80px"`, 0.5s ease `[0.22,1,0.36,1]`, `delay` in seconds,
+  `y` prop) plus `RevealGroup`/`RevealItem` (`staggerChildren: 0.08`).
+  REPLACED the old CSS `Reveal` in `PublicUI.jsx` and deleted
+  `hooks/useInView.js`.
+- Wrapped: Home (two static stat tiles, Today, About/Kolambugan sections,
+  Recent results), Standings (each group table), Brackets (each PANEL),
+  Teams + Players (staggered card grids), About (all sections).
+- **Deliberately NOT wrapped** (poll every 10-15s / update mid-match): the
+  hero, Home's LIVE NOW tile and "Live now" panel, Matches, Champions,
+  Team detail, Players' "Top scorers". Items are keyed by stable `id`
+  (this API's field is `id`, not `_id`), `once: true` everywhere.
+- Deviations from the request: Brackets animates whole panels, not round
+  columns (the SVG connector wires are measured from box positions — moving
+  columns separately would offset them 24px permanently); no "champions
+  strip" exists on Home; no static match-card grid exists (match cards are
+  the live strips), so only team and player cards are staggered.
+- Card grids switched from `gap-px bg-[#1C2430]` to per-card borders inside
+  an `overflow-hidden` wrapper — otherwise unrevealed cards showed as grey
+  blocks.
+- **Always plays, ignores `prefers-reduced-motion`** (Super Admin decision:
+  a Windows PC with "Show animations" off saw a static site and assumed it was
+  broken). To restore: `<MotionConfig reducedMotion="user">`.
+
+## 2026-09 — Public Home: sports marquee (`components/SportsMarquee.jsx`)
+
+- Continuous right-to-left strip of sport NAMES between the Live panel and
+  Today. Data from `GET /api/sports` (public) — never hardcoded, one entry per
+  sport name (deduped; never split by division), renders nothing on
+  failure/empty. Pure CSS loop (`.marquee-track` in `index.css`), two identical
+  copies (2nd `aria-hidden`) sliding -50%; each copy repeats the list if it's
+  narrower than the screen. Constant 80px/s measured from the real width
+  (re-measured on font load/resize) so loop time scales with the sport count
+  (~34s at 7 sports on a wide screen). Pauses on hover; edge fades; Anton 28px.
+- Honours `prefers-reduced-motion: reduce` per spec (static centred row) —
+  unlike the scroll-reveals above.
+- Deviation: the request said "the same list the sport tabs use"; the tabs
+  are built from this season's tournaments, which would miss a sport with no
+  tournament yet. `/api/sports` satisfies "added/deleted in League Setup
+  appears/disappears" directly, so that is what it uses.
+
+## 2026-09 — Lenis smooth scrolling (public layout only) + sticky header bug
+
+- `npm i lenis`. Initialised in `PublicLayout.jsx` (`useLenis`) only — admin
+  and organizer pages keep native scrolling. `duration: 1.1`, expo ease-out,
+  `smoothWheel`, `syncTouch: false` (Lenis v1's name for the old
+  `smoothTouch: false`; touch keeps native momentum), `autoRaf`. Skipped
+  entirely under `prefers-reduced-motion: reduce`; destroyed on unmount.
+  `ScrollToTop` goes through `lenis.scrollTo(0, {immediate, force})` when it's
+  running. No Lenis<->Motion sync was needed (reveals verified to still fire).
+- **Bug found while verifying (pre-existing, not caused by Lenis): the sticky
+  public header never actually stuck.** The layout root's `overflow-x-hidden`
+  makes it a scroll container (`overflow-y: auto`), so `position: sticky`
+  attached to that div. Fixed with `overflow-x-clip`.
+- Verified via headless Edge over CDP: wheel glide 661 -> 933 -> 999 -> 1013px;
+  header `top` stays 0 after scrolling (Lenis on and off); no horizontal
+  overflow; nav click lands at the top; Back restores the previous position
+  (same as without Lenis); `/login` and the admin redirect have no
+  `html.lenis`; Lenis is destroyed on leaving the public layout.
+- Not verifiable headless: real touch behaviour and a physical mouse wheel.
+
+## 2026-09 — Thesis true-up note: cross-barangay direction
+
+- The verification rule was documented (and implemented) as "residents of a
+  small/remote barangay may play for ANOTHER barangay's team". The intended
+  rule is the reverse direction: a CHECKED barangay's TEAM may field players
+  from ANY barangay; an UNCHECKED barangay's team only its own residents. Code
+  fixed (see "Cross-barangay flag direction fixed" above) — the thesis text
+  and the HIPO/meeting-notes wording should be trued up to say "teams of
+  small/remote barangays may recruit from any barangay".

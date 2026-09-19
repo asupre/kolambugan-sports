@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, Reveal, SiteImage, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, SiteImage, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
+import Reveal, { RevealGroup, RevealItem } from "../../components/Reveal";
+import SportsMarquee from "../../components/SportsMarquee";
 
 
 
@@ -87,95 +89,100 @@ export default function Home() {
 
   return (
     <>
-      {/* Hero. NOTE: a true viewport-edge "full-bleed" (w-screen + -50vw
-          margins) was tried here and reverted — on a page this tall, a
-          vertical scrollbar makes 100vw compute WIDER than the real visible
-          width in Chromium, so the breakout overshot the right edge and
-          clipped the headline and nav on mobile (confirmed with an actual
-          screenshot, not just a build check). This version just fills its
-          normal container — already 1400px wide (see PublicLayout), which
-          reads as effectively full-bleed on anything but an ultra-wide
-          monitor, with zero overflow risk.
-          The `hero` SiteImage sits as a full background layer — a
-          left-to-right dark gradient keeps the text (which lives on the
-          left) readable over whatever gets uploaded, while the right side
-          stays brighter to actually show the photo. Falls back to
-          PublicUI's own "Sample image" placeholder box when nothing's
-          uploaded yet, same as the league/barangay slots below. A subtle
-          ring accent (nodding to the real crest's gold ring ticks) sits on
-          top either way.
-          `-mt-20` additionally pulls the section's own background up
-          underneath the sticky header (z-30, ~90% opaque with a blur — see
-          PublicLayout) instead of starting right below it, so the panel/
-          photo visually reaches the very top of the page instead of
-          stopping short and leaving the nav on a flat strip of its own.
-          `<main>` itself has py-6 (24px) of its own padding above the hero,
-          which eats into this margin before it ever reaches the header, so
-          the REAL overlap into the header's box is ~56px (80px - 24px) —
-          comfortably under the header's shortest real height (~104px+) at
-          any breakpoint, so this can't overshoot and peek out above it.
-          Matching extra top padding keeps the actual TEXT starting at the
-          same spot as before — only the background moved. */}
-      <section className="relative overflow-hidden bg-[#0A1220] border-b border-[#1C2430] -mx-4 lg:-mx-8 -mt-20 px-5 sm:px-8 lg:px-12 pt-[7.5rem] sm:pt-36 lg:pt-40 pb-10 sm:pb-16 lg:pb-20 mb-6">
-        <SiteImage slot="hero" label="hero banner" className="absolute inset-0 w-full h-full" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0A1220] via-[#0A1220]/85 to-[#0A1220]/35" />
-        <div className="absolute -top-14 right-4 w-64 h-64 rounded-full border border-[#F5A524]/20 pointer-events-none" />
+      {/* Hero (Super Admin's spec, Sep 2026, third revision). Layers:
+          1. the Site Images "hero" slot — full opacity, full colour,
+             object-cover, full-bleed. With nothing uploaded `hideOnFail`
+             makes SiteImage render nothing and the section's own solid
+             #0C3550 shows instead. Upload/crop/focal are untouched;
+          2. ONE gradient scrim (the exact stops below) — nothing else tints
+             the photo, and it's drawn even with no photo so the fallback
+             looks the same;
+          3. content in normal flow, bottom-anchored (the scrim is darkest
+             at the bottom): a left-aligned two-line Anton headline running
+             nearly the full container width, then the copy block 28px
+             (`mt-7`) below it. Nothing overlaps the headline (the optional
+             /hero-player.png cut-out layer was removed for that reason —
+             re-add it deliberately if a subject PNG is ever supplied).
+          Headline size: clamp on viewport width AND height. "INTER-BARANGAY"
+          in Anton is ~5.8em wide, so 15vw fills ~87% of the width at any
+          screen size; the 28svh term keeps it from outgrowing short screens.
+          KEEP: no viewport-edge full-bleed (w-screen / -50vw) — 100vw
+          includes the scrollbar in Chromium and clipped content on mobile
+          (screenshot-confirmed). `-mx-4 lg:-mx-8` cancels <main>'s padding;
+          `-mt-6` cancels its py-6 so the hero sits flush under the nav. The
+          min-heights subtract the nav's real height (~72px at lg, ~116-120px
+          where the nav wraps/icons) so the hero fills the first screen and
+          the stat tiles start below the fold. No fade-ins on the hero. */}
+      <section className="relative isolate overflow-hidden bg-[#0C3550] -mx-4 lg:-mx-8 -mt-6 mb-6 flex flex-col justify-end min-h-[calc(100svh-7.5rem)] lg:min-h-[calc(100svh-4.5rem)]">
+        <SiteImage
+          slot="hero"
+          label="hero banner"
+          hideOnFail
+          className="absolute inset-0 -z-20 h-full w-full"
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{ background: "linear-gradient(180deg, rgba(8,35,52,0.55) 0%, rgba(8,35,52,0.30) 45%, rgba(8,35,52,0.88) 100%)" }}
+        />
 
-        <div className="relative">
-          {data?.season?.name && (
-            <span className="inline-block bg-[#F5A524]/15 text-[#F5A524] text-[10px] font-bold tracking-wide px-2.5 py-1.5 rounded-full mb-4">
-              {data.season.name.toUpperCase()}
-            </span>
-          )}
-          <h1 className="text-slate-50 text-4xl sm:text-6xl lg:text-8xl font-extrabold uppercase tracking-tight leading-[0.95] break-words">
-            Inter-Barangay
+        <div className="relative px-5 pt-10 pb-8 sm:px-8 lg:px-12 lg:pb-12">
+          <h1 className="text-left font-['Anton'] font-normal uppercase leading-[0.82] tracking-tight text-[length:clamp(2.5rem,min(15vw,28svh),14rem)]">
+            <span className="block text-white">Inter-Barangay</span>
+            <span className="block text-[#D9A441]">Sports League</span>
           </h1>
-          <h1 className="text-[#F5A524] text-4xl sm:text-6xl lg:text-8xl font-extrabold uppercase tracking-tight leading-[0.95] mt-1 break-words">
-            Sports League
-          </h1>
-          <p className="text-slate-400 text-sm sm:text-base mt-5 max-w-xl">
+
+          <div className="mt-7">
+            <h2 className="text-white text-[28px] font-semibold leading-tight">
+              Follow &amp; cheer on<br />every barangay, every match.
+            </h2>
             {/* SAMPLE COPY — replace before deployment. */}
-            Seven sports. Twenty-six barangays. One municipality. Follow every
-            match, bracket, and standing across the Kolambugan league season.
-          </p>
-          <div className="flex flex-wrap gap-2.5 mt-6">
-            <Link to="/matches" className="flex items-center gap-1.5 bg-[#F5A524] text-[#0A1220] text-[13px] sm:text-sm font-bold px-5 sm:px-6 py-3 sm:py-3.5 rounded-full hover:bg-[#e0961f] transition">
-              View matches <ArrowIcon />
-            </Link>
-            <Link to="/standings" className="border-[1.5px] border-[#2A3441] text-slate-200 text-[13px] sm:text-sm font-semibold px-5 sm:px-6 py-3 sm:py-3.5 rounded-full hover:border-slate-500 transition">
-              Standings
-            </Link>
+            <p className="mt-3 text-[15px] text-white/70 md:whitespace-nowrap">
+              Live scores, brackets and standings for all 26 barangays.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2.5">
+              <Link to="/matches" className="flex items-center gap-2 rounded-full bg-[#D9A441] py-2 pl-6 pr-2 text-sm font-bold text-[#0A1220] transition hover:bg-[#c8942f]">
+                View matches
+                <span className="flex size-8 items-center justify-center rounded-full bg-[#0A1220] text-[#D9A441]"><ArrowIcon /></span>
+              </Link>
+              <Link to="/standings" className="rounded-full border-[1.5px] border-white/40 px-6 py-3 text-sm font-semibold text-white transition hover:border-white">
+                Standings
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* League at a glance — each tile reveals a beat after the last,
-          cascading in rather than snapping in all at once. */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <Reveal delay={0}>
+      {/* League at a glance. The two static tiles reveal one after another;
+          the LIVE NOW tile is deliberately NOT wrapped — its counter changes
+          mid-match and must never animate. (Plain child of the group: it
+          just sits there.) */}
+      <RevealGroup className="grid grid-cols-3 gap-3 mb-6">
+        <RevealItem>
           <StatTile icon={<BarangayIcon />} value={counts.barangays ?? "—"} label="Barangays" />
-        </Reveal>
-        <Reveal delay={100}>
+        </RevealItem>
+        <RevealItem>
           <StatTile icon={<SportIcon />} value={counts.sports ?? "—"} label="Sports" />
-        </Reveal>
-        <Reveal delay={200}>
+        </RevealItem>
+        <div>
           <StatTile
             icon={<LiveDot />}
             value={counts.liveNow ?? 0}
             label="Live now"
             live={(counts.liveNow ?? 0) > 0}
           />
-        </Reveal>
-      </div>
+        </div>
+      </RevealGroup>
 
-      {/* Live and today */}
+      {/* Live now: NOT wrapped — in-progress matches update mid-game. */}
       {live.length > 0 && (
-        <Reveal>
-          <Panel title="Live now" count={`${live.length}`}>
-            <div>{live.map((m) => <MiniScore key={m.id} m={m} />)}</div>
-          </Panel>
-        </Reveal>
+        <Panel title="Live now" count={`${live.length}`}>
+          <div>{live.map((m) => <MiniScore key={m.id} m={m} />)}</div>
+        </Panel>
       )}
+
+      {/* Sports marquee — constant CSS loop, so NOT wrapped in Reveal. Renders
+          nothing if /api/sports fails or is empty. */}
+      <SportsMarquee />
 
       {today.length > 0 && (
         <Reveal>

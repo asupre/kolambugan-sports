@@ -22,10 +22,10 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const [showHelp, setShowHelp] = useState(false);   // on-demand reopen of the orientation modal
   const [sports, setSports] = useState([]);
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
-  const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme() : "light"));
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme(user?.id) : "light"));
   const navigate = useNavigate();
   const location = useLocation();
-  const user = JSON.parse(localStorage.getItem("user") || "null");
 
   const grouped = menu[0]?.header !== undefined;
   const items = flattenItems(menu);
@@ -64,7 +64,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
     const root = document.documentElement;
     root.classList.add("theme-transition");
     setTheme(next);
-    storeTheme(next);
+    storeTheme(user?.id, next);
     window.setTimeout(() => root.classList.remove("theme-transition"), 300);
   }
 

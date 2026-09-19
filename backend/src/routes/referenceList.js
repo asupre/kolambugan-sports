@@ -6,7 +6,7 @@ const Team = require('../models/Team');
 const TeamPlayer = require('../models/TeamPlayer');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
-const { decideFromCandidates, loadBrgyByName, norm } = require('../services/prescreen');
+const { decideFromCandidates, norm } = require('../services/prescreen');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -113,10 +113,9 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
       refIndex.get(key).push(r);
     }
 
-    const teams = await Team.find({ season: season._id }).populate('barangay', 'name').lean();
+    const teams = await Team.find({ season: season._id }).populate('barangay', 'name allowsCrossBarangay').lean();
     const teamById = new Map(teams.map((t) => [String(t._id), t]));
     const links = await TeamPlayer.find({ team: { $in: teams.map((t) => t._id) } }).populate('player').lean();
-    const brgyByName = await loadBrgyByName();
 
     // referenceList _id (string) -> [{ status, playerName, teamName }, ...].
     // An ARRAY, not a single value — matching is by name only, so two
@@ -132,7 +131,7 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
       if (!p) continue;
       const team = teamById.get(String(link.team));
       const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
-      const { status, matchedReferenceId } = decideFromCandidates(p, team && team.barangay, candidates, brgyByName);
+      const { status, matchedReferenceId } = decideFromCandidates(p, team && team.barangay, candidates);
       if (matchedReferenceId) {
         const key = String(matchedReferenceId);
         if (!matchByRefId.has(key)) matchByRefId.set(key, []);

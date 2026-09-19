@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { Panel, SiteImage } from "../../components/PublicUI";
+import Reveal from "../../components/Reveal";
 
 
 
@@ -39,6 +40,7 @@ export default function About() {
       </p>
 
       {/* SAMPLE COPY — replace before deployment. */}
+      <Reveal>
       <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
         <SiteImage slot="about" label="league photo" className="w-full h-56 rounded-lg border border-[#1C2430]" />
         <div className="flex flex-col justify-center">
@@ -57,8 +59,10 @@ export default function About() {
           </p>
         </div>
       </section>
+      </Reveal>
 
       {/* SAMPLE COPY — replace before deployment. */}
+      <Reveal>
       <Panel title="How a season runs">
         <div>
           <Step n="1" title="Registration">
@@ -86,7 +90,9 @@ export default function About() {
           </Step>
         </div>
       </Panel>
+      </Reveal>
 
+      <Reveal delay={0.05}>
       <Panel title="Using this site">
         <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
           {[
@@ -106,8 +112,10 @@ export default function About() {
           ))}
         </div>
       </Panel>
+      </Reveal>
 
       {/* SAMPLE COPY — replace before deployment. */}
+      <Reveal delay={0.05}>
       <Panel title="Organised by">
         <div className="px-5 py-4 space-y-3">
           <div>
@@ -131,6 +139,7 @@ export default function About() {
           </div>
         </div>
       </Panel>
+      </Reveal>
     </>
   );
 }

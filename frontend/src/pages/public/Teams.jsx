@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { Crest, Panel, TileGridSkeleton, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
+import { RevealGroup, RevealItem } from "../../components/Reveal";
 
 // Rosters don't change mid-game, so this page doesn't poll.
 export default function Teams() {
@@ -67,23 +68,30 @@ export default function Teams() {
               title={`${sportName} · ${DIVISION_LABEL[division] || division}`}
               count={`${list.length}`}
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-[#1C2430]">
-                {list.map((t) => (
-                  <Link
-                    key={t.id}
-                    to={`/teams/${t.id}`}
-                    className="flex items-center gap-3 px-5 py-4 bg-[#0F141C] hover:bg-[#141A24] transition"
-                  >
-                                        <Crest name={t.barangay || t.name} barangayId={t.barangayId} />
-                    <div className="min-w-0">
-                      <div className="text-slate-100 text-[15px] font-medium truncate">{t.name}</div>
-                      <div className="text-slate-500 text-[12px] truncate">
-                        {t.barangay ? `Brgy. ${t.barangay}` : "—"}
-                        {t.format ? ` · ${FORMAT_LABEL[t.format] || t.format}` : ""}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+              {/* Cards arrive one after another (RevealGroup). Separators are
+                  per-card borders instead of the old `gap-px bg-[#1C2430]`
+                  trick: with that, each not-yet-revealed card would show as a
+                  grey block. Keyed by team id, never index. */}
+              <div className="overflow-hidden">
+                <RevealGroup className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 -mr-px -mb-px">
+                  {list.map((t) => (
+                    <RevealItem key={t.id} className="border-r border-b border-[#1C2430] bg-[#0F141C]">
+                      <Link
+                        to={`/teams/${t.id}`}
+                        className="flex h-full items-center gap-3 px-5 py-4 hover:bg-[#141A24] transition"
+                      >
+                        <Crest name={t.barangay || t.name} barangayId={t.barangayId} />
+                        <div className="min-w-0">
+                          <div className="text-slate-100 text-[15px] font-medium truncate">{t.name}</div>
+                          <div className="text-slate-500 text-[12px] truncate">
+                            {t.barangay ? `Brgy. ${t.barangay}` : "—"}
+                            {t.format ? ` · ${FORMAT_LABEL[t.format] || t.format}` : ""}
+                          </div>
+                        </div>
+                      </Link>
+                    </RevealItem>
+                  ))}
+                </RevealGroup>
               </div>
             </Panel>
           );

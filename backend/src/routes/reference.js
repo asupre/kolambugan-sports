@@ -172,8 +172,8 @@ router.delete('/barangays/:id/logo', authenticate,
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
-// PATCH /api/barangays/:id/cross — super admin; allow this barangay's residents
-// to play for another barangay's team.
+// PATCH /api/barangays/:id/cross — super admin; allow this barangay's TEAMS to
+// field players from any barangay (checked) or only their own (unchecked).
 //
 // The rule already existed in the residency screen but could only be set by
 // editing the database, which meant the league couldn't run without a developer.

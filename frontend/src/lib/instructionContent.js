@@ -3,12 +3,14 @@
 // for the September evaluation to orient a real SK Chairperson/organizer who
 // has never seen this system before.
 //
-// Text + icon only (Sep 2026) — was screenshot-based (frontend/public/
-// instructions/*.png). Dropped the screenshots: every UI pass this project
-// goes through (and there have been several) makes them stale again, and a
-// stale screenshot showing an old layout is worse for a first-time user than
-// no screenshot at all. An icon doesn't go stale. Keep new steps to an
-// `icon` + short description, not a screenshot path.
+// Each step carries an `icon` (fallback) AND a screenshot (Sep 2026, brought
+// back at the Super Admin's request — the modal is now a wide two-pane layout,
+// explanation left / clickable screenshot right). Screenshots live in
+// frontend/public/instructions/ named `<role>-<step number>.png`, where role is
+// super-admin | barangay-admin | organizer and the number is the step's
+// position below (1-based). See that folder's README.md. A step whose file
+// isn't there yet just shows its icon instead — nothing breaks. Screenshots go
+// stale when a page is redesigned, so re-capture the affected ones after a UI pass.
 
 import {
   Building2, CalendarRange, ClipboardList, Flag, KeyRound,
@@ -22,7 +24,7 @@ export const ROLE_LABEL = {
   organizer: "Organizer",
 };
 
-export const INSTRUCTION_STEPS = {
+const RAW_STEPS = {
   super_admin: [
     {
       title: "Welcome, Super Admin",
@@ -125,3 +127,16 @@ export const INSTRUCTION_STEPS = {
     },
   ],
 };
+
+const SHOT_FOLDER = {
+  super_admin: "super-admin",
+  barangay_admin: "barangay-admin",
+  organizer: "organizer",
+};
+
+export const INSTRUCTION_STEPS = Object.fromEntries(
+  Object.entries(RAW_STEPS).map(([role, steps]) => [
+    role,
+    steps.map((s, i) => ({ ...s, image: `/instructions/${SHOT_FOLDER[role]}-${i + 1}.png` })),
+  ])
+);

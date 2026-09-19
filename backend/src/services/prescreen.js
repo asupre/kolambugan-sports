@@ -32,10 +32,11 @@ function sameDay(a, b) {
 }
 
 // The decision for ONE player, given reference rows already matched by name.
+// `teamBarangay` must be a FULL Barangay doc/object including allowsCrossBarangay.
 // Pure function — same inputs always produce the same output, no I/O here,
 // so a batch screen and a single-player screen can share this exact logic
 // while fetching their candidates differently.
-function decideFromCandidates(player, teamBarangay, candidates, brgyByName) {
+function decideFromCandidates(player, teamBarangay, candidates) {
   const age = ageFrom(player.birthdate);
 
   // Under 15 can't be on a voters' list at all, so there's nothing to look up —
@@ -68,27 +69,23 @@ function decideFromCandidates(player, teamBarangay, candidates, brgyByName) {
     return { status: 'eligible', reason: '', matchedReferenceId: (sameBrgyMatch || cands[0])._id };
   }
 
-  const home = brgyByName[norm(cands[0].barangay)];
-  if (home && home.allowsCrossBarangay) {
+  // The flag lives on the TEAM's barangay, not the player's home barangay
+  // (corrected Sep 2026 — this used to read the PLAYER's home barangay, which
+  // is the opposite of what League Setup's checkbox means). A checked
+  // barangay's team may field a resident of ANY barangay; an unchecked
+  // barangay's team may only field its own residents.
+  if (teamBarangay && teamBarangay.allowsCrossBarangay) {
     return { status: 'eligible', reason: '', matchedReferenceId: cands[0]._id };
   }
 
+  const teamName = teamBarangay?.name || 'this barangay';
   return {
     status: 'flagged',
-    reason: `Listed under ${cands[0].barangay}, not ${teamBarangay?.name || 'this barangay'} — cross-barangay not allowed`,
+    reason: `Listed under ${cands[0].barangay}, not ${teamName} — ${teamName} doesn't allow cross-barangay players`,
     // The mismatched-barangay row itself — this IS the reason for the flag,
     // so it's worth surfacing the same way an eligible match is.
     matchedReferenceId: cands[0]._id,
   };
-}
-
-// Shared by team-batch and single-player screening: every barangay by
-// normalized name, so the whitelist check doesn't need its own query. Only
-// 26ish rows — cheap regardless of reference-list size.
-async function loadBrgyByName() {
-  const brgyByName = {};
-  (await Barangay.find().lean()).forEach((b) => { brgyByName[norm(b.name)] = b; });
-  return brgyByName;
 }
 
 // Runs on roster submission. Screens every player on the team, so it fetches
@@ -106,12 +103,11 @@ async function prescreenTeam(team) {
     if (!refIndex.has(key)) refIndex.set(key, []);
     refIndex.get(key).push(r);
   }
-  const brgyByName = await loadBrgyByName();
   const summary = { eligible: 0, needs_document: 0, flagged: 0 };
 
   for (const p of players) {
     const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
-    const { status, reason } = decideFromCandidates(p, teamBarangay, candidates, brgyByName);
+    const { status, reason } = decideFromCandidates(p, teamBarangay, candidates);
     if (p.eligibilityStatus !== status || p.flagReason !== reason) {
       await Player.updateOne({ _id: p._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
     }
@@ -134,9 +130,8 @@ async function prescreenPlayer(player, team) {
     lastName: looseRegex(player.lastName),
     firstName: looseRegex(player.firstName),
   }).lean();
-  const brgyByName = await loadBrgyByName();
 
-  const { status, reason } = decideFromCandidates(player, teamBarangay, candidates, brgyByName);
+  const { status, reason } = decideFromCandidates(player, teamBarangay, candidates);
   await Player.updateOne({ _id: player._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
   return { status, reason };
 }
@@ -147,7 +142,7 @@ async function prescreenPlayer(player, team) {
 // eligible -> flagged if a previously-allowed exception is revoked)
 // without that player's own name or birthdate changing at all — nothing
 // else would ever trigger a re-screen for them otherwise. Fetches the
-// season's reference list and the barangay list ONCE and reuses both
+// season's reference list ONCE and reuses it
 // across every team, same tradeoff as prescreenTeam.
 async function rescreenSeason(seasonId) {
   const teams = await Team.find({ season: seasonId });
@@ -160,7 +155,6 @@ async function rescreenSeason(seasonId) {
     if (!refIndex.has(key)) refIndex.set(key, []);
     refIndex.get(key).push(r);
   }
-  const brgyByName = await loadBrgyByName();
   const barangayCache = new Map();
 
   let screened = 0, changed = 0, reopened = 0;
@@ -175,7 +169,7 @@ async function rescreenSeason(seasonId) {
     let anyNonEligible = false;
     for (const p of players) {
       const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
-      const { status, reason } = decideFromCandidates(p, teamBarangay, candidates, brgyByName);
+      const { status, reason } = decideFromCandidates(p, teamBarangay, candidates);
       screened++;
       if (p.eligibilityStatus !== status || p.flagReason !== reason) {
         await Player.updateOne({ _id: p._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
@@ -206,6 +200,5 @@ module.exports = {
   // works for every player regardless of when they were screened, with
   // nothing to backfill when this feature was added after the fact.
   decideFromCandidates,
-  loadBrgyByName,
   norm,
 };

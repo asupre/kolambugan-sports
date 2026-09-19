@@ -7,7 +7,6 @@
 // route exists, change it here and every public page picks it up at once.
 
 import { useState, useEffect } from "react";
-import { useInView } from "../hooks/useInView";
 
 export const DIVISION_LABEL = {
   open: "Open",
@@ -166,7 +165,7 @@ function loadFocals() {
   return focalPromise;
 }
 
-export function SiteImage({ slot, label, className = "" }) {
+export function SiteImage({ slot, label, className = "", hideOnFail = false }) {
   const [failed, setFailed] = useState(false);
   const [focal, setFocal] = useState("center");
 
@@ -176,6 +175,9 @@ export function SiteImage({ slot, label, className = "" }) {
     return () => { alive = false; };
   }, [slot]);
 
+  // hideOnFail: render nothing (instead of the dashed "Sample image" box)
+  // when the slot has no upload — for images used as a background layer.
+  if (failed && hideOnFail) return null;
   if (failed) {
     return (
       <div className={`flex items-center justify-center bg-[#141A24] border border-dashed border-[#2A3441] ${className}`}>
@@ -277,28 +279,6 @@ export function LiveDot({ className = "" }) {
       <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-ping" />
       <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
     </span>
-  );
-}
-
-// Scroll-triggered reveal (Sep 2026) — the motion.dev-style fade-up-into-
-// view effect: content sits slightly lower and transparent until it
-// scrolls into the viewport, then eases up into place, once. Wrap any
-// below-the-fold section in it (see Home.jsx). `delay` (ms) staggers a row
-// of siblings so they cascade in one after another instead of all
-// snapping in together. Skips the animation (shows content immediately)
-// under prefers-reduced-motion — see useInView.
-export function Reveal({ children, delay = 0, className = "" }) {
-  const [ref, inView] = useInView();
-  return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: inView ? `${delay}ms` : "0ms" }}
-      className={`transition-all duration-700 ease-out ${
-        inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-      } ${className}`}
-    >
-      {children}
-    </div>
   );
 }
 

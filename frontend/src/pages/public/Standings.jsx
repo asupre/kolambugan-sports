@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { Panel, PanelSkeleton, Crest, DIVISION_LABEL } from "../../components/PublicUI";
+import Reveal from "../../components/Reveal";
 
 // Reads /api/public/bracket — the same call the Brackets page makes, so the
 // table and the bracket can never disagree about who won what.
@@ -78,7 +79,7 @@ export default function Standings() {
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {groups.map((g) => {
+            {groups.map((g, gi) => {
               const rows = standings[g] || [];
               const seeds = qualifiers[g] || [];
                             const seedOf = (teamId) => seeds.find((s) => s.teamId === teamId)?.seed;
@@ -97,7 +98,8 @@ export default function Standings() {
                 rows.some((r) => r.played > 0);
 
               return (
-                <Panel key={g} title={`Group ${g}`}>
+                <Reveal key={g} delay={(gi % 2) * 0.08}>
+                <Panel title={`Group ${g}`}>
                   <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-600 text-[10px] font-medium tracking-wider">
                     <span className="w-6">#</span>
                     <span className="flex-1">TEAM</span>
@@ -143,6 +145,7 @@ export default function Standings() {
                     <p className="px-4 py-4 text-slate-500 text-sm">No matches yet.</p>
                   )}
                 </Panel>
+                </Reveal>
               );
             })}
           </div>

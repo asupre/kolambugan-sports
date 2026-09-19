@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Lenis from "lenis";
+import "lenis/dist/lenis.css";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import { LiveDot } from "../../components/PublicUI";
@@ -37,14 +39,51 @@ function Icon({ name, className = "" }) {
 
 // React Router keeps the scroll position across navigations, so tapping a nav
 // link halfway down a long page lands you halfway down the next one. Reset it.
-function ScrollToTop() {
+// (Forward AND back navigation both land at the top — same as before Lenis.)
+// When Lenis is running, jump through it (immediate, no glide) so its own
+// internal scroll target stays in step; otherwise use the plain window call.
+function ScrollToTop({ lenisRef }) {
   const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  useEffect(() => {
+    const lenis = lenisRef.current;
+    if (lenis) lenis.scrollTo(0, { immediate: true, force: true });
+    else window.scrollTo(0, 0);
+  }, [pathname, lenisRef]);
   return null;
+}
+
+// Smooth inertia scrolling (Lenis) — PUBLIC site only. It's initialised here,
+// in the public layout, and nowhere else: admin/organizer pages keep native
+// scrolling, where precision matters more than feel. Rules:
+//  - skipped entirely under prefers-reduced-motion: reduce;
+//  - touch devices keep NATIVE momentum scrolling (`syncTouch: false` — the
+//    v1 name for the old "smoothTouch: false");
+//  - it drives the real window scroll (no transforms), so the sticky header,
+//    IntersectionObserver-based Motion reveals, hash links and browser
+//    find-in-page all keep working untouched;
+//  - destroyed on unmount, which also removes the classes it put on <html>.
+function useLenis(lenisRef) {
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const lenis = new Lenis({
+      duration: 1.1,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // expo ease-out
+      smoothWheel: true,
+      syncTouch: false,
+      autoRaf: true,
+    });
+    lenisRef.current = lenis;
+    return () => {
+      lenis.destroy();
+      lenisRef.current = null;
+    };
+  }, [lenisRef]);
 }
 
 export default function PublicLayout() {
   const [meta, setMeta] = useState(null);
+  const lenisRef = useRef(null);
+  useLenis(lenisRef);
 
   useEffect(() => {
     api("/api/public/overview")
@@ -60,8 +99,13 @@ export default function PublicLayout() {
     }`;
 
   return (
-        <div className="min-h-screen bg-[#0A1220] text-slate-200 flex flex-col overflow-x-hidden">
-      <ScrollToTop />
+        <div className="min-h-screen bg-[#0A1220] text-slate-200 flex flex-col overflow-x-clip">
+      {/* overflow-x-CLIP, not -hidden: `hidden` silently makes this div a scroll
+      container (overflow-y becomes auto), which made the sticky header
+      below stick to THIS div instead of the page — so it never stuck.
+      `clip` still stops horizontal overflow but creates no scroll
+      container, so sticky works. */}
+      <ScrollToTop lenisRef={lenisRef} />
 
       {/* Same background as the hero (and the page itself) with no border —
           so on Home the logo/nav reads as sitting INSIDE the hero panel,
@@ -70,7 +114,13 @@ export default function PublicLayout() {
           scrolled past the hero into plain page content. */}
       <header className="bg-[#0A1220]/90 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
-                    <div className="flex items-center justify-between gap-2 py-3">
+          {/* Header row layout (Sep 2026, from the Super Admin's sketch):
+              logo, nav (centered at lg+), season-name pill at the far right —
+              at lg+. Below lg there isn't room for the lockup + 8 links +
+              season on one line, so the (single) desktop nav wraps onto its
+              own row via `basis-full order-last`, as before. Phones use the
+              separate icon nav below. */}
+          <div className="flex flex-wrap items-center gap-x-8 py-3 lg:flex-nowrap">
             <Link to="/" className="flex items-center min-w-0">
               <img
                 src="/logo/ksl-lockup-horizontal-dark.svg"
@@ -78,50 +128,47 @@ export default function PublicLayout() {
                 className="h-11 w-auto shrink-0"
               />
             </Link>
-            <div className="flex items-center gap-1.5 shrink-0">
+
+            {/* Smaller/quieter than the logo — the logo carries the brand
+                weight, the nav sits back. Each link gets its own animated
+                underline (grows in from the left on hover, eased) instead of
+                an instant color/border flip. Active state starts fully grown. */}
+            <nav className="order-last hidden basis-full gap-6 text-[13px] font-medium sm:flex lg:order-none lg:mx-auto lg:basis-auto">
+              {NAV.map((n) => (
+                <NavLink key={n.to} to={n.to} end={n.end} className="group relative py-3.5 whitespace-nowrap">
+                  {({ isActive }) => (
+                    <>
+                      <span className={cn(
+                        "transition-colors duration-200",
+                        isActive ? "text-[#F5A524]" : "text-slate-400 group-hover:text-slate-100"
+                      )}>
+                        {n.label}
+                      </span>
+                      <span
+                        className={cn(
+                          "absolute inset-x-0 -bottom-px h-[2px] origin-left bg-[#F5A524] transition-transform duration-300 ease-out",
+                          isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                        )}
+                      />
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+
+            <div className="ml-auto flex items-center gap-2 shrink-0">
               {liveNow > 0 && (
                 <span className="flex items-center gap-1.5 bg-red-500/15 text-red-400 text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap">
                   <LiveDot /> {liveNow} LIVE
                 </span>
               )}
               {meta?.season?.name && (
-                <span className="bg-[#F5A524]/15 text-[#F5A524] text-[10px] px-2 py-1 rounded truncate max-w-[96px]">
+                <span className="text-[#F5A524] text-[10px] sm:text-xs font-bold tracking-wide bg-[#F5A524]/15 sm:bg-transparent sm:border sm:border-[#F5A524]/40 px-2 py-1 sm:px-4 sm:py-2 rounded sm:rounded-full truncate max-w-[96px] sm:max-w-[220px]">
                   {meta.season.name.toUpperCase()}
                 </span>
               )}
             </div>
           </div>
-
-          {/* Desktop: smaller/quieter than before (was text-[15px], reading
-              too heavy next to the now-bigger logo) — the logo carries the
-              brand weight, the nav should sit back. Each link gets its own
-              animated underline (grows in from the left on hover, eased,
-              rather than an instant color/border flip) instead of sharing
-              one static border like the old `linkClass` — a small "motion"
-              touch. Active state keeps the same idea but the underline
-              simply starts fully grown. */}
-          <nav className="hidden sm:flex gap-6 text-[13px] font-medium">
-            {NAV.map((n) => (
-              <NavLink key={n.to} to={n.to} end={n.end} className="group relative py-3.5 whitespace-nowrap">
-                {({ isActive }) => (
-                  <>
-                    <span className={cn(
-                      "transition-colors duration-200",
-                      isActive ? "text-[#F5A524]" : "text-slate-400 group-hover:text-slate-100"
-                    )}>
-                      {n.label}
-                    </span>
-                    <span
-                      className={cn(
-                        "absolute inset-x-0 -bottom-px h-[2px] origin-left bg-[#F5A524] transition-transform duration-300 ease-out",
-                        isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
-                      )}
-                    />
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </nav>
 
           {/* Mobile: icons. Eight items don't fit as words, and a tiny caption
               beats making people guess what a trophy outline means. */}

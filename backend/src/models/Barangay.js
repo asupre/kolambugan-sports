@@ -14,7 +14,7 @@ const barangaySchema = new mongoose.Schema(
     },
     allowsCrossBarangay: {
       type: Boolean,
-      default: false,          // most barangays: players must be from that barangay
+      default: false,          // unchecked: this barangay's TEAMS may only field its own residents. Checked: its teams may field residents of ANY barangay (flag is read from the TEAM's barangay)
     },
         // Barangay crest, shown across the public site. Public by design.
     logo: { type: mongoose.Schema.Types.ObjectId, default: null },

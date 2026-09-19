@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { Panel, PanelSkeleton, TileGridSkeleton, PlayerAvatar, SportTabs, SearchInput, DIVISION_LABEL, initials, playerPhotoUrl, SHOW_PLAYER_PHOTOS } from "../../components/PublicUI";
+import { RevealGroup, RevealItem } from "../../components/Reveal";
 
 // Points only compare WITHIN a sport, so a sport is always selected.
 const PREFERRED = "Basketball";
@@ -30,7 +31,8 @@ function PhotoTile({ player }) {
 
 function PlayerCard({ p }) {
   return (
-    <div className="flex flex-col items-center text-center px-3 py-4 bg-[#0F141C]">
+    <RevealItem className="border-r border-b border-[#1C2430] bg-[#0F141C]">
+    <div className="flex h-full flex-col items-center text-center px-3 py-4">
       <PhotoTile player={p} />
       <div className="mt-2.5 flex items-baseline gap-1.5 max-w-full">
         <span className="text-[#F5A524] text-[15px] font-bold tabular-nums shrink-0">
@@ -45,6 +47,7 @@ function PlayerCard({ p }) {
         </div>
       )}
     </div>
+    </RevealItem>
   );
 }
 
@@ -154,8 +157,10 @@ export default function Players() {
             >
               {t.players.length > 0 && (
                 <>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-px bg-[#1C2430]">
+                  <div className="overflow-hidden">
+                  <RevealGroup className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 -mr-px -mb-px">
                     {t.players.map((p) => <PlayerCard key={p.id} p={p} />)}
+                  </RevealGroup>
                   </div>
                   <div className="px-5 py-3 border-t border-[#1C2430]">
                     <Link to={`/teams/${t.id}`} className="text-[#F5A524] text-[12px] hover:underline">

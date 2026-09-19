@@ -506,9 +506,9 @@ function BarangayCard({ onError, onNotice }) {
         </CardTitle>
         <CardDescription>
           {rows.length} barangays · {allowed} allow cross-barangay play. A checked
-          barangay's residents may play for another barangay's team without being
-          flagged during verification — intended for barangays that can't field a
-          full roster alone.
+          barangay's teams may field players from ANY barangay (checked or not) —
+          intended for barangays too small to field a full roster alone. An
+          unchecked barangay's teams may only field its own residents.
         </CardDescription>
       </CardHeader>
       <CardContent>

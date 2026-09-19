@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { Crest, Panel, PanelSkeleton, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
 import { useDragScroll } from "../../hooks/useDragScroll";
+import Reveal from "../../components/Reveal";
 
 
 // Stage split: group-stage matches carry a `group`, knockout matches don't.
@@ -304,6 +305,7 @@ export default function Brackets() {
       ) : (
         <>
           {knockoutMain.length > 0 ? (
+            <Reveal>
             <Panel title="Knockout">
               <div className="px-5 py-5">
                                 <BracketSection matches={knockoutMain} labelFor={knockoutLabel}
@@ -325,6 +327,7 @@ export default function Brackets() {
                 )}
               </div>
             </Panel>
+            </Reveal>
           ) : (
             <Panel>
               <p className="px-5 py-4 text-slate-500 text-sm">
@@ -343,7 +346,8 @@ export default function Brackets() {
             const isRR = roundRobin.length > 0 && winners.length === 0;
 
             return (
-              <Panel key={g} title={`Group ${g}`} count={`${inGroup.length} matches`}>
+              <Reveal key={g}>
+              <Panel title={`Group ${g}`} count={`${inGroup.length} matches`}>
                 {isRR ? (
                   <RoundRobinGroup
                     rows={standings[g] || []}
@@ -372,6 +376,7 @@ export default function Brackets() {
                   </div>
                 )}
               </Panel>
+              </Reveal>
             );
           })}
         </>

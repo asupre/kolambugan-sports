@@ -549,6 +549,27 @@ so a bug in one route cannot expose the other.
   div instead of the page and the header scrolled away. Now `overflow-x-clip`
   (clips, creates no scroll container). Don't put `overflow-hidden`/`-x-hidden`
   on any ancestor of a sticky element.
+- **Login page (Sep 2026):** the desktop-only left brand panel uses React Bits
+  **Gradient Waves** (`components/GradientWaves.jsx`, copied in per React Bits'
+  copy-paste model, (c) David Haz, MIT + Commons Clause — keep the header
+  comment; needs the `ogl` dependency). Layers: purple gradient (fallback) ->
+  waves -> one text scrim. Only mounted at `(min-width: 1024px)` (a merely
+  hidden panel would still create the WebGL canvas, so phones never load it),
+  `React.lazy` into its own ~15.7 KB gzip chunk, frozen (`speed 0`) under
+  `prefers-reduced-motion`. A photo layer was tried and removed (the Super
+  Admin deleted `login-bg.jpg`).
+- **Animation accessibility status (Sep 2026, NOT formally audited — no
+  screen-reader test):** nothing flashes/strobes, nothing carries essential
+  information, all motion is small. Honours `prefers-reduced-motion`: Lenis
+  (not initialised), marquee (static row), login waves (frozen), animated
+  theme toggle (instant). Does NOT honour it: the Motion scroll-reveals
+  (deliberate Super Admin decision), the pulsing LIVE dot, and Tailwind
+  `animate-pulse`/`animate-spin` skeletons/spinners. Known gaps: the marquee
+  pauses on hover only (no keyboard/touch pause control — WCAG 2.2.2), the
+  login waves run the GPU continuously on desktop. The Super Admin chose to
+  leave these as-is pending the mock defense; cheap fixes if a panelist
+  objects: `<MotionConfig reducedMotion="user">`, a pause button on the
+  marquee, a global `prefers-reduced-motion` rule for CSS animations.
 - NEVER use Mobile Legends / Moonton art or any copyrighted game assets.
 - Public lineups show **surname, first name, jersey, age, stats, and photo**.
   NO birthdate, NO address, NO documents.

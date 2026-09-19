@@ -1,22 +1,6 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ChessKnight,
-  CircleDot,
-  Dumbbell,
-  Eye,
-  EyeOff,
-  Gamepad2,
-  LockKeyhole,
-  Medal,
-  ShieldCheck,
-  Swords,
-  Target,
-  Trophy,
-  Users2,
-  Volleyball,
-  Whistle,
-} from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, ShieldCheck, Trophy, Users2 } from "lucide-react";
 import { api } from "../api";
 import LoadingScreen from "../components/LoadingScreen";
 import { Alert, AlertDescription } from "../components/ui/alert";
@@ -24,34 +8,19 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 
-// A scattered texture of generic sport glyphs, not team logos or copyrighted
-// art (see the Mobile Legends rule in CLAUDE.md) — just enough to read as
-// "a sports league" behind the gradient without competing with the text.
-const SPORT_GLYPHS = [
-  { Icon: Volleyball, top: "8%", left: "72%", size: 64, rotate: -12 },
-  { Icon: Trophy, top: "22%", left: "18%", size: 44, rotate: 8 },
-  { Icon: Dumbbell, top: "40%", left: "85%", size: 52, rotate: 20 },
-  { Icon: Whistle, top: "62%", left: "8%", size: 40, rotate: -18 },
-  { Icon: ChessKnight, top: "78%", left: "60%", size: 48, rotate: 10 },
-  { Icon: Gamepad2, top: "12%", left: "45%", size: 40, rotate: -6 },
-  { Icon: Target, top: "88%", left: "30%", size: 44, rotate: 4 },
-  { Icon: CircleDot, top: "50%", left: "35%", size: 32, rotate: 0 },
-  { Icon: Swords, top: "34%", left: "60%", size: 36, rotate: -24 },
-  { Icon: Medal, top: "68%", left: "82%", size: 36, rotate: 14 },
-];
+// React Bits "Gradient Waves" (WebGL). Lazy so its chunk + `ogl` never touch the
+// main bundle — only the login page ever fetches it.
+const GradientWaves = lazy(() => import("../components/GradientWaves"));
 
-function SportsBackdrop() {
-  return (
-    <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-      {SPORT_GLYPHS.map(({ Icon, top, left, size, rotate }, i) => (
-        <Icon
-          key={i}
-          className="absolute text-white/10"
-          style={{ top, left, width: size, height: size, transform: `rotate(${rotate}deg)` }}
-        />
-      ))}
-    </div>
-  );
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setMatches(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return matches;
 }
 
 export default function Login() {
@@ -62,6 +31,11 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState(null); // { barangays, sports } — from /api/public/overview
   const navigate = useNavigate();
+  // The brand panel is `hidden lg:flex`, so on phones it is display:none — but a
+  // hidden element would still MOUNT the WebGL canvas. Only render the waves at
+  // desktop widths so phones never download or run them at all.
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
 
   // Pulled live rather than hardcoded — the League Setup page lets the Super
   // Admin add/remove sports and barangays mid-season (e.g. adding a Mobile
@@ -117,9 +91,29 @@ export default function Login() {
       {/* Brand panel — hidden on phones, this is the one screen that gets to be a
           little more decorative since every role lands here first. */}
       <div className="hidden lg:flex relative flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-primary to-[oklch(0.34_0.19_290)] p-12 text-primary-foreground">
-        <SportsBackdrop />
-        <div className="absolute -top-24 -right-24 size-96 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 size-72 rounded-full bg-[oklch(0.7_0.2_70)]/20 blur-3xl" />
+        {/* Layers, bottom to top: the purple gradient (fallback) -> React Bits
+            GradientWaves (animated, desktop only; frozen under
+            prefers-reduced-motion via speed 0) -> one scrim for text legibility. */}
+        {wide && (
+          <div className="absolute inset-0" aria-hidden="true">
+            <Suspense fallback={null}>
+              <GradientWaves
+                horizonColor="#170844"
+                waveColor="#2b1382"
+                crestColor="#8b5cff"
+                fogDepth={60}
+                amplitude={3}
+                speed={reduceMotion ? 0 : 0.35}
+                mouseInteraction={!reduceMotion}
+                grainIntensity={0.04}
+              />
+            </Suspense>
+          </div>
+        )}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: "linear-gradient(180deg, rgba(20,8,48,0.55) 0%, rgba(20,8,48,0.25) 40%, rgba(20,8,48,0.88) 100%)" }}
+        />
 
         <div className="relative flex items-center gap-2.5">
           <img src="/logo/ksl-mark-simple.svg" alt="" className="h-9 w-9" />

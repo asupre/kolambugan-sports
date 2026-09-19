@@ -1745,3 +1745,67 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
   (default true); `OrganizerScoring` passes `animateTheme={false}`, and the
   toggle there swaps instantly (re-verified: 4 of 4 taps registered, score
   34 -> 38, no view transition). Drop the prop to re-enable the animation.
+
+## 2026-09 — Login page: photo behind the left brand panel
+
+- Super Admin supplied `login-bg.jpg` (1366x768: basketball + football on the
+  left, arena in the middle, esports on the right). Moved to
+  `frontend/public/login-bg.jpg` and used as the background of `Login.jsx`'s
+  desktop-only left panel with `object-cover object-left`, so only the LEFT
+  side of the image (the basketball/football action) shows in the half-width
+  panel; the arena/esports half is cropped off. One gradient scrim
+  (`rgba(20,8,48,.55 -> .25 -> .88)`) keeps the white text legible. The old
+  purple gradient stays underneath as the fallback if the file is missing
+  (`onError` hides the `<img>`).
+- Removed the scattered lucide sport-glyph backdrop (`SportsBackdrop`,
+  `SPORT_GLYPHS`) and the two blurred colour blobs — the photo replaces them —
+  plus the 9 icon imports only they used.
+- Phones are unchanged (the panel is `hidden lg:flex`; they keep the logo mark).
+- File is ~600 KB; fine for a login page, but re-compress it if load time on
+  slow connections matters.
+
+## 2026-09 — Login: React Bits "Gradient Waves" background (layered under the photo)
+
+- Super Admin asked for React Bits' Gradient Waves on the login. Added
+  `components/GradientWaves.jsx` (copied from React Bits per its copy-paste
+  model, (c) 2026 David Haz, MIT + Commons Clause — allowed inside an
+  application; attribution header kept; its one-rule `.css` file was inlined).
+  New dependency: `ogl` (WebGL2 shader; the component pauses itself when
+  off-screen or the tab is hidden).
+- `Login.jsx` left brand panel, bottom to top: purple gradient (fallback) ->
+  GradientWaves -> the photo (`login-bg.jpg`, left side via `object-left`,
+  `mix-blend-screen` at 50%) -> one text-legibility scrim. Tuned palette
+  (deep violet horizon/wave, `#8b5cff` crest, `fogDepth 60`, `amplitude 3`) so
+  the waves read as dunes and the white text stays legible; brighter/warmer
+  palettes were tried and rejected (washed out the text / off-brand).
+- **Desktop only, and actually absent on phones:** the panel is `hidden
+  lg:flex`, but a hidden element would still mount the WebGL canvas, so the
+  waves are only rendered when `(min-width: 1024px)` matches (verified: 0
+  canvases at 600px). Lazy-loaded (`React.lazy`) into its own ~15.7 KB gzip
+  chunk, so `ogl` never touches the main bundle.
+- `prefers-reduced-motion: reduce` -> `speed 0` (a frozen frame, not blank).
+- Honest side effect: under the waves the photo is now only a faint texture
+  (players barely visible). If the waves are the keeper, the photo layer can be
+  deleted (saves a ~600 KB download); if the photo should be prominent, raise
+  its opacity.
+
+## 2026-09 — Login: photo removed, waves only (supersedes the two login entries above)
+
+- Super Admin deleted `login-bg.jpg` ("we don't need it"). Removed the photo
+  `<img>` layer from `Login.jsx`, so the panel is now: purple gradient
+  (fallback) -> GradientWaves -> the text scrim. No request for a missing file,
+  and ~600 KB less to download. The earlier "photo behind the left panel" and
+  "waves layered under the photo" entries describe intermediate states.
+
+## 2026-09 — Animation accessibility review (no code change)
+
+- Reviewed every animation added this session for accessibility impact.
+  Nothing flashes; all motion is small and non-essential. Honours
+  `prefers-reduced-motion`: Lenis, marquee, login waves, theme-toggle reveal.
+  Does not: Motion scroll-reveals (deliberate), pulsing LIVE dot, Tailwind
+  skeleton/spinner animations.
+- Known gaps, deliberately left for now (Super Admin: "see what the panel says
+  at the mock defense"): marquee has hover-pause only (WCAG 2.2.2 wants a
+  keyboard/touch-reachable pause), login waves keep the GPU busy on desktop.
+  Fixes are listed in CLAUDE.md if they're wanted later. No formal audit or
+  screen-reader test was done.

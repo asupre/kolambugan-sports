@@ -7,6 +7,7 @@
 // route exists, change it here and every public page picks it up at once.
 
 import { useState, useEffect } from "react";
+import { useInView } from "../hooks/useInView";
 
 export const DIVISION_LABEL = {
   open: "Open",
@@ -267,16 +268,37 @@ export function PhotoRowSkeleton({ rows = 2 }) {
   );
 }
 
-// The one purposeful animation on the public site (alongside the existing
-// live-poll refresh): a genuine pulsing dot on anything marked LIVE, the way
-// broadcast sports UIs do it. Never used for anything but a real "ongoing"
-// status — color/motion here still means something, it isn't decoration.
+// A genuine pulsing dot on anything marked LIVE, the way broadcast sports
+// UIs do it. Never used for anything but a real "ongoing" status —
+// color/motion here still means something, it isn't decoration.
 export function LiveDot({ className = "" }) {
   return (
     <span className={`relative inline-flex h-2 w-2 shrink-0 ${className}`}>
       <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-ping" />
       <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
     </span>
+  );
+}
+
+// Scroll-triggered reveal (Sep 2026) — the motion.dev-style fade-up-into-
+// view effect: content sits slightly lower and transparent until it
+// scrolls into the viewport, then eases up into place, once. Wrap any
+// below-the-fold section in it (see Home.jsx). `delay` (ms) staggers a row
+// of siblings so they cascade in one after another instead of all
+// snapping in together. Skips the animation (shows content immediately)
+// under prefers-reduced-motion — see useInView.
+export function Reveal({ children, delay = 0, className = "" }) {
+  const [ref, inView] = useInView();
+  return (
+    <div
+      ref={ref}
+      style={{ transitionDelay: inView ? `${delay}ms` : "0ms" }}
+      className={`transition-all duration-700 ease-out ${
+        inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+      } ${className}`}
+    >
+      {children}
+    </div>
   );
 }
 

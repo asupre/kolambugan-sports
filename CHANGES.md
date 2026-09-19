@@ -1502,3 +1502,63 @@ says WebSockets and must be corrected.
 - Also removed 3 untracked reference `.jpg` files the user had dropped in
   the repo root (Instagram screenshots used earlier this session to discuss
   the Home hero redesign) — served their purpose, never part of the app.
+
+## 2026-09 — Header: bigger logo, quieter/smaller desktop nav, animated hover underline
+
+- User shared one more reference image (same "Bounce" site) pointing at its
+  header specifically: a big bold logo with a small, understated nav sitting
+  directly on the hero, with a hover "motion" feel. `PublicLayout.jsx`:
+  - Logo bumped `h-9` → `h-11` (both mobile and desktop share the same
+    `<img>`, so both got bigger).
+  - Desktop nav (`sm:flex`) sized down `text-[15px]` → `text-[13px]`, gap
+    tightened `gap-7` → `gap-6` — was reading too heavy next to the now-
+    bigger logo; the logo should carry the visual weight, not the nav.
+  - Each desktop link now animates its own underline in from the left on
+    hover (`scale-x-0` → `scale-x-100`, 300ms eased) instead of an instant
+    color/border flip shared via one static `linkClass` string — the
+    "motion" touch asked for. Active state keeps the same idea, just starts
+    fully grown. Did NOT add the `motion`/`framer-motion` package for this —
+    a plain CSS transform transition reads the same for a single hover
+    effect and keeps Public's bundle free of a new dependency; mobile's
+    icon nav (touch, no real hover) still uses the original shared
+    `linkClass`, untouched.
+  - Verified with real screenshots (mobile + desktop) — logo/nav proportions
+    and no overflow confirmed; the hover animation itself isn't something a
+    static screenshot can prove, but it's a standard, low-risk Tailwind
+    `group-hover` + `transform` pattern, not the viewport-unit kind of trick
+    that broke things earlier this session.
+
+## 2026-09 — Scroll-reveal animation (motion.dev-style), Home page
+
+- User clarified the earlier "motion style" hover request further: wanted
+  the scroll-triggered fade/slide-in reveal animation style seen on
+  motion.dev specifically, applied to the page in general.
+- Deliberately did NOT add the `motion` (formerly Framer Motion) package —
+  a single scroll-reveal effect doesn't need a ~35-50kb animation library
+  when an `IntersectionObserver` + a CSS transition gets the same visual
+  result, and Public's bundle has stayed dependency-light on purpose all
+  session (inline SVGs instead of lucide-react, no new libraries for the
+  nav hover animation either).
+  - New `frontend/src/hooks/useInView.js` — a small reusable hook (matches
+    the existing `hooks/useDragScroll.js` pattern): observes an element,
+    flips `inView` true once it scrolls into the viewport, then disconnects
+    (animates ONCE, never replays on scroll back up/down — a page that
+    keeps re-triggering its own entrance animation reads as gimmicky).
+    Respects `prefers-reduced-motion` by skipping straight to visible
+    instead of leaving content stuck at `opacity-0` for anyone who can't
+    see a transition play.
+  - New `Reveal` component in `PublicUI.jsx`: wraps any section, fades +
+    slides it up 8 (`translate-y-8` → `translate-y-0`) over 700ms once
+    `useInView` fires. Takes a `delay` (ms) prop for staggering a row of
+    siblings.
+  - Wired into `Home.jsx`'s below-the-fold sections: the 3 stat tiles
+    cascade in with a 100ms stagger between each, then Live/Today panels,
+    "About the league," "Kolambugan," and "Recent results" each reveal as
+    they're scrolled to. The hero itself is NOT wrapped — it's above the
+    fold and already visible on load, so there's nothing to "reveal" on
+    scroll for it.
+  - Verified: clean build, and a full-page-height screenshot confirms the
+    wrapped sections render at their correct final layout/opacity (not
+    stuck invisible) — a static screenshot can't demonstrate the scroll-
+    triggered transition itself, only that the pattern doesn't break
+    anything at rest.

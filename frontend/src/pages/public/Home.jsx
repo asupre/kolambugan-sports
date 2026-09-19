@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, SiteImage, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, Reveal, SiteImage, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
 
 
 
@@ -149,91 +149,108 @@ export default function Home() {
         </div>
       </section>
 
-      {/* League at a glance */}
+      {/* League at a glance — each tile reveals a beat after the last,
+          cascading in rather than snapping in all at once. */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <StatTile icon={<BarangayIcon />} value={counts.barangays ?? "—"} label="Barangays" />
-        <StatTile icon={<SportIcon />} value={counts.sports ?? "—"} label="Sports" />
-        <StatTile
-          icon={<LiveDot />}
-          value={counts.liveNow ?? 0}
-          label="Live now"
-          live={(counts.liveNow ?? 0) > 0}
-        />
+        <Reveal delay={0}>
+          <StatTile icon={<BarangayIcon />} value={counts.barangays ?? "—"} label="Barangays" />
+        </Reveal>
+        <Reveal delay={100}>
+          <StatTile icon={<SportIcon />} value={counts.sports ?? "—"} label="Sports" />
+        </Reveal>
+        <Reveal delay={200}>
+          <StatTile
+            icon={<LiveDot />}
+            value={counts.liveNow ?? 0}
+            label="Live now"
+            live={(counts.liveNow ?? 0) > 0}
+          />
+        </Reveal>
       </div>
 
       {/* Live and today */}
       {live.length > 0 && (
-        <Panel title="Live now" count={`${live.length}`}>
-          <div>{live.map((m) => <MiniScore key={m.id} m={m} />)}</div>
-        </Panel>
+        <Reveal>
+          <Panel title="Live now" count={`${live.length}`}>
+            <div>{live.map((m) => <MiniScore key={m.id} m={m} />)}</div>
+          </Panel>
+        </Reveal>
       )}
 
       {today.length > 0 && (
-        <Panel title="Today" count={`${today.length} scheduled`}>
-          <div>
-            {today.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#1C2430] last:border-0">
-                <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
-                  <span className="text-slate-200 text-[13px] truncate text-right">{m.teamA?.name || "TBD"}</span>
-                  <Crest name={m.teamA?.name} size={22} />
+        <Reveal>
+          <Panel title="Today" count={`${today.length} scheduled`}>
+            <div>
+              {today.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#1C2430] last:border-0">
+                  <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
+                    <span className="text-slate-200 text-[13px] truncate text-right">{m.teamA?.name || "TBD"}</span>
+                    <Crest name={m.teamA?.name} size={22} />
+                  </div>
+                  <span className="text-slate-600 text-[11px] shrink-0">vs</span>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <Crest name={m.teamB?.name} size={22} />
+                    <span className="text-slate-200 text-[13px] truncate">{m.teamB?.name || "TBD"}</span>
+                  </div>
+                  <span className="w-20 shrink-0 text-right text-slate-600 text-[11px] truncate">{m.venue || m.sport}</span>
                 </div>
-                <span className="text-slate-600 text-[11px] shrink-0">vs</span>
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <Crest name={m.teamB?.name} size={22} />
-                  <span className="text-slate-200 text-[13px] truncate">{m.teamB?.name || "TBD"}</span>
-                </div>
-                <span className="w-20 shrink-0 text-right text-slate-600 text-[11px] truncate">{m.venue || m.sport}</span>
-              </div>
-            ))}
-          </div>
-        </Panel>
+              ))}
+            </div>
+          </Panel>
+        </Reveal>
       )}
 
       {/* About the league */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-        <SiteImage slot="league" label="league photo" className="w-full h-52 rounded-lg border border-[#1C2430]" />
-        <div className="flex flex-col justify-center">
-          <h2 className="text-slate-100 text-lg font-semibold mb-2">About the league</h2>
-          {/* SAMPLE COPY — replace before deployment. */}
-          <p className="text-slate-400 text-[14px] leading-relaxed mb-3">
-            The Inter-Barangay Sports League brings together every barangay in the
-            municipality for a single competitive season, organised by the
-            Sangguniang Kabataan Federation. Teams register through their barangay,
-            players are verified as residents, and every result is recorded as it
-            happens.
-          </p>
-          <p className="text-slate-500 text-[13px] leading-relaxed">
-            Competition runs across basketball, volleyball, badminton, pickleball,
-            billiards, chess, and Mobile Legends, with divisions set each season.
-          </p>
-        </div>
-      </section>
+      <Reveal>
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+          <SiteImage slot="league" label="league photo" className="w-full h-52 rounded-lg border border-[#1C2430]" />
+          <div className="flex flex-col justify-center">
+            <h2 className="text-slate-100 text-lg font-semibold mb-2">About the league</h2>
+            {/* SAMPLE COPY — replace before deployment. */}
+            <p className="text-slate-400 text-[14px] leading-relaxed mb-3">
+              The Inter-Barangay Sports League brings together every barangay in the
+              municipality for a single competitive season, organised by the
+              Sangguniang Kabataan Federation. Teams register through their barangay,
+              players are verified as residents, and every result is recorded as it
+              happens.
+            </p>
+            <p className="text-slate-500 text-[13px] leading-relaxed">
+              Competition runs across basketball, volleyball, badminton, pickleball,
+              billiards, chess, and Mobile Legends, with divisions set each season.
+            </p>
+          </div>
+        </section>
+      </Reveal>
 
       {/* About Kolambugan */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-        <div className="flex flex-col justify-center md:order-1 order-2">
-          <h2 className="text-slate-100 text-lg font-semibold mb-2">Kolambugan</h2>
-          {/* SAMPLE COPY — replace before deployment. */}
-          <p className="text-slate-400 text-[14px] leading-relaxed mb-3">
-            A coastal municipality in Lanao del Norte, Kolambugan is made up of
-            barangays that each field their own teams. The league is as much about
-            the barangays as the sport — every entry carries a community's name.
-          </p>
-          <Link to="/teams" className="text-[#F5A524] text-[13px] hover:underline">
-            Browse the teams →
-          </Link>
-        </div>
-        <SiteImage slot="barangay" label="municipality photo" className="w-full h-52 rounded-lg border border-[#1C2430] md:order-2 order-1" />
-      </section>
+      <Reveal>
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+          <div className="flex flex-col justify-center md:order-1 order-2">
+            <h2 className="text-slate-100 text-lg font-semibold mb-2">Kolambugan</h2>
+            {/* SAMPLE COPY — replace before deployment. */}
+            <p className="text-slate-400 text-[14px] leading-relaxed mb-3">
+              A coastal municipality in Lanao del Norte, Kolambugan is made up of
+              barangays that each field their own teams. The league is as much about
+              the barangays as the sport — every entry carries a community's name.
+            </p>
+            <Link to="/teams" className="text-[#F5A524] text-[13px] hover:underline">
+              Browse the teams →
+            </Link>
+          </div>
+          <SiteImage slot="barangay" label="municipality photo" className="w-full h-52 rounded-lg border border-[#1C2430] md:order-2 order-1" />
+        </section>
+      </Reveal>
 
       {/* Recent results */}
       {recent.length > 0 && (
-        <Panel title="Recent results" count={`${recent.length}`}>
-          <div>{recent.slice(0, 5).map((m) => <MiniScore key={m.id} m={m} />)}</div>
-          <div className="px-4 py-2.5 border-t border-[#1C2430]">
-            <Link to="/matches" className="text-[#F5A524] text-[12px] hover:underline">All results →</Link>
-          </div>
-        </Panel>
+        <Reveal>
+          <Panel title="Recent results" count={`${recent.length}`}>
+            <div>{recent.slice(0, 5).map((m) => <MiniScore key={m.id} m={m} />)}</div>
+            <div className="px-4 py-2.5 border-t border-[#1C2430]">
+              <Link to="/matches" className="text-[#F5A524] text-[12px] hover:underline">All results →</Link>
+            </div>
+          </Panel>
+        </Reveal>
       )}
     </>
   );

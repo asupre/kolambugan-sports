@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import { LiveDot } from "../../components/PublicUI";
+import { cn } from "../../lib/utils";
 
 const NAV = [
   { to: "/", label: "Home", icon: "home", end: true },
@@ -74,7 +75,7 @@ export default function PublicLayout() {
               <img
                 src="/logo/ksl-lockup-horizontal-dark.svg"
                 alt="Kolambugan Sports — Inter-Barangay League"
-                className="h-9 w-auto shrink-0"
+                className="h-11 w-auto shrink-0"
               />
             </Link>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -91,11 +92,33 @@ export default function PublicLayout() {
             </div>
           </div>
 
-          {/* Desktop: text nav, larger than before */}
-          <nav className="hidden sm:flex gap-7 text-[15px] font-medium">
+          {/* Desktop: smaller/quieter than before (was text-[15px], reading
+              too heavy next to the now-bigger logo) — the logo carries the
+              brand weight, the nav should sit back. Each link gets its own
+              animated underline (grows in from the left on hover, eased,
+              rather than an instant color/border flip) instead of sharing
+              one static border like the old `linkClass` — a small "motion"
+              touch. Active state keeps the same idea but the underline
+              simply starts fully grown. */}
+          <nav className="hidden sm:flex gap-6 text-[13px] font-medium">
             {NAV.map((n) => (
-              <NavLink key={n.to} to={n.to} end={n.end} className={linkClass}>
-                <span className="block py-3.5">{n.label}</span>
+              <NavLink key={n.to} to={n.to} end={n.end} className="group relative py-3.5 whitespace-nowrap">
+                {({ isActive }) => (
+                  <>
+                    <span className={cn(
+                      "transition-colors duration-200",
+                      isActive ? "text-[#F5A524]" : "text-slate-400 group-hover:text-slate-100"
+                    )}>
+                      {n.label}
+                    </span>
+                    <span
+                      className={cn(
+                        "absolute inset-x-0 -bottom-px h-[2px] origin-left bg-[#F5A524] transition-transform duration-300 ease-out",
+                        isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                      )}
+                    />
+                  </>
+                )}
               </NavLink>
             ))}
           </nav>

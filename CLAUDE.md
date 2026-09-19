@@ -1133,7 +1133,14 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   means no reference-list match exists at all; `flagged` stays
   approvable on judgment, since that's a barangay-rule call, not missing
   paperwork. Approve now also clears `flagReason` (was left stale before,
-  so an approved player could still show the old warning text).
+  so an approved player could still show the old warning text). **The
+  `ReasonCallout` component that renders that warning is copy-pasted in
+  THREE places** (`ReviewQueue.jsx`, `BrgyDashboard.jsx`, `Documents.jsx`)
+  — the `status === 'eligible'` guard was first added only to
+  `ReviewQueue.jsx`'s copy and had to be reapplied to the other two after
+  a real report of it still showing on the Barangay Admin's own roster
+  view (Sep 2026). Not extracted into a shared component yet — a real risk
+  if this needs fixing again.
 
 **Tournaments**
 - ML: group stage, knockout-size picker, scaling single-elim + 3rd place,

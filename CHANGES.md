@@ -1929,3 +1929,31 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
   Barangay Admin submits one" whenever `eligibilityStatus === "needs_document"`
   and `documents` is empty, so the block is visible before a click rather
   than only surfacing as an error after one.
+
+## 2026-09 — Same stale-flagReason bug, but in two more places
+
+- **Reported**: an already-approved player on Mukas's Basketball U15 team
+  still showed the "Under 15 — needs parental consent and documents"
+  warning on the Barangay Admin's own roster view, despite being eligible.
+- **Root cause**: `ReasonCallout` — the component that renders that amber
+  warning — is defined **three times** in this codebase, once per page
+  that needed it (`ReviewQueue.jsx`, `BrgyDashboard.jsx`, `Documents.jsx`),
+  copy-pasted rather than shared. The previous session's fix (clearing
+  `flagReason` on approve, plus a `status === "eligible"` guard so stale
+  data can't render even if it slips through) was only ever applied to
+  `ReviewQueue.jsx`'s copy — the other two were never touched, so
+  `BrgyDashboard.jsx` and `Documents.jsx` kept rendering a leftover reason
+  for any player approved before that fix shipped.
+- Added the same `if (!reason || status === "eligible") return null;` guard
+  to both remaining copies.
+- **Data repair**: queried the live DB directly and found exactly one
+  affected player in the whole database — Alfredo Salazar (Mukas
+  Basketball U15), approved before the fix with a stale flagReason still
+  on file. Cleared it by hand (temporary script, run and deleted, not
+  committed) rather than leaving it to the frontend guard alone, since
+  `Player.flagReason` shouldn't carry incorrect data regardless of which
+  page is looking at it. Verified via the live DB that no other player is
+  in this state.
+- Not extracted into a shared component in this pass — noted here as a
+  real "copy-pasted in three places" risk for next time one of them needs
+  a fix like this again.

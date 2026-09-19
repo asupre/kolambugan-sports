@@ -65,7 +65,9 @@ const REASON_TONE = {
   needs_document: { icon: FileWarning, box: "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400" },
 };
 function ReasonCallout({ status, reason }) {
-  if (!reason) return null;
+  // An eligible player should never show a leftover flag/needs-document
+  // reason, even against stale data (see ReviewQueue.jsx's identical guard).
+  if (!reason || status === "eligible") return null;
   const tone = REASON_TONE[status] || REASON_TONE.needs_document;
   const Icon = tone.icon;
   return (

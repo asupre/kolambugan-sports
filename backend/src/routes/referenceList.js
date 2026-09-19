@@ -2,8 +2,11 @@ const express = require('express');
 const multer = require('multer');
 const { parse } = require('csv-parse/sync');
 const ReferenceList = require('../models/ReferenceList');
+const Team = require('../models/Team');
+const TeamPlayer = require('../models/TeamPlayer');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
+const { decideFromCandidates, loadBrgyByName, norm } = require('../services/prescreen');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -86,7 +89,15 @@ router.get('/status', authenticate, authorize('super_admin'), async (req, res) =
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
-// GET /api/reference-list — the current season's reference records (Super Admin).
+// GET /api/reference-list — the current season's reference records (Super Admin),
+// each tagged with the CURRENT player it matches (if any), so the page can prove
+// the list is accurate instead of just listing names.
+//
+// This re-runs the exact same decideFromCandidates() decision prescreen.js uses,
+// LIVE, against every player currently on a team this season — it does NOT read
+// a stored field off Player. That's deliberate: it works retroactively for every
+// player regardless of when they were screened, with nothing to backfill if this
+// matching logic (or this feature) changes later.
 router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const season = await getCurrentSeason();
@@ -94,7 +105,47 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
     const records = await ReferenceList.find({ season: season._id })
       .sort({ lastName: 1, firstName: 1 })
       .lean();
-    res.json({ records });
+
+    const refIndex = new Map();
+    for (const r of records) {
+      const key = `${norm(r.lastName)}|${norm(r.firstName)}`;
+      if (!refIndex.has(key)) refIndex.set(key, []);
+      refIndex.get(key).push(r);
+    }
+
+    const teams = await Team.find({ season: season._id }).populate('barangay', 'name').lean();
+    const teamById = new Map(teams.map((t) => [String(t._id), t]));
+    const links = await TeamPlayer.find({ team: { $in: teams.map((t) => t._id) } }).populate('player').lean();
+    const brgyByName = await loadBrgyByName();
+
+    // referenceList _id (string) -> [{ status, playerName, teamName }, ...].
+    // An ARRAY, not a single value — matching is by name only, so two
+    // different players who happen to share a name (or one name registered
+    // on two different teams) can both land on the same reference row. That
+    // is itself worth surfacing, not silently overwriting: it's exactly the
+    // kind of thing this list is supposed to catch (e.g. someone's real
+    // home barangay correctly clears them on one team but flags them as a
+    // mismatch on another).
+    const matchByRefId = new Map();
+    for (const link of links) {
+      const p = link.player;
+      if (!p) continue;
+      const team = teamById.get(String(link.team));
+      const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
+      const { status, matchedReferenceId } = decideFromCandidates(p, team && team.barangay, candidates, brgyByName);
+      if (matchedReferenceId) {
+        const key = String(matchedReferenceId);
+        if (!matchByRefId.has(key)) matchByRefId.set(key, []);
+        matchByRefId.get(key).push({
+          status,
+          playerName: `${p.lastName}, ${p.firstName}`,
+          teamName: team && team.teamName,
+        });
+      }
+    }
+
+    const withMatch = records.map((r) => ({ ...r, matches: matchByRefId.get(String(r._id)) || [] }));
+    res.json({ records: withMatch });
   } catch (err) {
     console.error('Reference list fetch error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

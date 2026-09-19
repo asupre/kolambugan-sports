@@ -1,16 +1,95 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, FileText, ShieldCheck, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, ChevronDown, ChevronUp, FileText, FileWarning, ListChecks, ShieldCheck, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
+import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Dialog, DialogContent } from "../../components/ui/dialog";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+
+// Icon + tone for a player's flagReason, shared by the row callout and the
+// modal's full-width alert — flagged (wrong barangay) reads more urgent
+// (red) than needs_document (amber), matching the status badge colors.
+const REASON_TONE = {
+  flagged: {
+    icon: AlertTriangle,
+    box: "border-red-500/30 bg-red-500/5 text-red-700 dark:text-red-400",
+    btn: "border-red-500/40 text-red-700 dark:text-red-400 hover:bg-red-500/10",
+  },
+  needs_document: {
+    icon: FileWarning,
+    box: "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400",
+    btn: "border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10",
+  },
+};
+
+function ReasonCallout({ status, reason, className }) {
+  if (!reason) return null;
+  const tone = REASON_TONE[status] || REASON_TONE.needs_document;
+  const Icon = tone.icon;
+  return (
+    <p className={cn("flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium w-fit", tone.box, className)}>
+      <Icon className="size-3.5 shrink-0" /> {reason}
+    </p>
+  );
+}
+
+// Full-width version for the player modal — same reasons as above, plus a
+// link over to the Reference List, pre-searched by this player's name. That
+// page re-runs the same matching decision LIVE against the current list (see
+// referenceList.js), so it works for every player regardless of when they
+// were screened — nothing here depends on a stored "matched" id, and nothing
+// needs to be re-saved to see the connection.
+function MatchCallout({ status, reason, lastName, firstName, navigate }) {
+  const viewInReferenceList = () =>
+    navigate(`/admin/reference?q=${encodeURIComponent(`${lastName} ${firstName}`)}`);
+
+  if (status === "eligible") {
+    return (
+      <Alert className="border-green-500/30 bg-green-500/5">
+        <ListChecks className="text-green-600 dark:text-green-400" />
+        <AlertDescription className="text-foreground flex items-center justify-between gap-3 flex-wrap">
+          <span>Eligible — open the Reference List to see the exact resident record behind this.</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-500/10"
+            onClick={viewInReferenceList}
+          >
+            View in Reference List →
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!reason) return null;
+  const tone = REASON_TONE[status] || REASON_TONE.needs_document;
+  const Icon = tone.icon;
+  return (
+    <Alert className={tone.box}>
+      <Icon />
+      <AlertDescription className="text-inherit flex items-center justify-between gap-3 flex-wrap">
+        <span>{reason}</span>
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn("shrink-0", tone.btn)}
+          onClick={viewInReferenceList}
+        >
+          View in Reference List →
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
 
 const DOC_LABEL = {
   birth_certificate: "Birth Certificate",
@@ -113,6 +192,7 @@ function Field({ label, value }) {
 
 function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
   const p = player;
+  const navigate = useNavigate();
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -125,7 +205,6 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
               <Badge className={STATUS_BADGE[p.eligibilityStatus] || STATUS_BADGE.pending}>
                 {STATUS_LABEL[p.eligibilityStatus] || p.eligibilityStatus}
               </Badge>
-              {p.flagReason && <span className="text-xs text-muted-foreground">{p.flagReason}</span>}
             </div>
           </div>
           <Button variant="ghost" size="icon-sm" onClick={onClose}><X /></Button>
@@ -136,7 +215,14 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
             against their submitted ID. The photo column stays sticky so it's
             still visible while scrolling through several documents. */}
         <div className="px-6 py-5 min-h-[18rem] overflow-y-auto scrollbar-thin flex-1">
-          <div className="grid grid-cols-1 sm:grid-cols-[13rem_1fr] gap-6">
+          <MatchCallout
+            status={p.eligibilityStatus}
+            reason={p.flagReason}
+            lastName={p.lastName}
+            firstName={p.firstName}
+            navigate={navigate}
+          />
+          <div className={cn("grid grid-cols-1 sm:grid-cols-[13rem_1fr] gap-6", (p.flagReason || p.eligibilityStatus === "eligible") && "mt-5")}>
             <div className="sm:sticky sm:top-0 space-y-4 self-start">
               {p.photo ? (
                 <img src={`/api/teams/players/${p._id}/photo`} alt=""
@@ -351,7 +437,7 @@ export default function ReviewQueue() {
                                   </span>
                                 )}
                               </div>
-                              {p.flagReason && <p className="text-xs text-muted-foreground mt-0.5">{p.flagReason}</p>}
+                              <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} className="mt-1" />
                             </div>
                             <span className="text-muted-foreground text-xs shrink-0">View →</span>
                           </button>

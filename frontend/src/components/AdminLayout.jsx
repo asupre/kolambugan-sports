@@ -57,8 +57,15 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
+    // The color-fade CSS only exists under .theme-transition (see index.css) —
+    // added just for this brief window rather than left on permanently, so
+    // large tables elsewhere aren't paying for transition bookkeeping on
+    // every render, all the time, for a fade that only ever plays here.
+    const root = document.documentElement;
+    root.classList.add("theme-transition");
     setTheme(next);
     storeTheme(next);
+    window.setTimeout(() => root.classList.remove("theme-transition"), 300);
   }
 
   function logout() {
@@ -231,9 +238,20 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
               <button
                 onClick={toggleTheme}
                 aria-label="Toggle dark mode"
-                className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground transition"
+                className="relative h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground transition"
               >
-                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                <Sun
+                  className={cn(
+                    "absolute size-4 transition-all duration-500 ease-out",
+                    theme === "dark" ? "rotate-90 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100"
+                  )}
+                />
+                <Moon
+                  className={cn(
+                    "absolute size-4 transition-all duration-500 ease-out",
+                    theme === "dark" ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-0 opacity-0"
+                  )}
+                />
               </button>
             )}
             <span className="hidden sm:inline">{user?.username}</span>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, ImageIcon, Loader2, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { AlertTriangle, Camera, FileWarning, ImageIcon, Loader2, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import ImageCropDialog from "../../components/ImageCropDialog";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -56,6 +56,24 @@ const ELIGIBILITY_BADGE = {
   flagged: "bg-red-500/15 text-red-600 dark:text-red-400",
   needs_document: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
 };
+
+// Same treatment as the Super Admin's Review Queue — a colored, bordered
+// callout instead of plain muted text, so the reason a player needs
+// attention is easy to spot rather than blending into the row.
+const REASON_TONE = {
+  flagged: { icon: AlertTriangle, box: "border-red-500/30 bg-red-500/5 text-red-700 dark:text-red-400" },
+  needs_document: { icon: FileWarning, box: "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400" },
+};
+function ReasonCallout({ status, reason }) {
+  if (!reason) return null;
+  const tone = REASON_TONE[status] || REASON_TONE.needs_document;
+  const Icon = tone.icon;
+  return (
+    <p className={cn("flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium w-fit mt-1.5", tone.box)}>
+      <Icon className="size-3.5 shrink-0" /> {reason}
+    </p>
+  );
+}
 
 // Matches MINOR_AGE in the pre-screen service. Under this age a player can't be
 // on the SK voters' list at all, so documents are needed regardless of spelling.
@@ -621,9 +639,7 @@ function RosterEditor({ team, sports, onClose }) {
                       <p className="text-xs text-muted-foreground mt-1.5 truncate">{p.address}</p>
                     )}
 
-                    {p.flagReason && (
-                      <p className="text-xs text-amber-700 mt-1.5">{p.flagReason}</p>
-                    )}
+                    <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} />
 
                     {needsDoc && (
                       <>

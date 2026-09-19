@@ -38,11 +38,13 @@ function sameDay(a, b) {
 function decideFromCandidates(player, teamBarangay, candidates, brgyByName) {
   const age = ageFrom(player.birthdate);
 
-  // Under 15 can't be on a voters' list at all, so there's nothing to look up.
+  // Under 15 can't be on a voters' list at all, so there's nothing to look up —
+  // no candidate is "matched" here even if a name happens to coincide.
   if (age !== null && age < MINOR_AGE) {
     return {
       status: 'needs_document',
       reason: `Under ${MINOR_AGE} — needs parental consent and documents`,
+      matchedReferenceId: null,
     };
   }
 
@@ -56,23 +58,27 @@ function decideFromCandidates(player, teamBarangay, candidates, brgyByName) {
     return {
       status: 'needs_document',
       reason: 'Not found on the reference list — check the spelling, or upload a residency document',
+      matchedReferenceId: null,
     };
   }
 
   const teamBrgyName = norm(teamBarangay && teamBarangay.name);
-  if (
-    cands.some((r) => teamBrgyName && norm(r.barangay) === teamBrgyName) ||
-    !cands.some((r) => r.barangay)
-  ) {
-    return { status: 'eligible', reason: '' };
+  const sameBrgyMatch = cands.find((r) => teamBrgyName && norm(r.barangay) === teamBrgyName);
+  if (sameBrgyMatch || !cands.some((r) => r.barangay)) {
+    return { status: 'eligible', reason: '', matchedReferenceId: (sameBrgyMatch || cands[0])._id };
   }
 
   const home = brgyByName[norm(cands[0].barangay)];
-  if (home && home.allowsCrossBarangay) return { status: 'eligible', reason: '' };
+  if (home && home.allowsCrossBarangay) {
+    return { status: 'eligible', reason: '', matchedReferenceId: cands[0]._id };
+  }
 
   return {
     status: 'flagged',
     reason: `Listed under ${cands[0].barangay}, not ${teamBarangay?.name || 'this barangay'} — cross-barangay not allowed`,
+    // The mismatched-barangay row itself — this IS the reason for the flag,
+    // so it's worth surfacing the same way an eligible match is.
+    matchedReferenceId: cands[0]._id,
   };
 }
 
@@ -190,4 +196,16 @@ async function rescreenSeason(seasonId) {
   return { screened, changed, reopened };
 }
 
-module.exports = { prescreenTeam, prescreenPlayer, rescreenSeason, MINOR_AGE };
+module.exports = {
+  prescreenTeam,
+  prescreenPlayer,
+  rescreenSeason,
+  MINOR_AGE,
+  // Exported so the Reference List page can cross-reference LIVE, at read
+  // time, instead of relying on a stored field on Player — that way it
+  // works for every player regardless of when they were screened, with
+  // nothing to backfill when this feature was added after the fact.
+  decideFromCandidates,
+  loadBrgyByName,
+  norm,
+};

@@ -1145,3 +1145,134 @@ says WebSockets and must be corrected.
   reversed crest variants, and the larger PNGs (Word/PowerPoint/tarpaulin
   use per the README) — left in `frontend/public/logo/` for whenever
   a document or print piece needs them.
+
+## 2026-09 — Bigger/animated loading screen, dark-mode transition, reference-list match tracing
+
+- **LoadingScreen bigger + more polished**: logo doubled (h-12 → h-20) with a
+  soft pulsing glow ring behind it (`--primary` accent, theme-token based),
+  the spinner icon swapped for an indeterminate progress bar sweep
+  (`loading-bar` keyframe in `index.css`). Same component, so both
+  `Login.jsx`'s "Signing in…" and `AdminLayout.jsx`'s "Signing out…" pick it
+  up for free.
+- **Dark/light toggle animated**: the header button now cross-fades/rotates
+  between `Sun`/`Moon` (`AdminLayout.jsx`) instead of an instant icon swap.
+  A global `index.css` rule (`prefers-reduced-motion`-guarded) transitions
+  `background-color`/`border-color`/`color`/`fill`/`stroke` at 200ms on any
+  element that doesn't already declare its own `transition` utility —
+  Tailwind's layer order (`base` < `utilities`) means an element with its
+  own `transition-*` class keeps that instead, so this only smooths the
+  plain, untouched containers (Cards, tables, the sidebar) that previously
+  flashed instantly when `.dark` toggled.
+- **Flagged / needs-document reasons now a colored callout, not muted text**:
+  `flagReason` used to render as quiet gray text easy to miss next to a
+  status badge. Now a bordered amber (needs_document) or red (flagged) box
+  with an icon (`AlertTriangle`/`FileWarning`), same color convention as the
+  existing status badges. Applied everywhere a player's flagReason already
+  showed: Review Queue's player row AND its detail modal, plus the Barangay
+  Admin's own roster (`BrgyDashboard.jsx`) and Document Submission page
+  (`Documents.jsx`) — the Barangay Admin is the one who has to act on it.
+- **Reference List: search bar + proof-of-match tracing** (the point: prove
+  the automated pre-screen's decision against the actual source row, not
+  just assert it). Went through two designs in the same session — the first
+  is worth recording because the reasoning that killed it matters:
+  - **First attempt (reverted): a stored `Player.matchedReferenceId` field.**
+    Set by `decideFromCandidates` and persisted by all three prescreen entry
+    points. Problem, surfaced immediately by the user testing it: an already-
+    `eligible` player screened BEFORE this field existed has `null` forever —
+    the green highlight would only ever work for players screened after the
+    code shipped, and "just re-save every existing player" isn't a real
+    answer across 26 barangays. Backfilling would have needed a one-off
+    migration script and a live DB write. Reverted the schema field and the
+    writes in `prescreen.js`/`review.js` entirely rather than ship that gap.
+  - **Shipped instead: live cross-reference, computed on every read.**
+    `GET /api/reference-list` now re-runs the exact same `decideFromCandidates`
+    decision prescreen.js uses — LIVE, against every player on a team in the
+    current season — and tags each returned record with `match: { status,
+    playerName, teamName } | null`. Nothing is read from or written to
+    `Player`; this works retroactively for every player, screened whenever,
+    with nothing to backfill. Exported `decideFromCandidates`, `loadBrgyByName`,
+    and `norm` from `prescreen.js` for `referenceList.js` to reuse rather than
+    re-implementing the matching rules a second time.
+  - Frontend: every row with a `match` is now outlined green (eligible) or
+    red (flagged/mismatch) in the residents table, always — not just when
+    arriving from somewhere else — with a "Matched"/"Mismatch" chip plus the
+    connected player's name and team in a new "Matched player" column. This
+    is what actually answers the original ask: search any name, and if that
+    person is currently eligible or flagged on a team, the row is already
+    colored with no extra step.
+  - Review Queue's player modal still offers a shortcut over — "View in
+    Reference List →" for eligible players (green alert) and flagged/
+    needs_document players (next to the reason) — but it now just navigates
+    to `/admin/reference?q=<name>`, which prefills the search box; the page's
+    own live cross-reference does the rest. No id, no stored state, nothing
+    that can go stale.
+  - Also added the search box itself: tokenized (splits on whitespace/
+    punctuation) rather than one literal substring, and drops tokens that
+    can never match anything in the reference schema — pure numbers (jersey
+    numbers) and bare single-letter initials (no middle-name column exists
+    here). Without this, typing a roster-style query like "Rivera 3101,
+    Antonio S." returned nothing even though Antonio Rivera really is on
+    the list, because the old naive search required the WHOLE typed string
+    to appear verbatim. Shows an explicit amber hint if the query is only
+    unsearchable tokens (e.g. a jersey number alone), instead of silently
+    returning zero results.
+
+## 2026-09 — Bug: reference-list match tracing silently dropped one of two players sharing a name
+
+- Found immediately after shipping the live cross-reference above: searching
+  "Rivera" showed the resident matched to "Austin Heights 1" as a Mismatch —
+  not "Mukas 1", where the real Antonio Rivera is actually eligible.
+- Cause: `GET /api/reference-list` built `matchByRefId` as a `Map<refId,
+  singleMatch>`. Matching is by NAME ONLY, so a second player anywhere in
+  the season who happens to share a name (here: a different "Antonio
+  Rivera" registered on Austin Heights 1, whose barangay doesn't agree with
+  the reference row, hence flagged) resolves to the exact same reference
+  row id as Mukas 1's Antonio. Whichever player the loop reached LAST
+  simply overwrote the first one's entry in the map — Mukas 1's genuine
+  eligible match was computed correctly and then silently discarded before
+  the response was ever sent.
+- Fix: `matchByRefId` now maps to an ARRAY (`matches`, not `match`). Every
+  player who resolves to a reference row is kept, not just the last one.
+  The Reference List table renders each one on its own line under that
+  row, with its own Matched/Mismatch color — and when a row has more than
+  one, the row itself gets an amber outline and a "N players match this
+  name" note, since two different teams' players landing on one reference
+  row is worth a Super Admin's attention either way (same person trying to
+  play for two barangays, or two unrelated residents who happen to share a
+  name and can't be told apart by name-only matching).
+- `frontend/src/pages/admin/ReferenceList.jsx`: renamed the field
+  accordingly (`r.match` → `r.matches`, array, defaults to `[]`).
+
+## 2026-09 — Reference List page was laggy on every interaction — two real causes, both fixed
+
+- Reported as: typing in the search box or clicking anything on this page
+  visibly froze for a moment before catching up. Confirmed directly against
+  the database: this season's reference list really does hold 17,000 rows
+  (a realistic-scale test list), against only 4 teams / 14 players — so the
+  live cross-reference computation added in the two entries above was never
+  the bottleneck (14 players is nothing to iterate). The lag was rendering
+  and CSS, not the match logic.
+- **Cause 1 — up to 17,000 `<tr>` rows mounted in the DOM at once.** The
+  table only ever *displayed* ~15 rows at a time (scrolled, `max-h-96`), but
+  React was still rendering and reconciling every matching row on every
+  keystroke — with no search typed at all, that's the full 17k. Fixed by
+  capping rendering to the first 200 results (`RENDER_CAP` in
+  `ReferenceList.jsx`) regardless of how many actually match, with a note
+  telling the Super Admin to narrow their search when there are more than
+  that. The search box was already the intended way to find one person —
+  this just stops the page from also trying to render everyone else at the
+  same time.
+- **Cause 2 — the site-wide dark-mode transition rule from the loading-
+  screen/dark-mode session above.** `* { transition-property:
+  background-color, border-color, color, fill, stroke; }` was left on
+  PERMANENTLY, on every element, to make the theme toggle fade smoothly.
+  With thousands of table rows/cells that's thousands of elements carrying
+  transition bookkeeping on every render, not just the moment the theme
+  actually changes. Rescoped to a `.theme-transition` class that
+  `AdminLayout`'s `toggleTheme()` now adds to `<html>` for ~300ms around the
+  actual toggle and then removes — same fade, paid for only when it's
+  playing, not on every keystroke on every page for the rest of the session.
+- Also wrapped the search input's derived filtering in `useDeferredValue`
+  (`deferredSearch` in `ReferenceList.jsx`) so the input itself never waits
+  on the (now much cheaper, but not free) filter-and-render work — React
+  updates what you're typing immediately and lets the table catch up.

@@ -1,12 +1,15 @@
-import { useEffect, useState, useRef } from "react";
-import { CheckCircle2, ClipboardList, UploadCloud } from "lucide-react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { CheckCircle2, CircleCheck, CircleX, ClipboardList, Search, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
 import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
 export default function ReferenceList() {
   const [status, setStatus] = useState(null);   // { count, season }
@@ -17,12 +20,24 @@ export default function ReferenceList() {
   const [result, setResult] = useState(null);    // upload result
   const fileInputRef = useRef(null);
   const [records, setRecords] = useState([]);
+  const [searchParams] = useSearchParams();
+  // Prefilled from the Review Queue's "View in Reference List" link
+  // (?q=<lastName> <firstName>) — read once on mount, the search box itself
+  // owns it from then on.
+  const [search, setSearch] = useState(() => searchParams.get("q") || "");
+  const cameFromLink = useRef(searchParams.get("q") != null);
+  const scrolledToMatch = useRef(false);
+  const rowRefs = useRef({});
 
   async function loadStatus() {
     setLoading(true);
     try {
       const data = await api("/api/reference-list/status");
       setStatus(data);
+      // Each record comes back tagged with `match` (the CURRENT player it
+      // connects to, if any) — computed live on the server against every
+      // player on a team this season, not stored on the record itself. See
+      // GET /api/reference-list.
       const list = await api("/api/reference-list");
       setRecords(list.records || []);
     } catch {
@@ -34,6 +49,62 @@ export default function ReferenceList() {
   }
 
   useEffect(() => { loadStatus(); }, []);
+
+  // Arriving from a "View in Reference List" link: once the list loads,
+  // jump straight to the first matched row among the (already name-filtered)
+  // results, so the connection is easy to spot in a list that can run into
+  // the thousands of rows.
+  useEffect(() => {
+    if (!cameFromLink.current || scrolledToMatch.current || records.length === 0) return;
+    const target = records.find((r) => r.matches?.length);
+    const el = target && rowRefs.current[target._id];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      scrolledToMatch.current = true;
+    }
+  }, [records]);
+
+  // Deferred: with up to ~17k rows, re-filtering AND re-rendering the table
+  // on every single keystroke was what made typing feel laggy — the input
+  // itself would still lag behind if it had to wait for that. React lets the
+  // input update immediately (`search`) while deprioritizing the expensive
+  // filter/render (`deferredSearch`) until the browser has a spare moment.
+  const deferredSearch = useDeferredValue(search);
+
+  // The reference list only ever has firstName/lastName/barangay (see
+  // ReferenceList.js) — no jersey number, no middle name. Typing a full
+  // roster-style entry ("Rivera 3101, Antonio S.") used to zero out every
+  // result, because the old search matched the WHOLE typed string as one
+  // substring: the jersey number and middle initial don't exist anywhere
+  // in the reference data, so nothing could ever contain them verbatim —
+  // even for a resident who really is on the list. Tokenize instead, drop
+  // tokens that can never match anything here (pure numbers, bare
+  // initials), and require only the remaining name/barangay words.
+  const searchTokens = useMemo(
+    () => deferredSearch.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
+    [deferredSearch]
+  );
+  const meaningfulTokens = useMemo(
+    () => searchTokens.filter((t) => t.length > 1 && !/^\d+$/.test(t)),
+    [searchTokens]
+  );
+  const searchIsNoiseOnly = searchTokens.length > 0 && meaningfulTokens.length === 0;
+
+  const filteredRecords = useMemo(() => {
+    if (!meaningfulTokens.length) return searchIsNoiseOnly ? [] : records;
+    return records.filter((r) => {
+      const haystack = `${r.lastName} ${r.firstName} ${r.barangay || ""}`.toLowerCase();
+      return meaningfulTokens.every((t) => haystack.includes(t));
+    });
+  }, [records, meaningfulTokens, searchIsNoiseOnly]);
+
+  // The other half of the lag: rendering every matching row at once, even
+  // when that's the full unfiltered list. Capping keeps the DOM small (and
+  // this page smooth) no matter how large the underlying list gets — the
+  // search box is how you narrow it down, not the scrollbar.
+  const RENDER_CAP = 200;
+  const visibleRecords = filteredRecords.slice(0, RENDER_CAP);
+  const truncated = filteredRecords.length > RENDER_CAP;
 
   async function handleUpload() {
     if (!file) return;
@@ -149,8 +220,38 @@ export default function ReferenceList() {
           <Card>
             <CardHeader>
               <CardTitle>Loaded residents</CardTitle>
+              <CardDescription>
+                Search by name or barangay to look up a specific resident's record. This
+                list only has names and barangays — no jersey numbers or middle initials,
+                those live on the player's roster entry instead.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div className="relative max-w-sm">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name or barangay…"
+                  className="pl-8"
+                />
+              </div>
+              {searchIsNoiseOnly ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Jersey numbers and middle initials aren't on the reference list — try just
+                  the last name (and first name, if it's a common surname).
+                </p>
+              ) : search ? (
+                <p className="text-xs text-muted-foreground">
+                  {filteredRecords.length} of {records.length} residents match "{search}"
+                  {truncated ? ` — showing the first ${RENDER_CAP}, narrow your search to see the rest.` : "."}
+                </p>
+              ) : truncated && (
+                <p className="text-xs text-muted-foreground">
+                  Showing the first {RENDER_CAP} of {records.length} residents — search by name to find someone specific.
+                </p>
+              )}
+
               <div className="max-h-96 overflow-y-auto scrollbar-thin rounded-lg border">
                 {/* table-layout: fixed makes column widths independent of cell
                     content, so a sidebar-collapse reflow doesn't have to rescan
@@ -158,25 +259,90 @@ export default function ReferenceList() {
                     residents, auto layout was the source of the collapse lag. */}
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
-                    <col className="w-[35%]" />
-                    <col className="w-[35%]" />
-                    <col className="w-[30%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[34%]" />
                   </colgroup>
                   <thead className="bg-muted text-muted-foreground text-left sticky top-0">
                     <tr>
                       <th className="px-3 py-2 font-medium">Last name</th>
                       <th className="px-3 py-2 font-medium">First name</th>
                       <th className="px-3 py-2 font-medium">Barangay</th>
+                      <th className="px-3 py-2 font-medium">Matched player</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {records.map((r) => (
-                      <tr key={r._id}>
-                        <td className="px-3 py-2 truncate">{r.lastName}</td>
-                        <td className="px-3 py-2 truncate">{r.firstName}</td>
-                        <td className="px-3 py-2 text-muted-foreground truncate">{r.barangay || "—"}</td>
+                    {visibleRecords.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                          No residents match your search.
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      visibleRecords.map((r) => {
+                        // `matches` is computed live on every load (see
+                        // GET /api/reference-list) by re-running the same
+                        // decision the automated pre-screen uses against
+                        // every current player — so this lights up for ANY
+                        // resident who's actually connected to a player right
+                        // now, search or no search, no matter when that
+                        // player was originally screened. It's an ARRAY: name
+                        // matching means two different players (or the same
+                        // name entered on two different teams) can both land
+                        // on this one row — worth showing plainly rather than
+                        // picking one and hiding the other, since that's
+                        // exactly the kind of conflict this list should catch.
+                        const matches = r.matches || [];
+                        const rowTone =
+                          matches.length === 0
+                            ? null
+                            : matches.length > 1
+                            ? "multi"
+                            : matches[0].status === "flagged"
+                            ? "flagged"
+                            : "eligible";
+                        return (
+                          <tr
+                            key={r._id}
+                            ref={(el) => { rowRefs.current[r._id] = el; }}
+                            className={cn(
+                              rowTone === "eligible" && "bg-green-500/10 outline outline-1 -outline-offset-1 outline-green-500/40",
+                              rowTone === "flagged" && "bg-red-500/10 outline outline-1 -outline-offset-1 outline-red-500/40",
+                              rowTone === "multi" && "bg-amber-500/10 outline outline-1 -outline-offset-1 outline-amber-500/40"
+                            )}
+                          >
+                            <td className="px-3 py-2 truncate">{r.lastName}</td>
+                            <td className="px-3 py-2 truncate">{r.firstName}</td>
+                            <td className="px-3 py-2 text-muted-foreground truncate">{r.barangay || "—"}</td>
+                            <td className="px-3 py-2 space-y-1">
+                              {rowTone === "multi" && (
+                                <p className="text-amber-600 dark:text-amber-400 text-[11px] font-medium">
+                                  {matches.length} players match this name
+                                </p>
+                              )}
+                              {matches.map((m, i) => {
+                                const isMismatch = m.status === "flagged";
+                                return (
+                                  <div key={i} className="min-w-0">
+                                    <span className={cn(
+                                      "inline-flex items-center gap-1 text-xs font-medium",
+                                      isMismatch ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                                    )}>
+                                      {isMismatch ? <CircleX className="size-3.5 shrink-0" /> : <CircleCheck className="size-3.5 shrink-0" />}
+                                      {isMismatch ? "Mismatch" : "Matched"}
+                                    </span>
+                                    <p className="text-muted-foreground text-xs truncate">
+                                      {m.playerName}{m.teamName ? ` · ${m.teamName}` : ""}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, FileWarning, Inbox, UploadCloud } from "lucide-react";
+import { AlertTriangle, FileText, FileWarning, Inbox, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { brgyMenu } from "../../components/menus";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -40,6 +40,24 @@ const VERIFY_BADGE = {
   rejected: "bg-red-500/15 text-red-600 dark:text-red-400",
   pending: "bg-muted text-muted-foreground",
 };
+
+// Same treatment as the Super Admin's Review Queue — a colored, bordered
+// callout instead of plain muted text, so the reason a document is needed
+// is easy to spot rather than blending into the card.
+const REASON_TONE = {
+  flagged: { icon: AlertTriangle, box: "border-red-500/30 bg-red-500/5 text-red-700 dark:text-red-400" },
+  needs_document: { icon: FileWarning, box: "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400" },
+};
+function ReasonCallout({ status, reason }) {
+  if (!reason) return null;
+  const tone = REASON_TONE[status] || REASON_TONE.needs_document;
+  const Icon = tone.icon;
+  return (
+    <p className={cn("flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium w-fit", tone.box)}>
+      <Icon className="size-3.5 shrink-0" /> {reason}
+    </p>
+  );
+}
 
 export default function Documents() {
   const showError = useErrorDialog();
@@ -172,9 +190,7 @@ export default function Documents() {
                     </Badge>
                   </div>
 
-                  {p.flagReason && (
-                    <p className="text-xs text-muted-foreground">Reason: {p.flagReason}</p>
-                  )}
+                  <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} />
 
                   {p.documents.length > 0 && (
                     <div className="space-y-1">

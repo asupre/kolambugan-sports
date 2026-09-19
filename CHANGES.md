@@ -1713,3 +1713,35 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
   fixed (see "Cross-barangay flag direction fixed" above) — the thesis text
   and the HIPO/meeting-notes wording should be trued up to say "teams of
   small/remote barangays may recruit from any barangay".
+
+## 2026-09 — Animated admin theme toggle (circular reveal), one shared component
+
+- `npm i react-theme-switch-animation`. New `components/ThemeToggle.jsx`
+  (the ONLY toggle; rendered by `AdminLayout` for all three admin roles) uses
+  `useModeAnimation({ animationType: CIRCLE, duration: 600 })` with the ref on
+  the button, so the reveal expands from wherever it sits. Sun/moon icons,
+  the `dark` class on `<html>` and the per-user localStorage persistence are
+  unchanged; the hook only drives the animation — `AdminLayout`'s `theme`
+  state is passed in as `isDarkMode` and stays the source of truth
+  (`handleThemeChange` replaces `toggleTheme`). Public pages: untouched, no
+  toggle, no colour changes.
+- Removed the `.theme-transition` colour-fade CSS + its 300ms class toggling
+  (superseded by the reveal; the fallbacks are meant to be instant).
+- The hook also writes a global `localStorage.theme` key (unavoidable, never
+  read by us).
+- **Verified** in headless Edge over CDP with the real UI and a MOCKED API
+  (no DB writes): reduced-motion -> no view transition, instant, no error;
+  `document.startViewTransition` undefined -> instant, no error, no leftover
+  `#theme-switch-style`; Super Admin and Barangay Admin pages -> one toggle,
+  reveal plays, toggles back, state + storage correct.
+- **Finding that changed the request:** with the organizer scoring screen open
+  mid-match (mocked ongoing basketball match), the reveal DOES interfere with
+  score entry — a View Transition makes the page non-interactive for ~0.75s
+  and every real mouse tap landing in that window was swallowed (3 of 3),
+  while taps after it registered. `::view-transition{pointer-events:none}`
+  didn't fix it. Frames also dipped (~29fps avg, 7 frames >33ms, in
+  software-rendered headless Edge — real-GPU numbers not measured). So the
+  organizer scoring screen opts out: `AdminLayout` got an `animateTheme` prop
+  (default true); `OrganizerScoring` passes `animateTheme={false}`, and the
+  toggle there swaps instantly (re-verified: 4 of 4 taps registered, score
+  34 -> 38, no view transition). Drop the prop to re-enable the animation.

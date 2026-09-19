@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { HelpCircle, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { HelpCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { api } from "../api";
 import InstructionModal from "./InstructionModal";
 import LoadingScreen from "./LoadingScreen";
 import { getStoredTheme, storeTheme } from "../lib/theme";
+import ThemeToggle from "./ThemeToggle";
 import { cn } from "../lib/utils";
 
 // menu can be flat ([{label, path, icon}, ...]) or grouped
@@ -15,7 +16,11 @@ function flattenItems(menu) {
   return menu[0]?.header !== undefined ? menu.flatMap((g) => g.items) : menu;
 }
 
-export default function AdminLayout({ title, menu, children, enableDarkMode = false }) {
+// animateTheme={false} makes the theme toggle swap instantly instead of playing
+// the circular reveal. Used by the organizer scoring screen: a View Transition
+// makes the page non-interactive for its ~0.75s, so a score tap landing during
+// the reveal is silently swallowed (measured Sep 2026) — unacceptable mid-match.
+export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true }) {
   const [open, setOpen] = useState(false);          // mobile: sidebar shown as an overlay
   const [rail, setRail] = useState(false);           // desktop: whole sidebar collapsed to an icon rail
   const [loggingOut, setLoggingOut] = useState(false);
@@ -55,17 +60,15 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
     setExpanded((prev) => ({ ...prev, ...next }));
   }, [location.pathname]);
 
-  function toggleTheme() {
-    const next = theme === "dark" ? "light" : "dark";
-    // The color-fade CSS only exists under .theme-transition (see index.css) —
-    // added just for this brief window rather than left on permanently, so
-    // large tables elsewhere aren't paying for transition bookkeeping on
-    // every render, all the time, for a fade that only ever plays here.
-    const root = document.documentElement;
-    root.classList.add("theme-transition");
+  // Called by ThemeToggle (from inside the view-transition callback when the
+  // circular reveal runs, or directly on the instant fallback path). This
+  // stays the source of truth: React state + per-user localStorage; the
+  // `dark` class on <html> follows from the layout effect above. No colour
+  // fade here any more — the reveal IS the transition, and the fallbacks are
+  // meant to be instant.
+  function handleThemeChange(next) {
     setTheme(next);
     storeTheme(user?.id, next);
-    window.setTimeout(() => root.classList.remove("theme-transition"), 300);
   }
 
   function logout() {
@@ -234,26 +237,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             >
               <HelpCircle className="size-4" />
             </button>
-            {enableDarkMode && (
-              <button
-                onClick={toggleTheme}
-                aria-label="Toggle dark mode"
-                className="relative h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground transition"
-              >
-                <Sun
-                  className={cn(
-                    "absolute size-4 transition-all duration-500 ease-out",
-                    theme === "dark" ? "rotate-90 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100"
-                  )}
-                />
-                <Moon
-                  className={cn(
-                    "absolute size-4 transition-all duration-500 ease-out",
-                    theme === "dark" ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-0 opacity-0"
-                  )}
-                />
-              </button>
-            )}
+            {enableDarkMode && <ThemeToggle theme={theme} onThemeChange={handleThemeChange} animate={animateTheme} />}
             <span className="hidden sm:inline">{user?.username}</span>
             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-semibold">
               {user?.username?.slice(0, 2).toUpperCase()}

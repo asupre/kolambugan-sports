@@ -25,30 +25,6 @@
   }
 }
 
-/* Smooth dark/light mode switch: an element with its own "transition"
-   utility (buttons, links, etc.) already animates color changes and keeps
-   winning here — layer order gives utilities priority over base — so this
-   only fills in the plain, untouched containers (Cards, tables, panels,
-   the sidebar) that would otherwise flash instantly when `.dark` toggles.
-   Scoped to a `.theme-transition` class that `AdminLayout` adds to <html>
-   for ~300ms around the actual toggle (see toggleTheme), NOT left on
-   permanently — a permanent `* { transition-property: ... }` measurably
-   slowed down large tables (e.g. the 17k-row Reference List), since every
-   one of those rows/cells now had transition bookkeeping on every
-   re-render, not just the moment the theme actually changes. */
-@media (prefers-reduced-motion: no-preference) {
-  @layer base {
-    .theme-transition,
-    .theme-transition *,
-    .theme-transition ::before,
-    .theme-transition ::after {
-      transition-property: background-color, border-color, color, fill, stroke;
-      transition-timing-function: ease;
-      transition-duration: 200ms;
-    }
-  }
-}
-
 @theme inline {
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);

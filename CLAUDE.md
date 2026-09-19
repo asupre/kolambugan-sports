@@ -681,6 +681,26 @@ so a bug in one route cannot expose the other.
   shared: it used to be one `brgy-theme` key for the whole browser, so a
   Super Admin choosing dark made the next Barangay Admin to log in on that
   browser get dark too. The old shared key is ignored. Defaults to light.
+  **Animated toggle (Sep 2026):** the ONE shared `components/ThemeToggle.jsx`
+  (rendered by `AdminLayout`, so Super Admin / Barangay Admin / Organizer all
+  get it — no per-page copy) uses `useModeAnimation` from
+  `react-theme-switch-animation` with `ThemeAnimationType.CIRCLE`,
+  `duration: 600`: a circular reveal expanding from the button. The hook ONLY
+  drives the animation; `AdminLayout`'s `theme` state stays the source of
+  truth (passed in as `isDarkMode`, changes come back via `onDarkModeChange`
+  → `handleThemeChange` → state + `dark` class + per-user storage). The
+  hook's built-in fallbacks are instant swaps: `prefers-reduced-motion:
+  reduce`, no `document.startViewTransition` (older Firefox/Safari), no ref —
+  all verified (no error, no stuck overlay, `#theme-switch-style` removed).
+  Side effect: the hook also writes a global `localStorage.theme` key we
+  never read. The old `.theme-transition` colour-fade CSS was removed.
+  **The organizer scoring screen opts OUT (`animateTheme={false}` on its
+  `AdminLayout`s → instant swap).** A View Transition makes the page
+  non-interactive for its ~0.75s: measured mid-match with real mouse taps,
+  every score tap landing during the reveal was silently swallowed
+  (`::view-transition{pointer-events:none}` did not help), and frames dipped
+  to ~29fps in software-rendered headless Edge. A missed point mid-match is
+  worse than a missing animation. To re-enable: drop the prop.
 - This REQUIRED upgrading the whole project from Tailwind v3 to v4 (shadcn's
   current CLI only targets v4) — `tailwind.config.js` is gone; theme tokens
   now live in `src/index.css` as CSS variables. This is global, so it also

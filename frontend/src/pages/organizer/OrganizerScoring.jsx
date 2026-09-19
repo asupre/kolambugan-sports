@@ -628,7 +628,7 @@ export default function OrganizerScoring() {
 
   if (loading) {
     return (
-      <AdminLayout title="Matches" menu={organizerMenu} enableDarkMode>
+      <AdminLayout title="Matches" menu={organizerMenu} enableDarkMode animateTheme={false}>
         <ListSkeleton />
       </AdminLayout>
     );
@@ -655,7 +655,7 @@ export default function OrganizerScoring() {
 
   if (openId) {
     return (
-      <AdminLayout title={feed.sport} menu={organizerMenu} enableDarkMode>
+      <AdminLayout title={feed.sport} menu={organizerMenu} enableDarkMode animateTheme={false}>
         <ScoringView matchId={openId} onBack={() => { setOpenId(null); load(); }} />
       </AdminLayout>
     );
@@ -737,7 +737,7 @@ export default function OrganizerScoring() {
   };
 
   return (
-    <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode>
+    <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode animateTheme={false}>
       <div className="space-y-6">
         {error && (
           <Alert variant="destructive">

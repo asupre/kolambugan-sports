@@ -62,8 +62,13 @@ export default function PublicLayout() {
         <div className="min-h-screen bg-[#0A1220] text-slate-200 flex flex-col overflow-x-hidden">
       <ScrollToTop />
 
-      <header className="bg-[#060C16]/95 border-b border-slate-500/15 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4">
+      {/* Same background as the hero (and the page itself) with no border —
+          so on Home the logo/nav reads as sitting INSIDE the hero panel,
+          not as a separate bar stacked on top of it. Semi-transparent +
+          blurred so it still works as a floating sticky header once you've
+          scrolled past the hero into plain page content. */}
+      <header className="bg-[#0A1220]/90 backdrop-blur-sm sticky top-0 z-30">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
                     <div className="flex items-center justify-between gap-2 py-3">
             <Link to="/" className="flex items-center min-w-0">
               <img
@@ -110,42 +115,48 @@ export default function PublicLayout() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto px-4 w-full py-6">
+      <main className="flex-1 max-w-[1400px] mx-auto px-4 lg:px-8 w-full py-6">
         <Outlet context={{ meta }} />
       </main>
 
+      {/* Mobile gets its own pass here, not just a squeeze of the desktop
+          layout: text bumped up a step (11px/10px read as genuinely small
+          held at arm's length) and the 7-item Explore list — which just
+          stacked into one long column, all the height of NAV plus no
+          visual organisation — becomes a tidy 2-column block instead.
+          Both collapse back to the original compact desktop sizing at sm:. */}
       <footer className="bg-[#060C16] border-t border-slate-500/15 mt-8">
-        <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-10 sm:py-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-6">
-            <div>
-              <h3 className="text-slate-100 text-xs font-semibold mb-3">The League</h3>
-              <p className="text-slate-500 text-[11px] leading-relaxed">
+            <div className="text-center sm:text-left">
+              <h3 className="text-slate-100 text-sm sm:text-xs font-semibold mb-3">The League</h3>
+              <p className="text-slate-400 sm:text-slate-500 text-[13px] sm:text-[11px] leading-relaxed">
                 {meta?.counts?.barangays || 26} barangays · {meta?.counts?.sports || 7} sports<br />
                 {meta?.season?.name || "Current"} season<br />
                 Municipality of Kolambugan
               </p>
             </div>
-            <div>
-              <h3 className="text-slate-100 text-xs font-semibold mb-3">Explore</h3>
-              <div className="flex flex-col gap-1.5">
+            <div className="text-center sm:text-left">
+              <h3 className="text-slate-100 text-sm sm:text-xs font-semibold mb-3">Explore</h3>
+              <div className="inline-grid grid-cols-2 sm:flex sm:flex-col gap-x-6 gap-y-2 sm:gap-1.5 text-left">
                 {NAV.filter((n) => !n.end).map((n) => (
-                  <Link key={n.to} to={n.to} className="text-slate-500 text-[11px] hover:text-slate-300">{n.label}</Link>
+                  <Link key={n.to} to={n.to} className="text-slate-400 sm:text-slate-500 text-[13px] sm:text-[11px] hover:text-slate-300">{n.label}</Link>
                 ))}
               </div>
             </div>
-            <div>
-              <h3 className="text-slate-100 text-xs font-semibold mb-3">Organised by</h3>
-              <p className="text-slate-500 text-[11px] leading-relaxed">
+            <div className="text-center sm:text-left">
+              <h3 className="text-slate-100 text-sm sm:text-xs font-semibold mb-3">Organised by</h3>
+              <p className="text-slate-400 sm:text-slate-500 text-[13px] sm:text-[11px] leading-relaxed">
                 SK Federation of Kolambugan<br />
                 Local Youth Development Office<br />
-                <span className="text-slate-600">
+                <span className="text-slate-500 sm:text-slate-600">
                   Developed as an undergraduate thesis,<br />
                   Lanao School of Science and Technology
                 </span>
               </p>
             </div>
           </div>
-          <div className="border-t border-slate-500/10 pt-4 text-center text-slate-600 text-[10px]">
+          <div className="border-t border-slate-500/10 pt-4 text-center text-slate-500 sm:text-slate-600 text-[11px] sm:text-[10px]">
             © {new Date().getFullYear()} Inter-Barangay Sports League Management System
           </div>
         </div>

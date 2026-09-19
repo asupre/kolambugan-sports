@@ -8,7 +8,11 @@ const mongoose = require('mongoose');
 // The single source of truth for what's editable. The admin panel renders from
 // this list, and an upload to any key not in it is rejected.
 const SLOTS = [
-  { key: 'hero',     label: 'Home banner',      where: 'Top of the home page',      aspect: 2.8, hint: 'A wide strip. Crop to the action or the faces.' },
+  // 'hero' removed then restored Sep 2026 — briefly dropped when the Home
+  // hero went text-only, then brought back once the user confirmed they
+  // actually want a photo behind the bold headline (now rendered as a
+  // background layer with a dark gradient over it, not a plain strip).
+  { key: 'hero',     label: 'Home banner',      where: 'Behind the home page headline', aspect: 2.2, hint: 'Wide. A dark gradient covers the left side for text — action/faces on the right read best.' },
   { key: 'league',   label: 'About the league', where: 'Home page, first section',  aspect: 1.6, hint: 'Landscape.' },
   { key: 'barangay', label: 'Kolambugan',       where: 'Home page, second section', aspect: 1.6, hint: 'Landscape — the municipality or a barangay court.' },
   { key: 'about',    label: 'About page',       where: 'Top of the About page',     aspect: 1.6, hint: 'Landscape.' },

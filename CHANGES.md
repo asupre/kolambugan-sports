@@ -1276,3 +1276,202 @@ says WebSockets and must be corrected.
   (`deferredSearch` in `ReferenceList.jsx`) so the input itself never waits
   on the (now much cheaper, but not free) filter-and-render work — React
   updates what you're typing immediately and lets the table catch up.
+
+## 2026-09 — Public Home page hero + stat tiles redesigned, bolder treatment
+
+- The user shared 3 reference screenshots (an Instagram basketball-brand
+  landing page, "Bounce") and asked whether the Public Viewer should move
+  toward that look. Assessment: no — that's a marketing landing page for one
+  event (huge hero type, rotated text blocks, a handful of sections), not a
+  live sports-data site with dense tables/brackets/rosters across 7 sports
+  and 26 barangays. Recommended borrowing just the bold hero typography and
+  the individually-bordered stat-tile style rather than restructuring
+  anything, and mocked up both (Current vs. Redesign, phone width, using the
+  site's real dark tokens) as a Design canvas Artifact before touching code.
+  User approved the redesign artboard; implemented it as shown.
+- `frontend/src/pages/public/Home.jsx`:
+  - Hero **no longer uses the `hero` SiteImage slot/background photo** —
+    replaced with a solid-panel hero, oversized uppercase two-line headline
+    ("INTER-BARANGAY" / "SPORTS LEAGUE" in gold), and a decorative
+    sunrise-disc + ring accent (a nod to the real "Bay Crest" logo concept —
+    sunrise over Panguil Bay, gold ring ticks — rather than a generic stock
+    sports photo). CTA buttons became bold filled/outline pills with an
+    arrow icon on the primary one.
+  - **KNOWN TRADEOFF, flagged not silently dropped**: the Super Admin's Site
+    Images page still lists and lets you upload/crop a "Home banner" for the
+    `hero` slot (`backend/src/models/SiteImage.js`'s `SLOTS`) — that upload
+    now has nowhere to render. Left the slot itself alone (removing it is a
+    separate, deliberate decision); if it's confirmed dead, remove the
+    `hero` entry from `SLOTS` and its Site Images UI row next.
+  - The 3-stat row (`Stat`) became `StatTile`: three individually-bordered
+    cards with an inline SVG icon each, instead of one shared bordered strip
+    with no per-item boundary — matches the reference's tile style. The
+    "Live now" tile only tints red/gets the pulsing `LiveDot` icon while
+    `counts.liveNow > 0`, same "color means something" rule as everywhere
+    else on Public — it's a plain neutral tile otherwise.
+  - No lucide-react added — Public already uses inline stroke SVGs
+    (`SearchInput` in `PublicUI.jsx`), matched that instead of introducing a
+    new icon import into the public bundle for 3 icons.
+- Verification: `npm run build` clean; started the Vite dev server and
+  fetched the transformed `Home.jsx` module directly to confirm it compiles
+  with no errors. Could NOT get an actual rendered screenshot in this
+  sandbox — no project "run" skill exists yet for this repo, and Playwright/
+  chromium-cli isn't installed and couldn't be installed non-interactively
+  here. Visual confirmation in a real browser is still the user's to do.
+- **Follow-up same session — user feedback: "too much space on the sides,"
+  and explicitly said to stop treating the ESPN-structure doc as a hard
+  constraint on this page ("we can make our own thing").**
+  - Cause of the side-space complaint: `PublicLayout.jsx` centers EVERY
+    public page's header/main/footer in `max-w-6xl` (1152px) — on any
+    screen wider than that (most desktops), the actual content sits in a
+    narrow column with large empty gutters either side. Widened to
+    `max-w-[1400px]` (plus `lg:px-8`) in all three spots — this affects
+    every public page, not just Home, since they all render inside this
+    same `<main>`.
+  - Home's hero is now **full-bleed**: `relative left-1/2 right-1/2
+    -ml-[50vw] -mr-[50vw] w-screen` breaks its background out of the
+    layout's max-width entirely, spanning the full browser width the way a
+    real landing-page hero does (the accent circles now actually reach the
+    edge instead of stopping at 1152px). An inner wrapper re-applies the
+    same `max-w-[1400px] mx-auto` so the TEXT still lines up with the rest
+    of the page's content column — only the background bleeds. Safe against
+    the classic `100vw`-includes-scrollbar overflow bug because
+    `PublicLayout`'s root div already carries `overflow-x-hidden`.
+  - Headline size bumped further at wider breakpoints
+    (`text-5xl sm:text-7xl lg:text-8xl`, was capped at `sm:text-6xl`) now
+    that there's real room to use on desktop; buttons/padding scaled up to
+    match at `sm:`.
+  - Verified the same way as above: clean build, dev server serves both
+    changed modules with no compile errors. Still no real-browser screenshot
+    available in this sandbox.
+- **Second follow-up, same session — two direct user questions:**
+  1. "Why isn't the nav inside that box?" — `PublicLayout.jsx`'s header used
+     `bg-[#060C16]` (the documented header/footer shade) with a
+     `border-b`, one step darker than the hero's `bg-[#0A1220]` — that
+     color step plus the border was the seam making the nav read as a
+     separate strip stacked ABOVE the hero, not part of it. Changed the
+     header to `bg-[#0A1220]/90 backdrop-blur-sm`, no border — same color as
+     the hero, so at the top of Home the logo/nav now visually sits INSIDE
+     the hero panel; the semi-transparency + blur keeps it working as a
+     sticky header once scrolled past the hero into plain content on any
+     page. Footer's `#060C16` untouched — not part of the complaint, and
+     unrelated to the hero.
+  2. "Why can't I change the picture in Super Admin?" — because the "Home
+     banner" (`hero`) slot in Site Images had nothing left rendering it,
+     exactly the tradeoff flagged when the hero was redesigned. Rather than
+     leave a confusing dead upload control, removed the `hero` entry from
+     `backend/src/models/SiteImage.js`'s `SLOTS` — the Site Images admin
+     page renders entirely off that list, so "Home banner" simply stops
+     being offered there. Any existing `SiteImage` doc with `key: 'hero'` in
+     the DB is now harmless orphaned data (not cleaned up — no UI reads it).
+
+## 2026-09 — Bug: full-bleed hero was actually clipping text on mobile
+
+- User feedback: "the UI looks bad." This time actually verified with a real
+  rendered screenshot instead of trusting `npm run build` — found a genuine
+  bug the build could never have caught (it's layout, not syntax).
+- **Root cause**: the hero's `w-screen` + `-ml-[50vw]/-mr-[50vw]` full-bleed
+  trick (added two sessions ago) is a well-known CSS footgun — on a page tall
+  enough to have a vertical scrollbar, Chromium's `100vw` includes the
+  scrollbar's own width, so the breakout computed slightly WIDER than the
+  actual visible viewport. Combined with the headline sitting at `text-5xl`
+  (48px) — too large for "INTER-BARANGAY" to fit a 390px phone width with
+  padding even without that bug (14 caps chars × ~0.635em/char × 48px ≈
+  426px, more than the ~350px available) — the result was the headline AND
+  the nav bar visibly cut off on the right edge on phone-width screens.
+  Confirmed by screenshot, not just math: `INTER-BARANGA` (missing the Y)
+  and a cut-off "Titles" nav item.
+- **Fix**: dropped the `100vw` breakout entirely — too fragile for how
+  little it added. The hero now spans its normal container (already
+  1400px — see the container-width fix above) using `-mx-4 lg:-mx-8` to
+  cancel exactly the `<main>` padding it sits inside, which is math relative
+  to a KNOWN fixed-width ancestor, never the raw viewport, so there's no
+  scrollbar-inclusion bug possible. Reads as effectively full-bleed on
+  anything but an ultra-wide monitor. Headline size corrected to
+  `text-4xl sm:text-6xl lg:text-8xl` (was `text-5xl sm:text-7xl lg:text-8xl`)
+  — the mobile base is now sized with real margin instead of exactly at the
+  edge of overflowing. Added `break-words` on the headline and `flex-wrap`
+  on the button row as belt-and-suspenders.
+- **Verification tooling note**: this environment has no project "run"
+  skill and no Playwright, but DOES have a local Edge/Chrome install —
+  used `msedge --headless=new --window-size=W,H --screenshot=out.png` to
+  actually render and inspect the page for the first time this session,
+  which is what caught this (a clean `npm run build` cannot catch a CSS
+  layout bug). Also discovered this headless Edge enforces a minimum
+  internal viewport width somewhere around ~490px regardless of a smaller
+  requested `--window-size` — so `--window-size=390,…` silently rendered
+  wider than requested. Verified the real 390px case via font-metrics math
+  instead (calibrated against a working screenshot at a known width) and
+  confirmed the wider case cleanly via an un-clamped ~576px screenshot.
+  Worth setting up a real project run/screenshot skill (`/run-skill-generator`)
+  if this kind of visual check is going to keep coming up.
+
+## 2026-09 — The "can't change the banner" report was a stale dev server, not code
+
+- Root cause, confirmed by inspecting the actual running process: the
+  backend on port 5000 was started as plain `node server.js` (the `npm
+  start` command), not `npm run dev` (nodemon) — so it had never reloaded
+  ANY backend edit from this entire session, hero-slot removal included.
+  Killed the stale process and restarted it with `npm run dev`; confirmed
+  via its own log it reconnected to MongoDB and — crucially — that nodemon
+  auto-restarted cleanly on the very next backend edit (the slot restore,
+  below), so this specific class of "the fix is real but nothing's running
+  it" confusion shouldn't recur for this dev setup.
+- **The hero photo is back**, by request, restored properly rather than
+  reverting the redesign: `SiteImage.js`'s `SLOTS` gets `hero` back, and
+  `Home.jsx`'s hero renders it as a full absolute-positioned BACKGROUND
+  layer behind the bold headline (not the old fixed-height strip), with a
+  `bg-gradient-to-r` overlay — dark on the left where the text sits, lighter
+  on the right so the photo actually shows. Falls back to PublicUI's own
+  "Sample image" placeholder when nothing's uploaded yet (same as the
+  league/barangay slots), which the overlay happens to mostly hide anyway
+  since its colors are so close to the page background — looks intentional
+  either way, before or after a real photo is uploaded.
+- Verified with real screenshots again (not just build) against the user's
+  OWN running dev servers (ports 5173/5000) post-restart: hero renders
+  correctly with no photo uploaded yet, ring accent visible, no overflow at
+  either a phone-ish or desktop width.
+
+## 2026-09 — Hero background now reaches behind the header; footer "gap" was a test artifact, not a bug
+
+- User: "why does the box not fully taking the upper part of the site" — the
+  hero's background/photo started right below the header instead of
+  reaching the actual top of the page, leaving the nav on its own flat
+  strip even though the flat COLORS already matched. Fixed in `Home.jsx`:
+  the hero section now has `-mt-20` pulling its background up underneath
+  the sticky header (which sits at `z-30` and is ~90% opaque with a blur,
+  so it still reads clearly on top), with matching extra top padding so the
+  actual headline text stays exactly where it was — only the background
+  moved. Sized conservatively (net ~56px of real overlap into the header's
+  box after `<main>`'s own top padding eats into the raw 80px) so it can't
+  overshoot and peek out above the header at any breakpoint.
+- User also asked to fix the footer's mobile "spot," reporting a bad gap
+  above it. Investigated with real screenshots at several heights before
+  touching anything, given two earlier rounds this session of shipping a
+  layout fix on math/assumptions alone that turned out wrong on screenshot.
+  **Found no real bug**: a first test screenshot at an artificial 2600px-tall
+  window DID show a huge empty gap before the footer — but that's
+  `PublicLayout`'s `<main className="flex-1 ...">` inside a
+  `min-h-screen flex flex-col` shell doing exactly what it's supposed to (a
+  "sticky footer" pattern: stretch to push the footer to the bottom of a
+  SHORT page instead of leaving it floating mid-screen). The actual page
+  content at 600px width is ~1500px tall — far taller than any real phone
+  viewport (typically 650–950px) — so on a real device there's no leftover
+  space for `flex-1` to fill and the footer follows the content immediately,
+  confirmed by re-testing at 1400px and 1550px window heights (footer sits
+  right after "Browse the teams →" with only its normal border/margin, no
+  gap). The 2600px test window was an artifact of trying to capture the
+  "whole page" in one screenshot, not a realistic viewport — asked the user
+  for a screenshot or more specific description rather than ship a change
+  for a bug that couldn't be reproduced at any real device size.
+  Follow-up: asked which of "gap / cluttered / too small" they meant — they
+  picked cluttered + too small (not the gap, confirming it was the test
+  artifact). Fixed `PublicLayout.jsx`'s footer for real: mobile-only bumped
+  every footer text size up one step (10-11px read as genuinely small held
+  at arm's length — headings `text-xs`→`text-sm`, body `text-[11px]`→
+  `text-[13px]`, copyright `text-[10px]`→`text-[11px]`, all still collapsing
+  back to the original compact sizing at `sm:`) and turned the 7-item
+  "Explore" link list — one long stacked column, same height as the whole
+  nav, no visual organisation — into a 2-column `inline-grid` block,
+  centered as a unit under its heading with each link left-aligned inside
+  its own cell. Desktop (`sm:` and up) verified pixel-identical to before.

@@ -5,14 +5,38 @@ import { Crest, Panel, SiteImage, LiveDot, DIVISION_LABEL } from "../../componen
 
 
 
-function Stat({ value, label }) {
+// Individually-bordered tile (rather than one shared row) so each fact reads
+// on its own — the "live" tile tints red only while something's actually
+// ongoing, same "color means something" rule as LiveDot elsewhere.
+function StatTile({ icon, value, label, live }) {
   return (
-    <div>
-      <div className="text-[#F5A524] text-2xl font-semibold tabular-nums">{value}</div>
-      <div className="text-slate-500 text-[11px] tracking-wide uppercase mt-0.5">{label}</div>
+    <div className={`rounded-xl border ${live ? "border-red-500/35" : "border-[#1C2430]"} bg-[#0F141C] px-2.5 py-4 text-center`}>
+      <div className="flex justify-center mb-2">{icon}</div>
+      <div className="text-slate-50 text-[26px] font-extrabold leading-none tabular-nums">{value}</div>
+      <div className={`text-[9px] tracking-wide uppercase mt-1.5 font-semibold ${live ? "text-red-400" : "text-slate-500"}`}>
+        {label}
+      </div>
     </div>
   );
 }
+
+const ArrowIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </svg>
+);
+
+const BarangayIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A524" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1" />
+  </svg>
+);
+
+const SportIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A524" strokeWidth="1.8" strokeLinecap="round">
+    <circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 010 18M3 12h18" />
+  </svg>
+);
 
 function MiniScore({ m }) {
   const aLeads = m.scoreA >= m.scoreB;
@@ -63,29 +87,62 @@ export default function Home() {
 
   return (
     <>
-      {/* Hero */}
-      <section className="relative rounded-lg overflow-hidden border border-[#1C2430] mb-6">
-        <SiteImage slot="hero" label="hero banner" className="w-full h-56 sm:h-72" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0A1220] via-[#0A1220]/70 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
+      {/* Hero. NOTE: a true viewport-edge "full-bleed" (w-screen + -50vw
+          margins) was tried here and reverted — on a page this tall, a
+          vertical scrollbar makes 100vw compute WIDER than the real visible
+          width in Chromium, so the breakout overshot the right edge and
+          clipped the headline and nav on mobile (confirmed with an actual
+          screenshot, not just a build check). This version just fills its
+          normal container — already 1400px wide (see PublicLayout), which
+          reads as effectively full-bleed on anything but an ultra-wide
+          monitor, with zero overflow risk.
+          The `hero` SiteImage sits as a full background layer — a
+          left-to-right dark gradient keeps the text (which lives on the
+          left) readable over whatever gets uploaded, while the right side
+          stays brighter to actually show the photo. Falls back to
+          PublicUI's own "Sample image" placeholder box when nothing's
+          uploaded yet, same as the league/barangay slots below. A subtle
+          ring accent (nodding to the real crest's gold ring ticks) sits on
+          top either way.
+          `-mt-20` additionally pulls the section's own background up
+          underneath the sticky header (z-30, ~90% opaque with a blur — see
+          PublicLayout) instead of starting right below it, so the panel/
+          photo visually reaches the very top of the page instead of
+          stopping short and leaving the nav on a flat strip of its own.
+          `<main>` itself has py-6 (24px) of its own padding above the hero,
+          which eats into this margin before it ever reaches the header, so
+          the REAL overlap into the header's box is ~56px (80px - 24px) —
+          comfortably under the header's shortest real height (~104px+) at
+          any breakpoint, so this can't overshoot and peek out above it.
+          Matching extra top padding keeps the actual TEXT starting at the
+          same spot as before — only the background moved. */}
+      <section className="relative overflow-hidden bg-[#0A1220] border-b border-[#1C2430] -mx-4 lg:-mx-8 -mt-20 px-5 sm:px-8 lg:px-12 pt-[7.5rem] sm:pt-36 lg:pt-40 pb-10 sm:pb-16 lg:pb-20 mb-6">
+        <SiteImage slot="hero" label="hero banner" className="absolute inset-0 w-full h-full" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0A1220] via-[#0A1220]/85 to-[#0A1220]/35" />
+        <div className="absolute -top-14 right-4 w-64 h-64 rounded-full border border-[#F5A524]/20 pointer-events-none" />
+
+        <div className="relative">
           {data?.season?.name && (
-            <span className="inline-block bg-[#F5A524]/15 text-[#F5A524] text-[10px] px-2.5 py-1 rounded mb-3">
+            <span className="inline-block bg-[#F5A524]/15 text-[#F5A524] text-[10px] font-bold tracking-wide px-2.5 py-1.5 rounded-full mb-4">
               {data.season.name.toUpperCase()}
             </span>
           )}
-          <h1 className="text-slate-50 text-2xl sm:text-4xl font-semibold tracking-tight leading-tight">
-            Inter-Barangay Sports League
+          <h1 className="text-slate-50 text-4xl sm:text-6xl lg:text-8xl font-extrabold uppercase tracking-tight leading-[0.95] break-words">
+            Inter-Barangay
           </h1>
-          <p className="text-slate-400 text-sm mt-2 max-w-xl">
+          <h1 className="text-[#F5A524] text-4xl sm:text-6xl lg:text-8xl font-extrabold uppercase tracking-tight leading-[0.95] mt-1 break-words">
+            Sports League
+          </h1>
+          <p className="text-slate-400 text-sm sm:text-base mt-5 max-w-xl">
             {/* SAMPLE COPY — replace before deployment. */}
             Seven sports. Twenty-six barangays. One municipality. Follow every
             match, bracket, and standing across the Kolambugan league season.
           </p>
-          <div className="flex gap-2 mt-4">
-            <Link to="/matches" className="bg-[#F5A524] text-[#0A1220] text-[13px] font-semibold px-4 py-2 rounded hover:bg-[#e0961f] transition">
-              View matches
+          <div className="flex flex-wrap gap-2.5 mt-6">
+            <Link to="/matches" className="flex items-center gap-1.5 bg-[#F5A524] text-[#0A1220] text-[13px] sm:text-sm font-bold px-5 sm:px-6 py-3 sm:py-3.5 rounded-full hover:bg-[#e0961f] transition">
+              View matches <ArrowIcon />
             </Link>
-            <Link to="/standings" className="border border-[#2A3441] text-slate-300 text-[13px] px-4 py-2 rounded hover:border-slate-500 transition">
+            <Link to="/standings" className="border-[1.5px] border-[#2A3441] text-slate-200 text-[13px] sm:text-sm font-semibold px-5 sm:px-6 py-3 sm:py-3.5 rounded-full hover:border-slate-500 transition">
               Standings
             </Link>
           </div>
@@ -93,10 +150,15 @@ export default function Home() {
       </section>
 
       {/* League at a glance */}
-      <div className="grid grid-cols-3 gap-4 rounded-lg border border-[#1C2430] bg-[#0F141C] px-5 py-4 mb-6">
-        <Stat value={counts.barangays ?? "—"} label="Barangays" />
-        <Stat value={counts.sports ?? "—"} label="Sports" />
-        <Stat value={counts.liveNow ?? 0} label="Live now" />
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <StatTile icon={<BarangayIcon />} value={counts.barangays ?? "—"} label="Barangays" />
+        <StatTile icon={<SportIcon />} value={counts.sports ?? "—"} label="Sports" />
+        <StatTile
+          icon={<LiveDot />}
+          value={counts.liveNow ?? 0}
+          label="Live now"
+          live={(counts.liveNow ?? 0) > 0}
+        />
       </div>
 
       {/* Live and today */}

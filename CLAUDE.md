@@ -451,11 +451,21 @@ so a bug in one route cannot expose the other.
 ## Design system (two looks, one product)
 
 **Public Viewer — DARK, "ESPN structure" (decided Aug 2026):**
-- Background `#0A1220`; header and footer `#060C16`; panels `#0F141C`;
-  `PublicLayout` borders use `slate-500/15` while panel borders use
-  `#1C2430`; accent gold `#F5A524`. (Supersedes the earlier "R7 navy" note —
-  the real R7 site turned out to be a full-bleed image + translucent cards,
-  which we did NOT adopt.)
+- Background `#0A1220`; footer `#060C16`; panels `#0F141C`; `PublicLayout`
+  borders use `slate-500/15` while panel borders use `#1C2430`; accent gold
+  `#F5A524`. (Supersedes the earlier "R7 navy" note — the real R7 site
+  turned out to be a full-bleed image + translucent cards, which we did NOT
+  adopt.) **Header is `#0A1220/90` with a blur, no border** (changed Sep
+  2026, see the Home hero entry below) — it used to match the footer's
+  `#060C16` with a `border-b`, but that color step plus the border was
+  making the logo/nav read as a strip stacked ABOVE the Home hero instead of
+  part of the same panel. Matching the header to the PAGE background instead
+  of the footer's shade means it blends into whatever sits directly below it
+  (the hero on Home, plain content elsewhere) rather than announcing itself
+  as a separate bar.
+- `PublicLayout`'s content container is `max-w-[1400px]` (Sep 2026 — was
+  `max-w-6xl`/1152px, which on any desktop screen wider than that left large
+  dead gutters either side of every public page, not just Home).
 - Structure follows ESPN / PBA, not a betting site: panels with a header row
   and thin dividers, no card gaps, no gradients, no emoji, no VS badges.
 - **Scoreboard strip** is the core pattern: a context line (sport · division ·
@@ -473,6 +483,61 @@ so a bug in one route cannot expose the other.
 - NEVER use Mobile Legends / Moonton art or any copyrighted game assets.
 - Public lineups show **surname, first name, jersey, age, stats, and photo**.
   NO birthdate, NO address, NO documents.
+- **Home page hero redesigned bolder (Sep 2026)**, after the user shared
+  Instagram references (a basketball-brand landing page, "Bounce") and asked
+  whether to move the whole Public Viewer that direction. Decision: no — that
+  design is a marketing landing page for one event (huge type, rotated text
+  blocks, a handful of sections), not a fit for a live-data site with dense
+  tables/brackets/rosters across 7 sports and 26 barangays; borrowed just the
+  bold typography and individually-bordered tile style onto the Home hero
+  instead of restructuring anything else. `Home.jsx`:
+  - Oversized two-line uppercase headline ("INTER-BARANGAY" / "SPORTS
+    LEAGUE" in gold), pill-shaped CTA buttons. The `hero` SiteImage renders
+    as a full absolute background layer with a `bg-gradient-to-r` overlay
+    (dark on the left where the text sits, lighter on the right so the
+    photo shows) instead of the old fixed-height strip — restore the same
+    treatment if this section is touched again, don't revert to a plain
+    `<img>` strip.
+  - The hero's own background is pulled up ~56px underneath the sticky
+    header via a conservative negative margin (`-mt-20` on the section,
+    compensating extra top padding so the headline text doesn't shift) so
+    the panel/photo reaches the actual top of the page instead of stopping
+    short below the nav — the header's ~90% opacity + blur lets it show
+    through. Sized to stay well under the header's shortest real height so
+    it can never overshoot and peek out above it.
+  - **A true viewport-edge "full-bleed" (`w-screen` + `-50vw` margins) was
+    tried and reverted** — on a page this tall, Chromium's `100vw` includes
+    the vertical scrollbar's width, so it overshot the real viewport and
+    clipped the headline and nav on mobile. Confirmed by an actual
+    screenshot, not just a build check — don't reintroduce this technique
+    for a full-bleed section anywhere on this site; use a fixed-width
+    ancestor-relative margin trick instead (see `-mx-4 lg:-mx-8` on the same
+    section, which cancels exactly `<main>`'s own padding).
+  - The 3-stat row became `StatTile`: individually-bordered cards with an
+    inline SVG icon each (no lucide-react on Public — matched the existing
+    inline-SVG convention from `SearchInput`), instead of one shared strip
+    with no per-item boundary. "Live now" only tints red + shows the pulsing
+    `LiveDot` while `counts.liveNow > 0` — same "color means something" rule
+    as everywhere else on Public.
+  - Footer got a **mobile-only** pass in the same session (`PublicLayout.jsx`):
+    text bumped up one step (10-11px read as genuinely small on a phone) and
+    the 7-item "Explore" link list — one long stacked column — became a
+    2-column `inline-grid` block, centered as a unit. Both collapse back to
+    the original compact desktop sizing/layout at `sm:` — desktop is
+    unchanged.
+  - **Verification note**: this session is what surfaced that `npm run
+    build` succeeding proves nothing about layout — two of the fixes above
+    were shipped on math/assumptions alone and turned out wrong once
+    actually rendered. This sandbox has no project "run"/screenshot skill
+    and no Playwright, but DOES have a local Edge/Chrome install:
+    `msedge --headless=new --window-size=W,H --screenshot=out.png <url>`
+    works for a real rendered check. Gotcha: this headless setup clamps very
+    small `--window-size` widths (requests around ≤400 silently render at
+    ~492px) — verify true small-phone widths via font-metrics math
+    calibrated against a working screenshot, and use an un-clamped
+    width (≥600) for anything screenshot-verified directly. Worth running
+    `/run-skill-generator` to capture this as a real project skill if visual
+    checks keep coming up.
 
 **Admin pages — shadcn/ui pass COMPLETE, all three roles (Sep 2026):**
 - Barangay Admin (`BrgyDashboard.jsx`, `BrgyMatches.jsx`, `Documents.jsx`),

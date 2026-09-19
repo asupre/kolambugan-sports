@@ -1,29 +1,21 @@
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, ImageIcon, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent } from "./ui/dialog";
 import { INSTRUCTION_STEPS, ROLE_LABEL } from "../lib/instructionContent";
 import { cn } from "../lib/utils";
 
-// Falls back to a labeled placeholder until the real screenshot exists at
-// this path — see the file list at the top of instructionContent.js.
-function StepImage({ src, caption }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) {
-    return (
-      <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted text-muted-foreground">
-        <ImageIcon className="size-6" />
-        <span className="px-4 text-center text-xs">Screenshot coming soon — {caption}</span>
-      </div>
-    );
-  }
+// Text + icon, not a screenshot (Sep 2026 — see instructionContent.js for
+// why): a big soft-tinted icon standing in for what a screenshot used to
+// show. An icon can't go stale the way a screenshot of a page that keeps
+// getting redesigned does.
+function StepIcon({ icon: Icon }) {
   return (
-    <img
-      src={src}
-      alt={caption}
-      onError={() => setFailed(true)}
-      className="aspect-video w-full rounded-lg border bg-muted object-contain"
-    />
+    <div className="flex aspect-video w-full items-center justify-center rounded-lg border bg-muted/40">
+      <div className="flex size-20 items-center justify-center rounded-2xl bg-primary/10">
+        <Icon className="size-10 text-primary" strokeWidth={1.6} />
+      </div>
+    </div>
   );
 }
 
@@ -58,7 +50,7 @@ export default function InstructionModal({ role, onClose }) {
         </div>
 
         <div className="space-y-4 px-6 py-5">
-          <StepImage src={current.screenshot} caption={current.title} />
+          <StepIcon icon={current.icon} />
           <div>
             <h2 className="text-lg font-semibold">{current.title}</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{current.description}</p>

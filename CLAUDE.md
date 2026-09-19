@@ -752,7 +752,7 @@ Everything mobile-first and responsive. Public users are on phones.
 **Must:** auto pre-screen verification + Super Admin review queue ✅; roster
 submission w/ conditional document upload ✅; bracket generation ✅; real-time
 live scoring ✅; public dashboard ✅; account provisioning panel ✅; in-app
-first-login instruction modal ✅ (real screenshots in, see
+first-login instruction modal ✅ (text + icon per step, see
 `components/InstructionModal.jsx`).
 
 **Should:** RBAC across all roles ✅ (API + frontend guards, `RequireRole`);
@@ -1078,10 +1078,18 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   per account, so this needed no new backend field to key off. Also
   reopenable any time from a "?" button in `AdminLayout`'s header, shared by
   all three roles, for existing accounts and for evaluators wanting a
-  refresher. Each step carries a `screenshot` path under
-  `public/instructions/`; real screenshots are in for every step (a missing
-  one would degrade to a labeled placeholder, not a broken image — see
-  `StepImage` in the component).
+  refresher. **Text + icon only, not screenshots (Sep 2026)** — each step
+  used to carry a `screenshot` path under `public/instructions/` (real
+  screenshots were captured for every step, once). Dropped the screenshots
+  and the whole folder entirely: every UI pass this project goes through
+  makes them stale again (several admin pages changed again in the very
+  same session the screenshots were captured), and a stale screenshot of an
+  old layout misleads a first-time user worse than no screenshot would.
+  Each step now carries an `icon` (a lucide-react component reference)
+  instead, shown large in a soft-tinted box (`StepIcon` in
+  `InstructionModal.jsx`) — an icon can't go stale the way a screenshot of a
+  page that keeps changing does. If this modal is ever revisited, keep it
+  icon+text; don't reintroduce screenshots.
 
 ## IN PROGRESS / NEXT (priority order)
 

@@ -1475,3 +1475,30 @@ says WebSockets and must be corrected.
   nav, no visual organisation — into a 2-column `inline-grid` block,
   centered as a unit under its heading with each link left-aligned inside
   its own cell. Desktop (`sm:` and up) verified pixel-identical to before.
+
+## 2026-09 — Instruction modal: screenshots out, icon + text in
+
+- User asked to drop screenshots from the first-login "How this works"
+  modal in favor of text + icons. Real reasoning, not just preference: those
+  screenshots (captured Sep 17) were already partly stale by the time of
+  this request — the Review Queue, Barangay Admin roster, and Document
+  Submission screens all changed again in THIS session (the colored
+  flag-reason callouts) — and every future UI pass will keep doing the same
+  thing. An icon can't go stale.
+- `frontend/src/lib/instructionContent.js`: every step's `screenshot: "..."`
+  path replaced with an `icon` (a lucide-react component reference) —
+  `LayoutDashboard`/`CalendarRange`/`ClipboardList`/`UserCheck`/`Settings2`/
+  `Trophy`/`KeyRound` for Super Admin, `Building2`/`UserPlus`/
+  `ClipboardList`/`Send` for Barangay Admin, `Radio`/`ListChecks`/`Play`/
+  `Repeat`/`Flag` for Organizer — picked per step's actual content, not
+  generic.
+- `frontend/src/components/InstructionModal.jsx`: `StepImage` (the
+  `<img>` + "screenshot coming soon" placeholder fallback) replaced with
+  `StepIcon` — the icon shown large (size-10) in a soft `bg-primary/10`
+  rounded box, same visual language as the icon-tint treatment already used
+  on the Super Admin Dashboard's stat tiles.
+- Deleted `frontend/public/instructions/` entirely (17 tracked files: 16
+  PNGs + its README) via `git rm` — nothing references that path anymore.
+- Also removed 3 untracked reference `.jpg` files the user had dropped in
+  the repo root (Instagram screenshots used earlier this session to discuss
+  the Home hero redesign) — served their purpose, never part of the app.

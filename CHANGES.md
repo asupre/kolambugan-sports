@@ -2338,5 +2338,12 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
   both have middle "D." in the DB and correctly do NOT match. Jersey 23 was
   still showing stale `eligible` from before this fix existed — same class
   of staleness as the reference-list bug above, just triggered by a
-  middle-name-only edit instead of a whole-list upload. Not yet cleaned up
-  in the live data as of this entry.
+  middle-name-only edit instead of a whole-list upload.
+- **Data repair**: ran `rescreenSeason()` once by hand against the current
+  live season (temporary script, run and deleted, not committed) to clear
+  every status left stale by this bug — **181 players screened, 6 changed
+  status, 0 verified teams reopened**. Jersey 23 above now correctly reads
+  `needs_document` with the mismatched-middle-initial `flagReason`; jersey
+  22 had already self-corrected to `eligible` before this ran, since its
+  middle name was fixed live through the roster editor (which now
+  re-screens on that field per the fix above).

@@ -580,12 +580,60 @@ so a bug in one route cannot expose the other.
   `React.lazy` into its own ~15.7 KB gzip chunk, frozen (`speed 0`) under
   `prefers-reduced-motion`. A photo layer was tried and removed (the Super
   Admin deleted `login-bg.jpg`).
+- **Teams page — drag-scroll carousel of poster-card crests** (Sep 2026):
+  each sport/division group on `/teams` is a horizontally-scrolling row
+  (`TeamGroupPanel`/`TeamCard` in `Teams.jsx`), not a wrapping grid —
+  click-and-drag panning via the existing `hooks/useDragScroll.js`, plus
+  round prev/next arrows (`CarouselArrow`, new in `PublicUI.jsx`) in the
+  panel header via a new `actions` prop on `Panel`. The arrows only render
+  once a row actually overflows its container. Each `TeamCard` is a
+  full-bleed poster tile (`aspect-[3/4]`): the barangay crest fills the
+  ENTIRE card via `Crest`'s new `variant="cover"` (`absolute inset-0
+  object-cover` — the parent now owns the size/aspect-ratio, unlike the
+  default `variant="icon"` used everywhere else), with the team
+  name/barangay/format overlaid at the bottom on a dark gradient scrim
+  (`from-black/95 via-black/60 to-transparent`) so the bold white name
+  stays legible over any photo. `variant="cover"` is used ONLY here —
+  every other `Crest` call site is untouched.
+- **Public search bar — Motion + compact width** (Sep 2026,
+  `SearchInput` in `PublicUI.jsx`, used by Teams and Players): the clear
+  (✕) button now fades/scales in via `AnimatePresence`/`motion.button`
+  instead of a bare `{value && <button>}` pop, and focus gets a soft gold
+  glow (`animate`d `box-shadow`) plus the search icon animating slate →
+  gold (`#F5A524`, the site's one accent) — the old focus style was two
+  near-identical dark shades, barely visible. Width capped at `max-w-xs`
+  (320px); it was `w-full`, stretching the full content width on desktop.
+  **Gotcha hit and fixed**: Motion composes `scale`/`x`/`y` into ONE
+  `transform`, so the clear button's `scale` animation would have
+  silently clobbered a plain Tailwind `-translate-y-1/2` used to center
+  it — fixed by giving the button a constant `y: "-50%"` inside every
+  Motion animation state instead of the Tailwind class.
+- **Review Queue — barangay picker + a real "Cleared" definition** (Sep
+  2026): `GET /api/review/queue` now also returns `barangays` (all 26,
+  not just ones with a pending team) and `totalPending`. The Review Queue
+  page (`ReviewQueue.jsx`) shows a row of barangay chips above the team
+  list — click one to filter to just that barangay instead of scrolling
+  the whole season. A chip shows a red pending-count badge, a green
+  "Cleared" badge, or a gray `x/N` progress count. **"Cleared" required a
+  correction**: it was first defined as "whatever this barangay submitted
+  is fully verified" — true for a barangay with just ONE verified team
+  out of a much larger slate, which is misleading. Now `cleared` requires
+  a VERIFIED team in every (sport, division) slot the season is actually
+  running — `requiredSlots` is computed from `Sport.find({divisions...})`
+  per division, deliberately NOT multiplied by `teamsPerBarangay` (that
+  field is a per-slot ceiling — Mobile Legends's 2nd team is optional,
+  never a requirement). **Red count badge on the sidebar itself**, not
+  just inside the page: `AdminLayout.jsx` gained generic `badge` support
+  — an item can set `badge: "reviewPending"` (done for Review Queue in
+  `menus.js`) and the layout fetches the count once per mount, rendered
+  as a red pill (expanded) or a dot on the icon (collapsed rail).
 - **Animation accessibility status (Sep 2026, NOT formally audited — no
   screen-reader test):** nothing flashes/strobes, nothing carries essential
   information, all motion is small. Honours `prefers-reduced-motion`: Lenis
   (not initialised), marquee (static row), login waves (frozen), animated
   theme toggle (instant). Does NOT honour it: the Motion scroll-reveals
-  (deliberate Super Admin decision), the pulsing LIVE dot, and Tailwind
+  (deliberate Super Admin decision), the pulsing LIVE dot, the search bar's
+  focus glow/clear-button animation, and Tailwind
   `animate-pulse`/`animate-spin` skeletons/spinners. Known gaps: the marquee
   pauses on hover only (no keyboard/touch pause control — WCAG 2.2.2), the
   login waves run the GPU continuously on desktop. The Super Admin chose to

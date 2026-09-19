@@ -1,8 +1,92 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, TileGridSkeleton, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, CarouselArrow, TileGridSkeleton, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
 import { RevealGroup, RevealItem } from "../../components/Reveal";
+import { useDragScroll } from "../../hooks/useDragScroll";
+
+// One big, grabbable box per team, poster-card style: the crest fills the
+// ENTIRE card (not just a top strip), with the team's name/barangay/format
+// overlaid at the bottom on a dark scrim so the text stays legible over
+// whatever the photo looks like. Fixed width so the row scrolls
+// horizontally instead of wrapping.
+function TeamCard({ t }) {
+  return (
+    <RevealItem className="w-40 sm:w-44 shrink-0 snap-start">
+      <Link
+        to={`/teams/${t.id}`}
+        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-[#1C2430] hover:border-[#F5A524]/50 transition"
+      >
+        <Crest name={t.barangay || t.name} barangayId={t.barangayId} variant="cover" />
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3 pt-12 pb-3">
+          <div className="text-white text-[15px] font-bold leading-tight truncate">{t.name}</div>
+          <div className="text-slate-300 text-[11px] truncate mt-0.5">
+            {t.barangay ? `Brgy. ${t.barangay}` : "—"}
+          </div>
+          {t.format && (
+            <span className="inline-block mt-1.5 rounded-full border border-[#F5A524]/40 bg-black/30 px-2 py-0.5 text-[10px] font-medium text-[#F5A524]">
+              {FORMAT_LABEL[t.format] || t.format}
+            </span>
+          )}
+        </div>
+      </Link>
+    </RevealItem>
+  );
+}
+
+// A drag-to-scroll row of TeamCards, with prev/next arrows in the panel
+// header for anyone who'd rather click than grab. Arrows disable themselves
+// at either end instead of just doing nothing.
+function TeamGroupPanel({ sportName, division, list }) {
+  const dragRef = useDragScroll();
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(true);
+
+  useEffect(() => {
+    const el = dragRef.current;
+    if (!el) return undefined;
+    function update() {
+      setAtStart(el.scrollLeft <= 4);
+      setAtEnd(el.scrollLeft >= el.scrollWidth - el.clientWidth - 4);
+    }
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      el.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.length]);
+
+  function scroll(dir) {
+    dragRef.current?.scrollBy({ left: dir * dragRef.current.clientWidth * 0.9, behavior: "smooth" });
+  }
+
+  const scrollable = !atStart || !atEnd;
+
+  return (
+    <Panel
+      title={`${sportName} · ${DIVISION_LABEL[division] || division}`}
+      count={`${list.length}`}
+      actions={scrollable && (
+        <>
+          <CarouselArrow dir="prev" onClick={() => scroll(-1)} disabled={atStart} />
+          <CarouselArrow dir="next" onClick={() => scroll(1)} disabled={atEnd} />
+        </>
+      )}
+    >
+      <div
+        ref={dragRef}
+        className="overflow-x-auto cursor-grab snap-x snap-mandatory px-5 py-5"
+      >
+        <RevealGroup className="flex gap-3">
+          {list.map((t) => <TeamCard key={t.id} t={t} />)}
+        </RevealGroup>
+      </div>
+    </Panel>
+  );
+}
 
 // Rosters don't change mid-game, so this page doesn't poll.
 export default function Teams() {
@@ -61,39 +145,8 @@ export default function Teams() {
       ) : (
         keys.map((key) => {
           const [sportName, division] = key.split("||");
-          const list = groups[key];
           return (
-            <Panel
-              key={key}
-              title={`${sportName} · ${DIVISION_LABEL[division] || division}`}
-              count={`${list.length}`}
-            >
-              {/* Cards arrive one after another (RevealGroup). Separators are
-                  per-card borders instead of the old `gap-px bg-[#1C2430]`
-                  trick: with that, each not-yet-revealed card would show as a
-                  grey block. Keyed by team id, never index. */}
-              <div className="overflow-hidden">
-                <RevealGroup className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 -mr-px -mb-px">
-                  {list.map((t) => (
-                    <RevealItem key={t.id} className="border-r border-b border-[#1C2430] bg-[#0F141C]">
-                      <Link
-                        to={`/teams/${t.id}`}
-                        className="flex h-full items-center gap-3 px-5 py-4 hover:bg-[#141A24] transition"
-                      >
-                        <Crest name={t.barangay || t.name} barangayId={t.barangayId} />
-                        <div className="min-w-0">
-                          <div className="text-slate-100 text-[15px] font-medium truncate">{t.name}</div>
-                          <div className="text-slate-500 text-[12px] truncate">
-                            {t.barangay ? `Brgy. ${t.barangay}` : "—"}
-                            {t.format ? ` · ${FORMAT_LABEL[t.format] || t.format}` : ""}
-                          </div>
-                        </div>
-                      </Link>
-                    </RevealItem>
-                  ))}
-                </RevealGroup>
-              </div>
-            </Panel>
+            <TeamGroupPanel key={key} sportName={sportName} division={division} list={groups[key]} />
           );
         })
       )}

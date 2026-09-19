@@ -3,6 +3,8 @@ const Team = require('../models/Team');
 const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
 const Document = require('../models/Document');
+const Barangay = require('../models/Barangay');
+const Sport = require('../models/Sport');
 const { deleteFile } = require('../config/gridfs');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
@@ -12,11 +14,14 @@ const router = express.Router();
 // Everything here is Super Admin only.
 router.use(authenticate, authorize('super_admin'));
 
-// GET /api/review/queue — submitted teams awaiting review, with a status tally each.
+// GET /api/review/queue — submitted teams awaiting review, with a status tally
+// each, PLUS a per-barangay breakdown across all 26 barangays (so the Super
+// Admin can pick a barangay to work through instead of scrolling every team
+// in the season at once) and a season-wide pending count for a sidebar badge.
 router.get('/queue', async (req, res) => {
   try {
     const season = await getCurrentSeason();
-    if (!season) return res.json({ teams: [] });
+    if (!season) return res.json({ teams: [], barangays: [], totalPending: 0 });
 
     const teams = await Team.find({ season: season._id, submittedAt: { $ne: null }, status: 'pending' })
       .populate('barangay', 'name')
@@ -30,6 +35,7 @@ router.get('/queue', async (req, res) => {
       return {
         teamId: t._id,
         teamName: t.teamName,
+        barangayId: t.barangay && String(t.barangay._id),
         barangay: t.barangay && t.barangay.name,
         sport: t.sport && t.sport.name,
         playerCount: links.length,
@@ -38,7 +44,55 @@ router.get('/queue', async (req, res) => {
       };
     }));
 
-    res.json({ season: season.name, teams: out });
+    // Every barangay, not just ones with a pending team — a barangay with
+    // nothing submitted yet, or one that's fully verified, still needs to
+    // show up (as empty / cleared) so the picker always lists all 26.
+    const allBarangays = await Barangay.find().sort({ name: 1 });
+    const submittedThisSeason = await Team.find({ season: season._id, submittedAt: { $ne: null } })
+      .select('barangay status sport division');
+
+    // "Cleared" means the barangay has a VERIFIED team in every (sport,
+    // division) slot this season is actually running — not just that
+    // whatever subset it happened to submit is done. Reported directly: a
+    // barangay with one verified Chess team was showing "Cleared" even
+    // though it hadn't touched the other ~10 sport/division slots. A slot
+    // is one per division (Basketball u15 + u30 is 2 slots, Chess Open is
+    // 1), NOT multiplied by how many teams a barangay may field in it — a
+    // barangay only ever needs ONE team to complete a slot; Mobile
+    // Legends's optional 2nd team is a bonus entry, not a second required
+    // slot, same as any other sport's second team would be if it had one.
+    const seasonSports = await Sport.find({ divisions: { $exists: true, $ne: [] } }).select('divisions');
+    const requiredSlots = seasonSports.reduce((sum, s) => sum + (s.divisions?.length || 0), 0);
+
+    const statsByBarangay = {};
+    submittedThisSeason.forEach((t) => {
+      const key = String(t.barangay);
+      if (!statsByBarangay[key]) statsByBarangay[key] = { pending: 0, verified: 0, verifiedSlots: new Set() };
+      if (t.status === 'verified') {
+        statsByBarangay[key].verified++;
+        statsByBarangay[key].verifiedSlots.add(`${t.sport}|${t.division}`);
+      } else {
+        statsByBarangay[key].pending++; // status 'pending' — the only other state a submitted team can be in
+      }
+    });
+
+    const barangays = allBarangays.map((b) => {
+      const stats = statsByBarangay[String(b._id)] || { pending: 0, verified: 0, verifiedSlots: new Set() };
+      const completedSlots = stats.verifiedSlots.size;
+      return {
+        id: b._id,
+        name: b.name,
+        pendingTeams: stats.pending,
+        verifiedTeams: stats.verified,
+        completedSlots,
+        requiredSlots,
+        cleared: stats.pending === 0 && requiredSlots > 0 && completedSlots >= requiredSlots,
+      };
+    });
+
+    const totalPending = out.length;
+
+    res.json({ season: season.name, teams: out, barangays, totalPending });
   } catch (err) {
     console.error('Review queue error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

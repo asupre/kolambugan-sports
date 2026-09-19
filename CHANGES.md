@@ -1957,3 +1957,199 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
 - Not extracted into a shared component in this pass — noted here as a
   real "copy-pasted in three places" risk for next time one of them needs
   a fix like this again.
+
+## 2026-09 — Public Teams page: drag-scroll carousel of big crest cards
+
+- Requested: turn the Teams page's per-sport/division team list into
+  bigger boxes, laid out as a carousel that can be grabbed and dragged, or
+  scrolled with next/prev controls.
+- `Teams.jsx`: each sport/division group is now a horizontally-scrolling
+  row (`TeamGroupPanel`) instead of a wrapping grid. Reuses the existing
+  `hooks/useDragScroll.js` (already proven on the Super Admin and public
+  Brackets bracket trees) for click-and-drag panning, plus native touch
+  scroll. Added round prev/next arrow buttons (`CarouselArrow`, new in
+  `PublicUI.jsx`, same inline-SVG convention as `SearchInput` — no
+  lucide-react on Public) rendered in the panel header via a new `actions`
+  prop on `Panel`; they track scroll position via a `scroll`/`resize`
+  listener and disable themselves at either end, and the pair only renders
+  at all once the row actually overflows (`scrollWidth > clientWidth`) —
+  a 1-2 team group just shows the boxes with nothing to scroll.
+- `TeamCard`: bigger box (`w-44 sm:w-48`, `snap-start` for scroll-snap),
+  the barangay crest as a full-bleed cover image at the top (see below),
+  team name/barangay/format below.
+- **Crest got a `variant="cover"` mode** (`PublicUI.jsx`): the barangay
+  logo now fills the full width of its container at a 1:1 ratio
+  (`w-full aspect-square object-cover`) instead of sitting as a small
+  fixed-size icon — asked for directly after the first version showed the
+  crest as a small padded square floating inside the big box, which
+  didn't read as "fitted." Default `variant="icon"` (the original
+  fixed-`size`-px behavior) is untouched, so every other `Crest` call site
+  (header, scoreboards, standings, brackets, team lists elsewhere) is
+  unaffected — only `Teams.jsx`'s new cards opt into `cover`.
+- **Verification note**: a plain `msedge --headless=new --screenshot`
+  capture (even with `--virtual-time-budget=15000`) rendered the cards as
+  a big BLANK box with a phantom vertical scrollbar — looked like a real
+  layout bug. Turned out to be a false signal: Motion's `whileInView`
+  (IntersectionObserver-driven) never fires within that capture mode, so
+  every card stayed at its `opacity:0` pre-reveal state while still
+  occupying full layout height, and CSS's forced-`overflow-y` rule (only
+  `overflow-x` was set) then showed a vertical scrollbar for a box that
+  was never meant to scroll vertically at all. Confirmed via a small
+  throwaway Chrome DevTools Protocol script (`Page.navigate` + a real
+  `setTimeout` wall-clock wait, not virtual time) that in an actually-timed
+  render `scrollHeight === clientHeight` (no bogus vertical overflow) and
+  every card reaches `opacity:1`. **Takeaway for next time**: don't trust
+  a `--virtual-time-budget` screenshot of anything using Motion's
+  `whileInView` — it can show a false "blank/broken" state; verify with a
+  real wall-clock-timed capture (CDP with an actual `setTimeout`, or just
+  ask the user to look) instead.
+
+## 2026-09 — Review Queue: pick a barangay instead of scrolling every team
+
+- Requested: the Review Queue's flat list of every submitted team in the
+  season made the Super Admin scroll through everything to find one
+  barangay's teams. Wanted a way to pick a barangay first, a "cleared"
+  indicator once that barangay's teams are all verified, and a red
+  count badge — both on the Review Queue itself and wherever it's
+  reached from — showing how many teams still need a verdict.
+- `GET /api/review/queue` (`backend/src/routes/review.js`) now also
+  returns `barangays` (every barangay in the DB — not just ones with a
+  pending team, so the picker always lists all of them — each tagged
+  `{ pendingTeams, verifiedTeams, cleared }`, computed from this
+  season's SUBMITTED teams only, same `submittedAt != null` gate the
+  queue itself uses) and `totalPending` (season-wide count, for the
+  sidebar badge). Each team in the existing `teams` array also gained
+  `barangayId` so the frontend can filter by it reliably (name alone
+  isn't a safe key — barangay names aren't guaranteed unique the way an
+  id is).
+- `ReviewQueue.jsx`: a new "Barangays" card up top renders one pill per
+  barangay (`BarangayChip`) plus an "All barangays" pill — click one to
+  filter the list below to just that barangay's pending teams. A pill
+  shows a red count badge if it has teams needing a verdict, a green
+  "Cleared" badge (with a checkmark) if every team it submitted is
+  already verified, or nothing if it hasn't submitted anything yet this
+  season. Selecting a barangay with nothing pending shows a specific
+  message — "cleared" (already all verified) vs. "hasn't submitted any
+  teams yet" — instead of the generic empty state, which only applies to
+  the true season-wide zero case now.
+- **Red badge on the sidebar itself**, not just inside the page: added
+  generic `badge` support to `AdminLayout.jsx` — an item can set
+  `badge: "reviewPending"` (done for Review Queue in `menus.js`) and the
+  layout fetches `/api/review/queue` once per mount (i.e. on every
+  admin-page navigation, so it stays fresh without a poll interval) and
+  renders the `totalPending` count as a red pill after the label
+  (expanded sidebar) or a small red dot on the icon (collapsed rail).
+  Scoped so only menus that actually declare the badge trigger the
+  fetch — Barangay Admin/Organizer layouts never call
+  `/api/review/queue` (which is super-admin-only anyway).
+- **Verification**: logged in via a real login (`POST /api/auth/login`,
+  a `lydo_head` dev account) through a scripted Chrome DevTools Protocol
+  session (seeded `localStorage` with the returned token, same as the
+  app does) rather than a plain headless screenshot, since this page is
+  behind auth — confirmed the sidebar badge count, the per-barangay red/
+  green pills, and that clicking a barangay ("Mukas") actually filters
+  the list and shows its correct "cleared" message.
+- **Process note**: the first pass through this edit was run through
+  `prettier` to fix indentation from a nested nested-JSX edit, which
+  reformatted both touched files wholesale (631/158 changed lines)
+  even though this project has no prettier config and doesn't use that
+  style anywhere else — a needlessly noisy diff. Reverted both files to
+  their last-committed content and reapplied the same logical changes
+  by hand, matching the codebase's existing formatting. Don't run a
+  whole-file formatter on a codebase that doesn't already use one —
+  fix indentation by hand for just the lines actually touched.
+
+## 2026-09 — "Cleared" was true for one verified team out of a full slate
+
+- **Reported**: Matampay showed a green "Cleared" barangay chip in the
+  Review Queue after having exactly ONE team verified, when the season
+  actually runs far more sport/division slots than that (the user's own
+  reference point, Austin Heights, had submitted around 10-11).
+- **Root cause**: `cleared` was `stats.verified > 0 && stats.pending === 0`
+  — true the moment WHATEVER a barangay happened to submit was fully
+  verified, regardless of how much of the season it actually covered. A
+  barangay that only ever submitted one Chess team read exactly the same
+  as one that submitted a full slate.
+- **Fix**: `GET /api/review/queue` (`backend/src/routes/review.js`) now
+  computes `requiredSlots` — one slot per (sport, division) the season is
+  actually running, from `Sport.find({ divisions: ... })` — deliberately
+  NOT multiplied by `teamsPerBarangay`, since that field is a per-slot
+  CEILING (Mobile Legends's second team is optional, "MAY field 2 teams"),
+  never a requirement; one team completes a slot regardless of how many
+  more it could hold. Per barangay, `completedSlots` counts the DISTINCT
+  `sport|division` pairs it has a VERIFIED team in (a `Set`, so two
+  verified ML teams in the same division still only count once).
+  `cleared` is now `pending === 0 && completedSlots >= requiredSlots`.
+- Also exposed `completedSlots`/`requiredSlots` on each barangay so the
+  frontend isn't limited to a binary badge: `BarangayChip`
+  (`ReviewQueue.jsx`) now shows a muted `x/N` count for a barangay that's
+  partway there with nothing currently pending (Matampay's case — was
+  previously invisible, neither red nor green), reserving green
+  "Cleared" for the real thing. The barangay-detail empty state gained a
+  matching third message for this case, distinct from "cleared" and
+  "hasn't submitted anything yet."
+- **Verified live**: after the fix, Matampay's chip reads "1/10" (gray,
+  not green) and Mukas — which actually does have a verified team in
+  every slot — still correctly reads "Cleared". `requiredSlots` came out
+  to 10 in the current dev season, not a hardcoded 11; it's read from
+  whatever sports/divisions are actually configured, so it tracks League
+  Setup changes automatically rather than needing to be kept in sync by
+  hand.
+
+## 2026-09 — Teams carousel cards redone as full-bleed poster tiles
+
+- Reported: the crest still didn't read as "fitted" in the big carousel
+  boxes from the previous session — it only filled the TOP portion of the
+  card, with the team name sitting separately below in its own padded
+  area. Asked to make the logo actually fit the card and to highlight
+  the name text.
+- Redesigned `TeamCard` (`Teams.jsx`) as a full-bleed poster tile: the
+  crest now fills the ENTIRE card (`aspect-[3/4]`), with the team name,
+  barangay, and format pill overlaid at the BOTTOM on a dark gradient
+  scrim (`bg-gradient-to-t from-black/95 via-black/60 to-transparent`)
+  instead of living in a separate area below the image — the scrim is
+  what "highlights" the text: bold white name, legible over any photo
+  regardless of how bright or busy it is.
+- `Crest`'s `variant="cover"` contract changed to match: it now fills
+  its parent COMPLETELY (`absolute inset-0 object-cover`) instead of
+  being its own `w-full aspect-square` block — the parent (the card) now
+  owns the size/aspect-ratio and must be `relative`, and other content
+  (the scrim + text) sits on top of it in the same stacking context.
+  Only consumer is `Teams.jsx`'s `TeamCard`, so this didn't touch
+  anything else using `Crest`'s default `variant="icon"`.
+- Verified with a real (non-headless-artifact) screenshot — logos fill
+  edge to edge, names read clearly over both a busy photo (Austin
+  Heights) and a mostly-dark one (Mukas).
+
+## 2026-09 — Public search bar: Motion focus glow + compact width
+
+- Requested: animate the shared `SearchInput` (`PublicUI.jsx`, used by
+  Teams and Players) with Motion, and separately, make it a compact box
+  rather than the full-width bar it was stretching to.
+- The clear (✕) button used to be a bare `{value && <button>}` — it just
+  popped in and out with no transition. Now wrapped in
+  `AnimatePresence`/`motion.button` (fade + scale, 0.15s). One real bug
+  caught before it shipped: Motion composes `scale`/`x`/`y` into a single
+  `transform`, so animating `scale` on an element vertically centered via
+  Tailwind's `-translate-y-1/2` would have silently clobbered that
+  centering. Fixed by giving the button its own constant `y: "-50%"` in
+  every animation state (never itself animating) instead of the Tailwind
+  translate class, so Motion composes it together with the scale
+  correctly.
+- Added a focus state: the search icon animates from slate to the site's
+  one gold accent (`#F5A524`, `currentColor` via an animated `color`),
+  and a soft gold glow (`animate`d `box-shadow`) appears around the
+  input — the previous focus style was `border-[#1C2430]` to
+  `border-[#2A3441]`, barely a visible shade apart. Reuses the same gold
+  that already marks "active"/"live" everywhere else on Public (nav
+  underline, live dot), rather than inventing a new color for this one
+  state.
+- **Width**: added `max-w-xs` (20rem/320px) to the wrapper — it was
+  `w-full`, stretching to the full content width on desktop (over 1300px
+  on the widest pages), which read as an oversized bar for what's just a
+  short name/barangay query. Caps on all screen sizes; still shrinks
+  fine on mobile since 320px roughly matches a small phone's viewport
+  anyway.
+- Verified live: typing "muk" filters the Teams list down to Mukas's
+  entries with the clear button animating in, confirming the shared
+  component still behaves correctly on top of the new animation/width.

@@ -7,6 +7,7 @@
 // route exists, change it here and every public page picks it up at once.
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 
 export const DIVISION_LABEL = {
   open: "Open",
@@ -52,10 +53,15 @@ function loadLogos() {
 }
 
 // Barangay crest. Falls back to a monogram when no logo is uploaded, or when the
-// payload carries no barangay id.
-export function Crest({ name, barangayId, size = 40 }) {
+// payload carries no barangay id. `variant="cover"` fills its parent COMPLETELY
+// (absolute inset-0, object-cover) instead of sitting as a small fixed-size icon
+// — for a poster-style card where the crest is the whole background and other
+// content (a name, a scrim) sits on top of it. The parent must be `relative`
+// with its own size/aspect-ratio; this variant doesn't set its own dimensions.
+export function Crest({ name, barangayId, size = 40, variant = "icon" }) {
   const [has, setHas] = useState(null);   // null = still checking
   const [failed, setFailed] = useState(false);
+  const cover = variant === "cover";
 
   useEffect(() => {
     if (!barangayId) { setHas(false); return; }
@@ -70,15 +76,17 @@ export function Crest({ name, barangayId, size = 40 }) {
         src={barangayLogoUrl(barangayId)}
         alt=""
         onError={() => setFailed(true)}
-        className="rounded object-cover bg-[#1C2430] shrink-0"
-        style={{ width: size, height: size }}
+        className={cover ? "absolute inset-0 h-full w-full object-cover bg-[#1C2430]" : "rounded object-cover bg-[#1C2430] shrink-0"}
+        style={cover ? undefined : { width: size, height: size }}
       />
     );
   }
   return (
     <div
-      className="rounded bg-[#1C2430] text-slate-400 font-semibold flex items-center justify-center shrink-0"
-      style={{ width: size, height: size, fontSize: size * 0.3 }}
+      className={cover
+        ? "absolute inset-0 flex items-center justify-center bg-[#1C2430] text-slate-500 font-semibold"
+        : "rounded bg-[#1C2430] text-slate-400 font-semibold flex items-center justify-center shrink-0"}
+      style={cover ? { fontSize: 32 } : { width: size, height: size, fontSize: size * 0.3 }}
     >
       {initials(name) || "—"}
     </div>
@@ -104,17 +112,38 @@ export function PlayerAvatar({ player, size = 40 }) {
   );
 }
 
-export function Panel({ title, count, children, empty }) {
+export function Panel({ title, count, children, empty, actions }) {
   return (
     <section className="rounded-lg border border-[#1C2430] bg-[#0F141C] mb-5 overflow-hidden">
       {title && (
-        <div className="px-5 py-3.5 border-b border-[#1C2430] flex items-baseline gap-2.5">
-          <h2 className="text-slate-100 text-[15px] font-semibold">{title}</h2>
-          {count != null && <span className="text-slate-500 text-xs">{count}</span>}
+        <div className="px-5 py-3.5 border-b border-[#1C2430] flex items-center justify-between gap-2.5">
+          <div className="flex items-baseline gap-2.5 min-w-0">
+            <h2 className="text-slate-100 text-[15px] font-semibold truncate">{title}</h2>
+            {count != null && <span className="text-slate-500 text-xs shrink-0">{count}</span>}
+          </div>
+          {actions && <div className="flex items-center gap-1.5 shrink-0">{actions}</div>}
         </div>
       )}
       {children || <p className="px-5 py-5 text-slate-500 text-sm">{empty}</p>}
     </section>
+  );
+}
+
+// Round prev/next buttons for a drag-scrollable row (e.g. a team carousel) —
+// same inline-SVG convention as SearchInput, no lucide-react on Public.
+export function CarouselArrow({ dir, onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={dir === "prev" ? "Scroll left" : "Scroll right"}
+      className="w-7 h-7 rounded-full border border-[#1C2430] flex items-center justify-center text-slate-400 hover:text-slate-100 hover:border-[#2A3441] disabled:opacity-30 disabled:pointer-events-none transition"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+        <path d={dir === "prev" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
   );
 }
 
@@ -282,25 +311,60 @@ export function LiveDot({ className = "" }) {
   );
 }
 
+// Focus glow (a soft gold ring, not just the border color swap) and the
+// clear button both animate with Motion — the clear button was a plain
+// `{value && <button>}` that just popped in/out with no transition, and the
+// focus state had almost no visible feedback (`border-[#1C2430]` to
+// `border-[#2A3441]` is barely a shade apart). Gold matches the rest of the
+// site's one accent color, so "the search bar is active" reads the same way
+// "this nav link is active" or "this is live" already do everywhere else.
 export function SearchInput({ value, onChange, placeholder = "Search…" }) {
+  const [focused, setFocused] = useState(false);
   return (
-    <div className="relative mb-5">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-        className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none">
+    <div className="relative mb-5 max-w-xs">
+      <motion.div
+        className="absolute inset-0 rounded-lg pointer-events-none"
+        initial={false}
+        animate={{ boxShadow: focused ? "0 0 0 3px rgba(245,165,36,0.18)" : "0 0 0 0px rgba(245,165,36,0)" }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      />
+      <motion.svg
+        viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+        className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+        initial={false}
+        animate={{ color: focused ? "#F5A524" : "#475569" }}
+        transition={{ duration: 0.2 }}
+      >
         <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" />
-      </svg>
+      </motion.svg>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-[#1C2430] bg-[#0F141C] text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#2A3441] transition"
+        className="w-full rounded-lg border border-[#1C2430] bg-[#0F141C] text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#F5A524]/50 transition-colors"
       />
-      {value && (
-        <button onClick={() => onChange("")} aria-label="Clear search"
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300 text-sm">
-          ✕
-        </button>
-      )}
+      <AnimatePresence>
+        {value && (
+          // y stays "-50%" across every state (never animates) purely to keep
+          // this centered — Motion composes its own x/y/scale into ONE
+          // transform, so a plain Tailwind `-translate-y-1/2` class here
+          // would just get clobbered by the scale animation's transform.
+          <motion.button
+            key="clear"
+            onClick={() => onChange("")}
+            aria-label="Clear search"
+            initial={{ opacity: 0, scale: 0.5, y: "-50%" }}
+            animate={{ opacity: 1, scale: 1, y: "-50%" }}
+            exit={{ opacity: 0, scale: 0.5, y: "-50%" }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute right-3 top-1/2 text-slate-600 hover:text-slate-300 text-sm"
+          >
+            ✕
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

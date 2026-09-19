@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ChevronDown, ChevronUp, FileText, FileWarning, ListChecks, Minus, Plus, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, FileText, FileWarning, ListChecks, Minus, Plus, RotateCcw, ShieldCheck, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -9,7 +9,7 @@ import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Dialog, DialogContent } from "../../components/ui/dialog";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
@@ -277,6 +277,41 @@ function Field({ label, value }) {
   );
 }
 
+// One barangay in the picker — name, plus whichever badge applies: a red
+// count of teams still needing a verdict, a green "Cleared" once it has a
+// VERIFIED team in every sport/division slot this season is running (not
+// just that whatever it happened to submit is done — a barangay with one
+// verified Chess team and nothing else is NOT cleared), a muted "x/N"
+// progress count if it's partway there with nothing currently pending, or
+// nothing at all if it hasn't submitted anything yet.
+function BarangayChip({ label, count, cleared, completedSlots, requiredSlots, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition",
+        active ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-accent"
+      )}
+    >
+      {label}
+      {count > 0 ? (
+        <span className="min-w-[18px] rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">
+          {count}
+        </span>
+      ) : cleared ? (
+        <span className="flex items-center gap-0.5 text-[11px] font-medium text-green-600 dark:text-green-400">
+          <CheckCircle2 className="size-3.5" /> Cleared
+        </span>
+      ) : completedSlots > 0 ? (
+        <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+          {completedSlots}/{requiredSlots}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
   const p = player;
   const navigate = useNavigate();
@@ -379,6 +414,8 @@ export default function ReviewQueue() {
   const showError = useErrorDialog();
   const confirm = useConfirm();
   const [teams, setTeams] = useState([]);
+  const [barangays, setBarangays] = useState([]);    // all 26, each with a pending/verified/cleared tally
+  const [selectedBarangay, setSelectedBarangay] = useState(null); // null = "All"
   const [loading, setLoading] = useState(true);
   const [openTeam, setOpenTeam] = useState(null);   // teamId currently expanded
   const [players, setPlayers] = useState([]);        // players of the open team
@@ -392,14 +429,26 @@ export default function ReviewQueue() {
     try {
       const data = await api("/api/review/queue");
       setTeams(data.teams || []);
+      setBarangays(data.barangays || []);
     } catch (e) {
       setTeams([]);
+      setBarangays([]);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => { loadQueue(); }, []);
+
+  // Picking a barangay narrows the list below instead of making the Super
+  // Admin scroll through every submitted team in the season to find one
+  // barangay's. "All" (selectedBarangay === null) keeps the old flat view.
+  const visibleTeams = selectedBarangay
+    ? teams.filter((t) => t.barangayId === selectedBarangay)
+    : teams;
+  const selectedBarangayInfo = selectedBarangay
+    ? barangays.find((b) => String(b.id) === selectedBarangay)
+    : null;
 
   async function openTeamDetail(teamId) {
     if (openTeam === teamId) { setOpenTeam(null); return; } // toggle closed
@@ -459,100 +508,149 @@ export default function ReviewQueue() {
     <AdminLayout title="Review Queue" menu={superAdminMenu} enableDarkMode>
       {loading ? (
         <div className="space-y-3">
+          <Skeleton className="h-28 w-full rounded-xl" />
           <Skeleton className="h-20 w-full rounded-xl" />
           <Skeleton className="h-20 w-full rounded-xl" />
         </div>
-      ) : teams.length === 0 ? (
-        <Card className="max-w-xl">
-          <CardHeader>
-            <CardTitle>Nothing to review</CardTitle>
-            <CardDescription>
-              No submitted teams are awaiting review in the current season. Teams appear here once a
-              Barangay Admin submits their roster.
-            </CardDescription>
-          </CardHeader>
-        </Card>
       ) : (
-        <div className="space-y-3">
-          {teams.map((t) => (
-            <Card key={t.teamId} className="overflow-hidden py-0 gap-0">
-              {/* Team header row — click to expand */}
-              <button
-                onClick={() => openTeamDetail(t.teamId)}
-                className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 hover:bg-accent/50 transition text-left"
-              >
-                <div>
-                  <p className="font-semibold">{t.teamName}</p>
-                  <p className="text-muted-foreground text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {t.tally.flagged > 0 && <Badge className={cn(STATUS_BADGE.flagged, "whitespace-nowrap")}>{t.tally.flagged} flagged</Badge>}
-                  {t.tally.needs_document > 0 && <Badge className={cn(STATUS_BADGE.needs_document, "whitespace-nowrap")}>{t.tally.needs_document} need doc</Badge>}
-                  {t.tally.eligible > 0 && <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>{t.tally.eligible} eligible</Badge>}
-                  {openTeam === t.teamId ? <ChevronUp className="size-4 text-muted-foreground hidden sm:block" /> : <ChevronDown className="size-4 text-muted-foreground hidden sm:block" />}
-                </div>
-              </button>
-
-              {/* Expanded player list */}
-              {openTeam === t.teamId && (
-                <div className="border-t px-5 py-4">
-                  {playersLoading ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-12 w-full" />
-                      <Skeleton className="h-12 w-full" />
-                    </div>
-                  ) : (
-                    <>
-                      {msg && <p className="text-sm mb-3 bg-muted rounded px-3 py-2">{msg}</p>}
-                      <div className="space-y-2">
-                        {players.map((p) => (
-                          <button
-                            key={p._id}
-                            onClick={() => setModalPlayer(p)}
-                            className="w-full flex items-center gap-3 py-2 border-b last:border-0 text-left hover:bg-accent/50 rounded-lg px-2 transition"
-                          >
-                            {p.photo ? (
-                              <img src={`/api/teams/players/${p._id}/photo`} alt=""
-                                className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
-                            ) : (
-                              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
-                                {p.lastName?.[0]}{p.firstName?.[0]}
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm">{p.lastName}, {p.firstName}</span>
-                                <Badge className={STATUS_BADGE[p.eligibilityStatus] || STATUS_BADGE.pending}>
-                                  {STATUS_LABEL[p.eligibilityStatus] || p.eligibilityStatus}
-                                </Badge>
-                                {p.documents?.length > 0 && (
-                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <FileText className="size-3" /> {p.documents.length} doc{p.documents.length > 1 ? "s" : ""}
-                                  </span>
-                                )}
-                              </div>
-                              <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} className="mt-1" />
-                            </div>
-                            <span className="text-muted-foreground text-xs shrink-0">View →</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Verify team */}
-                      <div className="mt-4 pt-3 border-t flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">
-                          {allEligible ? "All players eligible — ready to verify." : "Resolve all flagged / needs-document players to verify."}
-                        </p>
-                        <Button onClick={() => verify(t.teamId)} disabled={busy || !allEligible}>
-                          <ShieldCheck /> Verify Team
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+        <div className="space-y-4">
+          {/* Barangay picker — pick one to work through just its teams instead
+              of scrolling every submitted team in the season. */}
+          {barangays.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Barangays</CardTitle>
+                <CardDescription>
+                  Pick a barangay to review just its teams. Red = still needs a verdict, green =
+                  cleared (a verified team in every sport/division this season), gray x/N = partway
+                  there with nothing currently pending.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <BarangayChip
+                  label="All barangays"
+                  count={teams.length}
+                  active={selectedBarangay === null}
+                  onClick={() => setSelectedBarangay(null)}
+                />
+                {barangays.map((b) => (
+                  <BarangayChip
+                    key={b.id}
+                    label={b.name}
+                    count={b.pendingTeams}
+                    cleared={b.cleared}
+                    completedSlots={b.completedSlots}
+                    requiredSlots={b.requiredSlots}
+                    active={selectedBarangay === String(b.id)}
+                    onClick={() => setSelectedBarangay(String(b.id))}
+                  />
+                ))}
+              </CardContent>
             </Card>
-          ))}
+          )}
+
+          {visibleTeams.length === 0 ? (
+            <Card className="max-w-xl">
+              <CardHeader>
+                <CardTitle>
+                  {selectedBarangayInfo
+                    ? selectedBarangayInfo.cleared ? `Brgy. ${selectedBarangayInfo.name} — cleared` : `Brgy. ${selectedBarangayInfo.name} — nothing pending`
+                    : "Nothing to review"}
+                </CardTitle>
+                <CardDescription>
+                  {selectedBarangayInfo
+                    ? selectedBarangayInfo.cleared
+                      ? `Brgy. ${selectedBarangayInfo.name} has a verified team in every sport/division this season (${selectedBarangayInfo.completedSlots}/${selectedBarangayInfo.requiredSlots}).`
+                      : selectedBarangayInfo.completedSlots > 0
+                        ? `Brgy. ${selectedBarangayInfo.name} has ${selectedBarangayInfo.completedSlots} of ${selectedBarangayInfo.requiredSlots} sport/division slots verified, and nothing currently awaiting review — still short of the rest.`
+                        : `Brgy. ${selectedBarangayInfo.name} hasn't submitted any teams yet this season.`
+                    : "No submitted teams are awaiting review in the current season. Teams appear here once a Barangay Admin submits their roster."}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {visibleTeams.map((t) => (
+                <Card key={t.teamId} className="overflow-hidden py-0 gap-0">
+                  {/* Team header row — click to expand */}
+                  <button
+                    onClick={() => openTeamDetail(t.teamId)}
+                    className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 hover:bg-accent/50 transition text-left"
+                  >
+                    <div>
+                      <p className="font-semibold">{t.teamName}</p>
+                      <p className="text-muted-foreground text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {t.tally.flagged > 0 && <Badge className={cn(STATUS_BADGE.flagged, "whitespace-nowrap")}>{t.tally.flagged} flagged</Badge>}
+                      {t.tally.needs_document > 0 && <Badge className={cn(STATUS_BADGE.needs_document, "whitespace-nowrap")}>{t.tally.needs_document} need doc</Badge>}
+                      {t.tally.eligible > 0 && <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>{t.tally.eligible} eligible</Badge>}
+                      {openTeam === t.teamId ? <ChevronUp className="size-4 text-muted-foreground hidden sm:block" /> : <ChevronDown className="size-4 text-muted-foreground hidden sm:block" />}
+                    </div>
+                  </button>
+
+                  {/* Expanded player list */}
+                  {openTeam === t.teamId && (
+                    <div className="border-t px-5 py-4">
+                      {playersLoading ? (
+                        <div className="space-y-2">
+                          <Skeleton className="h-12 w-full" />
+                          <Skeleton className="h-12 w-full" />
+                        </div>
+                      ) : (
+                        <>
+                          {msg && <p className="text-sm mb-3 bg-muted rounded px-3 py-2">{msg}</p>}
+                          <div className="space-y-2">
+                            {players.map((p) => (
+                              <button
+                                key={p._id}
+                                onClick={() => setModalPlayer(p)}
+                                className="w-full flex items-center gap-3 py-2 border-b last:border-0 text-left hover:bg-accent/50 rounded-lg px-2 transition"
+                              >
+                                {p.photo ? (
+                                  <img src={`/api/teams/players/${p._id}/photo`} alt=""
+                                    className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
+                                ) : (
+                                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
+                                    {p.lastName?.[0]}{p.firstName?.[0]}
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm">{p.lastName}, {p.firstName}</span>
+                                    <Badge className={STATUS_BADGE[p.eligibilityStatus] || STATUS_BADGE.pending}>
+                                      {STATUS_LABEL[p.eligibilityStatus] || p.eligibilityStatus}
+                                    </Badge>
+                                    {p.documents?.length > 0 && (
+                                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <FileText className="size-3" /> {p.documents.length} doc{p.documents.length > 1 ? "s" : ""}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} className="mt-1" />
+                                </div>
+                                <span className="text-muted-foreground text-xs shrink-0">View →</span>
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Verify team */}
+                          <div className="mt-4 pt-3 border-t flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">
+                              {allEligible ? "All players eligible — ready to verify." : "Resolve all flagged / needs-document players to verify."}
+                            </p>
+                            <Button onClick={() => verify(t.teamId)} disabled={busy || !allEligible}>
+                              <ShieldCheck /> Verify Team
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

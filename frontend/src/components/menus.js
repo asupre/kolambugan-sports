@@ -23,7 +23,7 @@ export const superAdminMenu = [
     items: [
       { label: "Season", path: "/admin/season", icon: "◷" },
       { label: "Reference List", path: "/admin/reference", icon: "☑" },
-      { label: "Review Queue", path: "/admin/review", icon: "⚑" },
+      { label: "Review Queue", path: "/admin/review", icon: "⚑", badge: "reviewPending" },
     ],
   },
   {

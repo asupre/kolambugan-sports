@@ -27,6 +27,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const [showHelp, setShowHelp] = useState(false);   // on-demand reopen of the orientation modal
   const [sports, setSports] = useState([]);
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
+  const [reviewPending, setReviewPending] = useState(0);
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme(user?.id) : "light"));
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const grouped = menu[0]?.header !== undefined;
   const items = flattenItems(menu);
   const needsSports = items.some((m) => m.dynamic === "sports");
+  const needsReviewBadge = items.some((m) => m.badge === "reviewPending");
 
   useLayoutEffect(() => {
     if (!enableDarkMode) return;
@@ -49,6 +51,17 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       .then((d) => setSports(d.sports || []))
       .catch(() => setSports([]));
   }, [needsSports]);
+
+  // Red count badge on the Review Queue sidebar item — how many submitted
+  // teams still need a verdict, season-wide. Refetches whenever this layout
+  // mounts (i.e. on every admin-page navigation), which is fresh enough
+  // without adding a poll interval.
+  useEffect(() => {
+    if (!needsReviewBadge) return;
+    api("/api/review/queue")
+      .then((d) => setReviewPending(d.totalPending || 0))
+      .catch(() => setReviewPending(0));
+  }, [needsReviewBadge, location.pathname]);
 
   // A group starts open when you're already somewhere inside it, so landing on
   // a sport page doesn't hide where you are.
@@ -148,10 +161,31 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       );
     }
 
+    const showBadge = item.badge === "reviewPending" && reviewPending > 0;
+
     return (
-      <button key={item.path} onClick={() => go(item.path)} className={itemClass(active)} title={rail ? item.label : undefined}>
-        <span className="text-base">{item.icon}</span>
-        {!rail && item.label}
+      <button
+        key={item.path}
+        onClick={() => go(item.path)}
+        className={itemClass(active)}
+        title={rail ? (showBadge ? `${item.label} (${reviewPending} pending)` : item.label) : undefined}
+      >
+        <span className="text-base relative">
+          {item.icon}
+          {showBadge && rail && (
+            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-sidebar" />
+          )}
+        </span>
+        {!rail && (
+          <>
+            <span className="flex-1 text-left">{item.label}</span>
+            {showBadge && (
+              <span className="min-w-[18px] rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">
+                {reviewPending}
+              </span>
+            )}
+          </>
+        )}
       </button>
     );
   }

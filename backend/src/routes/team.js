@@ -177,15 +177,29 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
   }
 });
 
-// DELETE /api/teams/:id — SUPER ADMIN. Permanently removes a team: its players
-// (unless shared with another team via TeamPlayer), those players' documents
-// and photos, and the team itself. Blocked while the team appears in any
-// match — delete the tournament first (which clears its matches), same
-// guard shape as DELETE /api/sports/:id.
-router.delete('/:id', authenticate, authorize('super_admin'), async (req, res) => {
+// DELETE /api/teams/:id — SUPER ADMIN (any team, any status, e.g. orphan
+// cleanup) or the owning BARANGAY ADMIN (their own team only, and only
+// before it's verified — once verified it's locked into tournament
+// generation, so undoing that needs the Super Admin). Permanently removes
+// a team: its players (unless shared with another team via TeamPlayer),
+// those players' documents and photos, and the team itself. Blocked while
+// the team appears in any match — delete the tournament first (which
+// clears its matches), same guard shape as DELETE /api/sports/:id.
+router.delete('/:id', authenticate, authorize('super_admin', 'barangay_admin'), async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
     if (!team) return res.status(404).json({ message: 'Team not found.' });
+
+    if (req.user.role === 'barangay_admin') {
+      if (!req.user.barangay || String(team.barangay) !== String(req.user.barangay)) {
+        return res.status(403).json({ message: "You can only delete your own barangay's team." });
+      }
+      if (team.status === 'verified') {
+        return res.status(409).json({
+          message: 'This team is verified and locked. Contact the Super Admin to remove it.',
+        });
+      }
+    }
 
     const inMatches = await Match.countDocuments({ $or: [{ teamA: team._id }, { teamB: team._id }] });
     if (inMatches > 0) {

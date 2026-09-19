@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, CircleCheck, CircleX, ClipboardList, Search, UploadCloud } from "lucide-react";
+import { CheckCircle2, CircleCheck, CircleX, ClipboardList, Search, Sparkles, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
@@ -56,7 +56,7 @@ export default function ReferenceList() {
   // the thousands of rows.
   useEffect(() => {
     if (!cameFromLink.current || scrolledToMatch.current || records.length === 0) return;
-    const target = records.find((r) => r.matches?.length);
+    const target = records.find((r) => r.matches?.length || r.minorMatches?.length);
     const el = target && rowRefs.current[target._id];
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -223,7 +223,11 @@ export default function ReferenceList() {
               <CardDescription>
                 Search by name or barangay to look up a specific resident's record. This
                 list only has names and barangays — no jersey numbers or middle initials,
-                those live on the player's roster entry instead.
+                those live on the player's roster entry instead. A row highlighted{" "}
+                <span className="text-purple-600 dark:text-purple-400 font-medium">purple</span>{" "}
+                is a same-name hint for a player under 15 — they still need a document
+                regardless (the list starts at 15), but a same-name/same-barangay row is
+                worth weighing when reviewing that document.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -294,14 +298,17 @@ export default function ReferenceList() {
                         // picking one and hiding the other, since that's
                         // exactly the kind of conflict this list should catch.
                         const matches = r.matches || [];
+                        const minorMatches = r.minorMatches || [];
                         const rowTone =
-                          matches.length === 0
-                            ? null
-                            : matches.length > 1
-                            ? "multi"
-                            : matches[0].status === "flagged"
-                            ? "flagged"
-                            : "eligible";
+                          matches.length > 0
+                            ? matches.length > 1
+                              ? "multi"
+                              : matches[0].status === "flagged"
+                              ? "flagged"
+                              : "eligible"
+                            : minorMatches.length > 0
+                            ? "minor"
+                            : null;
                         return (
                           <tr
                             key={r._id}
@@ -309,7 +316,8 @@ export default function ReferenceList() {
                             className={cn(
                               rowTone === "eligible" && "bg-green-500/10 outline outline-1 -outline-offset-1 outline-green-500/40",
                               rowTone === "flagged" && "bg-red-500/10 outline outline-1 -outline-offset-1 outline-red-500/40",
-                              rowTone === "multi" && "bg-amber-500/10 outline outline-1 -outline-offset-1 outline-amber-500/40"
+                              rowTone === "multi" && "bg-amber-500/10 outline outline-1 -outline-offset-1 outline-amber-500/40",
+                              rowTone === "minor" && "bg-purple-500/10 outline outline-1 -outline-offset-1 outline-purple-500/40"
                             )}
                           >
                             <td className="px-3 py-2 truncate">{r.lastName}</td>
@@ -323,6 +331,10 @@ export default function ReferenceList() {
                               )}
                               {matches.map((m, i) => {
                                 const isMismatch = m.status === "flagged";
+                                // Not a normal list match — the Super Admin approved this
+                                // under-15 player by hand (document review), so this row was
+                                // just promoted here from the purple informational hint below.
+                                const isApprovedMinor = m.status === "approved_minor";
                                 return (
                                   <div key={i} className="min-w-0">
                                     <span className={cn(
@@ -330,7 +342,7 @@ export default function ReferenceList() {
                                       isMismatch ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                                     )}>
                                       {isMismatch ? <CircleX className="size-3.5 shrink-0" /> : <CircleCheck className="size-3.5 shrink-0" />}
-                                      {isMismatch ? "Mismatch" : "Matched"}
+                                      {isMismatch ? "Mismatch" : isApprovedMinor ? "Approved · document review" : "Matched"}
                                     </span>
                                     <p className="text-muted-foreground text-xs truncate">
                                       {m.playerName}{m.teamName ? ` · ${m.teamName}` : ""}
@@ -338,6 +350,23 @@ export default function ReferenceList() {
                                   </div>
                                 );
                               })}
+                              {/* Under 15: never an official match (the voters' list starts
+                                  at 15), so this is shown separately and clearly labeled as
+                                  a hint, not a verdict — the player's own status stays
+                                  needs_document either way; this just helps judge the
+                                  uploaded document against whether the family shows up in
+                                  the barangay's own records at all. */}
+                              {minorMatches.map((m, i) => (
+                                <div key={`minor-${i}`} className="min-w-0">
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-600 dark:text-purple-400">
+                                    <Sparkles className="size-3.5 shrink-0" />
+                                    Same name, under 15{m.sameBarangay ? " · same barangay" : ""}
+                                  </span>
+                                  <p className="text-muted-foreground text-xs truncate">
+                                    {m.playerName}{m.teamName ? ` · ${m.teamName}` : ""} — needs a document regardless, informational only
+                                  </p>
+                                </div>
+                              ))}
                             </td>
                           </tr>
                         );

@@ -763,11 +763,13 @@ function RosterEditor({ team, sports, onClose }) {
 
 export default function BrgyDashboard() {
   const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [sports, setSports] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openTeam, setOpenTeam] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const [sportId, setSportId] = useState("");
   const [division, setDivision] = useState("");
@@ -811,6 +813,23 @@ export default function BrgyDashboard() {
       showError(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function deleteTeam(team) {
+    const ok = await confirm(
+      `Delete "${team.teamName}"? This removes the team and every player on its roster (documents and photos included). This cannot be undone.`,
+      { danger: true, confirmLabel: "Delete team" }
+    );
+    if (!ok) return;
+    setDeletingId(team._id);
+    try {
+      await api(`/api/teams/${team._id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -953,6 +972,17 @@ export default function BrgyDashboard() {
                       <Button size="sm" variant="outline" onClick={() => setOpenTeam(t)}>
                         {t.submittedAt ? "View roster" : "Edit roster"}
                       </Button>
+                      {t.status !== "verified" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:text-red-600 dark:text-red-400"
+                          disabled={deletingId === t._id}
+                          onClick={() => deleteTeam(t)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>

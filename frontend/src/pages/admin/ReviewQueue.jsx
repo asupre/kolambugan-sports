@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ChevronDown, ChevronUp, FileText, FileWarning, ListChecks, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, FileText, FileWarning, ListChecks, Minus, Plus, RotateCcw, ShieldCheck, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -31,7 +31,10 @@ const REASON_TONE = {
 };
 
 function ReasonCallout({ status, reason, className }) {
-  if (!reason) return null;
+  // Belt-and-suspenders alongside the backend clearing flagReason on approve:
+  // an eligible player should never show the old flag/needs-document reason,
+  // even against stale data.
+  if (!reason || status === "eligible") return null;
   const tone = REASON_TONE[status] || REASON_TONE.needs_document;
   const Icon = tone.icon;
   return (
@@ -112,11 +115,95 @@ const STATUS_LABEL = {
   pending: "Pending",
 };
 
+const MIN_SCALE = 1;
+const MAX_SCALE = 5;
+
+// A residency document is often a phone photo of an ID/certificate — "fit to
+// screen" (the old Lightbox) isn't enough to read small print. This adds
+// real zoom: mouse wheel, +/- buttons, double-click, and drag-to-pan once
+// zoomed in. Pointer events cover both mouse drag and single-finger touch.
 function Lightbox({ src, onClose }) {
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const dragRef = useRef(null); // { startX, startY, origX, origY } while dragging
+
+  function clampScale(s) {
+    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+  }
+
+  function zoomTo(next) {
+    const clamped = clampScale(next);
+    setScale(clamped);
+    if (clamped === MIN_SCALE) setPos({ x: 0, y: 0 });
+  }
+
+  function handleWheel(e) {
+    e.preventDefault();
+    zoomTo(scale + (e.deltaY < 0 ? 0.4 : -0.4));
+  }
+
+  function handleDoubleClick() {
+    zoomTo(scale > MIN_SCALE ? MIN_SCALE : 2.5);
+  }
+
+  function handlePointerDown(e) {
+    if (scale <= MIN_SCALE) return;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e) {
+    if (!dragRef.current) return;
+    const { startX, startY, origX, origY } = dragRef.current;
+    setPos({ x: origX + (e.clientX - startX), y: origY + (e.clientY - startY) });
+  }
+
+  function handlePointerUp() {
+    dragRef.current = null;
+  }
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent showCloseButton={false} className="sm:max-w-[90vw] p-2 bg-black/90 border-0">
-        <img src={src} alt="" className="max-h-[85vh] w-full object-contain rounded" />
+        <div
+          className={cn("h-[85vh] w-full overflow-hidden rounded touch-none", scale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in")}
+          onWheel={handleWheel}
+          onDoubleClick={handleDoubleClick}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+        >
+          <img
+            src={src}
+            alt=""
+            draggable={false}
+            className="h-full w-full object-contain select-none"
+            style={{
+              transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+              transition: dragRef.current ? "none" : "transform 0.15s ease-out",
+            }}
+          />
+        </div>
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1.5">
+          <Button type="button" variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white"
+            onClick={() => zoomTo(scale - 0.5)} disabled={scale <= MIN_SCALE}>
+            <Minus />
+          </Button>
+          <span className="w-12 text-center text-xs text-white tabular-nums">{Math.round(scale * 100)}%</span>
+          <Button type="button" variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white"
+            onClick={() => zoomTo(scale + 0.5)} disabled={scale >= MAX_SCALE}>
+            <Plus />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white"
+            onClick={() => zoomTo(1)} disabled={scale === MIN_SCALE}>
+            <RotateCcw />
+          </Button>
+        </div>
+        <Button variant="ghost" size="icon-sm" onClick={onClose}
+          className="absolute top-3 right-3 text-white hover:bg-white/10 hover:text-white">
+          <X />
+        </Button>
       </DialogContent>
     </Dialog>
   );
@@ -193,6 +280,11 @@ function Field({ label, value }) {
 function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
   const p = player;
   const navigate = useNavigate();
+  // needs_document has no reference-list match at all, so a document is the
+  // ONLY evidence an approval can rest on — block it until one exists.
+  // flagged (cross-barangay) and pending aren't gated the same way: a flag is
+  // about the barangay rule, not missing paperwork.
+  const blockedNoDocument = p.eligibilityStatus === "needs_document" && !p.documents?.length;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -259,13 +351,15 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
 
         {/* Actions */}
         <div className="px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap shrink-0">
-          <p className="text-xs text-muted-foreground">
-            Approving also marks this player's pending documents as approved.
-            Rejecting removes the player and their files, and reopens the roster.
+          <p className={cn("text-xs", blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground")}>
+            {blockedNoDocument
+              ? "No document uploaded yet — Approve is disabled until the Barangay Admin submits one."
+              : "Approving also marks this player's pending documents as approved. Rejecting removes the player and their files, and reopens the roster."}
           </p>
           {p.eligibilityStatus !== "eligible" && (
             <div className="flex gap-2 shrink-0">
-              <Button onClick={() => onApprove(teamId, p._id)} disabled={busy}
+              <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || blockedNoDocument}
+                title={blockedNoDocument ? "This player has no document uploaded yet." : undefined}
                 className="bg-green-600 text-white hover:bg-green-700 focus-visible:ring-green-500/40 dark:focus-visible:ring-green-500/40">
                 Approve
               </Button>

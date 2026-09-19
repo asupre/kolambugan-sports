@@ -164,8 +164,17 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
      document via the Barangay Admin's **Document Submission** page.
      Documents are the EXCEPTION, not required for everyone.
   3. **Super Admin reviews in the Review Queue** — sees the player's photo and
-     the uploaded document inline — and gives the official verdict
-     (approve / reject). Reject removes the player and REOPENS the roster.
+     the uploaded document inline (zoomable — wheel/pinch/+/- to zoom, drag to
+     pan once zoomed, Sep 2026) — and gives the official verdict (approve /
+     reject). Reject removes the player and REOPENS the roster. **Approve is
+     blocked for a `needs_document` player with no document uploaded** (Sep
+     2026, both the route and the button) — that status means there's no
+     reference-list match at all, so a submitted document is the only
+     possible evidence; `flagged` (cross-barangay) isn't gated the same way,
+     since that's a barangay-rule judgment call, not missing paperwork.
+     Approving also **clears `flagReason`** (fixed Sep 2026 — it used to be
+     left stale, so an approved player could still show the old "needs
+     document"/flag warning in the UI).
   4. Verify locks the team (`status: 'verified'`); only verified teams enter
      tournaments. **A later correction can un-verify it** (fixed Sep 2026):
      the "correct this player" PATCH re-screens on a name/birthdate change,
@@ -188,6 +197,19 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   candidates sharing a name but disagreeing on barangay is possible; only
   `candidates[0]`'s barangay is used for the eligible/flagged decision once
   narrowed.
+- **Reference List page — informational highlight for under-15 same-name
+  rows** (Sep 2026): `decideFromCandidates` deliberately never matches a
+  player under 15 to a reference row (the list starts at 15), so a minor's
+  official status is always `needs_document` regardless of a same-name row.
+  `GET /api/reference-list` now ALSO surfaces a same-name hit for a minor as
+  a separate, clearly-labeled **purple "informational only"** row highlight
+  (not green/red, and never counted as a real match) — helps the Super
+  Admin judge a submitted document against whether the family shows up in
+  the barangay's own records at all. Once that player is approved, the same
+  row is promoted into the real match set (`status: 'approved_minor'`,
+  labeled "Approved · document review", normal green) — the highlight
+  changes to reflect that the case is resolved, instead of staying purple
+  forever.
 - **Performance (fixed Sep 2026):** roster-submit screening
   (`prescreenTeam`) fetches the season's whole reference list ONCE and
   reuses it across every player on the roster — correct tradeoff at
@@ -1082,6 +1104,12 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   (barangay, sport, season, division); ML allows 2.
 - Roster limits by format: team 10–15, doubles 2, singles 1.
 - Add/remove players, submit roster (locks + triggers pre-screen).
+- `DELETE /api/teams/:id` (Sep 2026): originally Super Admin only (orphan
+  cleanup); now the owning **Barangay Admin can also delete their own
+  team**, gated on `status !== 'verified'` (a verified team is locked into
+  tournament generation — undoing that still needs the Super Admin) and the
+  same in-any-match guard as the Super Admin path. `BrgyDashboard.jsx` shows
+  a delete button per team, hidden once verified.
 
 **Verification**
 - Reference-list CSV upload, auto pre-screen (eligible / needs_document /
@@ -1094,6 +1122,18 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   doc-type picker, upload, shows verify status).
 - Review Queue shows the player's **photo + uploaded document inline**
   (blob fetch with token) so the Federation can judge with evidence.
+  **Zoomable** (Sep 2026, `Lightbox` in `ReviewQueue.jsx`): mouse wheel,
+  double-click, or +/-/reset buttons to zoom (1x–5x), drag/touch-drag to
+  pan once zoomed — the old version only fit the image to screen, not
+  enough to read small print on a phone-photographed ID.
+- **Approve is blocked for a `needs_document` player with no document
+  uploaded** (Sep 2026) — enforced in the route (400 if `Document`
+  records = 0 for that player) and in the UI (Approve button disabled,
+  amber explanation). Scoped to `needs_document` only, since that status
+  means no reference-list match exists at all; `flagged` stays
+  approvable on judgment, since that's a barangay-rule call, not missing
+  paperwork. Approve now also clears `flagReason` (was left stale before,
+  so an approved player could still show the old warning text).
 
 **Tournaments**
 - ML: group stage, knockout-size picker, scaling single-elim + 3rd place,

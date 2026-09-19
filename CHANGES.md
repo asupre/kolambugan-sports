@@ -1809,3 +1809,123 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
   keyboard/touch-reachable pause), login waves keep the GPU busy on desktop.
   Fixes are listed in CLAUDE.md if they're wanted later. No formal audit or
   screen-reader test was done.
+
+## 2026-09 — Barangay Admin can now delete their own team
+
+- `DELETE /api/teams/:id` was Super-Admin-only (built for the orphan-cleanup
+  tools — see the "Delete team + delete tournament" entry above). Opened it
+  to the owning Barangay Admin as well, for their own team, scoped to
+  `team.status !== 'verified'` — once a team is verified it's locked into
+  tournament generation, so undoing that still needs the Super Admin.
+  Reuses the exact same cascade (TeamPlayer links, each player's Documents +
+  GridFS files, photo, the Player record itself if not shared with another
+  team) and the same in-any-match guard as the existing Super Admin path.
+- `BrgyDashboard.jsx`: a red trash-icon button next to "Edit roster"/"View
+  roster" on each team row in "My teams," hidden once that team is
+  verified. Confirms through the shared `ConfirmDialog` (`danger: true`),
+  same pattern as every other destructive action in the admin UI, and
+  reports failures (e.g. the team is already in a match) through
+  `ErrorDialog`.
+
+## 2026-09 — Review Queue: real zoom on a document, not just a bigger view
+
+- Reported: clicking a submitted document (e.g. Parental Consent) in the
+  Review Queue's player modal opened `Lightbox`, but that was only ever
+  "fit to screen" (`max-h-[85vh] object-contain`) — no actual zoom, so a
+  phone photo of a small-print ID/certificate was still unreadable.
+- `Lightbox` (`ReviewQueue.jsx`) now supports real zoom + pan: mouse wheel
+  to zoom (centered increments of 0.4, clamped 1x–5x), double-click to
+  toggle between fit and 2.5x, +/-/reset buttons in a floating control bar
+  (also the only way to zoom on a touch device with no wheel), and
+  drag-to-pan once zoomed in (pointer events, so mouse drag and
+  single-finger touch drag both work). Panning resets when zoom returns to
+  1x. Added an explicit close (X) button since the dialog previously had
+  none at all — the old version relied on ESC/click-outside only, easy to
+  miss on a near-fullscreen black overlay.
+- Scoped to the image-document case only (`DocumentView`'s existing
+  `type.startsWith("image/")` branch) — a non-image document still opens
+  in a new tab via the browser's own PDF viewer, unchanged.
+
+## 2026-09 — Reference List: informational highlight for under-15 same-name rows
+
+- Requested: while reviewing a `needs_document` player under 15 (they route
+  straight there with no reference-list lookup, since the list starts at
+  15 — see `decideFromCandidates`'s `MINOR_AGE` check), the Super Admin
+  wanted a way to see whether that child's name shows up in the reference
+  list anyway, as a hint toward whether the family is really from the
+  municipality versus elsewhere, while judging the uploaded document.
+- Deliberately did NOT touch `decideFromCandidates` — that early return for
+  under-15 players is the confirmed rule (a voters' list can't contain a
+  minor, so nothing should ever count as an official match for one) and
+  drives the player's real `eligibilityStatus`. Instead, `GET
+  /api/reference-list` (`referenceList.js`) now also builds a second,
+  parallel map for players under 15 who have NO official match: a plain
+  name lookup against the same in-memory reference index, tagged
+  `minorMatches` on each affected row with `{ playerName, teamName,
+  sameBarangay }`. Exported `ageFrom` from `prescreen.js` (alongside the
+  already-exported `decideFromCandidates`/`norm`/`MINOR_AGE`) to compute
+  this without duplicating the age math.
+- `ReferenceList.jsx`: rows with a `minorMatches` entry (and no real
+  `matches`) get a distinct **purple** highlight — separate from green
+  (eligible), red (flagged), and amber (multiple players share the name) —
+  with a "Same name, under 15 · same barangay" label and explicit copy that
+  the player still needs a document regardless; this is a hint, not a
+  verdict. The Review Queue's existing "View in Reference List →" link
+  (unchanged) already carries the player's name over as `?q=`, so it lands
+  on and scrolls to this same highlighted row for a `needs_document`+minor
+  player exactly like it does for an older player's real match.
+
+## 2026-09 — Approving a needs-document player now actually clears the warning
+
+- Reported: after clicking Approve in the Review Queue on a `needs_document`
+  player, the badge flipped to "Eligible" but the amber/purple reason text
+  underneath ("Under 15 — needs parental consent and documents", or the
+  purple reference-list hint) stayed put — looked like the approval hadn't
+  really taken effect.
+- **Root cause**: `POST /api/review/teams/:teamId/players/:playerId/approve`
+  only ever set `eligibilityStatus: 'eligible'`, never clearing
+  `flagReason` — unlike the automated pre-screen paths
+  (`prescreenTeam`/`prescreenPlayer`/`rescreenSeason`), which always write
+  `reason: ''` alongside `status: 'eligible'`. `ReasonCallout` in
+  `ReviewQueue.jsx` only checked `if (!reason) return null` — it never
+  checked `status`, so a stale non-empty reason kept rendering. Fixed both
+  sides: the approve route now also `$set`s `flagReason: ''`, and
+  `ReasonCallout` additionally bails when `status === 'eligible'`, so it
+  can't happen again even against already-stale data.
+- **Reference List highlight now changes on approval too.** The purple
+  "informational, under 15" highlight added in the previous session was
+  keyed purely on the player's age/name, with no regard for whether they'd
+  since been approved — so it stayed purple forever once shown.
+  `GET /api/reference-list` now checks the minor's CURRENT
+  `eligibilityStatus`: still `needs_document`/`flagged`/`pending` keeps the
+  purple informational-only row as before, but once the Super Admin
+  approves them, that same-name row is promoted into the real `matches` map
+  with a new `status: 'approved_minor'` — turning the row the normal green
+  "matched" color, labeled "Approved · document review" instead of
+  "Matched" (to keep it honest that this came from a document, not an
+  automatic list hit), so the reference list visibly reflects that the
+  case is resolved.
+
+## 2026-09 — Review Queue: can't approve a needs_document player with no document
+
+- Requested: block approving a `needs_document` player who hasn't actually
+  had a document uploaded — previously Approve worked regardless, so a
+  Super Admin could click through and mark someone eligible with nothing
+  to base it on.
+- Scoped deliberately to `needs_document` only, not every non-eligible
+  status: that status means there's NO reference-list match at all, so a
+  submitted document is the only possible evidence for an approval.
+  `flagged` (cross-barangay) is a different kind of case — the issue is the
+  barangay rule, not missing paperwork — so it's untouched and still
+  approvable on judgment alone, same as before.
+- Backend (`POST /api/review/teams/:teamId/players/:playerId/approve`):
+  when the player's current `eligibilityStatus` is `needs_document`, counts
+  their `Document` records first and 400s with an explicit message if
+  there are none. This is the real enforcement — reachable directly, not
+  just from the UI.
+- Frontend (`ReviewQueue.jsx`'s `PlayerModal`): Approve is disabled (with a
+  `title` tooltip) and the helper text under the action row switches to an
+  amber "No document uploaded yet — Approve is disabled until the
+  Barangay Admin submits one" whenever `eligibilityStatus === "needs_document"`
+  and `documents` is empty, so the block is visible before a click rather
+  than only surfacing as an error after one.

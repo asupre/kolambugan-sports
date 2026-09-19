@@ -6,7 +6,7 @@ const Team = require('../models/Team');
 const TeamPlayer = require('../models/TeamPlayer');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
-const { decideFromCandidates, norm } = require('../services/prescreen');
+const { decideFromCandidates, norm, ageFrom, MINOR_AGE } = require('../services/prescreen');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -126,11 +126,55 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
     // home barangay correctly clears them on one team but flags them as a
     // mismatch on another).
     const matchByRefId = new Map();
+    // Separate, INFORMATIONAL-only map for under-15 players who are STILL
+    // awaiting a decision. decideFromCandidates deliberately never matches a
+    // minor to a reference row — the list is the SK voters' list (15-30), so
+    // nobody under 15 can legitimately be on it, and a minor's official status
+    // is always needs_document regardless of a same-name row. But while the
+    // Super Admin is reviewing one of those documents by hand, a same-name
+    // (and ideally same-barangay) row is still a useful signal of whether the
+    // family shows up in the municipality's own records at all — so surface
+    // it, clearly labeled as informational, never as a real match.
+    const minorMatchByRefId = new Map();
     for (const link of links) {
       const p = link.player;
       if (!p) continue;
       const team = teamById.get(String(link.team));
       const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
+      const age = ageFrom(p.birthdate);
+      const isMinor = age !== null && age < MINOR_AGE;
+
+      if (isMinor) {
+        if (candidates.length === 0) continue;
+        const teamBrgyName = norm(team && team.barangay && team.barangay.name);
+        if (p.eligibilityStatus === 'eligible') {
+          // The Super Admin approved them (via the submitted document) despite
+          // the automated screen never matching a minor — promote the same-name
+          // row from an informational hint to a REAL, resolved match once that
+          // happens, so the highlight actually changes on approval instead of
+          // staying purple forever.
+          const cand = candidates.find((c) => teamBrgyName && norm(c.barangay) === teamBrgyName) || candidates[0];
+          const key = String(cand._id);
+          if (!matchByRefId.has(key)) matchByRefId.set(key, []);
+          matchByRefId.get(key).push({
+            status: 'approved_minor',
+            playerName: `${p.lastName}, ${p.firstName}`,
+            teamName: team && team.teamName,
+          });
+        } else {
+          for (const cand of candidates) {
+            const key = String(cand._id);
+            if (!minorMatchByRefId.has(key)) minorMatchByRefId.set(key, []);
+            minorMatchByRefId.get(key).push({
+              playerName: `${p.lastName}, ${p.firstName}`,
+              teamName: team && team.teamName,
+              sameBarangay: !!(teamBrgyName && norm(cand.barangay) === teamBrgyName),
+            });
+          }
+        }
+        continue;
+      }
+
       const { status, matchedReferenceId } = decideFromCandidates(p, team && team.barangay, candidates);
       if (matchedReferenceId) {
         const key = String(matchedReferenceId);
@@ -143,7 +187,11 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
       }
     }
 
-    const withMatch = records.map((r) => ({ ...r, matches: matchByRefId.get(String(r._id)) || [] }));
+    const withMatch = records.map((r) => ({
+      ...r,
+      matches: matchByRefId.get(String(r._id)) || [],
+      minorMatches: minorMatchByRefId.get(String(r._id)) || [],
+    }));
     res.json({ records: withMatch });
   } catch (err) {
     console.error('Reference list fetch error:', err);

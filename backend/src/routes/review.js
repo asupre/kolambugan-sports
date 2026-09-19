@@ -79,7 +79,28 @@ router.post('/teams/:teamId/players/:playerId/approve', async (req, res) => {
     const link = await TeamPlayer.findOne({ team: req.params.teamId, player: req.params.playerId });
     if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
 
-    await Player.updateOne({ _id: req.params.playerId }, { $set: { eligibilityStatus: 'eligible' } });
+    // A `needs_document` player has NO reference-list match at all — the only
+    // evidence an approval can rest on is a submitted document (an "eligible"
+    // player never needed one, and a `flagged` player's issue is the
+    // cross-barangay rule, not missing paperwork, so this check is deliberately
+    // scoped to needs_document only). Block an approve with nothing to look at.
+    const player = await Player.findById(req.params.playerId);
+    if (!player) return res.status(404).json({ message: 'Player not found.' });
+    if (player.eligibilityStatus === 'needs_document') {
+      const docCount = await Document.countDocuments({ player: req.params.playerId });
+      if (docCount === 0) {
+        return res.status(400).json({
+          message: 'This player has no residency document uploaded yet — the Barangay Admin needs to submit one before this player can be approved.',
+        });
+      }
+    }
+
+    // Clear flagReason too — a manual approve overrides whatever the automated
+    // pre-screen said (e.g. "Under 15 — needs parental consent and documents",
+    // "Not found on the reference list…"), so leaving the old reason in place
+    // made the Review Queue and player modal keep showing that warning even
+    // though the player is now eligible.
+    await Player.updateOne({ _id: req.params.playerId }, { $set: { eligibilityStatus: 'eligible', flagReason: '' } });
     await Document.updateMany(
       { player: req.params.playerId, verifyStatus: 'pending' },
       { $set: { verifyStatus: 'approved', reviewedBy: req.user.id, reviewedAt: new Date() } }

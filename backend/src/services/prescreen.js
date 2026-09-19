@@ -201,4 +201,5 @@ module.exports = {
   // nothing to backfill when this feature was added after the fact.
   decideFromCandidates,
   norm,
+  ageFrom,
 };

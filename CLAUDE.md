@@ -194,8 +194,12 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
      document"/flag warning in the UI).
   4. Verify locks the team (`status: 'verified'`); only verified teams enter
      tournaments. **A later correction can un-verify it** (fixed Sep 2026):
-     the "correct this player" PATCH re-screens on a name/birthdate change,
-     and if that comes back non-eligible on an already-verified team,
+     the "correct this player" PATCH re-screens on a name/middle
+     name/birthdate change (`identityChanged` in `routes/team.js` — a
+     middle-name-only edit was missing from this check until Sep 2026 and
+     silently kept the player's stale status; fixed once middle initial
+     became a required match field, not just a tie-break), and if that
+     comes back non-eligible on an already-verified team,
      `team.status` flips back to `pending` so it reappears in the Review
      Queue — `submittedAt` is untouched, so the roster stays locked either
      way. Before this fix, a verified team could sit with a flagged player

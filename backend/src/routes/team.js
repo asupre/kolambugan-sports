@@ -455,9 +455,10 @@ router.get('/:id/players', authenticate, async (req, res) => {
 // Deliberately has NO submittedAt check and no season gate: a correction has to
 // work after submission, which is exactly when typos get noticed.
 //
-// Changing the name or birthdate invalidates the residency screen, since those
-// are what the reference lookup uses — so it re-screens. A corrected spelling
-// clears automatically; a wrong one gets flagged. The check can't be edited around.
+// Changing the name, middle name, or birthdate invalidates the residency screen,
+// since those are what the reference lookup uses — so it re-screens. A corrected
+// spelling clears automatically; a wrong one gets flagged. The check can't be
+// edited around.
 router.patch('/:id/players/:playerId', authenticate,
   authorize('barangay_admin', 'super_admin'), async (req, res) => {
   try {
@@ -471,7 +472,12 @@ router.patch('/:id/players/:playerId', authenticate,
     if (!player) return res.status(404).json({ message: 'Player not found.' });
 
     const { firstName, middleName, lastName, birthdate, address, jerseyNumber } = req.body;
-    const before = { first: player.firstName, last: player.lastName, birth: String(player.birthdate) };
+    const before = {
+      first: player.firstName,
+      last: player.lastName,
+      middle: player.middleName,
+      birth: String(player.birthdate),
+    };
 
     if (firstName !== undefined) {
       if (!String(firstName).trim()) return res.status(400).json({ message: 'First name cannot be empty.' });
@@ -511,6 +517,7 @@ router.patch('/:id/players/:playerId', authenticate,
     const identityChanged =
       before.first !== player.firstName ||
       before.last !== player.lastName ||
+      before.middle !== player.middleName ||
       before.birth !== String(player.birthdate);
 
     let screening = null;

@@ -2308,3 +2308,35 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
   verified teams reopened for review**. Confirmed the reported player
   (Manuel Abdullah, Mukas Badminton) now correctly reads `eligible` with
   no `flagReason`.
+
+## 2026-09-20 — Bug: editing a wrong middle name never re-screened the player
+
+- **Reported**: testing a Matampay player (Balindong 11214, Mark), editing
+  the middle name to something wrong left the status at `eligible`; after
+  the reference-list re-upload above, the same thing — a wrong middle
+  name saved as `eligible` instead of flipping to `needs_document`.
+- **Root cause**: `PATCH /api/teams/:id/players/:playerId`'s
+  `identityChanged` check (the thing that decides whether to re-run
+  `prescreenPlayer`) only compared `firstName`/`lastName`/`birthdate`. It
+  predates the Sep 2026 change that made middle initial a REQUIRED part of
+  a match (`sameMiddleInitial()` in `prescreen.js`) — before that, middle
+  name was only ever a tie-break, so it made sense for it to not trigger a
+  re-screen on its own. Once middle initial became load-bearing, this
+  should have been updated too and wasn't: saving a middle-name-only edit
+  updated `player.middleName` in the DB but never called `prescreenPlayer`,
+  so `eligibilityStatus` just kept whatever value it already had.
+- **Fix**: `middleName` added to `identityChanged` in
+  `routes/team.js` (captured in `before` alongside first/last/birthdate).
+  A middle-name edit now re-screens exactly like a name/birthdate edit
+  does, including reopening an already-verified team if it comes back
+  non-eligible.
+- **Investigation on the real Matampay data turned up a separate, unrelated
+  finding**: three duplicate `Player` records all named "Mark ... Balindong
+  11214" existed on the same team (jerseys 1, 22, 23) — leftover test data,
+  not a matching bug. Only jersey 1 (middle "S.") actually matches the
+  reference list's one row for that name (middle "S."); jerseys 22 and 23
+  both have middle "D." in the DB and correctly do NOT match. Jersey 23 was
+  still showing stale `eligible` from before this fix existed — same class
+  of staleness as the reference-list bug above, just triggered by a
+  middle-name-only edit instead of a whole-list upload. Not yet cleaned up
+  in the live data as of this entry.

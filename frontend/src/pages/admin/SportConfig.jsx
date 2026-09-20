@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
-import { Building2, Plus, Trophy } from "lucide-react";
+import { Building2, Check, Info, Pencil, Plus, Search, Trash2, Trophy, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Checkbox } from "../../components/ui/checkbox";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
+import { cn } from "../../lib/utils";
 
 const DIVISIONS = [
   { value: "open", label: "Open", hint: "One bracket, everyone together" },
@@ -51,11 +52,41 @@ const TYPES = [
   { value: "esports", label: "Esports" },
   { value: "board", label: "Board game" },
 ];
+const TYPE_LABEL = Object.fromEntries(TYPES.map((t) => [t.value, t.label]));
+
+// A small toggle button used for divisions and score sheet columns. Reads as "on" at a glance
+// (tint + tick) without the visual weight of a checkbox list.
+function Chip({ on, onClick, children, title, disabled, className }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} title={title} aria-pressed={on}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm transition disabled:opacity-50",
+        on ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        className
+      )}>
+      <span className={cn("flex size-3.5 items-center justify-center rounded-[4px] border", on ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40")}>
+        {on && <Check className="size-3" strokeWidth={3} />}
+      </span>
+      {children}
+    </button>
+  );
+}
+
+// A titled block inside the game editor.
+function Section({ title, hint, children }) {
+  return (
+    <section>
+      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
 
 // The rules that apply to each TYPE, in plain words — a reference card, not settings.
 function RulesByType() {
   const blocks = [
-    ["Sports", "Basketball, volleyball, badminton, pickleball, billiards…",
+    ["Sports", "Basketball, volleyball, badminton, pickleball…",
       "Scored by team while the game runs (basketball +1 / +2 / +3, the others +1), in quarters or sets — the higher total wins. Nothing is credited to a player live. After the match the organizer fills in the score sheet for each player."],
     ["Esports", "Mobile Legends, Call of Duty Mobile…",
       "Played as a best-of series; the organizer taps who won each game. After the match the score sheet asks for the role each player played (Carry, Support…) and, if you tick them, kills, deaths and assists."],
@@ -63,65 +94,26 @@ function RulesByType() {
       "One player per side, played as a best-of series; the organizer taps who won each game. There is no player form unless you tick a column on its score sheet."],
   ];
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Rules by type</CardTitle>
-        <CardDescription>
-          How each type of game is scored. Set a game's type on its card below; you choose what its
-          after-match score sheet asks for there too.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {blocks.map(([title, examples, text]) => (
-          <div key={title} className="rounded-lg border bg-muted/30 p-3">
-            <p className="text-sm font-semibold">{title}</p>
-            <p className="mb-2 text-[11px] text-muted-foreground">{examples}</p>
-            <p className="text-xs">{text}</p>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// A plain-language summary of how one sport is scored — shown for EVERY sport, including the
-// ones with nothing to edit, so the rules can be read in one place. Comes from the server's
-// effective rules (built-in defaults plus anything saved for the sport).
-function RulesSummary({ sport }) {
-  const r = sport.rules;
-  if (!r) return null;
-  const list = (a) => a.join(", ");
-  const word = r.periodLabel || "period";
-
-  const rows = [
-    ["Live scoring",
-      r.scoringMode === "final"
-        ? "The organizer taps which team won each game; the team with more games won takes the match."
-        : `By team — the organizer taps ${r.pointValues.map((v) => `+${v}`).join(" / ")} for the team that scored. Nothing is credited to a player while the game runs.`],
-    r.scoringMode === "final" ? null : ["Periods", `Played in ${word}s — the organizer picks ${list(r.periodOptions)} at the start. The higher total score wins; a tie adds a deciding ${word}.`],
-    ["After the match",
-      r.sheet?.length
-        ? `Score sheet: ${list(r.sheet.map((k) => (r.statLabels?.[k]?.label || k).toLowerCase()))}${r.roles?.length ? ` (roles: ${list(r.roles)})` : ""}, plus the MVP.`
-        : "No player form — the result is the record."],
-  ].filter(Boolean);
-
-  return (
-    <dl className="space-y-2 rounded-lg border bg-muted/30 p-3 text-xs">
-      {rows.map(([k, v]) => (
-        <div key={k} className="grid grid-cols-[6.5rem_1fr] gap-2">
-          <dt className="font-medium text-muted-foreground">{k}</dt>
-          <dd>{v}</dd>
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      {blocks.map(([title, examples, text]) => (
+        <div key={title} className="rounded-lg border bg-muted/30 p-3">
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="mb-2 text-[11px] text-muted-foreground">{examples}</p>
+          <p className="text-xs">{text}</p>
         </div>
       ))}
-    </dl>
+    </div>
   );
 }
 
-function SportCard({ sport, onSaved, onRemoved, onError }) {
+// One game's editor. Everything you change here (divisions, entry format, scoring rules, score
+// sheet ticks) is saved together with ONE button; the type and your own score sheet columns apply
+// immediately because they change what the rest of the form offers.
+function SportEditor({ sport, onSaved, onRemoved, onError }) {
   const confirm = useConfirm();
-  const [divisions, setDivisions] = useState(sport.divisions?.length ? sport.divisions : ["open"]);
+  const savedDivisions = sport.divisions?.length ? sport.divisions : ["open"];
+  const [divisions, setDivisions] = useState(savedDivisions);
   const [format, setFormat] = useState(sport.entryFormat || "team");
-  const [advanced, setAdvanced] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(sport.name);
   const [busy, setBusy] = useState(false);
@@ -142,69 +134,91 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
   const effForm = rulesToForm(sport.rules);
   const [rulesForm, setRulesForm] = useState(effForm);
   useEffect(() => { setRulesForm(rulesToForm(sport.rules)); }, [JSON.stringify(effForm)]);
-  const rulesDirty = JSON.stringify(rulesForm) !== JSON.stringify(effForm);
+  const rulesDirty = !gamesWon && JSON.stringify(rulesForm) !== JSON.stringify(effForm);
   const hasSavedRules = !!(sport.pointValues?.length || sport.periodLabel || sport.periodOptions?.length);
-  const setRule = (k) => (e) => { setSaved(""); setRulesForm({ ...rulesForm, [k]: e.target.value }); };
 
   const configDirty =
-    JSON.stringify([...divisions].sort()) !== JSON.stringify([...(sport.divisions || [])].sort()) ||
+    JSON.stringify([...divisions].sort()) !== JSON.stringify([...savedDivisions].sort()) ||
     format !== sport.entryFormat;
+  const dirty = configDirty || sheetDirty || rulesDirty;
 
+  const touch = () => setSaved("");
   function toggleDivision(value) {
-    setSaved("");
+    touch();
     if (value === "open") { setDivisions(["open"]); return; }
     const next = divisions.filter((d) => d !== "open");
     setDivisions(next.includes(value) ? next.filter((d) => d !== value) : [...next, value]);
   }
+  const setRule = (k) => (e) => { touch(); setRulesForm({ ...rulesForm, [k]: e.target.value }); };
 
-  async function saveConfig() {
+  function discard() {
+    setDivisions(savedDivisions);
+    setFormat(sport.entryFormat || "team");
+    setSheet(currentSheet);
+    setRulesForm(effForm);
+    setSaved("");
+  }
+
+  // Save everything that changed. Divisions / entry format go first: the server refuses them once
+  // teams have registered, and if that fails nothing else should be saved half-way.
+  async function saveAll() {
     setBusy(true);
     try {
-      const d = await api(`/api/sports/${sport._id}/config`, {
-        method: "PATCH",
-        body: JSON.stringify({ divisions, entryFormat: format }),
-      });
+      let updated = sport;
+      if (configDirty) {
+        const d = await api(`/api/sports/${sport._id}/config`, {
+          method: "PATCH", body: JSON.stringify({ divisions, entryFormat: format }),
+        });
+        updated = d.sport;
+      }
+      const body = {};
+      if (sheetDirty) body.scoreSheet = sheet;
+      if (rulesDirty) {
+        body.pointValues = parseNums(rulesForm.pointValues);
+        body.periodLabel = rulesForm.periodLabel;
+        body.periodOptions = parseNums(rulesForm.periodOptions);
+      }
+      if (Object.keys(body).length) {
+        const d = await api(`/api/sports/${sport._id}`, { method: "PATCH", body: JSON.stringify(body) });
+        updated = d.sport;
+      }
       setSaved("Saved");
-      onSaved(d.sport);
+      onSaved(updated);
     } catch (e) { onError(e.message); }
     finally { setBusy(false); }
   }
 
+  // Immediate changes: they return the sport with what the form should now offer.
   async function patchSport(body) {
     setBusy(true);
     try {
       const d = await api(`/api/sports/${sport._id}`, { method: "PATCH", body: JSON.stringify(body) });
-      setSaved("Saved");
       onSaved(d.sport);
       return true;
     } catch (e) { onError(e.message); return false; }
     finally { setBusy(false); }
   }
-  const saveRules = () => patchSport({
-    pointValues: parseNums(rulesForm.pointValues),
-    periodLabel: rulesForm.periodLabel,
-    periodOptions: parseNums(rulesForm.periodOptions),
-  });
+  const changeType = (category) => patchSport({ category });
   const resetRules = () => patchSport({ pointValues: [], periodLabel: "", periodOptions: [] });
-  // Your own score sheet columns (e.g. "Spikes"). The server ticks a new one for you.
+  const resetSheet = () => patchSport({ scoreSheet: null });   // back to the built-in default
+  // Your own score sheet columns (e.g. "Spikes"); the server ticks a new one for you. Any tick
+  // changes you haven't saved yet go first, because the server rebuilds the sheet from what is saved.
   const addColumn = async () => {
     const label = newCol.trim();
     if (!label) return;
+    if (sheetDirty && !(await patchSport({ scoreSheet: sheet }))) return;
     if (await patchSport({ customStats: [...customLabels, label] })) setNewCol("");
   };
-  const removeColumn = (label) => patchSport({ customStats: customLabels.filter((l) => l !== label) });
-  const saveSheet = () => patchSport({ scoreSheet: sheet });
-  const resetSheet = () => patchSport({ scoreSheet: null });   // back to the built-in default
-  const changeType = (category) => patchSport({ category });
+  const removeColumn = async (label) => {
+    if (sheetDirty && !(await patchSport({ scoreSheet: sheet }))) return;
+    patchSport({ customStats: customLabels.filter((l) => l !== label) });
+  };
 
   async function rename() {
     if (!name.trim() || name.trim() === sport.name) { setRenaming(false); return; }
     setBusy(true);
     try {
-      const d = await api(`/api/sports/${sport._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ name: name.trim() }),
-      });
+      const d = await api(`/api/sports/${sport._id}`, { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
       setRenaming(false);
       onSaved(d.sport);
     } catch (e) { onError(e.message); }
@@ -223,188 +237,163 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
 
   return (
     <Card className="border-l-4 border-l-blue-500">
-      <CardContent className="space-y-4">
-        <div className="flex items-baseline justify-between gap-3">
+      <CardContent className="space-y-6">
+        {/* Header: name, type, rename / remove */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           {renaming ? (
-            <div className="flex items-center gap-2 flex-1">
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs" />
+            <div className="flex flex-1 items-center gap-2">
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs"
+                onKeyDown={(e) => { if (e.key === "Enter") rename(); }} autoFocus />
               <Button size="sm" onClick={rename} disabled={busy}>Save</Button>
               <button onClick={() => { setRenaming(false); setName(sport.name); }}
                 className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
             </div>
           ) : (
-            <div className="flex items-baseline gap-3">
-              <h3 className="font-semibold flex items-center gap-1.5">
-                <Trophy className="size-4 text-blue-500" /> {sport.name}
-              </h3>
-              <button onClick={() => setRenaming(true)} className="text-xs text-muted-foreground hover:text-foreground">
-                Rename
+            <div className="flex items-center gap-2.5">
+              <Trophy className="size-5 text-blue-500" />
+              <h3 className="text-lg font-semibold leading-none">{sport.name}</h3>
+              <Badge variant="secondary">{TYPE_LABEL[sport.category] || sport.category}</Badge>
+              <button onClick={() => setRenaming(true)} title="Rename"
+                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+                <Pencil className="size-3.5" />
               </button>
             </div>
           )}
-          {saved && <span className="text-green-600 dark:text-green-400 text-xs">{saved}</span>}
+          <button onClick={remove} disabled={busy}
+            className="inline-flex items-center gap-1 text-xs text-destructive hover:underline disabled:opacity-50">
+            <Trash2 className="size-3.5" /> Remove game
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div>
+        <div className="grid grid-cols-1 gap-x-10 gap-y-6 lg:grid-cols-2">
+          {/* Registration */}
+          <Section title="Registration" hint="Set before registration opens — teams are built against these.">
             <Label className="mb-2">Divisions</Label>
-            <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
               {DIVISIONS.map((d) => (
-                <label key={d.value} className="flex items-start gap-2.5 cursor-pointer">
-                  <Checkbox
-                    checked={divisions.includes(d.value)}
-                    onCheckedChange={() => toggleDivision(d.value)}
-                    className="mt-0.5"
-                  />
-                  <span className="min-w-0">
-                    <span className="text-sm">{d.label}</span>
-                    {d.hint && <span className="block text-muted-foreground text-xs">{d.hint}</span>}
-                  </span>
-                </label>
+                <Chip key={d.value} on={divisions.includes(d.value)} title={d.hint}
+                  onClick={() => toggleDivision(d.value)}>{d.label}</Chip>
               ))}
             </div>
-          </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">Each division runs its own bracket. “Open” is one bracket for everyone.</p>
 
-          <div>
-            <Label className="mb-2">Entry format</Label>
-            <RadioGroup value={format} onValueChange={(v) => { setFormat(v); setSaved(""); }}>
+            <Label className="mb-2 mt-5">Entry format</Label>
+            <div className="grid grid-cols-3 gap-2">
               {FORMATS.map((f) => (
-                <label key={f.value} className="flex items-start gap-2.5 cursor-pointer">
-                  <RadioGroupItem value={f.value} className="mt-0.5" />
-                  <span className="min-w-0">
-                    <span className="text-sm">{f.label}</span>
-                    <span className="block text-muted-foreground text-xs">
-                      {sport.category === "esports" && f.esportsHint ? f.esportsHint : f.hint}
-                    </span>
+                <button key={f.value} type="button" aria-pressed={format === f.value}
+                  onClick={() => { touch(); setFormat(f.value); }}
+                  className={cn(
+                    "rounded-lg border px-3 py-2 text-left transition",
+                    format === f.value ? "border-primary bg-primary/10" : "hover:bg-accent"
+                  )}>
+                  <span className="block text-sm font-medium">{f.label}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {sport.category === "esports" && f.esportsHint ? f.esportsHint : f.hint}
                   </span>
-                </label>
+                </button>
               ))}
-            </RadioGroup>
-          </div>
-        </div>
+            </div>
+          </Section>
 
-        <div className="grid grid-cols-1 gap-6 border-t pt-4 sm:grid-cols-[14rem_1fr]">
-          <div>
+          {/* Scoring */}
+          <Section title="Scoring" hint="How the live score works.">
             <Label className="mb-2">Type</Label>
             <Select value={sport.category} onValueChange={changeType} disabled={busy}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Decides how it is scored and which score sheet columns are on offer.
+              Decides how it is scored and which score sheet columns are on offer. Applies right away.
             </p>
-          </div>
 
-          <div>
-            <Label className="mb-1">After-match score sheet</Label>
-            <p className="mb-2.5 text-xs text-muted-foreground">
-              What the organizer fills in for each player once a match is finished. Tick the columns
-              you want; tick none for no player form.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {sheetOptions.map((o) => {
-                const on = sheet.includes(o.key);
-                return (
-                  <label key={o.key}
-                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition ${on ? "border-primary bg-primary/10" : "hover:bg-accent"}`}>
-                    <Checkbox checked={on}
-                      onCheckedChange={() => { setSaved(""); setSheet(on ? sheet.filter((k) => k !== o.key) : [...sheet, o.key]); }} />
-                    {o.label}
-                    {o.custom && (
-                      <button type="button" title="Remove this column" disabled={busy}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeColumn(o.label); }}
-                        className="-mr-0.5 text-base leading-none text-muted-foreground hover:text-destructive">×</button>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-            <div className="mt-3 flex items-center gap-2">
-              <Input value={newCol} maxLength={24} className="h-8 max-w-xs"
-                onChange={(e) => setNewCol(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColumn(); } }}
-                placeholder='Add your own, e.g. "Spikes"' />
-              <Button size="sm" variant="secondary" onClick={addColumn} disabled={busy || !newCol.trim()}>Add column</Button>
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <Button size="sm" onClick={saveSheet} disabled={busy || !sheetDirty}>Save score sheet</Button>
-              {!sport.sheetIsDefault && (
-                <button onClick={resetSheet} disabled={busy}
-                  className="text-xs text-muted-foreground hover:text-foreground">Use the default</button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t pt-4">
-          <Label className="mb-1">Scoring rules</Label>
-          {gamesWon ? (
-            <p className="text-xs text-muted-foreground">
-              Scored by games won: the organizer taps who won each game, as a best-of series. There
-              are no points or periods to set for this game.
-            </p>
-          ) : (
-            <>
-              <p className="mb-3 text-xs text-muted-foreground">
-                How the live score works: the organizer taps these point values for the team that
-                scored, in as many periods as they choose at the start.
+            {gamesWon ? (
+              <p className="mt-4 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                Scored by <span className="font-medium text-foreground">games won</span>: the organizer taps who won
+                each game, as a best-of series. There are no points or periods to set for this game.
               </p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label>Point values</Label>
-                  <Input value={rulesForm.pointValues} onChange={setRule("pointValues")} placeholder="1, 2, 3" />
-                  <p className="text-xs text-muted-foreground">One tap button for each. Basketball: 1, 2, 3.</p>
+            ) : (
+              <>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label>Point values</Label>
+                    <Input value={rulesForm.pointValues} onChange={setRule("pointValues")} placeholder="1, 2, 3" />
+                    <p className="text-[11px] text-muted-foreground">One tap button each</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Period name</Label>
+                    <Input value={rulesForm.periodLabel} onChange={setRule("periodLabel")} placeholder="quarter, set" />
+                    <p className="text-[11px] text-muted-foreground">What one period is called</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Period counts</Label>
+                    <Input value={rulesForm.periodOptions} onChange={setRule("periodOptions")} placeholder="1, 3, 5" />
+                    <p className="text-[11px] text-muted-foreground">From 1, 2, 3, 4, 5 or 7</p>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Period name</Label>
-                  <Input value={rulesForm.periodLabel} onChange={setRule("periodLabel")} placeholder="quarter, set, half" />
-                  <p className="text-xs text-muted-foreground">What one period is called.</p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Period counts allowed</Label>
-                  <Input value={rulesForm.periodOptions} onChange={setRule("periodOptions")} placeholder="1, 3, 5" />
-                  <p className="text-xs text-muted-foreground">Choose from 1, 2, 3, 4, 5 or 7.</p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <Button size="sm" onClick={saveRules} disabled={busy || !rulesDirty}>Save scoring rules</Button>
                 {hasSavedRules && (
                   <button onClick={resetRules} disabled={busy}
-                    className="text-xs text-muted-foreground hover:text-foreground">Use the defaults</button>
+                    className="mt-2 text-xs text-muted-foreground hover:text-foreground">Use the default scoring rules</button>
                 )}
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </Section>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button onClick={saveConfig} disabled={busy || !configDirty || divisions.length === 0}>
-            {busy ? "Saving…" : "Save"}
-          </Button>
-          <button onClick={() => setAdvanced(!advanced)}
-            className="text-xs text-muted-foreground hover:text-foreground">
-            {advanced ? "Hide" : "Show"} scoring rules
-          </button>
-          <button onClick={remove} disabled={busy}
-            className="text-xs text-destructive hover:underline ml-auto">
-            Remove
-          </button>
-        </div>
-
-        {advanced && (
-          <div className="pt-4 border-t">
-            <RulesSummary sport={sport} />
+        {/* Score sheet */}
+        <Section title="After-match score sheet"
+          hint="What the organizer fills in for each player once a match is finished. Tick the columns you want; tick none for no player form.">
+          <div className="flex flex-wrap gap-2">
+            {sheetOptions.map((o) => (
+              <Chip key={o.key} on={sheet.includes(o.key)}
+                onClick={() => { touch(); setSheet(sheet.includes(o.key) ? sheet.filter((k) => k !== o.key) : [...sheet, o.key]); }}>
+                {o.label}
+                {o.custom && (
+                  <span role="button" tabIndex={0} title="Remove this column"
+                    onClick={(e) => { e.stopPropagation(); removeColumn(o.label); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); removeColumn(o.label); } }}
+                    className="-mr-1 rounded p-0.5 hover:bg-destructive/10 hover:text-destructive">
+                    <X className="size-3" />
+                  </span>
+                )}
+              </Chip>
+            ))}
+            {sheetOptions.length === 0 && <p className="text-xs text-muted-foreground">This type has no built-in columns — add your own below.</p>}
           </div>
-        )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Input value={newCol} maxLength={24} className="h-8 w-full sm:w-64"
+              onChange={(e) => setNewCol(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColumn(); } }}
+              placeholder='Add your own, e.g. "Spikes"' />
+            <Button size="sm" variant="secondary" onClick={addColumn} disabled={busy || !newCol.trim()}>
+              <Plus className="size-3.5" /> Add column
+            </Button>
+            {!sport.sheetIsDefault && (
+              <button onClick={resetSheet} disabled={busy}
+                className="text-xs text-muted-foreground hover:text-foreground">Use the default columns</button>
+            )}
+          </div>
+        </Section>
+
+        {/* One save for the whole game */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <p className={cn("text-xs", dirty ? "text-amber-600 dark:text-amber-400" : saved ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
+            {dirty ? "You have unsaved changes." : saved ? "All changes saved." : "No changes."}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={discard} disabled={busy || !dirty}>Discard</Button>
+            <Button onClick={saveAll} disabled={busy || !dirty || divisions.length === 0}>
+              {busy ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function AddSport({ onAdded, onError }) {
-  const [open, setOpen] = useState(false);
+function AddSport({ onAdded, onCancel, onError }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("physical");
   const [tournamentFormat, setTournamentFormat] = useState("double_elimination");
@@ -427,39 +416,29 @@ function AddSport({ onAdded, onError }) {
           } : {}),
         }),
       });
-      setName(""); setOpen(false);
       onAdded(d.sport, d.message);
     } catch (e) { onError(e.message); }
     finally { setBusy(false); }
   }
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)}
-        className="w-full py-3 rounded-xl border border-dashed text-muted-foreground text-sm hover:border-foreground/30 hover:text-foreground flex items-center justify-center gap-1.5">
-        <Plus className="size-4" /> Add a sport
-      </button>
-    );
-  }
-
   return (
-    <Card>
+    <Card className="border-l-4 border-l-emerald-500">
       <CardHeader>
-        <CardTitle>Add a sport</CardTitle>
+        <CardTitle>Add a game</CardTitle>
+        <CardDescription>
+          Give it a name and a type. You'll set its divisions, entry format and score sheet on the next screen.
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <CardContent className="space-y-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sepak Takraw" autoFocus />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sepak Takraw" autoFocus />
           </div>
           <div className="space-y-1.5">
             <Label>Type</Label>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
@@ -468,9 +447,7 @@ function AddSport({ onAdded, onError }) {
           <div className="space-y-1.5">
             <Label>Draw format</Label>
             <Select value={tournamentFormat} onValueChange={setTournamentFormat}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="double_elimination">Double-elimination groups</SelectItem>
                 <SelectItem value="round_robin">Round-robin groups</SelectItem>
@@ -478,12 +455,9 @@ function AddSport({ onAdded, onError }) {
             </Select>
           </div>
         </div>
+
         {category === "physical" ? (
-          <div className="mt-4 border-t pt-4">
-            <Label className="mb-1">Scoring rules</Label>
-            <p className="mb-3 text-xs text-muted-foreground">
-              How the live score works: the organizer taps these point values for the team that scored.
-            </p>
+          <Section title="Scoring rules" hint="How the live score works: the organizer taps these point values for the team that scored.">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label>Point values</Label>
@@ -494,25 +468,23 @@ function AddSport({ onAdded, onError }) {
                 <Input value={rules.periodLabel} onChange={(e) => setRules({ ...rules, periodLabel: e.target.value })} placeholder="quarter, set, half" />
               </div>
               <div className="space-y-1.5">
-                <Label>Period counts allowed</Label>
+                <Label>Period counts</Label>
                 <Input value={rules.periodOptions} onChange={(e) => setRules({ ...rules, periodOptions: e.target.value })} placeholder="1, 3, 5" />
               </div>
             </div>
-          </div>
+          </Section>
         ) : (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Scored by games won — the organizer taps who won each game. Nothing to set.
+          <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+            Scored by <span className="font-medium text-foreground">games won</span> — the organizer taps who won each game. Nothing to set.
           </p>
         )}
-        <p className="text-muted-foreground text-xs mt-3">
-          Set its divisions, entry format and score sheet after adding. A new sport also needs
-          an organizer account — use Provision all on the Accounts page.
+
+        <p className="text-xs text-muted-foreground">
+          A new game also needs an organizer account — use Provision all on the Accounts page.
         </p>
-        <div className="flex gap-2 mt-4">
-          <Button onClick={add} disabled={busy || !name.trim()}>
-            {busy ? "Adding…" : "Add sport"}
-          </Button>
-          <Button variant="secondary" onClick={() => { setOpen(false); setName(""); }}>Cancel</Button>
+        <div className="flex gap-2">
+          <Button onClick={add} disabled={busy || !name.trim()}>{busy ? "Adding…" : "Add game"}</Button>
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
         </div>
       </CardContent>
     </Card>
@@ -530,6 +502,7 @@ function BarangayCard({ onError, onNotice }) {
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
+  const [query, setQuery] = useState("");
 
   async function load() {
     try {
@@ -595,18 +568,21 @@ function BarangayCard({ onError, onNotice }) {
   }
 
   const allowed = rows.filter((b) => b.allowsCrossBarangay).length;
+  const shown = rows.filter((b) => b.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
     <Card className="border-l-4 border-l-amber-500">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Building2 className="size-4 text-amber-500" /> Barangays
+          <span className="text-sm font-normal text-muted-foreground">
+            {rows.length} total · {allowed} allow cross-barangay
+          </span>
         </CardTitle>
         <CardDescription>
-          {rows.length} barangays · {allowed} allow cross-barangay play. A checked
-          barangay's teams may field players from ANY barangay (checked or not) —
-          intended for barangays too small to field a full roster alone. An
-          unchecked barangay's teams may only field its own residents.
+          Tick a barangay to let its teams field players from <span className="font-medium text-foreground">any</span> barangay
+          — for barangays too small to field a roster alone. An unticked barangay's teams may only field its own residents.
+          Changing a tick re-checks every player straight away.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -614,41 +590,54 @@ function BarangayCard({ onError, onNotice }) {
           <Skeleton className="h-64 w-full" />
         ) : (
           <>
-            <div className="rounded-lg border divide-y">
-              {rows.map((b) => (
-                <div key={b._id} className="flex items-center gap-3 px-3 py-2">
+            <div className="relative mb-3 max-w-xs">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a barangay" className="h-8 pl-8" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {shown.map((b) => (
+                <div key={b._id}
+                  className={cn("flex items-center gap-2.5 rounded-lg border px-3 py-2", b.allowsCrossBarangay && "border-amber-500/40 bg-amber-500/5")}>
                   <Checkbox
                     checked={!!b.allowsCrossBarangay}
                     disabled={busyId === b._id}
                     onCheckedChange={() => toggleCross(b)}
-                    title="Allows cross-barangay"
+                    title="Allows cross-barangay players"
                   />
 
                   {editingId === b._id ? (
                     <>
                       <Input value={draft} onChange={(e) => setDraft(e.target.value)}
-                        className="flex-1 h-7" autoFocus />
-                      <Button size="sm" onClick={() => rename(b)} disabled={busyId === b._id}>Save</Button>
-                      <button onClick={() => setEditingId(null)}
-                        className="text-xs text-muted-foreground">Cancel</button>
+                        onKeyDown={(e) => { if (e.key === "Enter") rename(b); if (e.key === "Escape") setEditingId(null); }}
+                        className="h-7 min-w-0 flex-1" autoFocus />
+                      <Button size="sm" className="h-7" onClick={() => rename(b)} disabled={busyId === b._id}>Save</Button>
+                      <button onClick={() => setEditingId(null)} title="Cancel"
+                        className="text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 text-sm truncate">{b.name}</span>
-                      {b.hasLogo && <span className="text-muted-foreground text-xs shrink-0">logo</span>}
-                      <button onClick={() => { setEditingId(b._id); setDraft(b.name); }}
-                        className="text-xs text-muted-foreground hover:text-foreground shrink-0">Rename</button>
-                      <button onClick={() => remove(b)} disabled={busyId === b._id}
-                        className="text-xs text-destructive hover:underline shrink-0">Remove</button>
+                      <span className="min-w-0 flex-1 truncate text-sm">{b.name}</span>
+                      {b.hasLogo && <span className="shrink-0 text-[10px] text-muted-foreground">logo</span>}
+                      <button onClick={() => { setEditingId(b._id); setDraft(b.name); }} title="Rename"
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button onClick={() => remove(b)} disabled={busyId === b._id} title="Remove"
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                        <Trash2 className="size-3.5" />
+                      </button>
                     </>
                   )}
                 </div>
               ))}
+              {shown.length === 0 && <p className="text-sm text-muted-foreground">No barangay matches “{query}”.</p>}
             </div>
 
             {adding ? (
-              <div className="flex items-center gap-2 mt-3">
+              <div className="mt-4 flex items-center gap-2">
                 <Input value={newName} onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && newName.trim()) add(); }}
                   placeholder="Barangay name" className="max-w-xs" autoFocus />
                 <Button onClick={add} disabled={busyId === "new" || !newName.trim()}>Add</Button>
                 <button onClick={() => { setAdding(false); setNewName(""); }}
@@ -656,10 +645,12 @@ function BarangayCard({ onError, onNotice }) {
               </div>
             ) : (
               <button onClick={() => setAdding(true)}
-                className="mt-3 text-sm text-primary hover:underline">+ Add a barangay</button>
+                className="mt-4 inline-flex items-center gap-1 text-sm text-primary hover:underline">
+                <Plus className="size-3.5" /> Add a barangay
+              </button>
             )}
 
-            <p className="text-muted-foreground text-xs mt-3">
+            <p className="mt-3 text-xs text-muted-foreground">
               A new barangay needs an admin account — use Provision all on the Accounts page.
             </p>
           </>
@@ -669,12 +660,34 @@ function BarangayCard({ onError, onNotice }) {
   );
 }
 
+// Simple underlined tabs (there is no Tabs primitive in components/ui).
+function TabBar({ value, onChange, tabs }) {
+  return (
+    <div className="flex gap-1 border-b">
+      {tabs.map((t) => (
+        <button key={t.value} onClick={() => onChange(t.value)}
+          className={cn(
+            "-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition",
+            value === t.value ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+          )}>
+          {t.label}
+          {t.count != null && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function SportConfig() {
   const showError = useErrorDialog();
   const [sports, setSports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [tab, setTab] = useState("games");
+  const [selectedId, setSelectedId] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [showTypes, setShowTypes] = useState(false);
 
   async function load() {
     try {
@@ -686,9 +699,21 @@ export default function SportConfig() {
 
   useEffect(() => { load(); }, []);
 
+  // The selected game falls back to the first one if it was removed (or none is chosen yet).
+  const selected = sports.find((s) => s._id === selectedId) || sports[0] || null;
+
   return (
     <AdminLayout title="League Setup" menu={superAdminMenu} enableDarkMode>
       <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">League Setup</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Divisions decide how many tournaments a game runs, and the entry format decides how many players a
+            barangay registers. Set them <span className="font-medium text-foreground">before registration opens</span> —
+            once teams sign up, changing them would invalidate rosters built against the old settings.
+          </p>
+        </div>
+
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -700,51 +725,71 @@ export default function SportConfig() {
           </Alert>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>How the league is set up</CardTitle>
-            <CardDescription>
-              Divisions decide how many tournaments a sport runs; the entry format decides
-              how many players a barangay registers. Set these{" "}
-              <span className="font-medium text-foreground">before registration opens</span> — once teams
-              sign up, changing them would invalidate rosters built against the old
-              settings.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <TabBar value={tab} onChange={setTab}
+          tabs={[{ value: "games", label: "Games", count: loading ? null : sports.length }, { value: "barangays", label: "Barangays" }]} />
 
-        <RulesByType />
-
-        <BarangayCard onError={showError} onNotice={setNotice} />
-
-        {loading ? (
+        {tab === "barangays" ? (
+          <BarangayCard onError={showError} onNotice={setNotice} />
+        ) : loading ? (
           <div className="space-y-3">
-            <Skeleton className="h-48 w-full rounded-xl" />
-            <Skeleton className="h-48 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-96 w-full rounded-xl" />
           </div>
         ) : (
-          <>
-            {sports.map((s) => (
-              <SportCard
-                key={s._id}
-                sport={s}
-                onSaved={(updated) => {
-                  setSports((prev) => prev.map((x) => (x._id === updated._id ? updated : x)));
+          <div className="space-y-4">
+            {/* Pick a game; the editor below is for that one game. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {sports.map((s) => (
+                <button key={s._id} onClick={() => { setSelectedId(s._id); setAdding(false); }}
+                  className={cn(
+                    "rounded-full border px-3.5 py-1.5 text-sm transition",
+                    !adding && selected?._id === s._id
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "hover:bg-accent"
+                  )}>
+                  {s.name}
+                </button>
+              ))}
+              <button onClick={() => setAdding(true)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border border-dashed px-3.5 py-1.5 text-sm transition",
+                  adding ? "border-primary text-foreground" : "text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                )}>
+                <Plus className="size-3.5" /> Add a game
+              </button>
+              <button onClick={() => setShowTypes(!showTypes)}
+                className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <Info className="size-3.5" /> How each type is scored
+              </button>
+            </div>
+
+            {showTypes && <RulesByType />}
+
+            {adding ? (
+              <AddSport
+                onCancel={() => setAdding(false)}
+                onError={showError}
+                onAdded={(sport, message) => {
+                  setNotice(message);
+                  setSports((prev) => [...prev, sport].sort((a, b) => a.name.localeCompare(b.name)));
+                  setSelectedId(sport._id);
+                  setAdding(false);
                 }}
-                onRemoved={(id) => {
-                  setSports((prev) => prev.filter((x) => x._id !== id));
-                }}
+              />
+            ) : selected ? (
+              <SportEditor
+                key={selected._id}
+                sport={selected}
+                onSaved={(updated) => setSports((prev) => prev.map((x) => (x._id === updated._id ? updated : x)))}
+                onRemoved={(id) => setSports((prev) => prev.filter((x) => x._id !== id))}
                 onError={showError}
               />
-            ))}
-            <AddSport
-              onAdded={(sport, message) => {
-                setNotice(message);
-                setSports((prev) => [...prev, sport].sort((a, b) => a.name.localeCompare(b.name)));
-              }}
-              onError={showError}
-            />
-          </>
+            ) : (
+              <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
+                No games yet. Use “Add a game” to create the first one.
+              </CardContent></Card>
+            )}
+          </div>
         )}
       </div>
     </AdminLayout>

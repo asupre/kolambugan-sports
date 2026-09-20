@@ -508,6 +508,18 @@ drawn.
   `Sport.scoringMode / statTypes / onCourt` are DEAD (nothing reads them). `loadOwnedMatch` populates
   the rule fields — before that only `name` was loaded, so saved values were silently ignored by
   the organizer routes.
+- **League Setup layout (Sep 2026, `SportConfig.jsx`):** two tabs — **Games** and **Barangays** (a
+  simple `TabBar`; there is no Tabs primitive). Games = a row of game pills + "Add a game", and ONE
+  editor (`SportEditor`) for the selected game with three sections — Registration (division chips,
+  entry-format cards), Scoring (type, then point values / period name / period counts, or a
+  "games won" note) and After-match score sheet (chips + "Add your own") — and ONE "Save changes"
+  button. Divisions / entry format are saved first (the server refuses them once teams have
+  registered). **Applied immediately, not with Save:** the game's Type and adding / removing a custom
+  column, because they change what the rest of the form offers; unsaved sheet ticks are saved first.
+  "How each type is scored" is a collapsible reference. The Barangays tab has a search box and a
+  3-column grid. It went from ~6,400px of scrolling to ~900px. **Verify layout by rendering:** run a
+  mock `/api` on a spare port and your own Vite copy pointed at it (never the running backend on
+  5000 / dev server on 5173), then drive headless Edge over the DevTools protocol.
 - **Custom score sheet columns (Sep 2026):** the Super Admin can invent a column for one sport —
   e.g. "Spikes" for volleyball — from "Add your own" under the score sheet picker
   (`Sport.customStats: [{key, label}]`, max 12, 24 characters). The server derives the key

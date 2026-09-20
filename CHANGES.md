@@ -2848,3 +2848,8 @@ Found by rendering the organizer screens at 390px against a mock API.
   blank = built-in default) — because a newly added game otherwise had no way to set them. And the
   Super Admin can add their OWN score sheet columns per sport ("Spikes" for volleyball…); the server
   derives a safe key, ticks it on the sheet, and its values are stored under `PlayerMatchStats.extra`.
+- League Setup UI reworked (Sep 2026): Games / Barangays tabs, one game edited at a time via a row of
+  game pills, grouped Registration / Scoring / Score sheet sections, division and column toggle chips,
+  entry-format cards, a single "Save changes" per game (was three Save buttons per card), a barangay
+  search with a 3-column grid, and a redundant "Show scoring rules" summary removed. No behaviour or
+  API changes. Checked by rendering at 1440px, 390px and in dark mode.

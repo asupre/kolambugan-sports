@@ -197,6 +197,12 @@ async function rescreenSeason(seasonId) {
 
     let anyNonEligible = false;
     for (const p of players) {
+      // An under-15 can never be on the list, so re-screening one can only ever produce
+      // "needs document" — i.e. it could only UNDO the Super Admin's approval (their document
+      // review) and, on a verified team, reopen it. Approved minors are left as they are.
+      const age = ageFrom(p.birthdate);
+      if (p.eligibilityStatus === 'eligible' && age !== null && age < MINOR_AGE) { screened++; continue; }
+
       const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
       const { status, reason } = decideFromCandidates(p, teamBarangay, candidates);
       screened++;

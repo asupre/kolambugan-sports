@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
 import { useMediaQuery } from "../../lib/useMediaQuery";
+import { useSeason } from "../../lib/season";
 
 // Infinity = "All": one page, every row. The table is virtualized (see the
 // useVirtualizer call below), so this stays smooth on the full ~17k list.
@@ -187,6 +188,11 @@ function MatchInfo({ info }) {
 }
 
 export default function ReferenceList() {
+  // The list can be replaced only BEFORE verification starts. From verification until the season
+  // ends, the Super Admin's verdicts are being made against it, and replacing it re-screens every
+  // player (the server refuses too). The list itself stays fully viewable.
+  const { season } = useSeason();
+  const listLocked = !!season && !["setup", "registration_open"].includes(season.status);
   const [status, setStatus] = useState(null);   // { count, season }
   const [loading, setLoading] = useState(true);
   const [file, setFile] = useState(null);
@@ -390,7 +396,7 @@ export default function ReferenceList() {
   }, [records, visibleRecords, virtualizer, winVirtualizer, isDesktop]);
 
   async function handleUpload() {
-    if (!file) return;
+    if (!file || listLocked) return;
     setUploading(true);
     setError("");
     setResult(null);
@@ -461,12 +467,27 @@ export default function ReferenceList() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {listLocked && (
+              <Alert className="border-amber-500/30 bg-amber-500/5">
+                <TriangleAlert className="text-amber-600 dark:text-amber-400" />
+                <AlertDescription className="text-foreground">
+                  <p className="font-medium">The list is locked.</p>
+                  <p className="text-muted-foreground">
+                    It can't be replaced once verification starts, and stays locked until the season ends — the
+                    Review Queue is judging players against this list, and a new one would re-check everyone
+                    (the season is "{season.status.replace(/_/g, " ")}"). You can still search and view it below.
+                    Upload a new list before verification, or when the next season begins.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv"
+              disabled={listLocked}
               onChange={(e) => setFile(e.target.files[0] || null)}
-              className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/15 cursor-pointer"
+              className="block w-full text-sm text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/15 cursor-pointer"
             />
 
             {error && (
@@ -501,7 +522,7 @@ export default function ReferenceList() {
               </Alert>
             )}
 
-            <Button onClick={handleUpload} disabled={!file || uploading}>
+            <Button onClick={handleUpload} disabled={!file || uploading || listLocked}>
               <UploadCloud /> {uploading ? "Uploading…" : "Upload & Replace List"}
             </Button>
           </CardContent>

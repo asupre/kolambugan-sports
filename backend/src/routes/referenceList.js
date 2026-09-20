@@ -32,6 +32,14 @@ router.post('/', authenticate, authorize('super_admin'), upload.single('file'), 
     if (!season) {
       return res.status(409).json({ message: 'No active season to attach the reference list to.' });
     }
+    // Locked from verification until the season ends (Sep 2026). Replacing the list re-screens
+    // every player, and once the Review Queue is open the Super Admin's verdicts are being made
+    // against THIS list — changing it underneath them can flip eligibility and reopen verified teams.
+    if (!['setup', 'registration_open'].includes(season.status)) {
+      return res.status(409).json({
+        message: `The reference list is locked once verification starts, and stays locked until the season ends. The season is currently "${season.status}". Upload a new list before verification, or when the next season begins.`,
+      });
+    }
 
     let rows;
     try {

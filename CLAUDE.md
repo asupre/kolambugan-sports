@@ -184,6 +184,17 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   changing at all — so it calls the same `rescreenSeason()`. The upload
   response reports how many players changed and how many verified teams
   reopened, same shape as the cross-barangay toggle.
+- **The reference list is LOCKED from verification until the season ends (Sep 2026).** `POST
+  /api/reference-list` returns 409 unless the season is `setup` or `registration_open` (the Reference
+  List page disables the upload and says why; the list stays viewable/searchable). Reason: replacing
+  the list re-screens every player, and once the Review Queue is open the verdicts are being made
+  against that list. A new season has its own list, so the next season's setup stage is open again.
+- **A re-screen never undoes the approval of an under-15 (Sep 2026, `rescreenSeason()`).** An under-15
+  can never be on the list, so re-screening one can only ever produce `needs_document` — i.e. it could
+  only wipe the Super Admin's document approval (and reopen a verified team). Players who are
+  `eligible` and under 15 are skipped. This also covers the other caller, the cross-barangay toggle
+  (`allowsCrossBarangay`), which is NOT locked by season stage. (Reported: "U15 players go back to
+  needs document when I re-upload the list".)
 - The **SK voters' list** (ages 15–30 — confirmed by the SK Chairperson; NOT
   the COMELEC general register) can power an automatic pre-check, but it can
   only be obtained through the **LYDO**. **Still EXPECTED, not in hand**

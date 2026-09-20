@@ -2853,3 +2853,8 @@ Found by rendering the organizer screens at 390px against a mock API.
   entry-format cards, a single "Save changes" per game (was three Save buttons per card), a barangay
   search with a 3-column grid, and a redundant "Show scoring rules" summary removed. No behaviour or
   API changes. Checked by rendering at 1440px, 390px and in dark mode.
+- Reference list (Sep 2026): re-uploading it used to send approved under-15 players back to "needs
+  document" (`rescreenSeason` recalculated every player, and an under-15 always calculates to needs
+  document), reopening verified teams. Approved under-15s are now left alone by a re-screen. And the
+  list can no longer be replaced from verification until the season ends (server 409 + disabled
+  upload with an explanation); it can be uploaded in setup / registration only.

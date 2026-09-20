@@ -1,7 +1,9 @@
 // src/models/PlayerMatchStats.js
-// Records an individual player's stats in a single match: points and fouls.
-// This is what lets the Organizer track per-player scoring, and what lets the
-// system show who the top scorer is (the Organizer then declares MVP manually).
+// One player's stats in one match. Filled in by the organizer on the post-match form
+// (basketball: points / assists / fouls / rebounds; volleyball, badminton, pickleball: points;
+// esports: the role played). A player with no record simply didn't play.
+// This is what lets the system show who the top scorer is (the Organizer picks the MVP
+// on the same form).
 
 const mongoose = require('mongoose');
 
@@ -27,6 +29,10 @@ const playerMatchStatsSchema = new mongoose.Schema(
     },
     rebounds: { type: Number, default: 0 },
     assists: { type: Number, default: 0 },
+    // Any score-sheet column that isn't one of the four above (blocks, steals, kills…).
+    extra: { type: mongoose.Schema.Types.Mixed, default: undefined },
+    // Esports only — the role this player played (e.g. "Support (Roamer)", "Slayer").
+    role: { type: String, default: null, trim: true },
   },
   {
     timestamps: true,

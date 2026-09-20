@@ -35,22 +35,87 @@ const FORMATS = [
   { value: "singles", label: "Singles", hint: "1 player" },
 ];
 
-const SCORING_MODES = [
-  { value: "player", label: "Per player", hint: "Every point belongs to a player — basketball" },
-  { value: "rally", label: "Rally", hint: "Player points plus a team button for opponent errors" },
-  { value: "final", label: "Games won", hint: "No player scoring — the organizer records who won each game" },
-];
-
-const STAT_TYPES = [
-  { value: "foul", label: "Fouls" },
-  { value: "rebound", label: "Rebounds" },
-  { value: "assist", label: "Assists" },
-];
-
-// Comma-separated numbers in a text box: "1, 2, 3". Simpler than a tag editor
-// and these are set once at installation, not fiddled with.
+// "1, 2, 3" typed into a box -> [1, 2, 3]. (Blank -> [], which the server reads as "use the default".)
 const parseNums = (s) =>
   String(s).split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n) && n > 0);
+const rulesToForm = (r = {}) => ({
+  pointValues: (r.pointValues || []).join(", "),
+  periodLabel: r.periodLabel || "",
+  periodOptions: (r.periodOptions || []).join(", "),
+});
+
+// Every sport has a TYPE. It decides how the game is scored live and which score sheet columns
+// are on offer. (Stored as Sport.category; "physical" is the value for a sport.)
+const TYPES = [
+  { value: "physical", label: "Sport" },
+  { value: "esports", label: "Esports" },
+  { value: "board", label: "Board game" },
+];
+
+// The rules that apply to each TYPE, in plain words — a reference card, not settings.
+function RulesByType() {
+  const blocks = [
+    ["Sports", "Basketball, volleyball, badminton, pickleball, billiards…",
+      "Scored by team while the game runs (basketball +1 / +2 / +3, the others +1), in quarters or sets — the higher total wins. Nothing is credited to a player live. After the match the organizer fills in the score sheet for each player."],
+    ["Esports", "Mobile Legends, Call of Duty Mobile…",
+      "Played as a best-of series; the organizer taps who won each game. After the match the score sheet asks for the role each player played (Carry, Support…) and, if you tick them, kills, deaths and assists."],
+    ["Board games", "Chess…",
+      "One player per side, played as a best-of series; the organizer taps who won each game. There is no player form unless you tick a column on its score sheet."],
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Rules by type</CardTitle>
+        <CardDescription>
+          How each type of game is scored. Set a game's type on its card below; you choose what its
+          after-match score sheet asks for there too.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {blocks.map(([title, examples, text]) => (
+          <div key={title} className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-sm font-semibold">{title}</p>
+            <p className="mb-2 text-[11px] text-muted-foreground">{examples}</p>
+            <p className="text-xs">{text}</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// A plain-language summary of how one sport is scored — shown for EVERY sport, including the
+// ones with nothing to edit, so the rules can be read in one place. Comes from the server's
+// effective rules (built-in defaults plus anything saved for the sport).
+function RulesSummary({ sport }) {
+  const r = sport.rules;
+  if (!r) return null;
+  const list = (a) => a.join(", ");
+  const word = r.periodLabel || "period";
+
+  const rows = [
+    ["Live scoring",
+      r.scoringMode === "final"
+        ? "The organizer taps which team won each game; the team with more games won takes the match."
+        : `By team — the organizer taps ${r.pointValues.map((v) => `+${v}`).join(" / ")} for the team that scored. Nothing is credited to a player while the game runs.`],
+    r.scoringMode === "final" ? null : ["Periods", `Played in ${word}s — the organizer picks ${list(r.periodOptions)} at the start. The higher total score wins; a tie adds a deciding ${word}.`],
+    ["After the match",
+      r.sheet?.length
+        ? `Score sheet: ${list(r.sheet.map((k) => (r.statLabels?.[k]?.label || k).toLowerCase()))}${r.roles?.length ? ` (roles: ${list(r.roles)})` : ""}, plus the MVP.`
+        : "No player form — the result is the record."],
+  ].filter(Boolean);
+
+  return (
+    <dl className="space-y-2 rounded-lg border bg-muted/30 p-3 text-xs">
+      {rows.map(([k, v]) => (
+        <div key={k} className="grid grid-cols-[6.5rem_1fr] gap-2">
+          <dt className="font-medium text-muted-foreground">{k}</dt>
+          <dd>{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 function SportCard({ sport, onSaved, onRemoved, onError }) {
   const confirm = useConfirm();
@@ -62,20 +127,24 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState("");
 
-  // Blank means "use the built-in default for this sport", which is how the
-  // seven seeded sports keep working without being configured.
-  const [rules, setRules] = useState({
-    tournamentFormat: sport.tournamentFormat || "double_elimination",
-    scoringMode: sport.scoringMode || "",
-    pointValues: (sport.pointValues || []).join(", "),
-    periodLabel: sport.periodLabel || "",
-    periodOptions: (sport.periodOptions || []).join(", "),
-    statTypes: sport.statTypes || [],
-    onCourt: sport.onCourt ?? "",
-    teamsPerBarangay: sport.teamsPerBarangay ?? "",
-    numGroups: sport.numGroups ?? "",
-    knockoutSize: sport.knockoutSize ?? "",
-  });
+  // The after-match score sheet: which columns the organizer fills in per player.
+  const currentSheet = sport.rules?.sheet || [];
+  const [sheet, setSheet] = useState(currentSheet);
+  useEffect(() => { setSheet(sport.rules?.sheet || []); }, [currentSheet.join(","), sport.category]);
+  const sheetDirty = [...sheet].sort().join(",") !== [...currentSheet].sort().join(",");
+  const sheetOptions = sport.sheetOptions || [];
+  const customLabels = sheetOptions.filter((o) => o.custom).map((o) => o.label);
+  const [newCol, setNewCol] = useState("");
+
+  // Scoring rules (sports that score by points). Starts from what is IN EFFECT now — the built-in
+  // values for a seeded sport — so nothing looks blank; saving stores them explicitly.
+  const gamesWon = sport.rules?.scoringMode === "final";
+  const effForm = rulesToForm(sport.rules);
+  const [rulesForm, setRulesForm] = useState(effForm);
+  useEffect(() => { setRulesForm(rulesToForm(sport.rules)); }, [JSON.stringify(effForm)]);
+  const rulesDirty = JSON.stringify(rulesForm) !== JSON.stringify(effForm);
+  const hasSavedRules = !!(sport.pointValues?.length || sport.periodLabel || sport.periodOptions?.length);
+  const setRule = (k) => (e) => { setSaved(""); setRulesForm({ ...rulesForm, [k]: e.target.value }); };
 
   const configDirty =
     JSON.stringify([...divisions].sort()) !== JSON.stringify([...(sport.divisions || [])].sort()) ||
@@ -101,29 +170,32 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
     finally { setBusy(false); }
   }
 
-  async function saveRules() {
+  async function patchSport(body) {
     setBusy(true);
     try {
-      const d = await api(`/api/sports/${sport._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          tournamentFormat: rules.tournamentFormat,
-          scoringMode: rules.scoringMode || null,
-          pointValues: parseNums(rules.pointValues),
-          periodLabel: rules.periodLabel || null,
-          periodOptions: parseNums(rules.periodOptions),
-          statTypes: rules.statTypes,
-          onCourt: rules.onCourt === "" ? null : Number(rules.onCourt),
-          teamsPerBarangay: rules.teamsPerBarangay === "" ? null : Number(rules.teamsPerBarangay),
-          numGroups: rules.numGroups === "" ? null : Number(rules.numGroups),
-          knockoutSize: rules.knockoutSize === "" ? null : Number(rules.knockoutSize),
-        }),
-      });
+      const d = await api(`/api/sports/${sport._id}`, { method: "PATCH", body: JSON.stringify(body) });
       setSaved("Saved");
       onSaved(d.sport);
-    } catch (e) { onError(e.message); }
+      return true;
+    } catch (e) { onError(e.message); return false; }
     finally { setBusy(false); }
   }
+  const saveRules = () => patchSport({
+    pointValues: parseNums(rulesForm.pointValues),
+    periodLabel: rulesForm.periodLabel,
+    periodOptions: parseNums(rulesForm.periodOptions),
+  });
+  const resetRules = () => patchSport({ pointValues: [], periodLabel: "", periodOptions: [] });
+  // Your own score sheet columns (e.g. "Spikes"). The server ticks a new one for you.
+  const addColumn = async () => {
+    const label = newCol.trim();
+    if (!label) return;
+    if (await patchSport({ customStats: [...customLabels, label] })) setNewCol("");
+  };
+  const removeColumn = (label) => patchSport({ customStats: customLabels.filter((l) => l !== label) });
+  const saveSheet = () => patchSport({ scoreSheet: sheet });
+  const resetSheet = () => patchSport({ scoreSheet: null });   // back to the built-in default
+  const changeType = (category) => patchSport({ category });
 
   async function rename() {
     if (!name.trim() || name.trim() === sport.name) { setRenaming(false); return; }
@@ -148,8 +220,6 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
     } catch (e) { onError(e.message); }
     finally { setBusy(false); }
   }
-
-  const set = (k) => (e) => { setRules({ ...rules, [k]: e.target.value }); setSaved(""); };
 
   return (
     <Card className="border-l-4 border-l-blue-500">
@@ -213,13 +283,109 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 gap-6 border-t pt-4 sm:grid-cols-[14rem_1fr]">
+          <div>
+            <Label className="mb-2">Type</Label>
+            <Select value={sport.category} onValueChange={changeType} disabled={busy}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Decides how it is scored and which score sheet columns are on offer.
+            </p>
+          </div>
+
+          <div>
+            <Label className="mb-1">After-match score sheet</Label>
+            <p className="mb-2.5 text-xs text-muted-foreground">
+              What the organizer fills in for each player once a match is finished. Tick the columns
+              you want; tick none for no player form.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {sheetOptions.map((o) => {
+                const on = sheet.includes(o.key);
+                return (
+                  <label key={o.key}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition ${on ? "border-primary bg-primary/10" : "hover:bg-accent"}`}>
+                    <Checkbox checked={on}
+                      onCheckedChange={() => { setSaved(""); setSheet(on ? sheet.filter((k) => k !== o.key) : [...sheet, o.key]); }} />
+                    {o.label}
+                    {o.custom && (
+                      <button type="button" title="Remove this column" disabled={busy}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeColumn(o.label); }}
+                        className="-mr-0.5 text-base leading-none text-muted-foreground hover:text-destructive">×</button>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <Input value={newCol} maxLength={24} className="h-8 max-w-xs"
+                onChange={(e) => setNewCol(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColumn(); } }}
+                placeholder='Add your own, e.g. "Spikes"' />
+              <Button size="sm" variant="secondary" onClick={addColumn} disabled={busy || !newCol.trim()}>Add column</Button>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <Button size="sm" onClick={saveSheet} disabled={busy || !sheetDirty}>Save score sheet</Button>
+              {!sport.sheetIsDefault && (
+                <button onClick={resetSheet} disabled={busy}
+                  className="text-xs text-muted-foreground hover:text-foreground">Use the default</button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t pt-4">
+          <Label className="mb-1">Scoring rules</Label>
+          {gamesWon ? (
+            <p className="text-xs text-muted-foreground">
+              Scored by games won: the organizer taps who won each game, as a best-of series. There
+              are no points or periods to set for this game.
+            </p>
+          ) : (
+            <>
+              <p className="mb-3 text-xs text-muted-foreground">
+                How the live score works: the organizer taps these point values for the team that
+                scored, in as many periods as they choose at the start.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label>Point values</Label>
+                  <Input value={rulesForm.pointValues} onChange={setRule("pointValues")} placeholder="1, 2, 3" />
+                  <p className="text-xs text-muted-foreground">One tap button for each. Basketball: 1, 2, 3.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Period name</Label>
+                  <Input value={rulesForm.periodLabel} onChange={setRule("periodLabel")} placeholder="quarter, set, half" />
+                  <p className="text-xs text-muted-foreground">What one period is called.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Period counts allowed</Label>
+                  <Input value={rulesForm.periodOptions} onChange={setRule("periodOptions")} placeholder="1, 3, 5" />
+                  <p className="text-xs text-muted-foreground">Choose from 1, 2, 3, 4, 5 or 7.</p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <Button size="sm" onClick={saveRules} disabled={busy || !rulesDirty}>Save scoring rules</Button>
+                {hasSavedRules && (
+                  <button onClick={resetRules} disabled={busy}
+                    className="text-xs text-muted-foreground hover:text-foreground">Use the defaults</button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="flex items-center gap-3">
           <Button onClick={saveConfig} disabled={busy || !configDirty || divisions.length === 0}>
             {busy ? "Saving…" : "Save"}
           </Button>
           <button onClick={() => setAdvanced(!advanced)}
             className="text-xs text-muted-foreground hover:text-foreground">
-            {advanced ? "Hide" : "Show"} scoring &amp; draw rules
+            {advanced ? "Hide" : "Show"} scoring rules
           </button>
           <button onClick={remove} disabled={busy}
             className="text-xs text-destructive hover:underline ml-auto">
@@ -229,110 +395,7 @@ function SportCard({ sport, onSaved, onRemoved, onError }) {
 
         {advanced && (
           <div className="pt-4 border-t">
-            <p className="text-muted-foreground text-xs mb-4">
-              Leave a field blank to use the built-in default for this sport. These are
-              set once when a sport is added and rarely change after.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Draw format</Label>
-                <Select value={rules.tournamentFormat} onValueChange={(v) => { setRules({ ...rules, tournamentFormat: v }); setSaved(""); }}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="double_elimination">Groups with double-elimination</SelectItem>
-                    <SelectItem value="round_robin">Groups with round-robin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Scoring</Label>
-                <Select value={rules.scoringMode || "default"} onValueChange={(v) => { setRules({ ...rules, scoringMode: v === "default" ? "" : v }); setSaved(""); }}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Default for this sport</SelectItem>
-                    {SCORING_MODES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-muted-foreground text-xs">
-                  {SCORING_MODES.find((s) => s.value === rules.scoringMode)?.hint || " "}
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Point values</Label>
-                <Input value={rules.pointValues} onChange={set("pointValues")} placeholder="1, 2, 3" />
-                <p className="text-muted-foreground text-xs">What one scoring tap can add.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Period name</Label>
-                <Input value={rules.periodLabel} onChange={set("periodLabel")} placeholder="quarter, set, game" />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Period counts allowed</Label>
-                <Input value={rules.periodOptions} onChange={set("periodOptions")} placeholder="1, 3, 5" />
-                <p className="text-muted-foreground text-xs">What the organizer may pick at the start.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Players on court</Label>
-                <Input type="number" value={rules.onCourt} onChange={set("onCourt")} placeholder="blank = whole roster" />
-              </div>
-
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label>Stats recorded</Label>
-                <div className="flex gap-4">
-                  {STAT_TYPES.map((s) => (
-                    <label key={s.value} className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox
-                        checked={rules.statTypes.includes(s.value)}
-                        onCheckedChange={() => {
-                          setSaved("");
-                          setRules({
-                            ...rules,
-                            statTypes: rules.statTypes.includes(s.value)
-                              ? rules.statTypes.filter((x) => x !== s.value)
-                              : [...rules.statTypes, s.value],
-                          });
-                        }}
-                      />
-                      <span className="text-sm">{s.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Teams per barangay</Label>
-                <Input type="number" value={rules.teamsPerBarangay} onChange={set("teamsPerBarangay")} placeholder="1" />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Groups in the draw</Label>
-                <Input type="number" value={rules.numGroups} onChange={set("numGroups")} placeholder="4, or 8 for round-robin" />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Knockout size</Label>
-                <Input type="number" value={rules.knockoutSize} onChange={set("knockoutSize")} placeholder="8 or 16" />
-                <p className="text-muted-foreground text-xs">
-                  Must divide evenly by the number of groups.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <Button onClick={saveRules} disabled={busy}>
-                {busy ? "Saving…" : "Save rules"}
-              </Button>
-            </div>
+            <RulesSummary sport={sport} />
           </div>
         )}
       </CardContent>
@@ -345,6 +408,8 @@ function AddSport({ onAdded, onError }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("physical");
   const [tournamentFormat, setTournamentFormat] = useState("double_elimination");
+  // Scoring rules for a new sport that scores by points. Sensible starting values so it works at once.
+  const [rules, setRules] = useState({ pointValues: "1", periodLabel: "", periodOptions: "1, 3, 5" });
   const [busy, setBusy] = useState(false);
 
   async function add() {
@@ -352,7 +417,15 @@ function AddSport({ onAdded, onError }) {
     try {
       const d = await api("/api/sports", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), category, tournamentFormat }),
+        body: JSON.stringify({
+          name: name.trim(), category, tournamentFormat,
+          // Only a sport scores by points; an esport or board game records games won.
+          ...(category === "physical" ? {
+            pointValues: parseNums(rules.pointValues),
+            periodLabel: rules.periodLabel,
+            periodOptions: parseNums(rules.periodOptions),
+          } : {}),
+        }),
       });
       setName(""); setOpen(false);
       onAdded(d.sport, d.message);
@@ -382,14 +455,13 @@ function AddSport({ onAdded, onError }) {
               placeholder="e.g. Sepak Takraw" autoFocus />
           </div>
           <div className="space-y-1.5">
-            <Label>Category</Label>
+            <Label>Type</Label>
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="physical">Physical</SelectItem>
-                <SelectItem value="esports">Esports</SelectItem>
+                {TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -406,8 +478,34 @@ function AddSport({ onAdded, onError }) {
             </Select>
           </div>
         </div>
+        {category === "physical" ? (
+          <div className="mt-4 border-t pt-4">
+            <Label className="mb-1">Scoring rules</Label>
+            <p className="mb-3 text-xs text-muted-foreground">
+              How the live score works: the organizer taps these point values for the team that scored.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label>Point values</Label>
+                <Input value={rules.pointValues} onChange={(e) => setRules({ ...rules, pointValues: e.target.value })} placeholder="1, 2, 3" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Period name</Label>
+                <Input value={rules.periodLabel} onChange={(e) => setRules({ ...rules, periodLabel: e.target.value })} placeholder="quarter, set, half" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Period counts allowed</Label>
+                <Input value={rules.periodOptions} onChange={(e) => setRules({ ...rules, periodOptions: e.target.value })} placeholder="1, 3, 5" />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Scored by games won — the organizer taps who won each game. Nothing to set.
+          </p>
+        )}
         <p className="text-muted-foreground text-xs mt-3">
-          Set its divisions, scoring and draw rules after adding. A new sport also needs
+          Set its divisions, entry format and score sheet after adding. A new sport also needs
           an organizer account — use Provision all on the Accounts page.
         </p>
         <div className="flex gap-2 mt-4">
@@ -614,6 +712,8 @@ export default function SportConfig() {
             </CardDescription>
           </CardHeader>
         </Card>
+
+        <RulesByType />
 
         <BarangayCard onError={showError} onNotice={setNotice} />
 

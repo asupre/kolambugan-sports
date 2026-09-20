@@ -11,78 +11,17 @@ const { isManilaToday } = require('../config/time');
 
 const router = express.Router();
 router.use(authenticate, authorize('organizer', 'super_admin'));
+const { PERIOD_LABEL, LEGACY_STAT_COLUMNS, rulesFor } = require('../lib/sportRules');
 
-// How each sport is scored live.
-//   player — every point belongs to a player (basketball)
-//   rally  — player points PLUS a team button for points the opponent gave away
-//   final  — no per-player scoring; the organizer records who won each game
-const SCORING_MODE = {
-  'Basketball': 'player',
-  'Badminton': 'rally',
-  'Pickleball': 'rally',
-  'Volleyball': 'rally',
-  'Billiards': 'final',
-  'Chess': 'final',
-  'Mobile Legends': 'final',
-};
-// What a period is called per sport (display only — the mechanics are identical:
-// score accumulates across all periods, winner is the higher total).
-const PERIOD_LABEL = {
-  'Basketball': 'quarter',
-  'Volleyball': 'set',
-  'Badminton': 'set',
-  'Pickleball': 'set',
-};
-// Sensible period counts per sport, so an organizer can't pick 7 quarters of basketball.
-const PERIOD_OPTIONS = {
-  'Basketball': [4],
-  'Volleyball': [1, 3, 5],
-  'Badminton': [1, 3, 5],
-  'Pickleball': [1, 3, 5],
-};
-// Which point values a sport can score in one action. Basketball has 1/2/3;
-// rally sports only ever add a single point.
-const POINT_VALUES = {
-  'Basketball': [1, 2, 3],
-  'Badminton': [1],
-  'Pickleball': [1],
-  'Volleyball': [1],
-};
-// Which stats each sport records beyond points. Fouls only belong where the
-// sport actually has them.
-const STAT_TYPES = {
-  'Basketball': ['foul', 'rebound', 'assist'],
-  'Volleyball': [],
-  'Badminton': [],
-  'Pickleball': [],
-};
-// How many players are on court at once — the scoring screen shows only these,
-// so an organizer isn't scrolling a 15-player roster mid-game.
-const ON_COURT = {
-  'Basketball': 5,
-  'Volleyball': 6,
-};
-
-// A configured sport wins; otherwise the built-in default for one of the seven
-// seeded sports; otherwise something safe. A sport nobody has configured still
-// works, and a configured one no longer depends on its name.
-function rulesFor(sport) {
-  const name = sport?.name;
-  return {
-    scoringMode: sport?.scoringMode || SCORING_MODE[name] || 'final',
-    pointValues: sport?.pointValues?.length ? sport.pointValues : (POINT_VALUES[name] || [1]),
-    periodLabel: sport?.periodLabel || PERIOD_LABEL[name] || 'period',
-    periodOptions: sport?.periodOptions?.length ? sport.periodOptions : (PERIOD_OPTIONS[name] || [1, 3, 5, 7]),
-    statTypes: sport?.statTypes?.length ? sport.statTypes : (STAT_TYPES[name] || []),
-    onCourt: sport?.onCourt ?? ON_COURT[name] ?? null,
-  };
-}
 
 // Load a match and confirm this organizer owns its sport.
 async function loadOwnedMatch(req, res) {
   const match = await Match.findById(req.params.matchId);
   if (!match) { res.status(404).json({ message: 'Match not found.' }); return null; }
-  const t = await Tournament.findById(match.tournament).populate('sport', 'name');
+  // The rule fields ride along: rulesFor() reads them, and with only `name` populated a
+  // sport's saved point values / period settings were silently ignored by the routes.
+  const t = await Tournament.findById(match.tournament)
+    .populate('sport', 'name category pointValues periodLabel periodOptions scoreSheet customStats');
   if (!t) { res.status(404).json({ message: 'Tournament not found.' }); return null; }
   if (req.user.role === 'organizer' && String(req.user.assignedSport) !== String(t.sport._id)) {
     res.status(403).json({ message: 'You can only score matches for your assigned sport.' });
@@ -139,7 +78,12 @@ router.get('/matches/:matchId', async (req, res) => {
 
     const stats = await PlayerMatchStats.find({ match: match._id }).lean();
     const statByPlayer = {};
-    stats.forEach((s) => { statByPlayer[String(s.player)] = { points: s.points, fouls: s.fouls }; });
+    stats.forEach((s) => {
+      statByPlayer[String(s.player)] = {
+        points: s.points, fouls: s.fouls, rebounds: s.rebounds, assists: s.assists, role: s.role || '',
+        ...(s.extra || {}),
+      };
+    });
 
         const full = await Match.findById(match._id)
       .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
@@ -207,20 +151,21 @@ router.post('/matches/:matchId/start', async (req, res) => {
 });
 
 // POST /api/organizer/matches/:matchId/score
-// body: { side: 'A'|'B', points: 1|2|3, playerId? }
-// Player mode credits the player AND the team; side mode credits the team only.
-// Negative points are allowed so an organizer can undo a mis-tap.
+// body: { side: 'A'|'B', points: 1|2|3 }
+// Scoring is by TEAM only — nothing is credited to a player while the game runs (player
+// stats are entered on the post-match form, see PUT /stats). Negative points are allowed so
+// an organizer can undo a mis-tap.
 router.post('/matches/:matchId/score', async (req, res) => {
   try {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
-    const { match, sportName } = ctx;
+    const { match } = ctx;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before scoring.' });
-        // Once every period has been banked, the match is done scoring — the only
+    // Once every period has been banked, the match is done scoring — the only
     // remaining action is ending it. Otherwise stray points would land in the
     // running total with no period to belong to, and the periods would stop
     // summing to the final score.
-        const totalPeriods = match.bestOf || 1;
+    const totalPeriods = match.bestOf || 1;
     const tied = (match.liveScoreA || 0) === (match.liveScoreB || 0);
     if (match.games.length >= totalPeriods && !tied) {
       return res.status(409).json({
@@ -228,53 +173,25 @@ router.post('/matches/:matchId/score', async (req, res) => {
       });
     }
 
-    const { side, playerId } = req.body;
+    const { side } = req.body;
     const points = Number(req.body.points);
     if (!['A', 'B'].includes(side)) return res.status(400).json({ message: 'side must be "A" or "B".' });
-        // The cap comes from the sport's own point values, so a configured sport
+    // The cap comes from the sport's own point values, so a configured sport
     // isn't stuck with basketball's 1/2/3 ceiling.
     const maxPoints = Math.max(...rulesFor(ctx.sport).pointValues, 1);
     if (!Number.isInteger(points) || Math.abs(points) > maxPoints || points === 0) {
       return res.status(400).json({ message: `points must be a non-zero integer between -${maxPoints} and ${maxPoints}.` });
     }
 
-            const mode = rulesFor(ctx.sport).scoringMode;
-    let applied = points;   // what actually gets added to the team tally
-
-    if (mode === 'player' && !playerId) {
-      return res.status(400).json({ message: `${sportName} is scored per player — pick a player.` });
-    }
-
-    // Rally sports attribute a point to a player when there is one; a team point
-    // (opponent error) arrives with no playerId and credits nobody.
-    if ((mode === 'player' || mode === 'rally') && playerId) {
-      const teamId = side === 'A' ? match.teamA : match.teamB;
-      const onTeam = await TeamPlayer.findOne({ team: teamId, player: playerId });
-      if (!onTeam) return res.status(400).json({ message: 'That player is not on that team.' });
-
-      const stat = await PlayerMatchStats.findOne({ match: match._id, player: playerId });
-      const current = stat?.points || 0;
-      // Never let a player go negative; only apply what they actually have to give back.
-      applied = Math.max(points, -current);
-      if (applied === 0) {
-        return res.status(400).json({ message: 'That player has no points to undo.' });
-      }
-
-      await PlayerMatchStats.findOneAndUpdate(
-        { match: match._id, player: playerId },
-        { $inc: { points: applied } },
-        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-      );
-    }
-        if (applied > 0) {
-      const p = playerId ? await Player.findById(playerId).select('lastName') : null;
+    const field = side === 'A' ? 'liveScoreA' : 'liveScoreB';
+    if (points > 0) {
+      const team = await Team.findById(side === 'A' ? match.teamA : match.teamB).select('teamName');
       match.lastAction = {
-        type: 'points', side, player: playerId || null, amount: applied,
-        label: `+${applied} ${p?.lastName || (side === 'A' ? 'team A' : 'team B')}`,
+        type: 'points', side, player: null, amount: points,
+        label: `+${points} ${team?.teamName || (side === 'A' ? 'team A' : 'team B')}`,
       };
     }
-        const field = side === 'A' ? 'liveScoreA' : 'liveScoreB';
-    match[field] = Math.max(0, (match[field] || 0) + applied);
+    match[field] = Math.max(0, (match[field] || 0) + points);
     await match.save();
 
     res.json({ message: 'Scored.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
@@ -284,56 +201,7 @@ router.post('/matches/:matchId/score', async (req, res) => {
   }
 });
 
-// POST /api/organizer/matches/:matchId/stat
-// body: { playerId, type: 'foul'|'rebound'|'assist', delta?: 1|-1 }
-// One route for every non-scoring stat, so adding another later is a list entry
-// rather than a new endpoint.
-router.post('/matches/:matchId/stat', async (req, res) => {
-  try {
-    const ctx = await loadOwnedMatch(req, res);
-    if (!ctx) return;
-    const { match, sportName } = ctx;
-    if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
-
-    const type = req.body.type;
-        const allowed = rulesFor(ctx.sport).statTypes;
-    if (!allowed.includes(type)) {
-      return res.status(400).json({ message: `${sportName} doesn't record ${type || 'that stat'}.` });
-    }
-    if (!req.body.playerId) return res.status(400).json({ message: 'playerId is required.' });
-
-    const delta = Number(req.body.delta ?? 1);
-    if (![1, -1].includes(delta)) return res.status(400).json({ message: 'delta must be 1 or -1.' });
-
-    const field = type === 'foul' ? 'fouls' : type === 'rebound' ? 'rebounds' : 'assists';
-    const existing = await PlayerMatchStats.findOne({ match: match._id, player: req.body.playerId });
-    if (delta === -1 && (existing?.[field] || 0) === 0) {
-      return res.status(400).json({ message: `That player has no ${type} to undo.` });
-    }
-
-    const stat = await PlayerMatchStats.findOneAndUpdate(
-      { match: match._id, player: req.body.playerId },
-      { $inc: { [field]: delta } },
-      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-    );
-
-    if (delta === 1) {
-      const p = await Player.findById(req.body.playerId).select('lastName');
-      match.lastAction = {
-        type, side: null, player: req.body.playerId, amount: 1,
-        label: `${type} ${p?.lastName || ''}`.trim(),
-      };
-      await match.save();
-    }
-
-    res.json({ message: 'Recorded.', playerId: req.body.playerId, [field]: stat[field] });
-  } catch (err) {
-    console.error('Stat error:', err);
-    res.status(500).json({ message: 'Something went wrong.' });
-  }
-});
-
-// POST /api/organizer/matches/:matchId/undo — reverses the last action.
+// POST /api/organizer/matches/:matchId/undo — reverses the last score tap.
 router.post('/matches/:matchId/undo', async (req, res) => {
   try {
     const ctx = await loadOwnedMatch(req, res);
@@ -342,25 +210,10 @@ router.post('/matches/:matchId/undo', async (req, res) => {
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'The match is not running.' });
 
     const last = match.lastAction;
-    if (!last || !last.type) return res.status(400).json({ message: 'Nothing to undo.' });
+    if (!last || last.type !== 'points') return res.status(400).json({ message: 'Nothing to undo.' });
 
-    if (last.type === 'points') {
-      const field = last.side === 'A' ? 'liveScoreA' : 'liveScoreB';
-      match[field] = Math.max(0, (match[field] || 0) - last.amount);
-      if (last.player) {
-        await PlayerMatchStats.updateOne(
-          { match: match._id, player: last.player },
-          { $inc: { points: -last.amount } }
-        );
-      }
-    } else {
-      const field = last.type === 'foul' ? 'fouls' : last.type === 'rebound' ? 'rebounds' : 'assists';
-      await PlayerMatchStats.updateOne(
-        { match: match._id, player: last.player },
-        { $inc: { [field]: -1 } }
-      );
-    }
-
+    const field = last.side === 'A' ? 'liveScoreA' : 'liveScoreB';
+    match[field] = Math.max(0, (match[field] || 0) - last.amount);
     match.lastAction = { type: null, side: null, player: null, amount: 0, label: '' };
     await match.save();
 
@@ -371,18 +224,84 @@ router.post('/matches/:matchId/undo', async (req, res) => {
   }
 });
 
-// GET /api/organizer/matches/:matchId/mvp-suggestion — top scorer in this match.
-router.get('/matches/:matchId/mvp-suggestion', async (req, res) => {
+// PUT /api/organizer/matches/:matchId/stats
+// body: { players: [{ playerId, points?, assists?, fouls?, rebounds?, role? }], mvpPlayerId? }
+// The POST-MATCH form: the organizer totals each player's game from the scoresheet and enters
+// it here. Only on a finished match, and can be re-saved to correct it. Which fields count
+// comes from the sport (`statFields`), and `role` only exists for esports (`roles`). A player
+// whose row is all zeros with no role is treated as "didn't play" and has no record at all.
+// Player totals are NOT forced to equal the team score — the screen shows the difference, but
+// an official must never be blocked from saving what is on the sheet.
+router.put('/matches/:matchId/stats', async (req, res) => {
   try {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
-    const top = await PlayerMatchStats.find({ match: req.params.matchId })
-      .sort({ points: -1 }).limit(1).populate('player', 'firstName lastName');
-    res.json({ suggestion: top[0] || null });
+    const { match } = ctx;
+    if (match.status !== 'completed') {
+      return res.status(409).json({ message: 'Player stats are entered after the match is finished.' });
+    }
+
+    const rules = rulesFor(ctx.sport);
+    const rows = Array.isArray(req.body.players) ? req.body.players : [];
+
+    const links = await TeamPlayer.find({ team: { $in: [match.teamA, match.teamB] } }).select('player');
+    const onRoster = new Set(links.map((l) => String(l.player)));
+
+    // Validate everything first so a bad row can't leave the form half-saved.
+    const clean = [];
+    for (const r of rows) {
+      const id = String(r?.playerId || '');
+      if (!onRoster.has(id)) return res.status(400).json({ message: 'A player in the form is not on either team.' });
+
+      const doc = { player: id, $set: {} };
+      for (const f of rules.statFields) {
+        const v = r[f] === '' || r[f] == null ? 0 : Number(r[f]);
+        if (!Number.isInteger(v) || v < 0 || v > 999) {
+          return res.status(400).json({ message: `${f} must be a whole number from 0 to 999.` });
+        }
+        // The original four are real columns; every other sheet column lives under `extra`.
+        doc.$set[LEGACY_STAT_COLUMNS.includes(f) ? f : `extra.${f}`] = v;
+      }
+      const role = r.role ? String(r.role).trim() : '';
+      if (role && !rules.roles.includes(role)) {
+        return res.status(400).json({ message: `"${role}" is not a role for ${ctx.sportName}.` });
+      }
+      doc.$set.role = role || null;
+      doc.empty = !role && Object.values(doc.$set).every((v) => v === 0 || v === null);
+      clean.push(doc);
+    }
+
+    let mvp = match.mvp || null;
+    if ('mvpPlayerId' in req.body) {
+      if (req.body.mvpPlayerId && !onRoster.has(String(req.body.mvpPlayerId))) {
+        return res.status(400).json({ message: 'The MVP must be a player in this match.' });
+      }
+      mvp = req.body.mvpPlayerId || null;
+    }
+
+    let saved = 0;
+    for (const d of clean) {
+      if (d.empty) {
+        await PlayerMatchStats.deleteOne({ match: match._id, player: d.player });
+      } else {
+        await PlayerMatchStats.findOneAndUpdate(
+          { match: match._id, player: d.player },
+          { $set: d.$set },
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
+        saved += 1;
+      }
+    }
+    match.mvp = mvp;
+    await match.save();
+
+    res.json({ message: `Player stats saved (${saved} player${saved === 1 ? '' : 's'}).`, saved });
   } catch (err) {
+    console.error('Save stats error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
+
 // POST /api/organizer/matches/:matchId/end
 // Finalizes a live match: writes the live tally into games[], sets seriesWinner,
 // marks it completed, records the MVP, and routes both teams through the locked

@@ -314,7 +314,9 @@ function BarangayChip({ label, count, cleared, completedSlots, requiredSlots, ac
   );
 }
 
-function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
+// `locked` = the season isn't at the verification stage yet: everything is viewable,
+// but Approve / Reject stay disabled (the server refuses them too).
+function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locked }) {
   const p = player;
   const navigate = useNavigate();
   // needs_document has no reference-list match at all, so a document is the
@@ -395,8 +397,10 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
 
         {/* Actions */}
         <div className="px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap shrink-0">
-          <p className={cn("text-xs", blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground")}>
-            {blockedCrossBarangay
+          <p className={cn("text-xs", locked ? "text-muted-foreground font-medium" : blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground")}>
+            {locked
+              ? "View only — approving and rejecting open once the season moves to the verification stage."
+              : blockedCrossBarangay
               ? "This barangay doesn't allow cross-barangay players, so this player can't be approved. Reject them, or allow cross-barangay for this barangay in League Setup."
               : blockedDayo
               ? "Not on the reference list (possible Dayo) — this player can't be approved. If the name is misspelled, the Barangay Admin can correct it and it re-screens; otherwise reject them."
@@ -406,12 +410,12 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
           </p>
           {p.eligibilityStatus !== "eligible" && (
             <div className="flex gap-2 shrink-0">
-              <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || approveBlocked}
+              <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || locked || approveBlocked}
                 title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : blockedNoDocument ? "This player has no document uploaded yet." : undefined}
                 className="bg-green-600 text-white hover:bg-green-700 focus-visible:ring-green-500/40 dark:focus-visible:ring-green-500/40">
                 Approve
               </Button>
-              <Button onClick={() => onReject(teamId, p._id)} disabled={busy}
+              <Button onClick={() => onReject(teamId, p._id)} disabled={busy || locked}
                 className="bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500/40 dark:focus-visible:ring-red-500/40">
                 Reject
               </Button>
@@ -545,6 +549,8 @@ export default function ReviewQueue() {
     : [];
 
   const allEligible = players.length > 0 && players.every((p) => p.eligibilityStatus === "eligible");
+  // Anything can be viewed at any time; verdicts only during the verification stage.
+  const reviewOpen = seasonStatus === "verification";
 
   return (
     <AdminLayout title="Review Queue" menu={superAdminMenu} enableDarkMode>
@@ -556,6 +562,16 @@ export default function ReviewQueue() {
         </div>
       ) : (
         <div className="space-y-4">
+          {!reviewOpen && (
+            <Alert className="border-amber-500/30 bg-amber-500/5">
+              <AlertDescription className="text-amber-700 dark:text-amber-400">
+                View only. You can look through every team, player and document, but approving,
+                rejecting and verifying open once the season moves to the verification stage
+                {seasonStatus ? ` (it is currently "${seasonStatus.replace(/_/g, " ")}")` : ""}.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Barangay picker — pick one to work through just its teams instead
               of scrolling every submitted team in the season. */}
           {barangays.length > 0 && (
@@ -679,9 +695,9 @@ export default function ReviewQueue() {
                           {/* Verify team */}
                           <div className="mt-4 pt-3 border-t flex items-center justify-between">
                             <p className="text-xs text-muted-foreground">
-                              {allEligible ? "All players eligible — ready to verify." : "Resolve all flagged / needs-document players to verify."}
+                              {!reviewOpen ? "Verifying opens at the verification stage." : allEligible ? "All players eligible — ready to verify." : "Resolve all flagged / needs-document players to verify."}
                             </p>
-                            <Button onClick={() => verify(t.teamId)} disabled={busy || !allEligible}>
+                            <Button onClick={() => verify(t.teamId)} disabled={busy || !reviewOpen || !allEligible}>
                               <ShieldCheck /> Verify Team
                             </Button>
                           </div>
@@ -732,6 +748,7 @@ export default function ReviewQueue() {
           player={modalPlayer}
           teamId={openTeam}
           busy={busy}
+          locked={!reviewOpen}
           onClose={() => setModalPlayer(null)}
           onApprove={async (tid, pid) => { await approve(tid, pid); setModalPlayer(null); }}
           onReject={async (tid, pid) => { await reject(tid, pid); setModalPlayer(null); }}

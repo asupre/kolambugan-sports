@@ -109,7 +109,7 @@ const matchSchema = new mongoose.Schema(
         // What the organizer did last, so a mis-tap is one tap to reverse. Only one
     // step deep — this is an undo button, not a history.
     lastAction: {
-      type: { type: String, default: null },        // 'points' | 'foul' | 'rebound' | 'assist'
+      type: { type: String, default: null },        // 'points' (per-player actions were removed Sep 2026)
       side: { type: String, default: null },
       player: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
       amount: { type: Number, default: 0 },

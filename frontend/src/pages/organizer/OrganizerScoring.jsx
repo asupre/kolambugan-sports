@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CalendarClock, Circle, CircleCheck, ListChecks, Play, Radio, TriangleAlert, Undo2, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, Circle, CircleCheck, ClipboardList, ListChecks, Play, Radio, TriangleAlert, Undo2, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -40,7 +40,6 @@ const BRACKET_LABEL = {
   ko_third: "Third place",
 };
 
-const STAT_LABEL = { foul: "Foul", rebound: "Rebound", assist: "Assist" };
 
 const TONE_BADGE = {
   warn: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
@@ -126,59 +125,168 @@ function Crest({ team, size = 40 }) {
   );
 }
 
-// One row per player, with every action on the row itself — no "pick a player
-// first" step. Kept to a SINGLE compact row (jersey chip + name/line + every
-// button) rather than the old stacked card, specifically so all 5 on-court
-// players fit on screen together at courtside without scrolling to reach the
-// last one. Score/stat buttons stay solid and oversized on purpose: these are
-// the actual tap targets, not status indicators — legibility beats restraint.
-function PlayerCard({ player, stat, pointValues, statTypes, busy, onScore, onStat }) {
-  const s = stat || { points: 0, fouls: 0, rebounds: 0, assists: 0 };
-  const line = [
-    `${s.points} pts`,
-    s.rebounds ? `${s.rebounds} reb` : null,
-    s.assists ? `${s.assists} ast` : null,
-    s.fouls ? `${s.fouls} f` : null,
-  ].filter(Boolean).join(" · ");
+// The POST-MATCH score sheet. Live scoring is by team only; a player's stats come from here,
+// entered by the organizer once the game is over. Which columns it has is the Super Admin's
+// choice per sport in League Setup (points, fouls, rebounds, blocks…, or the role played for
+// esports) and arrives as `data.statFields` / `data.roles`. It also picks the MVP. Blank = 0;
+// a player left completely blank is recorded as "didn't play".
+function StatsForm({ data, matchId, onSaved }) {
+  const showError = useErrorDialog();
+  const m = data.match;
+  const fields = data.statFields || [];
+  const roles = data.roles || [];
+
+  const [side, setSide] = useState("A");
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [mvp, setMvp] = useState(m.mvp?._id ? String(m.mvp._id) : "none");
+  const [rows, setRows] = useState(() => {
+    const init = {};
+    [...(data.rosterA || []), ...(data.rosterB || [])].forEach((p) => {
+      const s = data.statByPlayer?.[String(p._id)] || {};
+      init[String(p._id)] = {
+        ...Object.fromEntries(fields.map((f) => [f, s[f] || ""])),
+        role: s.role || "",
+      };
+    });
+    return init;
+  });
+
+  const rosterOf = (s) => [...(s === "A" ? data.rosterA || [] : data.rosterB || [])]
+    .sort((a, b) => (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999));
+  const roster = rosterOf(side);
+  const teamOf = (s) => (s === "A" ? m.teamA : m.teamB);
+  const teamScore = side === "A" ? m.liveScoreA : m.liveScoreB;
+  const enteredPoints = roster.reduce((n, p) => n + (Number(rows[String(p._id)]?.points) || 0), 0);
+  const diff = teamScore - enteredPoints;
+
+  const setField = (id, key, value) => {
+    setSavedAt(null);
+    setRows((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
+  };
+
+  async function save() {
+    setSaving(true);
+    try {
+      const players = Object.entries(rows).map(([playerId, r]) => ({
+        playerId,
+        ...Object.fromEntries(fields.map((f) => [f, r[f] === "" ? 0 : Number(r[f])])),
+        role: r.role || "",
+      }));
+      await api(`/api/organizer/matches/${matchId}/stats`, {
+        method: "PUT",
+        body: JSON.stringify({ players, mvpPlayerId: mvp === "none" ? null : mvp }),
+      });
+      setSavedAt(new Date());
+      await onSaved();
+    } catch (e) { showError(e.message); }
+    finally { setSaving(false); }
+  }
+
+  const everyone = [
+    ...(data.rosterA || []).map((p) => ({ p, team: m.teamA?.teamName })),
+    ...(data.rosterB || []).map((p) => ({ p, team: m.teamB?.teamName })),
+  ];
 
   return (
-    // Below `sm` there isn't room for a jersey chip + name + every button on
-    // one line without either clipping the name or pushing buttons off-screen
-    // (the button group is a fixed-width cluster, not something that can
-    // shrink) — so name goes on its own line there and the button bar goes
-    // full-width underneath. From `sm` up it collapses back to one row.
-    <div className="flex flex-col gap-2 rounded-xl border bg-card px-2.5 py-2 shadow-sm sm:flex-row sm:items-center sm:gap-2.5">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-semibold tabular-nums">
-          {player.jerseyNumber ?? "—"}
-        </div>
-
-        <div className="min-w-0 flex-1 sm:w-28 sm:flex-none">
-          <p className="text-sm font-medium truncate">{player.lastName}</p>
-          <p className="text-[11px] text-muted-foreground truncate tabular-nums">{line}</p>
-        </div>
+    <Card className="gap-0 p-4">
+      <div className="mb-1 flex items-center gap-2">
+        <ClipboardList className="size-4 text-blue-500" />
+        <h2 className="text-sm font-semibold">Player stats</h2>
       </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        {fields.length > 0
+          ? "Enter each player's totals from your scoresheet. Leave a player blank if they didn't play. You can come back and change these later."
+          : "Pick the role each player played. Leave a player as \"No role\" if they didn't play."}
+      </p>
 
-      <div className="flex items-center gap-1.5 sm:ml-auto sm:shrink-0">
-        {pointValues.map((v) => (
-          <button key={v} onClick={() => onScore(player._id, v)} disabled={busy}
-            className="h-11 flex-1 rounded-lg bg-green-600 px-2.5 text-[15px] font-bold text-white transition active:scale-95 hover:bg-green-700 disabled:opacity-40 disabled:active:scale-100 sm:flex-none sm:min-w-11">
-            +{v}
+      <div className="mb-3 flex gap-2">
+        {["A", "B"].map((s) => (
+          <button key={s} type="button" onClick={() => setSide(s)}
+            className={cn(
+              "flex-1 truncate rounded-lg px-2 py-2.5 text-sm font-medium transition",
+              side === s ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+            )}>
+            {teamOf(s)?.teamName}
           </button>
         ))}
-
-        {statTypes.length > 0 && (
-          <div className="flex shrink-0 items-center gap-1 border-l pl-1.5 sm:pl-2">
-            {statTypes.map((t) => (
-              <button key={t} onClick={() => onStat(player._id, t)} disabled={busy} title={STAT_LABEL[t] || t}
-                className="h-9 w-9 shrink-0 rounded-lg border text-xs font-semibold text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:opacity-40">
-                {(STAT_LABEL[t] || t)[0]}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
-    </div>
+
+      {fields.includes("points") && (
+        <p className={cn("mb-3 text-xs tabular-nums", diff === 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400")}>
+          Player points {enteredPoints} · team score {teamScore}
+          {diff === 0 ? " — matches" : diff > 0 ? ` — ${diff} short` : ` — ${-diff} over`}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {roster.map((p) => {
+          const r = rows[String(p._id)] || {};
+          return (
+            <div key={p._id} className="rounded-xl border bg-card p-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-semibold tabular-nums">
+                  {p.jerseyNumber ?? "—"}
+                </div>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.lastName}, {p.firstName}</p>
+              </div>
+
+              {fields.length > 0 && (
+                <div className="mt-2 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.min(fields.length, 4)}, minmax(0, 1fr))` }}>
+                  {fields.map((f) => (
+                    <label key={f} className="block">
+                      <span className="mb-0.5 block text-center text-[10px] font-medium tracking-wide text-muted-foreground">{data.statLabels?.[f]?.short || f}</span>
+                      <input
+                        inputMode="numeric" pattern="[0-9]*" value={r[f] ?? ""}
+                        onChange={(e) => setField(String(p._id), f, e.target.value.replace(/\D/g, "").slice(0, 3))}
+                        placeholder="0"
+                        className="h-11 w-full rounded-lg border bg-background text-center text-base font-semibold tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {roles.length > 0 && (
+                <div className="mt-2">
+                  <Select value={r.role || "none"} onValueChange={(v) => setField(String(p._id), "role", v === "none" ? "" : v)}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No role (didn't play)</SelectItem>
+                      {roles.map((role) => <SelectItem key={role} value={role}>{role}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {roster.length === 0 && <p className="text-sm text-muted-foreground">This team has no players on its roster.</p>}
+      </div>
+
+      <div className="mt-4 space-y-1.5">
+        <p className="text-xs font-medium">MVP</p>
+        <Select value={mvp} onValueChange={(v) => { setMvp(v); setSavedAt(null); }}>
+          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No MVP</SelectItem>
+            {everyone.map(({ p, team }) => (
+              <SelectItem key={p._id} value={String(p._id)}>{p.lastName}, {p.firstName} — {team}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <button onClick={save} disabled={saving}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+        {saving ? "Saving…" : "Save player stats"}
+      </button>
+      {savedAt && (
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+          <CircleCheck className="size-3.5" /> Saved
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -188,33 +296,18 @@ function ScoringView({ matchId, onBack }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [ending, setEnding] = useState(false);
-  const [mvp, setMvp] = useState(null);
   // null until the organizer taps a choice; the default comes from the sport's own options
   // (below). It used to default to 1 — which basketball doesn't even offer (only 4) — so an
   // organizer who simply tapped Start began a ONE-quarter game.
   const [periodsChoice, setPeriodsChoice] = useState(null);
-  const [side, setSide] = useState("A");
-  const [onCourt, setOnCourt] = useState({ A: [], B: [] });
-  const [subbing, setSubbing] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
   // True for a few seconds after Start, so the organizer SEES that the match began
-  // (the pre-start card used to just vanish and the player cards appeared).
+  // (the pre-start card used to just vanish and the scoring buttons appeared).
   const [justStarted, setJustStarted] = useState(false);
 
   async function load() {
     try {
-      const d = await api(`/api/organizer/matches/${matchId}`);
-      setData(d);
-      // Default the on-court five to the lowest jersey numbers. It's a display
-      // filter only — nothing about who played is stored.
-      setOnCourt((prev) => {
-        if (prev.A.length || prev.B.length) return prev;
-        const pick = (roster) => [...roster]
-          .sort((a, b) => (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999))
-          .slice(0, d.onCourt || roster.length)
-          .map((p) => String(p._id));
-        return { A: pick(d.rosterA || []), B: pick(d.rosterB || []) };
-      });
+      setData(await api(`/api/organizer/matches/${matchId}`));
     } catch (e) { showError(e.message); }
   }
   useEffect(() => { load(); }, [matchId]);
@@ -279,9 +372,7 @@ function ScoringView({ matchId, onBack }) {
   }
 
   const m = data.match;
-  const mode = data.scoringMode;
-  const finalMode = mode === "final";
-  const rally = mode === "rally";
+  const finalMode = data.scoringMode === "final";
   const live = m.status === "ongoing";
   const finished = m.status === "completed";
   const forfeited = m.status === "forfeited";
@@ -290,42 +381,15 @@ function ScoringView({ matchId, onBack }) {
   const canEnd = finalMode ? !tied : allPeriodsDone;
   const periodOpts = data.periodOptions || [1, 3, 5, 7];
   const periods = periodsChoice ?? (periodOpts.includes(3) ? 3 : periodOpts[0]);
+  const pointValues = data.pointValues || [1];
   const desc = describeMatch(m);
-  const stat = (id) => data.statByPlayer?.[String(id)] || { points: 0, fouls: 0, rebounds: 0, assists: 0 };
-
-  const roster = side === "A" ? (data.rosterA || []) : (data.rosterB || []);
-  const courtIds = onCourt[side] || [];
-  const limit = data.onCourt || roster.length;
-  const court = roster.filter((p) => courtIds.includes(String(p._id)));
-  const bench = roster.filter((p) => !courtIds.includes(String(p._id)));
-  const teamName = side === "A" ? m.teamA?.teamName : m.teamB?.teamName;
-
-  function toggleCourtFor(sideKey, id) {
-    setOnCourt((prev) => {
-      const cur = prev[sideKey] || [];
-      if (cur.includes(id)) return { ...prev, [sideKey]: cur.filter((x) => x !== id) };
-      if (cur.length >= (data.onCourt || Infinity)) return prev;
-      return { ...prev, [sideKey]: [...cur, id] };
-    });
-  }
-  const toggleCourt = (id) => toggleCourtFor(side, id);
-  // Team sports with more players than fit on court get a pre-start lineup step.
-  const hasLineup = !finalMode && !!data.onCourt &&
-    ((data.rosterA || []).length > data.onCourt || (data.rosterB || []).length > data.onCourt);
   const periodWord = (data.periodLabel || "period");
   const when = [m.schedule ? dateOf(m.schedule) : null, timeOf(m.schedule), m.venue].filter(Boolean).join(" · ");
-
-  const allPlayers = [
-    ...(data.rosterA || []).map((p) => ({ ...p, side: "A" })),
-    ...(data.rosterB || []).map((p) => ({ ...p, side: "B" })),
-  ];
-  const topScorer = allPlayers
-    .map((p) => ({ p, pts: stat(p._id).points }))
-    .sort((x, y) => y.pts - x.pts)[0];
+  // Sports with a post-match form: a box score (points…) and/or roles for esports.
+  const hasStatsForm = (data.statFields?.length || 0) > 0 || (data.roles?.length || 0) > 0;
 
   async function openEnd() {
     if (finalMode && (m.games?.length || 0) < (m.bestOf || 1)) await call("end-period");
-    setMvp(topScorer?.pts > 0 ? String(topScorer.p._id) : null);
     setEnding(true);
   }
 
@@ -401,8 +465,8 @@ function ScoringView({ matchId, onBack }) {
         <ArrowLeft className="size-3.5" /> All matches
       </button>
 
-      {/* Phones: the scoreboard panel is BELOW the player list (~660px down), so mid-game
-          the score and Undo were out of sight. This slim bar sticks to the top while live. */}
+      {/* Phones: the scoreboard panel is BELOW the scoring buttons, so mid-game the running
+          score and Undo were out of sight. This slim bar sticks to the top while live. */}
       {live && (
         <div className="sticky top-0 z-20 -mx-4 mb-3 border-b bg-background/95 px-4 py-2 backdrop-blur lg:hidden">
           <div className="flex items-center gap-3">
@@ -467,7 +531,19 @@ function ScoringView({ matchId, onBack }) {
             <span className="font-medium">Match started.</span>{" "}
             {finalMode
               ? "Tap the winner of each game as it finishes."
-              : `${periodWord.replace(/^./, (c) => c.toUpperCase())} 1 of ${m.bestOf || 1}. Tap a player's +1 / +2 / +3 to score; Undo is at the top.`}
+              : `${periodWord.replace(/^./, (c) => c.toUpperCase())} 1 of ${m.bestOf || 1}. Tap the team that scored; Undo is at the top.`}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {finished && hasStatsForm && (
+        <Alert className="mb-4 border-blue-500/30 bg-blue-500/5">
+          <ClipboardList className="text-blue-600 dark:text-blue-400" />
+          <AlertDescription className="text-foreground">
+            <span className="font-medium">Match finished.</span>{" "}
+            {(data.statFields?.length || 0) > 0
+              ? "Fill in the player stats below from your scoresheet."
+              : "Pick the role each player played below."}
           </AlertDescription>
         </Alert>
       )}
@@ -485,7 +561,7 @@ function ScoringView({ matchId, onBack }) {
                 All of them are played, and the winner is the higher total score.
               </p>
               <div className="grid grid-cols-4 gap-2 mb-4">
-                {(data.periodOptions || [1, 3, 5, 7]).map((n) => (
+                {periodOpts.map((n) => (
                   <button key={n} type="button" onClick={() => setPeriodsChoice(n)}
                     className={cn(
                       "py-3 rounded-lg text-lg font-semibold transition",
@@ -496,44 +572,6 @@ function ScoringView({ matchId, onBack }) {
                 ))}
               </div>
             </>
-          )}
-          {hasLineup && (
-            <details open className="mb-4 rounded-lg border p-3">
-              <summary className="cursor-pointer select-none text-sm font-medium">Starting lineup</summary>
-              <p className="mb-3 mt-1 text-xs text-muted-foreground">
-                Pre-set to the lowest jersey numbers. Tap to change who starts — you can still
-                substitute during the game. This only changes which player cards are shown; it
-                isn't recorded.
-              </p>
-              {["A", "B"].map((sk) => {
-                const list = sk === "A" ? (data.rosterA || []) : (data.rosterB || []);
-                const ids = onCourt[sk] || [];
-                return (
-                  <div key={sk} className="mb-3 last:mb-0">
-                    <p className="mb-1.5 text-xs font-medium">
-                      {sk === "A" ? m.teamA?.teamName : m.teamB?.teamName}{" "}
-                      <span className={cn("font-normal", ids.length === data.onCourt ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400")}>
-                        · {ids.length} of {data.onCourt} on court
-                      </span>
-                    </p>
-                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                      {list.map((p) => {
-                        const on = ids.includes(String(p._id));
-                        return (
-                          <button key={p._id} type="button" onClick={() => toggleCourtFor(sk, String(p._id))}
-                            className={cn(
-                              "truncate rounded-lg px-2 py-2 text-left text-xs transition",
-                              on ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                            )}>
-                            <span className="mr-1 opacity-70">{p.jerseyNumber ?? "—"}</span>{p.lastName}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </details>
           )}
 
           <button onClick={() => call("start", { periods: finalMode ? 1 : periods })} disabled={busy}
@@ -581,105 +619,48 @@ function ScoringView({ matchId, onBack }) {
 
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 min-w-0">
-          {finalMode ? (
-            live && (
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => call("score", { side: "A", points: 1 })} disabled={busy}
-                  className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
-                  {m.teamA?.teamName} won a game
-                </button>
-                <button onClick={() => call("score", { side: "B", points: 1 })} disabled={busy}
-                  className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
-                  {m.teamB?.teamName} won a game
-                </button>
-              </div>
-            )
+          {live && (finalMode ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => call("score", { side: "A", points: 1 })} disabled={busy}
+                className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
+                {m.teamA?.teamName} won a game
+              </button>
+              <button onClick={() => call("score", { side: "B", points: 1 })} disabled={busy}
+                className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
+                {m.teamB?.teamName} won a game
+              </button>
+            </div>
           ) : (
-            <>
-              <div className="flex gap-2 mb-3">
-                {["A", "B"].map((s) => (
-                  <button key={s} onClick={() => setSide(s)}
-                    className={cn(
-                      "flex-1 py-2.5 rounded-lg text-sm font-medium transition",
-                      side === s ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                    )}>
-                    {s === "A" ? m.teamA?.teamName : m.teamB?.teamName}
-                  </button>
-                ))}
-              </div>
-
-              {live && (
-                <>
-                  <div className="flex items-baseline justify-between mb-1.5">
-                    <p className="text-muted-foreground text-xs font-medium">On court · {court.length} of {limit}</p>
-                    <button onClick={() => setSubbing(!subbing)}
-                      className="text-xs font-medium px-2.5 py-1 rounded-lg border text-muted-foreground hover:bg-accent">
-                      {subbing ? "Done" : "Substitute"}
-                    </button>
-                  </div>
-
-                  {subbing ? (
-                    <Card className="p-3 mb-3 gap-0">
-                      <p className="text-muted-foreground text-xs mb-2">
-                        Tap to move a player on or off court. This only changes which cards are
-                        shown — it isn't recorded.
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                        {roster.map((p) => {
-                          const on = courtIds.includes(String(p._id));
-                          return (
-                            <button key={p._id} onClick={() => toggleCourt(String(p._id))}
-                              className={cn(
-                                "px-2 py-1.5 rounded-lg text-xs text-left truncate transition",
-                                on ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                              )}>
-                              <span className="opacity-70 mr-1">{p.jerseyNumber ?? "—"}</span>
-                              {p.lastName}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </Card>
-                  ) : (
-                    <>
-                      <div className="grid gap-2">
-                        {court.map((p) => (
-                          <PlayerCard
-                            key={p._id}
-                            player={p}
-                            stat={stat(p._id)}
-                            pointValues={data.pointValues || [1]}
-                            statTypes={data.statTypes || []}
-                            busy={busy}
-                            onScore={(id, v) => call("score", { side, points: v, playerId: id })}
-                            onStat={(id, t) => call("stat", { playerId: id, type: t })}
-                          />
-                        ))}
-                        {court.length === 0 && (
-                          <p className="text-muted-foreground text-sm">Nobody on court — tap Substitute.</p>
-                        )}
-                      </div>
-
-                      {rally && (
-                        <button onClick={() => call("score", { side, points: 1 })} disabled={busy}
-                          className="w-full mt-2 py-3 rounded-xl border border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/10 text-sm font-medium hover:bg-green-500/15 disabled:opacity-40">
-                          +1 {teamName} — opponent error
+            // Team scoring: one card per team, with a big button per point value. Nothing here
+            // is credited to a player — that is the post-match form's job.
+            <div className="grid gap-3">
+              {["A", "B"].map((s) => {
+                const t = s === "A" ? m.teamA : m.teamB;
+                const score = s === "A" ? m.liveScoreA : m.liveScoreB;
+                return (
+                  <Card key={s} className="gap-3 p-4">
+                    <div className="flex items-center gap-2.5">
+                      <Crest team={t} size={36} />
+                      <p className="min-w-0 flex-1 truncate font-semibold">{t?.teamName}</p>
+                      <span className="text-2xl font-semibold tabular-nums">{score}</span>
+                    </div>
+                    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${pointValues.length}, minmax(0, 1fr))` }}>
+                      {pointValues.map((v) => (
+                        <button key={v} onClick={() => call("score", { side: s, points: v })} disabled={busy}
+                          className="h-16 rounded-xl bg-green-600 text-xl font-bold text-white transition active:scale-95 hover:bg-green-700 disabled:opacity-40 disabled:active:scale-100">
+                          +{v}
                         </button>
-                      )}
+                      ))}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ))}
 
-                      {bench.length > 0 && (
-                        <p className="text-muted-foreground text-xs mt-3">
-                          Bench: {bench.map((p) => p.lastName).join(" · ")}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </>
-          )}
+          {finished && hasStatsForm && <StatsForm data={data} matchId={matchId} onSaved={load} />}
 
-          {tied && (m.games?.length || 0) >= (m.bestOf || 1) && !finalMode && (
+          {live && !finalMode && tied && (m.games?.length || 0) >= (m.bestOf || 1) && (
             <p className="text-amber-600 dark:text-amber-400 text-sm text-center mt-3">
               Scores are level — play a deciding {data.periodLabel || "period"}.
             </p>
@@ -695,32 +676,15 @@ function ScoringView({ matchId, onBack }) {
             <DialogTitle>End match</DialogTitle>
             <DialogDescription>
               Final score {m.liveScoreA}–{m.liveScoreB}. The winner advances automatically.
+              {hasStatsForm ? " You'll enter the player stats next." : ""}
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-1.5">
-            <Label>MVP</Label>
-            <Select value={mvp || "none"} onValueChange={(v) => setMvp(v === "none" ? null : v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No MVP</SelectItem>
-                {allPlayers.map((p) => (
-                  <SelectItem key={p._id} value={p._id}>
-                    {p.lastName}, {p.firstName} ({stat(p._id).points} pts)
-                    {topScorer?.p._id === p._id ? " — top scorer" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           <DialogFooter>
             <button onClick={() => setEnding(false)}
               className="flex-1 py-2.5 rounded-lg border text-muted-foreground text-sm">Cancel</button>
             <button
-              onClick={async () => { await call("end", mvp ? { mvpPlayerId: mvp } : {}); setEnding(false); }}
+              onClick={async () => { await call("end", {}); setEnding(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               disabled={busy}
               className="flex-1 py-2.5 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
               {busy ? "Ending…" : "Confirm"}
@@ -770,7 +734,7 @@ export default function OrganizerScoring() {
 
   if (loading) {
     return (
-      <AdminLayout title="Matches" menu={organizerMenu} enableDarkMode animateTheme={false} seasonStrip={false}>
+      <AdminLayout title="Matches" menu={organizerMenu} enableDarkMode seasonStrip={false}>
         <ListSkeleton />
       </AdminLayout>
     );
@@ -809,6 +773,8 @@ export default function OrganizerScoring() {
   );
 
   if (openId) {
+    // Instant theme swap here only: a View Transition freezes input ~0.75s and would
+    // swallow score taps mid-match. The match list and dashboard animate normally.
     return (
       <AdminLayout title={feed.sport} menu={organizerMenu} enableDarkMode animateTheme={false} seasonStrip={false}>
         <ScoringView matchId={openId} onBack={() => { setOpenId(null); load(); }} />
@@ -897,7 +863,7 @@ export default function OrganizerScoring() {
   };
 
   return (
-    <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode animateTheme={false} seasonStrip={false}>
+    <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode seasonStrip={false}>
       <div className="space-y-6">
         {error && (
           <Alert variant="destructive">

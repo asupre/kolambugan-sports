@@ -16,6 +16,25 @@ const router = express.Router();
 // Everything here is Super Admin only.
 router.use(authenticate, authorize('super_admin'));
 
+// The queue can be READ at any time, but a verdict (approve / reject / verify) is only
+// allowed once the season reaches the verification stage — until then rosters are still
+// being built and the reference list may still change (Super Admin decision, Sep 2026).
+// "Reopen" has its own, stricter check below.
+async function requireVerificationStage(req, res, next) {
+  try {
+    const season = await getCurrentSeason();
+    if (!season || season.status !== 'verification') {
+      return res.status(409).json({
+        message: `The Review Queue is read-only until the season reaches the verification stage. It is currently "${season ? season.status : 'not set up'}".`,
+      });
+    }
+    next();
+  } catch (err) {
+    console.error('Verification-stage gate error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+}
+
 // GET /api/review/queue — submitted teams awaiting review, with a status tally
 // each, PLUS a per-barangay breakdown across all 26 barangays (so the Super
 // Admin can pick a barangay to work through instead of scrolling every team
@@ -187,7 +206,7 @@ router.get('/teams/:teamId', async (req, res) => {
 // POST /api/review/teams/:teamId/players/:playerId/approve — mark a player eligible.
 // Their pending documents are approved in the same action (the Super Admin has
 // reviewed the person; the documents were the evidence).
-router.post('/teams/:teamId/players/:playerId/approve', async (req, res) => {
+router.post('/teams/:teamId/players/:playerId/approve', requireVerificationStage, async (req, res) => {
   try {
     const link = await TeamPlayer.findOne({ team: req.params.teamId, player: req.params.playerId });
     if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
@@ -250,7 +269,7 @@ router.post('/teams/:teamId/players/:playerId/approve', async (req, res) => {
 // POST /api/review/teams/:teamId/players/:playerId/reject
 // Removes the player and EVERYTHING attached (documents + their GridFS files,
 // photo file), then reopens the roster so the Barangay Admin can replace them.
-router.post('/teams/:teamId/players/:playerId/reject', async (req, res) => {
+router.post('/teams/:teamId/players/:playerId/reject', requireVerificationStage, async (req, res) => {
   try {
     const team = await Team.findById(req.params.teamId);
     if (!team) return res.status(404).json({ message: 'Team not found.' });
@@ -287,7 +306,7 @@ router.post('/teams/:teamId/players/:playerId/reject', async (req, res) => {
 });
 
 // POST /api/review/teams/:teamId/verify — finalize a team once everyone is eligible.
-router.post('/teams/:teamId/verify', async (req, res) => {
+router.post('/teams/:teamId/verify', requireVerificationStage, async (req, res) => {
   try {
     const team = await Team.findById(req.params.teamId);
     if (!team) return res.status(404).json({ message: 'Team not found.' });

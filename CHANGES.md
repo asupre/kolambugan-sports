@@ -2799,3 +2799,52 @@ Found by rendering the organizer screens at 390px against a mock API.
   as "no time", and BrgyMatches and the PUBLIC Matches page use it instead of their own copy;
   the organizer's `timeOf` got the same fix.
 - Not changed: scoring rules, the backend organizer routes, undo semantics.
+
+
+## 2026-09 — Session: Top 8 = one team per barangay (ML), Standings advance count, League Setup trimmed
+
+- League Setup: the "scoring & draw rules" panel now shows only the fields that apply to the
+  sport. "Games won" scoring (chess, billiards, Mobile Legends) hides point values, period name
+  and counts, players on court and stats; groups and knockout size show only for a round-robin
+  draw. Hidden fields keep their saved value. The server sends `defaultScoringMode` with each
+  sport so a blank "Scoring" resolves to the right layout. The built-in rule tables moved from
+  `routes/organizer.js` into `lib/sportRules.js` (shared with `reference.js`).
+- Mobile Legends: generating a Top 8 knockout is refused (409) if a barangay has two verified
+  teams (remove the extra, or pick Top 16). Registration is not capped by the knockout size.
+- Public Standings: round-robin caption and provisional highlight now use the tournament's
+  real advancePerGroup (Top 8 = 1) instead of a hardcoded 2.
+- Review Queue: viewable at any season stage, but approve / reject / verify now work only in the
+  `verification` stage (server: 409 via `requireVerificationStage` in `routes/review.js`; page:
+  "View only" notice, disabled Approve/Reject/Verify, note in the player dialog). Reopen was
+  already `verification`-only. Deviation from "review is not tied to the season stage".
+- Scoring redesign (Sep 2026, Super Admin request). Live scoring is by TEAM only: +1/+2/+3 for a
+  team in basketball, +1 elsewhere; the per-player buttons, on-court lineup / substitute UI,
+  starting-lineup step, live foul/rebound/assist buttons and the MVP pick at End match are gone
+  (`/stat` and `/mvp-suggestion` routes removed; `/score` and `/undo` are team-only). A
+  **Player stats form** appears once a match is completed (`PUT /api/organizer/matches/:id/stats`):
+  basketball = points, assists, fouls, rebounds; volleyball / badminton / pickleball = points;
+  billiards / chess = none; esports = a ROLE per player (Mobile Legends: Carry, Fighter, Mage,
+  Jungler, Support; Call of Duty Mobile: Slayer, Objective, Anchor, Support, Flex; other esports:
+  Carry, Tank, Support, Flex). The form also picks the MVP. `PlayerMatchStats` gained `role`
+  (needs a full server restart). League Setup's rules panel is down to point values, period
+  name and period counts (points sports only). Rule tables live in `backend/src/lib/sportRules.js`.
+  Also fixed: the organizer routes only populated the sport's `name`, so saved point values and
+  period settings were never applied. First-login organizer instructions rewritten to match.
+- League Setup: "Show scoring rules" now appears on EVERY sport and starts with a read-only summary
+  of how that sport is scored (live scoring, periods, the after-match player form). The editable
+  fields (point values, period name, period counts) still show only for points sports.
+- League Setup: the editable scoring fields (point values, period name, period counts) were
+  removed. "Show scoring rules" is now a read-only text summary on every sport.
+- League Setup (Sep 2026): each sport now has a **Type** (Sport / Esports / Board game — new
+  `Sport.category` value `board`) and an **After-match score sheet** the Super Admin picks
+  (`Sport.scoreSheet`): e.g. basketball = points, fouls, rebounds, blocks, assists; esports =
+  kills, deaths, assists, role. The organizer's post-match form shows exactly those columns.
+  Columns beyond the original four (points / assists / rebounds / fouls) are stored under
+  `PlayerMatchStats.extra` and are not shown on the public pages yet. New "Rules by type" card
+  at the top of League Setup. The fixed per-sport lists in `lib/sportRules.js` are now only the
+  defaults used until a sheet is picked.
+- League Setup (Sep 2026, later): scoring rules are editable again — point values, period name and
+  period counts on each points-scoring sport's card and on "Add a sport" (validated on the server;
+  blank = built-in default) — because a newly added game otherwise had no way to set them. And the
+  Super Admin can add their OWN score sheet columns per sport ("Spikes" for volleyball…); the server
+  derives a safe key, ticks it on the sheet, and its values are stored under `PlayerMatchStats.extra`.

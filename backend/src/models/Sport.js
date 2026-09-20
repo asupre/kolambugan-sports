@@ -14,7 +14,7 @@ const sportSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['physical', 'esports'],   // physical = the 6 court sports; esports = ML
+      enum: ['physical', 'esports', 'board'],   // physical = a sport; esports; board = a board game (chess)
       required: true,
     },
     tournamentFormat: {
@@ -72,6 +72,15 @@ const sportSchema = new mongoose.Schema(
     statTypes: {
       type: [String],
       enum: ['foul', 'rebound', 'assist'],
+      default: undefined,
+    },
+    // The after-match score sheet: which stat columns the organizer fills in per player
+    // (keys from lib/sportRules.js STAT_CATALOG). Absent = the built-in default for the sport;
+    // an empty array = no player form at all.
+    scoreSheet: { type: [String], default: undefined },
+    // Columns the Super Admin added themselves (e.g. "Spikes"). See lib/sportRules.js.
+    customStats: {
+      type: [new mongoose.Schema({ key: { type: String, required: true }, label: { type: String, required: true } }, { _id: false })],
       default: undefined,
     },
     // How many players are on court at once, so the scoring screen shows only

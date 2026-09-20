@@ -42,6 +42,9 @@ export default function Standings() {
   const groups = Object.keys(standings).sort();
   const current = tournaments.find((t) => t.id === tid);
   const isRoundRobin = (data?.matches || []).some((m) => m.group && m.bracket === "group");
+  // How many teams each round-robin group sends through (Top 8 → 1, Top 16 → 2). Comes
+  // from the tournament, not a constant — a hardcoded 2 was wrong for a Top 8 knockout.
+  const advance = data?.tournament?.advancePerGroup || 2;
 
   return (
     <>
@@ -74,7 +77,9 @@ export default function Standings() {
         <>
           <p className="text-slate-500 text-[12px] mb-4">
             {isRoundRobin
-              ? "The top two of each group advance to the knockout round."
+              ? advance === 1
+                ? "The winner of each group advances to the knockout round."
+                : `The top ${advance} of each group advance to the knockout round.`
               : "Two teams advance from each group — the winner of the upper bracket and the winner of the lower bracket. Highlighted once decided."}
           </p>
 
@@ -110,7 +115,7 @@ export default function Standings() {
                                         const seed = seedOf(r.teamId);
                     const isThrough = clear.has(r.teamId);
                     const isContested = contested.has(r.teamId);
-                    const marked = seed != null || isThrough || (provisional && i < 2);
+                    const marked = seed != null || isThrough || (provisional && i < (isRoundRobin ? advance : 2));
                     return (
                       <div
                         key={r.teamId}

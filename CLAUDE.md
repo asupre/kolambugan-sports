@@ -370,7 +370,11 @@ TWO formats, both ending in a single-elimination knockout.
   Final = BO5; earlier rounds = BO3; 3rd place = BO3 (the two SF losers).
   `numRounds = log2(N)`; wires `nextMatchWin` so winners advance and SF losers
   route to the 3rd-place match.
-- ML is OPEN division (mixed gender); a barangay MAY field 2 teams.
+- ML is OPEN division (mixed gender); a barangay MAY field 2 teams. **Top 8 needs one
+  team per barangay:** the Super Admin picks the knockout size at generate time (after
+  registration), and `POST /generate` refuses Top 8 (409, Sep 2026) if a barangay has two
+  verified teams — remove the extra, or pick Top 16. Registration itself is NOT capped by
+  the knockout size (a first attempt read it from League Setup; removed with that panel).
 
 ### ML group-stage tiebreakers — DONE (per-group single-elimination)
 - A cutoff tie = teams sharing the same (wins, gameWinDiff) that spans a
@@ -464,7 +468,53 @@ drawn.
   holds only that period's own points, so the periods sum to the final score
   (a scoresheet, not a running scoreboard).
 - Per-sport period options: Basketball [4]; Volleyball/Badminton/Pickleball
-  [1,3,5]. Per-sport point values: Basketball [1,2,3]; the rally sports [1].
+  [1,3,5]. Per-sport point values: Basketball [1,2,3]; every other sport [1].
+- **SCORING IS BY TEAM; PLAYER STATS COME AFTER THE MATCH (Sep 2026 — replaces the per-player
+  live scoring, the on-court lineup / substitute UI and live foul/rebound/assist buttons).**
+  While a game runs the organizer only taps the team that scored (+1/+2/+3 in basketball, +1
+  elsewhere; Mobile Legends, Chess and Billiards keep "X won a game"). When the match is
+  `completed` a **Player stats** form appears on the same screen (`StatsForm` in
+  `OrganizerScoring.jsx`, saved with `PUT /api/organizer/matches/:id/stats`): one card per
+  rostered player, both teams, filled in from the organizer's scoresheet. It also picks the MVP
+  (no longer chosen at End match). Re-openable and re-saveable any time by that sport's organizer.
+  **Which columns the sheet has is the Super Admin's choice per sport** (League Setup → each sport's
+  "After-match score sheet", stored as `Sport.scoreSheet`; absent = the built-in default, empty =
+  no player form). The catalog and defaults are in `backend/src/lib/sportRules.js`
+  (`STAT_CATALOG`, `SHEET_BY_CATEGORY`, `DEFAULT_SHEET`): a **Sport** can tick points, assists,
+  rebounds, fouls, blocks, steals, turnovers, aces, digs; **Esports** kills, deaths, assists and
+  **role**; a **Board game** points. Defaults: Basketball = points, assists, fouls, rebounds;
+  Volleyball / Badminton / Pickleball = points; Mobile Legends = role; Chess / Billiards = none.
+  The `role` column is a pick-list — Mobile Legends: Carry (Gold Lane), Fighter (EXP Lane), Mage
+  (Mid Lane), Jungler, Support (Roamer); Call of Duty Mobile: Slayer, Objective (OBJ), Anchor,
+  Support, Flex; any other esport: Carry, Tank, Support, Flex. A player row left blank = "didn't
+  play" and is stored as NO record. The screen shows player points vs the team score
+  ("3 short" / "matches") but never blocks the save. Storage: points / assists / rebounds / fouls
+  are real `PlayerMatchStats` columns (the public pages sum only those four); every other column
+  goes under `PlayerMatchStats.extra` (not shown publicly yet). A new catalog column = one
+  `STAT_CATALOG` entry plus its `SHEET_BY_CATEGORY` type(s); no schema change.
+- **Sport TYPE (Sep 2026):** `Sport.category` ∈ physical (a sport) / esports / **board** (a board
+  game), set per sport in League Setup. Decides the live scoring default (sport = points; esports
+  and board = games won) and which sheet columns are on offer. Existing Chess / Billiards stay
+  `physical` in the database until the Super Admin changes their type; their built-in scoring
+  mode is games-won either way. League Setup also shows a read-only "Rules by type" card.
+- **League Setup scoring rules (Sep 2026):** for a sport that scores by points, each card has a
+  "Scoring rules" section — **point values** (one tap button each, e.g. 1, 2, 3), **period name**
+  and **period counts allowed** — pre-filled with what is in effect (the built-in values for a seeded
+  sport), and the same three fields on "Add a sport" (physical type only; an esport or board game
+  is scored by games won and has none). Validated in `scoringFromBody()` (`routes/reference.js`):
+  whole numbers 1–20, period counts only from 1, 2, 3, 4, 5, 7 (the start route accepts nothing
+  else); an empty value = "use the built-in default" ("Use the defaults" button). Everything else
+  (players on court, teams per barangay, groups, knockout size, draw format) is a fixed default;
+  `Sport.scoringMode / statTypes / onCourt` are DEAD (nothing reads them). `loadOwnedMatch` populates
+  the rule fields — before that only `name` was loaded, so saved values were silently ignored by
+  the organizer routes.
+- **Custom score sheet columns (Sep 2026):** the Super Admin can invent a column for one sport —
+  e.g. "Spikes" for volleyball — from "Add your own" under the score sheet picker
+  (`Sport.customStats: [{key, label}]`, max 12, 24 characters). The server derives the key
+  (`x_` + slug, so it can't collide with a built-in column or hold characters Mongo rejects) and ticks
+  the new column on the sheet; removing it unticks it. Values are stored under
+  `PlayerMatchStats.extra` like every non-original column; the header over the input is the first
+  5 letters of the name, upper-cased. Not shown on the public pages.
 - A TIE at the end extends the match by one deciding period rather than
   trapping the organizer — a tie can never be recorded.
 - **Cancel match** resets a started match to `scheduled` and discards the live
@@ -491,7 +541,8 @@ drawn.
 
 **Unavailable team = FORFEIT** (confirmed). No reschedule/re-pair.
 
-**Also recorded per match:** points, fouls, rebounds, assists, MVP
+**Also recorded per match:** each player's points / fouls / rebounds / assists (basketball) or
+role (esports) plus the MVP — entered AFTER the match on the Player stats form
 (PlayerMatchStats).
 
 ---
@@ -536,13 +587,16 @@ Barangay       name, allowsCrossBarangay, logo(GridFS id)
 User           username, passwordHash, role ∈ {super_admin, barangay_admin,
                organizer}, barangay(FK|null), assignedSport(FK|null),
                mustChangePassword
-Sport          name, category ∈ {physical, esports}, tournamentFormat,
-               divisions[], entryFormat, scoringMode, pointValues,
-               periodLabel, periodOptions, statTypes, onCourt,
-               teamsPerBarangay, numGroups, knockoutSize  ← per-sport rules
-               from League Setup; null by default, falls back to the
-               built-in for the seven seeded sports (`isDivided` is DEAD —
-               nothing reads it)
+Sport          name, category ∈ {physical, esports, board}, tournamentFormat,
+               divisions[], entryFormat, pointValues, periodLabel,
+               periodOptions  ← editable scoring rules (League Setup); empty =
+               built-in default (lib/sportRules.js)
+               scoreSheet[]  ← the after-match player form's columns, edited
+               in League Setup; absent = built-in default
+               customStats[{key,label}]  ← columns the Super Admin added
+               (scoringMode, statTypes, onCourt, teamsPerBarangay,
+               numGroups, knockoutSize, `isDivided`: kept on the model, nothing
+               edits them — scoringMode/statTypes/onCourt/isDivided are not read)
 Team           teamName, barangay, sport, season, status ∈ {pending, verified,
                rejected}, submittedAt, division, format
 Player         firstName, middleName, lastName, birthdate, age, photo(GridFS id),
@@ -568,8 +622,10 @@ Match          tournament, bracket ∈ {winners, losers, final, group, third,
                startedAt, mvp(FK Player), enteredBy, enteredAt,
                lastAction{type, side, player, amount, label}  ← one step of
                undo history, names what it reverses
-PlayerMatchStats  match, player, points, fouls, rebounds, assists  ←
-                  unique(match, player); written by the organizer
+PlayerMatchStats  match, player, points, fouls, rebounds, assists, role,
+                  extra{}  ← blocks / steals / kills… (any other sheet column);
+                  unique(match, player); written by the organizer on the
+                  post-match score sheet (role = esports only)
 Champion       season/year, sport, division, teamName, playerName,
                proofPhoto(GridFS id)  ← free text, no FK to Team/Player
                (a past champion may predate the Team/Player records)
@@ -590,9 +646,10 @@ so a bug in one route cannot expose the other.
   payload), an advance dialog listing "what changes" + unfinished items with "Move on
   anyway" (soft, not a block; sends `expectedNext`), and season history from
   `GET /api/seasons`. **What the season stage really controls** (verified in the
-  backend): ONLY registration — create team / add-remove player / CSV import / submit
-  roster need `registration_open` — and "reopen a verified team" needs `verification`.
-  Review, bracket generation and scoring are NOT gated by stage, so nothing stops a
+  backend, updated Sep 2026): registration — create team / add-remove player / CSV import / submit
+  roster need `registration_open` — and the Review Queue verdicts (approve / reject / verify) plus
+  "reopen a verified team" need `verification` (the queue is VIEW-ONLY at every other stage).
+  Bracket generation and scoring are NOT gated by stage, so nothing stops a
   premature advance except that checklist; keep the "what changes" copy to what is
   enforced, and add new readiness rules in `buildReadiness()`.
 - **Super Admin dashboard (Sep 2026, reworked)**: season tracker + a **"Needs your
@@ -966,8 +1023,9 @@ so a bug in one route cannot expose the other.
   all verified (no error, no stuck overlay, `#theme-switch-style` removed).
   Side effect: the hook also writes a global `localStorage.theme` key we
   never read. The old `.theme-transition` colour-fade CSS was removed.
-  **The organizer scoring screen opts OUT (`animateTheme={false}` on its
-  `AdminLayout`s → instant swap).** A View Transition makes the page
+  **The organizer's LIVE scoring view (an open match) opts OUT (`animateTheme={false}` on its
+  `AdminLayout` → instant swap); the organizer match list, its loading skeleton and the
+  Dashboard animate like the other roles (Sep 2026).** A View Transition makes the page
   non-interactive for its ~0.75s: measured mid-match with real mouse taps,
   every score tap landing during the reveal was silently swallowed
   (`::view-transition{pointer-events:none}` did not help), and frames dipped
@@ -1127,17 +1185,17 @@ so a bug in one route cannot expose the other.
   than forcing the screen dark. Big touch targets and tablet/phone-first
   layout are unchanged either way.
 - **Organizer Matches — start moment, live bar, list (Sep 2026)**: a match header (crests,
-  names, division/stage, date/time/venue) shows in every state; team sports get a **Starting
-  lineup** step BEFORE Start (both teams' on-court players, tap to change — display-only,
-  nothing about who played is stored); Start is a big labelled button and, once it succeeds,
+  names, division/stage, date/time/venue) shows in every state (the **Starting lineup** step was
+  removed Sep 2026 with per-player scoring); Start is a big labelled button and, once it succeeds,
   a "Match started" message shows, the page scrolls to the top and the phone buzzes (15ms on
   score/undo). **The period count defaults from the sport's own `periodOptions`** (3 if offered,
   else the first) — it used to default to 1, so basketball (only option: 4) started as a
   ONE-quarter game. While LIVE on a phone a **sticky bar** (score, period, Undo) stays at the
-  top because the scoreboard panel is below the player list (`lg:hidden`; desktop keeps the
+  top because the scoreboard panel is below the scoring buttons (`lg:hidden`; desktop keeps the
   side panel). The list has To play / Completed tabs, a division filter, an Overdue section and
   stacked team names. If you touch this screen, re-render it at 390px — that's how these were found.
-- **Player rows redesigned for courtside speed** (Sep 2026): each on-court
+- **(REMOVED Sep 2026 — live scoring is now by team; see "SCORING IS BY TEAM" above. Kept as
+  history.) Player rows redesigned for courtside speed** (Sep 2026): each on-court
   player used to be a 3-line stacked card (a header row, then a full-width
   row of point buttons, then a full-width row of stat buttons) — about
   125px tall, so 5 players (~660px) ran past the fold before every score
@@ -1420,13 +1478,15 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 
 **Organizer live scoring (routes/organizer.js + pages/organizer/OrganizerScoring.jsx)**
 - Match feed scoped to the organizer's `assignedSport` (shows not-yet-ready
-  matches greyed out), Today section, start with period count, per-player
-  scoring (basketball 1/2/3, badminton/pickleball +1) or side scoring
-  (volleyball), fouls with undo, per-team undo, per-period banking, MVP
-  (defaults to top scorer), end match → bracket advancement, cancel/reset.
-- Writes PlayerMatchStats (points + fouls) — the model that had sat unused.
-- Tested: basketball (player mode), volleyball (side mode), badminton,
-  pickleball. Advancement verified — winner up, loser into the losers bracket.
+  matches greyed out), Today section, start with period count, **team scoring**
+  (Sep 2026: +1/+2/+3 for basketball, +1 elsewhere; "X won a game" for chess,
+  billiards and esports), undo, per-period banking, end match → bracket
+  advancement, cancel/reset — then a **post-match score sheet** (player stats + MVP).
+  See "SCORING IS BY TEAM" under Tournament format.
+- Writes PlayerMatchStats (Sep 2026: from the post-match score sheet, no longer live per-player taps).
+- Tested: advancement verified — winner up, loser into the losers bracket. The
+  Sep 2026 team-scoring / score-sheet routes were tested against stubbed models
+  (25 checks), not yet through the browser against the live database.
 
 **Scheduling**
 - `PATCH /api/tournaments/matches/:matchId/schedule` (date + venue),
@@ -1503,8 +1563,8 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   previously copy-pasted into every page).
 - **First-login instruction modal** (`components/InstructionModal.jsx` +
   `lib/instructionContent.js`) — role-specific step-through content (7 steps
-  for Super Admin, 4 for Barangay Admin, 5 for Organizer, including a
-  Substitute step) shown automatically once, right after a forced password
+  for Super Admin, 4 for Barangay Admin, 5 for Organizer — the last two are
+  "End the match" and "Fill in the player stats") shown automatically once, right after a forced password
   change (`ChangePassword.jsx`) — `mustChangePassword` only ever fires once
   per account, so this needed no new backend field to key off. Also
   reopenable any time from a "?" button in `AdminLayout`'s header, shared by

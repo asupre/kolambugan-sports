@@ -10,10 +10,22 @@ const { putFile, sendFile, deleteFile } = require('../config/gridfs');
 const Tournament = require('../models/Tournament');
 const User = require('../models/User');
 const { rescreenSeason } = require('../services/prescreen');
+const { rulesFor, sheetOptionsFor, STAT_CATALOG } = require('../lib/sportRules');
+
+// League Setup needs to know a sport's BUILT-IN scoring mode: which fields matter (point
+// buttons, periods, stats…) depends on it, and a blank "Scoring" means "use the default".
+const withDefaults = (s) => ({
+  ...s.toObject(),
+  defaultScoringMode: rulesFor(s).scoringMode,
+  rules: rulesFor(s),
+  // The score-sheet picker: what this sport's type can offer, and whether the sheet is the built-in one.
+  sheetOptions: sheetOptionsFor(s),
+  sheetIsDefault: !Array.isArray(s.scoreSheet),
+});
 
 router.get('/sports', async (req, res) => {
   const sports = await Sport.find().sort({ name: 1 });
-  res.json({ sports });
+  res.json({ sports: sports.map(withDefaults) });
 });
 
 // PATCH /api/sports/divisions — super admin; set which sports run boys/girls brackets.
@@ -89,7 +101,7 @@ router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async
     sport.entryFormat = entryFormat;
     await sport.save();
 
-    res.json({ message: `${sport.name} updated.`, sport });
+    res.json({ message: `${sport.name} updated.`, sport: withDefaults(sport) });
   } catch (err) {
     console.error('Sport config error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -221,6 +233,54 @@ router.patch('/barangays/:id/cross', authenticate, authorize('super_admin'), asy
 // without a developer. Deletion is guarded: a sport with history stays, or its
 // matches, teams and champions would be orphaned.
 
+// A sport's editable scoring rules: what one tap can add, what a period is called and how many
+// periods may be chosen. Validated here because the organizer routes trust them: the start route
+// only accepts 1, 2, 3, 4, 5 or 7 periods, and a bad point value would let a score be recorded that
+// the buttons can never produce. An empty list / blank name means "use the built-in default".
+const ALLOWED_PERIODS = [1, 2, 3, 4, 5, 7];
+function scoringFromBody(body) {
+  const out = {};
+  if (body.pointValues !== undefined) {
+    if (!Array.isArray(body.pointValues)) return { error: 'Point values must be a list.' };
+    const v = body.pointValues.map(Number);
+    if (v.some((n) => !Number.isInteger(n) || n < 1 || n > 20)) {
+      return { error: 'Point values must be whole numbers from 1 to 20.' };
+    }
+    out.pointValues = [...new Set(v)].sort((a, b) => a - b);
+  }
+  if (body.periodOptions !== undefined) {
+    if (!Array.isArray(body.periodOptions)) return { error: 'Period counts must be a list.' };
+    const v = body.periodOptions.map(Number);
+    if (v.some((n) => !ALLOWED_PERIODS.includes(n))) {
+      return { error: 'Period counts can only be 1, 2, 3, 4, 5 or 7.' };
+    }
+    out.periodOptions = [...new Set(v)].sort((a, b) => a - b);
+  }
+  if (body.periodLabel !== undefined) {
+    out.periodLabel = String(body.periodLabel || '').trim().slice(0, 20) || null;
+  }
+  return { values: out };
+}
+
+// The Super Admin's own score sheet columns. The client sends the labels; the server derives a safe key
+// ("x_" + slug) so it can't collide with a built-in column or contain characters Mongo rejects.
+function customStatsFromBody(list) {
+  if (!Array.isArray(list)) return { error: 'Custom columns must be a list.' };
+  if (list.length > 12) return { error: 'A sport can have at most 12 custom columns.' };
+  const out = [];
+  const seen = new Set();
+  for (const item of list) {
+    const label = String(typeof item === 'string' ? item : item?.label || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+    if (!label) continue;
+    const key = 'x_' + label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 20);
+    if (key === 'x_') return { error: `"${label}" needs at least one letter or number.` };
+    if (seen.has(key)) return { error: `"${label}" is already a column.` };
+    seen.add(key);
+    out.push({ key, label });
+  }
+  return { values: out };
+}
+
 router.post('/sports', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const name = String(req.body.name || '').trim();
@@ -228,14 +288,17 @@ router.post('/sports', authenticate, authorize('super_admin'), async (req, res) 
     if (await Sport.findOne({ name })) {
       return res.status(409).json({ message: `"${name}" already exists.` });
     }
-    const category = req.body.category === 'esports' ? 'esports' : 'physical';
+    const category = ['esports', 'board'].includes(req.body.category) ? req.body.category : 'physical';
     const tournamentFormat = req.body.tournamentFormat === 'round_robin'
       ? 'round_robin' : 'double_elimination';
 
-    const sport = await Sport.create({ name, category, tournamentFormat });
+    const scoring = scoringFromBody(req.body);
+    if (scoring.error) return res.status(400).json({ message: scoring.error });
+
+    const sport = await Sport.create({ name, category, tournamentFormat, ...scoring.values });
     res.status(201).json({
       message: `${name} added. Provision accounts to create its organizer login.`,
-      sport,
+      sport: withDefaults(sport),
     });
   } catch (err) {
     console.error('Add sport error:', err);
@@ -255,11 +318,50 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
       if (clash) return res.status(409).json({ message: `"${name}" already exists.` });
       sport.name = name;
     }
-    if (req.body.category) sport.category = req.body.category;
+    if (req.body.category) {
+      if (!['physical', 'esports', 'board'].includes(req.body.category)) {
+        return res.status(400).json({ message: 'Type must be sports, esports or a board game.' });
+      }
+      sport.category = req.body.category;
+    }
+    // Custom columns: the client sends the full list of labels. A newly added column is ticked on
+    // the sheet automatically (that's why you added it); a removed one is unticked.
+    if (req.body.customStats !== undefined) {
+      const cs = customStatsFromBody(req.body.customStats);
+      if (cs.error) return res.status(400).json({ message: cs.error });
+      const before = rulesFor(sport).sheet;
+      const oldKeys = (sport.customStats || []).map((c) => c.key);
+      const newKeys = cs.values.map((c) => c.key);
+      const added = newKeys.filter((k) => !oldKeys.includes(k));
+      const removed = oldKeys.filter((k) => !newKeys.includes(k));
+      sport.customStats = cs.values;
+      if (added.length || removed.length) {
+        const base = Array.isArray(sport.scoreSheet) ? [...sport.scoreSheet] : [...before];
+        sport.scoreSheet = [...base.filter((k) => !removed.includes(k)), ...added];
+      }
+    }
+    // The after-match score sheet. null = back to the built-in default; an array = the pick
+    // (empty = no player form). Unknown columns are refused rather than silently dropped.
+    if (req.body.scoreSheet !== undefined) {
+      if (req.body.scoreSheet === null) {
+        sport.scoreSheet = undefined;
+      } else if (Array.isArray(req.body.scoreSheet)) {
+        const custom = (sport.customStats || []).map((c) => c.key);
+        const bad = req.body.scoreSheet.filter((k) => !STAT_CATALOG[k] && !custom.includes(k));
+        if (bad.length) return res.status(400).json({ message: `Unknown score sheet column: ${bad.join(', ')}.` });
+        sport.scoreSheet = [...new Set(req.body.scoreSheet)];
+      } else {
+        return res.status(400).json({ message: 'scoreSheet must be a list.' });
+      }
+    }
     if (req.body.tournamentFormat) sport.tournamentFormat = req.body.tournamentFormat;
 
+    const scoring = scoringFromBody(req.body);
+    if (scoring.error) return res.status(400).json({ message: scoring.error });
+    Object.assign(sport, scoring.values);
+
     // Per-sport rules. An empty value means "fall back to the default".
-    ['scoringMode', 'periodLabel'].forEach((k) => {
+    ['scoringMode'].forEach((k) => {
       if (req.body[k] !== undefined) sport[k] = req.body[k] || null;
     });
     ['onCourt', 'teamsPerBarangay', 'numGroups', 'knockoutSize'].forEach((k) => {
@@ -267,12 +369,12 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
         sport[k] = req.body[k] === null || req.body[k] === '' ? null : Number(req.body[k]);
       }
     });
-    ['pointValues', 'periodOptions', 'statTypes'].forEach((k) => {
+    ['statTypes'].forEach((k) => {
       if (Array.isArray(req.body[k])) sport[k] = req.body[k];
     });
 
     await sport.save();
-    res.json({ message: `${sport.name} updated.`, sport });
+    res.json({ message: `${sport.name} updated.`, sport: withDefaults(sport) });
   } catch (err) {
     console.error('Update sport error:', err);
     res.status(400).json({ message: err.message || 'Could not update the sport.' });

@@ -24,6 +24,7 @@ function flattenItems(menu) {
 // the circular reveal. Used by the organizer scoring screen: a View Transition
 // makes the page non-interactive for its ~0.75s, so a score tap landing during
 // the reveal is silently swallowed (measured Sep 2026) — unacceptable mid-match.
+// Only the live scoring view (an open match) sets it; the organizer's match list animates.
 // `seasonStrip` — the slim season bar under the header on phones. The header pill
 // (desktop) costs no space, but the strip does, so the courtside scoring screen turns it off.
 export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true, seasonStrip = true }) {

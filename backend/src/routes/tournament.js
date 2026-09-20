@@ -3,6 +3,7 @@ const Tournament = require('../models/Tournament');
 const Match = require('../models/Match');
 const Team = require('../models/Team');
 const Sport = require('../models/Sport');
+const Barangay = require('../models/Barangay');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 const { parseManila } = require('../config/time');
@@ -297,6 +298,21 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
     const knockoutSize = parseInt(req.body.knockoutSize, 10) || sport.knockoutSize || 8;
     if (![8, 16, 32].includes(knockoutSize)) {
       return res.status(400).json({ message: 'Knockout size must be 8, 16, or 32.' });
+    }
+    // Top 8 = one team per barangay (see the cap in POST /api/teams). A barangay that
+    // already has two verified teams — registered while the cap was looser — must be
+    // resolved first, or pick Top 16.
+    if (knockoutSize === 8) {
+      const perBarangay = {};
+      teams.forEach((t) => { const k = String(t.barangay); perBarangay[k] = (perBarangay[k] || 0) + 1; });
+      const doubled = Object.entries(perBarangay).filter(([, n]) => n > 1).map(([k]) => k);
+      if (doubled.length) {
+        const names = (await Barangay.find({ _id: { $in: doubled } }).select('name')).map((b) => b.name).sort();
+        return res.status(409).json({
+          message: `A Top 8 knockout allows one team per barangay, but ${names.join(', ')} ` +
+            `${names.length === 1 ? 'has' : 'have'} more than one verified team. Remove the extra team(s), or choose Top 16.`,
+        });
+      }
     }
     // Need at least as many verified teams as the knockout size.
     if (teams.length < knockoutSize) {

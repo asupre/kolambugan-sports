@@ -5,7 +5,8 @@ import { divisionLabel } from "./dashboardFormat";
 // IMPORTANT — what the season stage really controls (checked against the backend,
 // Sep 2026): only REGISTRATION is gated by stage (create a team, add / remove a
 // player, import a roster, submit a roster: `registration_open` only), plus
-// "reopen a verified team" (`verification` only). The Review Queue, bracket
+// "reopen a verified team" and the Review Queue verdicts — approve / reject / verify —
+// (`verification` only; the queue can still be VIEWED at any stage). Bracket
 // generation and scoring are NOT tied to the stage at all. So nothing stops a
 // premature advance — the checklist below is the Super Admin's only safety net,
 // and the CONSEQUENCES text must stay limited to what is actually enforced.

@@ -307,7 +307,7 @@ export default function Season() {
               <CardHeader>
                 <CardTitle>Ready to move on?</CardTitle>
                 <CardDescription>
-                  Moving on can't be undone. Only registration is tied to the season stage — review,
+                  Moving on can't be undone. Registration and the Review Queue verdicts are tied to the season stage —
                   brackets and scoring aren't — so nothing else will stop a premature move. This checklist is the safety net.
                 </CardDescription>
               </CardHeader>

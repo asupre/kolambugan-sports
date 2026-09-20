@@ -11,7 +11,7 @@ position in `src/lib/instructionContent.js`, starting at 1):
 1 Welcome · 2 Team Registration · 3 Document Submission · 4 Submit & track
 
 **Organizer** (5): `organizer-1.png` … `organizer-5.png`
-1 Welcome · 2 Match list · 3 Start & score · 4 Substitute · 5 End match
+1 Welcome · 2 Match list · 3 Start & score · 4 End the match · 5 Player stats form
 
 A missing file just shows the step's icon instead. Use a wide (16:9-ish)
 capture; users can click a screenshot to enlarge it.

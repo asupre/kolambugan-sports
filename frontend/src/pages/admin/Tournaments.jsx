@@ -1362,6 +1362,7 @@ export default function Tournaments() {
                       <p className="text-muted-foreground text-xs">
                         The system creates 8 groups and funnels down to the Top {knockoutSize}.
                         Needs at least {knockoutSize} verified teams.
+                        {Number(knockoutSize) === 8 && " Top 8 needs one team per barangay."}
                       </p>
                     </div>
                   )}

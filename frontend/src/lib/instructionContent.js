@@ -14,7 +14,7 @@
 
 import {
   Building2, CalendarRange, ClipboardList, Flag, KeyRound,
-  LayoutDashboard, ListChecks, Play, Radio, Repeat,
+  LayoutDashboard, ListChecks, Play, Radio,
   Send, Settings2, Trophy, UserCheck, UserPlus,
 } from "lucide-react";
 
@@ -110,20 +110,20 @@ const RAW_STEPS = {
     {
       title: "Start & score",
       description:
-        "Pick how many periods you're playing, tap Start, then tap a player's score buttons as points happen. Everything updates live on the public site as you go.",
+        "Pick how many periods you're playing, tap Start, then tap the team that scored (+1, +2 or +3 in basketball). Scoring is by team — you don't pick players while the game runs. Everything updates live on the public site as you go.",
       icon: Play,
-    },
-    {
-      title: "Substitute",
-      description:
-        "Tap Substitute to change who's shown on court. It's just a display filter — swap freely to match who's actually playing; nothing about who's in or out is recorded.",
-      icon: Repeat,
     },
     {
       title: "End the match",
       description:
-        "Once every period is in, End match locks the score, lets you name the MVP, and advances the winner automatically — you never pick who moves on, the score decides it.",
+        "Once every period is in, End match locks the score and advances the winner automatically — you never pick who moves on, the score decides it.",
       icon: Flag,
+    },
+    {
+      title: "Fill in the player stats",
+      description:
+        "After the match, a score sheet lists every player. Fill in the columns the Super Admin set up for your sport (for example points, fouls, rebounds, blocks and assists in basketball; the role each player played, and kills / deaths / assists, in esports). Leave a player blank if they didn't play, choose the MVP and Save — you can come back and correct it later.",
+      icon: ClipboardList,
     },
   ],
 };

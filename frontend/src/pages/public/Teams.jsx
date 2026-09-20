@@ -78,7 +78,10 @@ function TeamGroupPanel({ sportName, division, list }) {
     >
       <div
         ref={dragRef}
-        className="overflow-x-auto cursor-grab snap-x snap-mandatory px-5 py-5"
+        // overflow-y-hidden: with only overflow-x set, CSS turns overflow-y into
+        // "auto" too, so the reveal's 24px downward offset (more than the 20px of
+        // bottom padding) made a vertical scrollbar appear inside the section.
+        className="overflow-x-auto overflow-y-hidden cursor-grab snap-x snap-mandatory px-5 py-5"
       >
         <RevealGroup className="flex gap-3">
           {list.map((t) => <TeamCard key={t.id} t={t} />)}
@@ -129,7 +132,11 @@ export default function Teams() {
     <>
       <h1 className="text-slate-100 text-2xl font-semibold tracking-tight mb-1">Teams</h1>
       <p className="text-slate-500 text-sm mb-4">
-        {loading ? "\u00A0" : `${teams.length} verified ${teams.length === 1 ? "team" : "teams"} this season`}
+        {loading
+          ? "\u00A0"
+          : needle
+          ? `${visible.length} of ${teams.length} ${teams.length === 1 ? "team" : "teams"} match "${q.trim()}"`
+          : `${teams.length} verified ${teams.length === 1 ? "team" : "teams"} this season`}
       </p>
 
       <SportTabs sports={sports} value={sport} onChange={setSport} />

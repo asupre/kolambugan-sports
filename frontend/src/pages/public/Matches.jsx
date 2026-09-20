@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { Crest, Panel, PanelSkeleton, SportTabs, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
+import { hasTime } from "../../lib/dashboardFormat";
 
 // Quarters in basketball, sets in the rally sports. "P1" is internal shorthand;
 // nobody watching says "period one".
@@ -21,12 +22,8 @@ const dateKey = (d) =>
     timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric",
   });
 
-// A date-only schedule is stored as midnight UTC, which renders as 8:00 AM in
-// Manila — a time nobody set. Only show a time when one was actually chosen.
-const hasTime = (d) => {
-  const x = new Date(d);
-  return !(x.getUTCHours() === 0 && x.getUTCMinutes() === 0 && x.getUTCSeconds() === 0);
-};
+// Only show a time when one was actually chosen (see hasTime: date-only schedules are
+// midnight Manila/UTC and must not render as a made-up "12:00 AM").
 
 const timeOf = (d) =>
   d && hasTime(d)

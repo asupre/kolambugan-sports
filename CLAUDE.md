@@ -115,7 +115,19 @@ score tallying, no public visibility, records lost every season.
   max 3 MB. The standard is enforced by UI guidance + Super Admin review, not
   automatically. Address and birthdate remain PRIVATE — never on public routes.
 - One athlete may join **multiple sports** in a season (schedule permitting)
-  → players↔teams is many-to-many (TeamPlayer).
+  → players↔teams is many-to-many (TeamPlayer). **But only for ONE barangay**
+  (Super Admin rule, Sep 2026): once an athlete is on barangay A's roster this
+  season, no OTHER barangay may roster them — even one that allows
+  cross-barangay. E.g. Matampay (cross-barangay on) fields a Mukas resident:
+  that resident can play for Matampay in as many sports/esports as they like,
+  but never for Mukas or any other barangay. `otherBarangayHolder()` in
+  `routes/team.js` enforces it on add (409), CSV import (row skipped and
+  reported) and "Correct this player" (a rename into someone already on another
+  barangay). Identity = name + birthdate (case/whitespace-tolerant, same as
+  `playerKey()`), because each team gets its OWN Player record — nothing else
+  links two records of the same person. Scoped to the current season; a player
+  freed by a reject/delete/reopened team can be rostered elsewhere. Checked
+  against the dev data: 181 players, none already on two barangays.
 - There is a **registration deadline**; teams cannot freely add players
   mid-tournament (exact deadline handling still open).
 
@@ -287,6 +299,28 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   other people sharing a last name. Typing in the search box leaves that mode.
   The link also scrolls the PAGE to the results, then the table to the match
   (through the virtualizer's `scrollToIndex`).
+  **Games column data**: every match entry (matched, near-miss, under-15 hint)
+  carries `sport`, `division` and `barangay` of the team, and the page shows
+  "plays for <barangay>" plus "Games: Basketball (Under 15), Chess" so the Super
+  Admin sees what a resident plays and for whom. Matches are grouped BY BARANGAY:
+  the same person on several teams for one barangay is normal; a row turns amber
+  ("On N barangays' rosters") only when more than one barangay rosters them —
+  which the rule above now prevents, so it only appears for legacy data.
+  **Responsive (Sep 2026)**: `md+` is the table in a scroll box; below `md` each
+  resident is a CARD that scrolls with the PAGE (`useWindowVirtualizer`) — a small
+  inner scroll box on a phone traps the finger (the "drag table" problem) and seven
+  columns don't fit. One layout is mounted at a time (`useMediaQuery`); both share
+  `analyzeRow()`/`MatchInfo`, so change those, not two copies. **Verify layout
+  by rendering, not by building**: headless Edge driven over the DevTools protocol
+  (Node 25 has a global `WebSocket`) with `Emulation.setDeviceMetricsOverride`
+  works at any width — unlike `--window-size`, it isn't clamped near 500px — and a
+  small mock API can stand in for the backend, so no real login is needed. Git Bash
+  rewrites a leading `/path` argument into a Windows path; set `MSYS_NO_PATHCONV=1`.
+  **Near misses**: a flagged adult who shares a NAME with a row (but not middle
+  initial/birthdate) makes that row orange, "Same name, details differ", listing
+  which fields disagree (roster vs list) — `nearMisses` on `GET
+  /api/reference-list`. Super Admin only, on purpose: it reveals the list's real
+  birthdate, so it must NEVER go into `flagReason` (Barangay Admins see that).
 - **Reference List page — informational highlight for under-15 same-name
   rows** (Sep 2026): `decideFromCandidates` deliberately never matches a
   player under 15 to a reference row (the list starts at 15), so a minor's
@@ -447,6 +481,11 @@ drawn.
   organizer must never be blocked from recording a game being played in front
   of them. A match with NO date is always startable (which also keeps the
   September evaluation usable).
+- **A date picked without a time is "no time set"** — stored as midnight MANILA
+  (`parseManila`) or, in older data, midnight UTC. `hasTime()` in `lib/dashboardFormat.js`
+  treats BOTH as no time; the time helpers only knew midnight UTC, so every date-only match
+  (public Matches, Barangay Matches, Organizer) showed a made-up "12:00 AM". Use `hasTime`,
+  don't re-derive it.
 - Day comparisons run in Asia/Manila time via `config/time.js` (fixed —
   Render's server-local time is UTC, 8h behind Kolambugan).
 
@@ -546,6 +585,38 @@ so a bug in one route cannot expose the other.
 
 ## Accounts & authentication (BUILT)
 
+- **Season page (Sep 2026, reworked)**: header + stepper, a **"Ready to move on?"**
+  checklist for the specific next step (`lib/seasonReadiness.js`, fed by the dashboard
+  payload), an advance dialog listing "what changes" + unfinished items with "Move on
+  anyway" (soft, not a block; sends `expectedNext`), and season history from
+  `GET /api/seasons`. **What the season stage really controls** (verified in the
+  backend): ONLY registration — create team / add-remove player / CSV import / submit
+  roster need `registration_open` — and "reopen a verified team" needs `verification`.
+  Review, bracket generation and scoring are NOT gated by stage, so nothing stops a
+  premature advance except that checklist; keep the "what changes" copy to what is
+  enforced, and add new readiness rules in `buildReadiness()`.
+- **Super Admin dashboard (Sep 2026, reworked)**: season tracker + a **"Needs your
+  attention"** to-do list built by `buildAttention()` in `AdminDashboard.jsx` (only real
+  items; each links to where it's fixed — add new rules THERE), four moving tiles, a
+  Registration card (team pipeline + barangay participation), a Competition card (per sport
+  and division: verified teams and bracket progress, flagging divisions with verified teams
+  but no bracket), today's games. Data: `GET /api/stats/dashboard` (old fields kept;
+  batched queries — keep it that way). Player figures are roster ENTRIES (what screening
+  works in); barangay "cleared" = a verified team in every sport/division slot.
+- **Barangay Admin + Organizer dashboards and the season indicator (Sep 2026)**:
+  both roles land on a Dashboard tab (`/brgy/dashboard`, `/organizer/dashboard`;
+  `/brgy` is still My Teams and `/organizer` still the scoring screen). Data comes
+  from `GET /api/stats/brgy-dashboard` and `/organizer-dashboard` (batched queries;
+  Manila days for the organizer's schedule buckets: today / overdue / upcoming /
+  awaiting a date / not ready). Barangay player counts are ATHLETES (name + birthdate)
+  counted once by their most advanced team, so verified + under review + drafts =
+  registered. The season stage shows as a header pill (plus a phone-only strip, which
+  the scoring screen disables with `seasonStrip={false}`) and as a five-step tracker
+  with role-specific wording in `SeasonStatus.jsx` — edit `GUIDE` there when a
+  stage's meaning changes. `useSeason`/`SEASON_STAGES` are in `lib/season.js`.
+- **Accounts page (Sep 2026)**: header with counts, "Add account" (a dialog) and
+  "Provision all", search + filter chips (role, "Needs password change"), and rows that
+  are a grid on desktop and a two-line card on a phone — no table that scrolls sideways.
 - **No self-registration anywhere.** All accounts are provisioned.
 - Super Admin **Accounts panel**: lists all accounts by role with their
   password status; "Provision all" fills any missing barangay-admin /
@@ -605,6 +676,12 @@ so a bug in one route cannot expose the other.
   `Reveal` (fade in + up 24px once, `viewport {once:true, margin:"-80px"}`,
   0.5s ease `[0.22,1,0.36,1]`, `delay` in SECONDS, `y` prop), plus
   `RevealGroup`/`RevealItem` (parent `staggerChildren: 0.08`, child variants)
+  — **a RevealItem that mounts after its group has already revealed animates on its
+  own** (`RevealGroup` tells items via context): items only inherit "visible" from the
+  group's ONE-SHOT trigger, so without this a search that removed and re-added cards left
+  them stuck at opacity 0 (Sep 2026 bug; keep it if you touch Reveal.jsx). Any scroll row
+  using them should be `overflow-x-auto overflow-y-hidden`, or the 24px offset makes a
+  vertical scrollbar
   for card grids. **Always plays — it deliberately IGNORES prefers-reduced-motion** (Super Admin decision, Sep 2026: a Windows PC with "Show animations" off saw a static site and assumed it was broken; to restore, wrap the app in `<MotionConfig reducedMotion="user">`). It
   REPLACED the older CSS `Reveal` in `PublicUI.jsx` (and `hooks/useInView.js`,
   deleted). **Rules because the public pages poll for live data:** `once`
@@ -621,6 +698,11 @@ so a bug in one route cannot expose the other.
   `overflow-hidden` wrapper with `-mr-px -mb-px`), not the old
   `gap-px bg-[#1C2430]` trick — with that, unrevealed cards showed as grey
   blocks. No hover animations, no page transitions, no springs.
+- **Hero photo motion (Sep 2026, `components/HeroImage.jsx`)**: the `hero` Site Image
+  fades in + settles once LOADED, drifts slowly (zoom in/out ~44s) and parallaxes on
+  scroll; the headline/copy stay static. Three nested layers, each owning one transform.
+  Drift + parallax honour `prefers-reduced-motion` (the entrance always plays). Keep the
+  parallax layer taller than the section (`-top-[15%] h-[115%]`, slides 13%) or a gap opens.
 - **Sports marquee (Sep 2026, `components/SportsMarquee.jsx`, Home, between
   the Live panel and Today):** one continuous right-to-left strip of sport
   NAMES (Anton, 28px, uppercase, white/70, gold diamond separators, 10%-white
@@ -636,7 +718,10 @@ so a bug in one route cannot expose the other.
   (~34s at 7 sports on a wide screen). Pauses on hover. **Honours
   `prefers-reduced-motion: reduce`** (spec): static centred row, duplicate
   copy + fades hidden — unlike the scroll-reveals, which deliberately ignore
-  it. Edge-to-edge via `w-screen ml-[calc(50%-50vw)]` — the technique banned
+  it. **In that mode the JS must NOT re-measure/repeat the list** (fixed Sep
+  2026: the wrapping static row made "copies needed" drift to reps+1 forever →
+  React #185 → the whole Home page blank for anyone with reduced motion; it
+  now stays at 1 copy, and reps are capped at `MAX_REPS`). Edge-to-edge via `w-screen ml-[calc(50%-50vw)]` — the technique banned
   for the hero (it clipped TEXT on mobile) is acceptable here because this
   only carries a decorative loop and the layout root clips horizontal overflow (`overflow-x-clip`).
 - **Smooth scrolling — Lenis (Sep 2026), PUBLIC layout only.** Initialised in
@@ -860,11 +945,14 @@ so a bug in one route cannot expose the other.
   `document.documentElement`'s `dark` class (not a scoped wrapper div — Radix
   `Dialog`/`Select` portal to `document.body`, outside any local wrapper, so
   a div-scoped approach would leave modals/dropdowns stuck in light mode),
-  added on mount and always removed on unmount. Preference persists in
+  added on mount and always removed on unmount. **The light theme is deliberately soft (Sep 2026)** — a cool-gray page
+  (`--background`), off-white cards (`--card`), never pure white, because the old
+  white-on-white glared: change the tokens in `index.css`, not per-page colors, and put
+  chrome (header, sidebar) on the card tone. Preference persists in
   `localStorage` under `brgy-theme:<userId>` — PER ACCOUNT (Sep 2026), not
   shared: it used to be one `brgy-theme` key for the whole browser, so a
   Super Admin choosing dark made the next Barangay Admin to log in on that
-  browser get dark too. The old shared key is ignored. Defaults to light.
+  browser get dark too. The old shared key is ignored. Defaults to the phone's own setting (light if none), see the note on theme plumbing.
   **Animated toggle (Sep 2026):** the ONE shared `components/ThemeToggle.jsx`
   (rendered by `AdminLayout`, so Super Admin / Barangay Admin / Organizer all
   get it — no per-page copy) uses `useModeAnimation` from
@@ -930,6 +1018,19 @@ so a bug in one route cannot expose the other.
   static labels, NOT collapse toggles — `organizerMenu`/`brgyMenu` stay flat
   arrays; `AdminLayout` renders whichever shape it's given
   (`menu[0].header !== undefined` ⇒ grouped).
+- **Theme plumbing on phones (Sep 2026)**: `index.html` applies the saved theme BEFORE
+  React (no bright first frame) — its logic mirrors `lib/theme.js`, keep them in step;
+  first visit follows `prefers-color-scheme`, a saved choice wins. `color-scheme` is set on
+  `:root`/`.dark` (native controls follow the theme). `lib/themeChrome.js` owns the
+  `theme-color` meta (address-bar colour = the header colour of each theme; change both
+  when the tokens change). The circular reveal only runs on a fine pointer — touch gets an
+  instant swap. **Regex in `index.html`'s script got its backslashes stripped once — it uses
+  no regex on purpose.**
+- **The icon rail is DESKTOP-ONLY in effect (Sep 2026 fix)**: `AdminLayout` keeps the
+  user's choice as `railPref` and only applies it when `min-width: 1024px` matches
+  (`rail = railPref && isDesktop`). Before, collapsing at desktop width then narrowing the
+  window/rotating a tablet opened the phone menu with every label hidden. The phone menu also
+  has an X close button. Never read `railPref` directly for styling.
 - **Whole-sidebar collapse** (Sep 2026): `AdminLayout` has a `rail` boolean,
   toggled by an icon-only button (no visible "Collapse" label, just a
   `title` tooltip) inline in the header row beside "Kolambugan Sports" —
@@ -1025,6 +1126,17 @@ so a bug in one route cannot expose the other.
   the doc always assumed existed (see the Admin pages entry above), rather
   than forcing the screen dark. Big touch targets and tablet/phone-first
   layout are unchanged either way.
+- **Organizer Matches — start moment, live bar, list (Sep 2026)**: a match header (crests,
+  names, division/stage, date/time/venue) shows in every state; team sports get a **Starting
+  lineup** step BEFORE Start (both teams' on-court players, tap to change — display-only,
+  nothing about who played is stored); Start is a big labelled button and, once it succeeds,
+  a "Match started" message shows, the page scrolls to the top and the phone buzzes (15ms on
+  score/undo). **The period count defaults from the sport's own `periodOptions`** (3 if offered,
+  else the first) — it used to default to 1, so basketball (only option: 4) started as a
+  ONE-quarter game. While LIVE on a phone a **sticky bar** (score, period, Undo) stays at the
+  top because the scoreboard panel is below the player list (`lg:hidden`; desktop keeps the
+  side panel). The list has To play / Completed tabs, a division filter, an Overdue section and
+  stacked team names. If you touch this screen, re-render it at 390px — that's how these were found.
 - **Player rows redesigned for courtside speed** (Sep 2026): each on-court
   player used to be a 3-line stacked card (a header row, then a full-width
   row of point buttons, then a full-width row of stat buttons) — about

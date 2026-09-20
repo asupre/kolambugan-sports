@@ -21,6 +21,7 @@ import { api } from "../api";
 const SPEED = 80;          // px per second (7 sports: ~34s per loop on a wide screen, ~17s when one list already fills the screen)
 const MIN_SECONDS = 12;
 const MAX_SECONDS = 180;
+const MAX_REPS = 12;      // upper bound on list copies per half — a backstop, real screens need 1-3
 
 function List({ names, hidden }) {
   return (
@@ -61,14 +62,24 @@ export default function SportsMarquee() {
 
   useLayoutEffect(() => {
     if (!names || names.length === 0) return;
+    // Under prefers-reduced-motion the row is a static, WRAPPING, centred block
+    // (see index.css) — there's no loop to fill, so one copy is all it needs.
+    // Measuring it anyway was an infinite loop: a wrapping row never gets wider
+    // than the container, so "copies needed" kept coming out one higher than
+    // the copies rendered (ceil(W / (W / reps)) drifts to reps + 1 in floating
+    // point), React hit its update-depth limit (#185) and the WHOLE Home page
+    // rendered blank for anyone with reduced motion / "Show animations" off.
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const measure = () => {
       const wrap = wrapRef.current;
       const half = halfRef.current;
       if (!wrap || !half) return;
+      if (reduce) { if (reps !== 1) setReps(1); return; }
       const halfWidth = half.getBoundingClientRect().width;
       const oneList = halfWidth / reps;
       if (!oneList) return;
-      const need = Math.max(1, Math.ceil(wrap.clientWidth / oneList));
+      // Capped as a backstop so a measuring quirk can never become a runaway loop.
+      const need = Math.min(MAX_REPS, Math.max(1, Math.ceil(wrap.clientWidth / oneList)));
       if (need !== reps) { setReps(need); return; }
       setDuration(Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, halfWidth / SPEED)));
     };

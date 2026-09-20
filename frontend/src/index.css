@@ -75,23 +75,27 @@
   decided and out of scope here.
 */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  /* Tell the browser which scheme the page is in, so its OWN UI — scrollbars, date
+     pickers, <select> popups, the on-screen keyboard, autofill — matches. Without
+     this, the `dark` class restyled our pixels but native controls stayed light. */
+  color-scheme: light;
+  --background: oklch(0.94 0.006 270);
+  --foreground: oklch(0.2 0.012 270);
+  --card: oklch(0.978 0.003 270);
+  --card-foreground: oklch(0.2 0.012 270);
+  --popover: oklch(0.978 0.003 270);
+  --popover-foreground: oklch(0.2 0.012 270);
   --primary: oklch(0.53 0.26 285);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.925 0.007 270);
+  --secondary-foreground: oklch(0.24 0.012 270);
+  --muted: oklch(0.925 0.007 270);
+  --muted-foreground: oklch(0.48 0.012 270);
+  --accent: oklch(0.925 0.007 270);
+  --accent-foreground: oklch(0.24 0.012 270);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0.875 0.008 270);
+  --input: oklch(0.86 0.008 270);
   --ring: oklch(0.62 0.22 285);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -99,17 +103,18 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar: oklch(0.968 0.004 270);
+  --sidebar-foreground: oklch(0.2 0.012 270);
   --sidebar-primary: oklch(0.53 0.26 285);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-accent: oklch(0.925 0.007 270);
+  --sidebar-accent-foreground: oklch(0.24 0.012 270);
+  --sidebar-border: oklch(0.875 0.008 270);
   --sidebar-ring: oklch(0.62 0.22 285);
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

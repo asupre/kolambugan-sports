@@ -194,7 +194,7 @@ function EditPlayer({ teamId, barangayName, player, onSaved, onCancel }) {
       </div>
 
       {identityChanged && (
-        <p className="text-amber-700 text-xs mb-2">
+        <p className="text-amber-700 dark:text-amber-400 text-xs mb-2">
           Changing the name or birthdate re-runs the residency check for this player.
         </p>
       )}
@@ -591,7 +591,7 @@ function RosterEditor({ team, sports, onClose }) {
           </Alert>
         )}
         {notice && (
-          <Alert className="border-green-200 bg-green-50 text-green-700 [&_*]:text-green-700">
+          <Alert className="border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400 [&_*]:text-green-700 dark:[&_*]:text-green-400">
             <AlertDescription>{notice}</AlertDescription>
           </Alert>
         )}
@@ -630,40 +630,54 @@ function RosterEditor({ team, sports, onClose }) {
 
                 return (
                   <div key={p._id} className="rounded-lg border px-3 py-2 text-sm">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    {/* Phone-first: avatar, then the name on its own line (it wraps rather
+                        than truncating to "Dela Cruz, Juan Mig…"), with the actions pinned
+                        top-right and the small facts — jersey, age, status, photo — on a
+                        wrapping line underneath. Same markup at every width. */}
+                    <div className="flex items-start gap-3">
                       {p.photo ? (
                         <img src={`/api/teams/players/${p._id}/photo`} alt=""
-                          className="h-9 w-9 rounded-full object-cover bg-muted shrink-0" />
+                          className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
                       ) : (
-                        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
+                        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
                           {p.lastName?.[0]}{p.firstName?.[0]}
                         </div>
                       )}
-                      <label className="text-xs text-primary hover:underline cursor-pointer shrink-0">
-                        {uploadingId === p._id ? "…" : p.photo ? "Change" : "Photo"}
-                        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-                          onChange={(e) => { uploadPhoto(p._id, e.target.files[0]); e.target.value = ""; }} />
-                      </label>
-                      <span className="text-muted-foreground text-xs w-8 shrink-0">{p.jerseyNumber ?? "—"}</span>
-                      <span className="flex-1 min-w-[8rem] truncate">
-                        {p.lastName}, {p.firstName} {p.middleName || ""}
-                      </span>
-                      <span className="text-muted-foreground text-xs shrink-0">{age ?? "—"}</span>
-                      {p.eligibilityStatus && (
-                        <Badge variant="outline" className={cn("whitespace-nowrap", ELIGIBILITY_BADGE[p.eligibilityStatus])}>
-                          {p.eligibilityStatus.replace("_", " ")}
-                        </Badge>
-                      )}
-                      {!verified && (
-                        <Button size="icon-sm" variant="outline" onClick={() => setEditingId(editingId === p._id ? null : p._id)}>
-                          <Pencil />
-                        </Button>
-                      )}
-                      {!locked && (
-                        <Button size="icon-sm" variant="destructive" onClick={() => removePlayer(p._id)}>
-                          <Trash2 />
-                        </Button>
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-medium leading-snug break-words min-w-0">
+                            {p.lastName}, {p.firstName} {p.middleName || ""}
+                          </p>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {!verified && (
+                              <Button size="icon-sm" variant="outline" aria-label="Edit player"
+                                onClick={() => setEditingId(editingId === p._id ? null : p._id)}>
+                                <Pencil />
+                              </Button>
+                            )}
+                            {!locked && (
+                              <Button size="icon-sm" variant="destructive" aria-label="Remove player"
+                                onClick={() => removePlayer(p._id)}>
+                                <Trash2 />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                          <span>#{p.jerseyNumber ?? "—"}</span>
+                          <span>{age ?? "—"} yrs</span>
+                          {p.eligibilityStatus && (
+                            <Badge variant="outline" className={cn("whitespace-nowrap", ELIGIBILITY_BADGE[p.eligibilityStatus])}>
+                              {p.eligibilityStatus.replace("_", " ")}
+                            </Badge>
+                          )}
+                          <label className="text-primary hover:underline cursor-pointer">
+                            {uploadingId === p._id ? "Uploading…" : p.photo ? "Change photo" : "Add photo"}
+                            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                              onChange={(e) => { uploadPhoto(p._id, e.target.files[0]); e.target.value = ""; }} />
+                          </label>
+                        </div>
+                      </div>
                     </div>
 
                     {p.address && (
@@ -760,7 +774,7 @@ function RosterEditor({ team, sports, onClose }) {
                   </div>
 
                   {newAge !== null && newAge < MINOR_AGE && (
-                    <p className="text-amber-700 text-xs mb-2">
+                    <p className="text-amber-700 dark:text-amber-400 text-xs mb-2">
                       Age {newAge} — under {MINOR_AGE}s aren't on the voters' list, so you'll be asked
                       to attach a birth certificate or parental consent once they're added.
                     </p>
@@ -991,36 +1005,43 @@ export default function BrgyDashboard() {
               ) : (
                 <div className="space-y-2">
                   {teams.map((t) => (
-                    <div key={t._id} className="rounded-lg border px-3 py-2.5 flex items-center gap-3 flex-wrap">
+                    <div key={t._id} className="rounded-lg border px-3 py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{t.teamName}</p>
+                        <p className="text-sm font-medium break-words sm:truncate">{t.teamName}</p>
                         <p className="text-xs text-muted-foreground">
                           {t.sport?.name}
                           {t.division && t.division !== "open" ? ` · ${DIVISION_LABEL[t.division] || t.division}` : ""}
                           {" · "}{t.playerCount} player{t.playerCount === 1 ? "" : "s"}
                         </p>
                       </div>
-                      <Badge
-                        className={t.submittedAt
-                          ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                          : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}
-                      >
-                        {t.submittedAt ? "Submitted" : "Draft"}
-                      </Badge>
-                      <Button size="sm" variant="outline" onClick={() => setOpenTeam(t)}>
-                        {t.submittedAt ? "View roster" : "Edit roster"}
-                      </Button>
-                      {t.status !== "verified" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-red-600 hover:text-red-600 dark:text-red-400"
-                          disabled={deletingId === t._id}
-                          onClick={() => deleteTeam(t)}
+                      {/* Below the name on a phone (so the name gets the full row), inline
+                          beside it from sm up. */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          className={t.submittedAt
+                            ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}
                         >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      )}
+                          {t.submittedAt ? "Submitted" : "Draft"}
+                        </Badge>
+                        <div className="flex items-center gap-2 ml-auto sm:ml-0">
+                          <Button size="sm" variant="outline" onClick={() => setOpenTeam(t)}>
+                            {t.submittedAt ? "View roster" : "Edit roster"}
+                          </Button>
+                          {t.status !== "verified" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              aria-label="Delete team"
+                              className="text-red-600 hover:text-red-600 dark:text-red-400"
+                              disabled={deletingId === t._id}
+                              onClick={() => deleteTeam(t)}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

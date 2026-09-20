@@ -5,6 +5,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import { LiveDot } from "../../components/PublicUI";
 import { cn } from "../../lib/utils";
+import { PUBLIC_CHROME, LIGHT_CHROME, setThemeColor } from "../../lib/themeChrome";
 
 const NAV = [
   { to: "/", label: "Home", icon: "home", end: true },
@@ -81,6 +82,15 @@ function useLenis(lenisRef) {
 }
 
 export default function PublicLayout() {
+  // Always dark: native controls (scrollbars, the search field's keyboard) and the
+  // phone's address bar should match, not stay light over a dark page.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.colorScheme = "dark";
+    setThemeColor(PUBLIC_CHROME);
+    return () => { root.style.colorScheme = ""; root.style.backgroundColor = ""; setThemeColor(LIGHT_CHROME); };
+  }, []);
+
   const [meta, setMeta] = useState(null);
   const lenisRef = useRef(null);
   useLenis(lenisRef);

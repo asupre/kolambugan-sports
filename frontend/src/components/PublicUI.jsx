@@ -194,7 +194,7 @@ function loadFocals() {
   return focalPromise;
 }
 
-export function SiteImage({ slot, label, className = "", hideOnFail = false }) {
+export function SiteImage({ slot, label, className = "", hideOnFail = false, onLoad }) {
   const [failed, setFailed] = useState(false);
   const [focal, setFocal] = useState("center");
 
@@ -218,6 +218,7 @@ export function SiteImage({ slot, label, className = "", hideOnFail = false }) {
     <img
       src={siteImageUrl(slot)}
       alt=""
+      onLoad={onLoad}
       onError={() => setFailed(true)}
       style={{ objectPosition: focal }}
       className={`object-cover ${className}`}

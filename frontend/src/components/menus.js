@@ -50,10 +50,12 @@ export const superAdminMenu = [
 ];
 
 export const organizerMenu = [
+  { label: "Dashboard", path: "/organizer/dashboard", icon: "▦" },
   { label: "Matches", path: "/organizer", icon: "⛃" },
 ];
 
 export const brgyMenu = [
+  { label: "Dashboard", path: "/brgy/dashboard", icon: "▦" },
   { label: "My Teams", path: "/brgy", icon: "⛃" },
   { label: "Verification Status", path: "/brgy/documents", icon: "🗎" },
   { label: "Matches", path: "/brgy/matches", icon: "◷" },

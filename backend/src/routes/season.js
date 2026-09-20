@@ -1,5 +1,6 @@
 const express = require('express');
 const Season = require('../models/Season');
+const Team = require('../models/Team');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 
@@ -24,6 +25,31 @@ router.get('/current', async (req, res) => {
     res.json({ season });
   } catch (err) {
     console.error('Get current season error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// GET /api/seasons  — every season, newest first, for the Season page's history.
+// (Registered AFTER '/current' above so that literal path wins.) Team counts come
+// from one grouped query, not one per season.
+router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const [seasons, counts] = await Promise.all([
+      Season.find().sort({ createdAt: -1 }).select('name status openedAt closedAt createdAt').lean(),
+      Team.aggregate([
+        { $group: { _id: '$season', teams: { $sum: 1 }, verified: { $sum: { $cond: [{ $eq: ['$status', 'verified'] }, 1, 0] } } } },
+      ]),
+    ]);
+    const byId = new Map(counts.map((c) => [String(c._id), c]));
+    res.json({
+      seasons: seasons.map((s) => ({
+        ...s,
+        teams: (byId.get(String(s._id)) || {}).teams || 0,
+        verifiedTeams: (byId.get(String(s._id)) || {}).verified || 0,
+      })),
+    });
+  } catch (err) {
+    console.error('List seasons error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

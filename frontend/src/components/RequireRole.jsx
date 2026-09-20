@@ -18,8 +18,8 @@ export default function RequireRole({ roles, children }) {
     // Signed in, wrong role — send them to their own home rather than to login,
     // which would look like their session had failed.
     const home = user.role === "super_admin" ? "/admin"
-      : user.role === "barangay_admin" ? "/brgy"
-      : user.role === "organizer" ? "/organizer"
+      : user.role === "barangay_admin" ? "/brgy/dashboard"
+      : user.role === "organizer" ? "/organizer/dashboard"
       : "/";
     return <Navigate to={home} replace />;
   }

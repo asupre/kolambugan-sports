@@ -8,6 +8,7 @@ import { Badge } from "../../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import { hasTime } from "../../lib/dashboardFormat";
 
 function MatchRowSkeleton() {
   return (
@@ -30,12 +31,8 @@ const DIVISION_LABEL = {
   under15: "Under 15", under30: "Under 30",
 };
 
-// A date-only schedule is stored as midnight UTC, which renders as 8:00 AM in
-// Manila — a time nobody set. Only show a time when one was actually chosen.
-const hasTime = (d) => {
-  const x = new Date(d);
-  return !(x.getUTCHours() === 0 && x.getUTCMinutes() === 0 && x.getUTCSeconds() === 0);
-};
+// Only show a time when one was actually chosen (see hasTime: date-only schedules are
+// midnight Manila/UTC and must not render as a made-up "12:00 AM").
 
 const dateOf = (d) =>
   d ? new Date(d).toLocaleDateString(undefined, {

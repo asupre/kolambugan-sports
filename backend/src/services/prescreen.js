@@ -232,4 +232,9 @@ module.exports = {
   decideFromCandidates,
   norm,
   ageFrom,
+  // Field comparisons, exported so the Reference List page can say WHICH
+  // details of a same-name row disagree with a flagged player.
+  sameDay,
+  sameMiddleInitial,
+  looseRegex,
 };

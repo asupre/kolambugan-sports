@@ -6,6 +6,32 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
     <link rel="apple-touch-icon" href="/favicon-180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <!-- Apply the saved theme BEFORE the app loads. Otherwise a dark-mode user sees a
+         bright light-grey page until React starts and adds the `dark` class. Admin routes
+         only (the public site is always dark). KEEP IN SYNC with src/lib/theme.js
+         (same storage key, same fall-back to the phone's own setting) and the chrome
+         colours in src/lib/themeChrome.js. -->
+    <script>
+      (function () {
+        try {
+          var seg = location.pathname.split('/')[1];
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (seg === 'admin' || seg === 'brgy' || seg === 'organizer') {
+            var u = JSON.parse(localStorage.getItem('user') || 'null');
+            var t = localStorage.getItem('brgy-theme:' + (u && u.id ? u.id : 'anon'));
+            var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (dark) document.documentElement.classList.add('dark');
+            if (m) m.setAttribute('content', dark ? '#171717' : '#f7f8fa');
+          } else if (seg !== 'login' && seg !== 'change-password') {
+            if (m) m.setAttribute('content', '#0A1220');
+            // The public site is always dark: paint it dark from the first frame too.
+            document.documentElement.style.backgroundColor = '#0A1220';
+            document.documentElement.style.colorScheme = 'dark';
+          }
+        } catch (e) {}
+      })();
+    </script>
     <title>Kolambugan Sports — Inter-Barangay League</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Anton&display=swap" rel="stylesheet">

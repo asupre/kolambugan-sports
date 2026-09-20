@@ -2483,3 +2483,319 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
   `crossBarangayBlocked`. The Dayo reason text no longer invites a document upload.
 - Not changed: the Barangay Admin's document upload is still offered for flagged
   players even though it can no longer lead to an approval.
+
+## 2026-09 — Reference List shows WHY a same-name row didn't match
+
+- Case: roster "Balindong 524, Jose D., b. 1976-04-26" vs the list's only "Balindong
+  524, Jose N., b. 1995-01-08 (Sucodan)". The name matches, but middle initial and
+  birthdate don't, so the player is correctly flagged "not on the list" — yet the
+  Reference List page showed that row with no hint why, which looked like a bug.
+- `GET /api/reference-list` now returns `nearMisses` per row: adults flagged
+  `not_on_list` who share the row's name, with `differs.middle` / `differs.birthdate`
+  (roster value vs list value, null when that field agrees). The page highlights
+  such rows orange ("Same name, details differ") and lists which details disagree.
+  `sameDay` / `sameMiddleInitial` are now exported from `services/prescreen.js`.
+- Deliberately Super Admin only (that route is): it puts the list's real
+  birthdate/middle name next to the roster's. It is NOT added to `flagReason`,
+  which a Barangay Admin sees — that would let them read a resident's data off the
+  list or probe it by trial and error.
+
+## 2026-09 — One barangay per player; games shown on the Reference List
+
+- **A player can only play for ONE barangay per season.** Once an athlete is on
+  barangay A's roster, no other barangay can roster them — even one that allows
+  cross-barangay (e.g. Matampay fields a Mukas resident: they can play any number
+  of sports for Matampay, never for Mukas or anyone else). New
+  `otherBarangayHolder()` in `routes/team.js`, matched by name + birthdate
+  (case/whitespace-tolerant). Add player -> 409 naming the barangay/sport; CSV
+  import -> the row is skipped and reported; "Correct this player" -> 409 if a
+  rename would land on someone already on another barangay. Same-barangay
+  multi-sport is unchanged (allowed); the same-sport sibling-team rule (Mukas 1 /
+  Mukas 2) is unchanged. Dev data checked first: no existing player on two
+  barangays. `looseRegex` is now exported from `services/prescreen.js`.
+- **Reference List shows the games.** `GET /api/reference-list` match entries now
+  carry `sport`, `division`, `barangay`; each matched resident shows "plays for
+  <barangay>" and "Games: ...". Matches are grouped by barangay, so a person on
+  several teams for one barangay is no longer shown as a conflict (the amber
+  "multiple players" state now means >1 BARANGAY). Also moved a misplaced
+  comment in that file.
+
+## 2026-09 — Phone layout pass: Barangay Admin rows + Reference List
+
+Found by rendering the pages in headless Edge at 360/390px against a mock API
+(the harness lives outside the repo) instead of guessing from the code.
+
+- **Reference List** (`ReferenceList.jsx`): on a phone it was a seven-column table
+  squeezed to ~40px per column (names cut to "S…", headers overlapping) inside a
+  small scroll box that trapped the finger — dragging the table scrolled the box,
+  not the page (the "drag table" problem). Now `md+` keeps the table; below `md`
+  each resident is a CARD that scrolls with the PAGE (window-virtualized,
+  `useWindowVirtualizer`), so "All" is still fast on ~17k rows and there is no inner
+  scroll box. Both layouts share `analyzeRow()` / `MatchInfo`, so the match, games,
+  near-miss and under-15 blocks can't drift apart; only one layout is mounted at a
+  time (`useMediaQuery`, the other virtualizer is `enabled: false`). Phone paging
+  scrolls the list top into view; typing in search deliberately does NOT. The
+  "View in Reference List" auto-scroll works in both. The long intro text is now
+  two lines plus a "How matching works" disclosure.
+- **Barangay Admin** (`BrgyDashboard.jsx`): "My teams" rows stack on a phone (name
+  gets the full row; status badge + buttons sit below) — at 360px the name was
+  cut to "M…". Roster player rows reworked: name wraps instead of truncating, with
+  edit/remove pinned top-right and jersey, age, status and photo link on a wrapping
+  line beneath. Same markup at every width (checked at 360, 390 and 1100).
+  Barangay Matches and Document Submission were already fine on a phone.
+- **Bug fixed in passing:** `normName` in `ReferenceList.jsx` (added for the
+  exact-name link) had lost a backslash — `/s+/g` instead of `/\s+/g` — so it turned
+  runs of the letter "s" into spaces instead of collapsing whitespace. Equal names
+  still compared equal (both sides got the same treatment) but different names
+  could collide. Fixed.
+- Not changed: lint reports the same 5 errors / 2 warnings on `BrgyDashboard.jsx`
+  as the committed version (pre-existing, e.g. `setState` in effects).
+
+## 2026-09 — Accounts page rework; softer light theme for all admin pages
+
+- **Softer light theme** (`index.css` `:root` tokens; dark mode untouched): the admin
+  light theme was pure white page + pure white cards + near-black text, separated
+  only by thin borders, which glared. Now a soft cool-gray page
+  (`--background` oklch .94), off-white cards/popovers (.978), gentler text
+  (`--foreground` .2) and slightly darker borders/inputs/muted so cards still read as
+  cards. The admin header moved from `bg-background` to `bg-card` so the header and
+  sidebar sit on the card tone and the page reads as the darker layer. Applies to all
+  three roles (they share the tokens); Public is unaffected (it uses explicit colors,
+  not tokens). `ChangePassword.jsx` and the dead `components/ui.jsx` still hardcode
+  white — left alone.
+- **Accounts** (`Accounts.jsx`): on a phone the table was 608px wide on a 390px screen
+  and the Reset password / Delete buttons were off-screen, reachable only by dragging
+  sideways. Now: a header ("35 accounts · 22 still on a temporary password") with
+  "Add account" and "Provision all" buttons; "Add account" moved from a full-width card
+  into a dialog (its error now shows inside the dialog, since a page banner would sit
+  behind the overlay); search (username / barangay / sport) plus filter chips with counts
+  (All, each role, Needs password change); rows are a grid that lines up under a header on
+  desktop and a two-line card on a phone (name + assignment, then status + actions), with
+  Delete as an icon button. Same actions, same API; the password-reveal card is unchanged
+  but wraps on a phone.
+- Checked by rendering at 390 and 1280px (mock API, headless Edge), including search and
+  the Add dialog. Lint: the one remaining error is the `useEffect(() => { load(); }, [])`
+  pattern the file already had.
+
+## 2026-09 — Dashboards for Barangay Admin and Organizer; season indicator
+
+- **New "Dashboard" tab for both roles**, and it's now where they land after login
+  (`/brgy/dashboard`, `/organizer/dashboard`; `Login`, `ChangePassword` and
+  `RequireRole`'s wrong-role redirect all updated). `/brgy` (My Teams) and
+  `/organizer` (scoring) keep their paths.
+- **Season indicator** (`SeasonStatus.jsx`, `lib/season.js`): a coloured pill in the
+  admin header ("● Registration open"), plus a slim bar under the header on phones,
+  for `barangay_admin` and `organizer` on EVERY page (reads the public
+  `GET /api/seasons/current`). The dashboards also show a five-step tracker
+  (Setup → Registration → Verification → Ongoing → Completed) with a plain-language
+  sentence of what the stage means for that role. `AdminLayout` takes
+  `seasonStrip={false}` — the courtside scoring screen uses it, since the strip costs
+  ~36px of a phone's height.
+- **Barangay Admin dashboard** (`BrgyHome.jsx`, `GET /api/stats/brgy-dashboard`):
+  players Registered / Verified / Under review / Drafts, a "needs attention" callout
+  linking to Verification Status, a per-team state list with "N of M sport & division
+  entries verified", and live / upcoming matches with the win-loss record. Players are
+  counted as ATHLETES (name + birthdate), once each, by their most advanced team, so
+  verified + under review + drafts = registered — a person on three teams isn't counted
+  three times. Polls every 30s.
+- **Organizer dashboard** (`OrganizerHome.jsx`, `GET /api/stats/organizer-dashboard`):
+  Today / Live now / Coming up / Completed tiles; "Needs attention" (dated for a past
+  day but never played, and ready matches with no date); Playing now; Today; the
+  dated schedule grouped by Manila day; bracket progress per division; recent results;
+  an empty state that says why there are no matches yet. Buckets use Manila days
+  (server runs UTC). Polls every 30s.
+- Both endpoints are a fixed handful of batched queries (~0.3s on the dev Atlas DB).
+  Checked against the real data (Mukas: 60 players all verified; Matampay: 59 =
+  49 verified + 10 under review, the 10 flagged players) and, since the dev season has no
+  matches yet, against stubbed fixtures for the match bucketing. Layouts verified at
+  390 and 1280px in every season stage.
+- Helpers live in `lib/season.js` and `lib/dashboardFormat.js` (not the component
+  files) so fast refresh keeps working. Not done: the first-login instruction modal
+  doesn't mention the new tab yet.
+
+## 2026-09 — Bug: /teams cards invisible after clearing the search
+
+- **Symptom:** search "Mukas" on `/teams`, clear it, and the other cards in every
+  section that had a Mukas team came back at opacity 0 — rendered, taking up space,
+  clickable, invisible. A vertical scrollbar also appeared inside those sections.
+- **Root cause** (reproduced in headless Edge before changing anything; 6 of 14 cards
+  stuck): `RevealGroup` fires its `whileInView="visible"` once (`once: true`), and
+  `RevealItem` only declares variants, inheriting "visible" from that trigger. A
+  section that still had a match stayed mounted (same `sport||division` key), so its
+  group was already spent; the cards filtered out unmounted, and on clear they
+  remounted as NEW children of a spent group — inheriting `initial="hidden"` with no
+  trigger left to reveal them. The matching card never unmounted, so it stayed
+  visible. Sections with no match at all unmounted whole, so their group fired again
+  and those cards were fine. The same fault affects any RevealGroup whose list is
+  filtered or reordered (Players' card grid too).
+- **Fix** (`Reveal.jsx`): `RevealGroup` records that it has revealed
+  (`onViewportEnter`) and tells its items via context; a `RevealItem` that mounts into
+  an already-revealed group plays its own fade-in (`initial="hidden" animate="visible"`)
+  instead of waiting for a trigger that won't come. First-load staggered reveal is
+  unchanged (verified: switching the sport tab still fades cards in).
+- **Scrollbar:** the carousel row was `overflow-x-auto`, which forces `overflow-y` to
+  `auto`; the reveal's 24px downward offset exceeds the row's 20px bottom padding, so
+  stuck (and mid-animation) cards created 4px of vertical overflow -> a scrollbar. The
+  row is now `overflow-x-auto overflow-y-hidden`. Measured: no vertical scrollbar drawn
+  in any row, mid-fade included.
+- **Counts:** the per-section count already followed the filter (Badminton 3 -> 1 -> 3
+  measured). The page subtitle was season-wide and didn't; while a search is active it
+  now reads `5 of 14 teams match "Mukas"`.
+- Tested: search / clear x4 (incl. a no-match term) -> 14/14 cards visible each time.
+
+## 2026-09 — Hero banner animation; Home blank under reduced motion (existing bug, fixed)
+
+- **Hero photo animated** (`components/HeroImage.jsx`, used by `Home.jsx`; the headline
+  and copy are NOT animated): (1) entrance — fades in and settles from a slight zoom
+  once the image has actually loaded (2.5s fallback so a stalled request can't leave
+  it invisible); always plays, like the scroll-reveals. (2) scroll parallax — the photo
+  travels ~13% slower than the page. (3) slow drift — a gentle zoom in/out, one cycle
+  ~44s. Parallax and drift honour `prefers-reduced-motion`. Transform/opacity only. The
+  parallax layer is 15% taller than the hero and starts 15% above it, so it always
+  covers the section (verified at scroll 0 and 500px); the drift only scales UP so it
+  can't expose an edge. `SiteImage` gained an optional `onLoad` prop.
+- **Bug found while testing this, not caused by it:** with the OS "reduce motion" /
+  "Show animations off" setting the ENTIRE Home page rendered blank (React #185,
+  maximum update depth). Cause: `SportsMarquee` re-measures itself to decide how many
+  copies of the list it needs; under reduced motion the row is a static WRAPPING block
+  (index.css), whose measured width is capped at the container, so `ceil(W / (W /
+  reps))` came out one higher than `reps` (floating point) on every pass — forever.
+  Fixed: under reduced motion it stays at one copy and doesn't measure, and the copy
+  count is capped (`MAX_REPS` = 12) as a backstop. Confirmed by bisection (Home still
+  crashed with the hero removed) and by re-testing both motion settings.
+
+## 2026-09 — Super Admin dashboard rework
+
+- **Before:** seven count tiles (season, teams, players to review, barangays, sports,
+  barangay admins, organizers) and a today's-games carousel. Most numbers never change,
+  and nothing said what to DO.
+- **Now** (`AdminDashboard.jsx`): (1) the season stage tracker with Super-Admin-specific
+  guidance and a "Manage season" button; (2) **Needs your attention** — a prioritised
+  to-do list that only shows real items, each linking to where it's fixed: no season, no
+  reference list, barangays/sports without an account, teams awaiting review, flagged /
+  missing-document players, sport divisions with verified teams but NO BRACKET (verification
+  and ongoing only), matches dated in the past but never played, ready matches with no date,
+  "everything verified — move the season on" (verification, when nothing is pending or
+  draft), and accounts still on a temporary password; an empty list says so; (3) four tiles
+  that actually move: teams verified, players eligible (roster entries), barangays cleared,
+  matches played; (4) **Registration**: the team pipeline (verified / under review / draft)
+  as a stacked bar, barangay participation (cleared / in progress / not started) and who
+  hasn't started; (5) **Competition**: each sport's divisions with verified-team counts and
+  bracket stage + progress, or "No bracket yet"; (6) today's games (carousel kept; two per
+  row); the rarely-changing counts shrink to a footer line. Polls every 30s.
+- **Backend** (`GET /api/stats/dashboard`): backward compatible (old fields unchanged) plus
+  `teamsByState`, `players`, `barangayProgress`, `referenceList`, `sportsProgress`,
+  `matches` and extra `accounts` counts. Two independent query batches merged into one:
+  ~0.42s warm on the dev Atlas DB (Team names for today's games now come from the teams
+  already loaded, not a populate).
+- Verified on the real data (36 teams: 34 verified / 1 review / 1 draft; 172 of 182 roster
+  entries eligible; 2 of 26 barangays cleared; 23 accounts on temporary passwords) and
+  rendered at 390 and 1280px in registration, ongoing and all-clear states.
+- Shared: `SeasonStatus.jsx`'s guidance gained a `super_admin` set; `StatTile` numbers are
+  `text-xl` on phones so "172/182" fits.
+
+## 2026-09 — Bug: phone menu showed only icons
+
+- **Symptom:** opening the admin menu on a phone showed a full-width panel with icons only
+  — no labels, no "Sign out" text — so users couldn't tell where to go.
+- **Cause** (reproduced first): the icon-only "rail" is a DESKTOP collapse (its toggle is
+  `hidden lg:flex`), but `AdminLayout` drew the menu items from the raw `rail` state without
+  checking width. Collapse the sidebar at desktop width, then narrow the window / rotate a
+  tablet / open on a smaller screen, and the phone-style overlay opened at 256px wide with
+  every label hidden.
+- **Fix:** the user's collapse choice is now `railPref`; the effective `rail` is
+  `railPref && isDesktop` (new `lib/useMediaQuery.js`, `min-width: 1024px`), so below `lg`
+  the menu ALWAYS shows labels, and the preference is remembered for when the screen is wide
+  again. Desktop collapse is unchanged (64px rail). Also added an explicit **X close button**
+  to the phone menu (it used to close only by tapping the dimmed page). The Reference List
+  now imports the shared hook instead of its own copy.
+- Verified by re-running the exact reproduction (collapse at 1280 -> 390 -> open menu):
+  Dashboard / My Teams / Verification Status / Matches + Sign out + close button; and at
+  1280 the collapsed rail is still 64px and icon-only.
+
+## 2026-09 — Season page rework
+
+- **Before:** a season name + badge, a row of stage badges, and one "Advance" button with
+  "This cannot be undone." — no readiness information, a confirmation only when leaving
+  Setup, and the backend's stale-screen guard (`expectedNext`) was never sent.
+- **Now** (`Season.jsx`): (1) header with the season name, opened/closed dates and the
+  same stage stepper the dashboards use, with the Super Admin's guidance for the stage;
+  (2) **"Ready to move on?"** — a checklist for the SPECIFIC next step, built from the
+  dashboard payload (`lib/seasonReadiness.js`): Setup -> Registration (reference list
+  loaded, every barangay/sport has an account); Registration -> Verification (barangays
+  that haven't registered, draft rosters); Verification -> Ongoing (teams under review,
+  flagged players, divisions with verified teams but no bracket, undated matches);
+  Ongoing -> Completed (unplayed matches, live matches, unfinished brackets). Each item is
+  green / amber / info with a shortcut to where it's fixed; (3) the advance button opens a
+  dialog listing **what changes** and anything unfinished, with an explicit "Move on
+  anyway" — soft, not a hard block; (4) the advance now sends `expectedNext` so a stale
+  screen (another admin already moved the season) is refused and the message shows in the
+  dialog; (5) **season history** (name, dates, teams / verified, stage) via new
+  `GET /api/seasons` (Super Admin; team counts from one grouped query).
+- **Honest text:** the "what changes" copy only claims what the backend enforces. Checked:
+  the stage gates ONLY registration (create team, add/remove player, import, submit — all
+  `registration_open`) and "reopen a verified team" (`verification`). The Review Queue,
+  bracket generation and scoring are NOT tied to the stage, so the page says so — the
+  checklist is the only safety net against a premature advance.
+- Tested in the browser at 390 and 1280px across Setup / Registration / Verification /
+  Completed, including the advance dialog, a normal advance (lands on the next stage), and
+  the stale-screen guard (second advance refused with the backend's message). The history
+  route was run on the real data (1 season, 36 teams, 34 verified).
+
+## 2026-09 — Dark / light mode on phones
+
+Measured first (headless Edge at 390px, a dark-mode user): at first parse the page was the
+LIGHT theme (class `""`, light-grey body), `color-scheme` was `normal` even in dark mode, and
+there was no `theme-color`. Fixed:
+- **No bright flash:** `index.html` runs a tiny script before the app loads that applies the
+  saved theme (admin routes only). Verified: at DOMContentLoaded a dark user now has
+  `class="dark"`, a dark body and `color-scheme: dark`. The public site (always dark) is
+  painted dark from the first frame too, and the inline style is cleaned up on navigation.
+- **`color-scheme`** is now `light` on `:root` and `dark` on `.dark`, so the browser's OWN UI —
+  scrollbars, date pickers, `<select>` popups, the on-screen keyboard, autofill — matches.
+- **`<meta name="theme-color">`** (new `lib/themeChrome.js`): the phone's address/status bar
+  matches the header — light `#f7f8fa`, dark `#171717`, public `#0A1220` — and updates when the
+  toggle is used.
+- **First visit follows the phone's own setting** (`prefers-color-scheme`) instead of always
+  light; a saved choice always wins. Was: "defaults to light". `index.html` holds a copy of this
+  rule (keep in step with `lib/theme.js`).
+- **Touch screens get an instant theme swap.** The circular reveal is a full-screen View
+  Transition (smooth with a mouse, but it stutters on modest phones and makes the page ignore
+  taps for ~0.75s); it now only plays for `(hover: hover) and (pointer: fine)`. The organizer
+  scoring screen was already opted out.
+- Light-only leftovers fixed in the roster editor (the pale-green "Player updated" notice and two
+  amber notes had no dark variant).
+- Not changed: dark mode's look — checked on the roster dialog and the Super Admin / Organizer
+  dashboards at 390px and it was already fine.
+
+## 2026-09 — Organizer Matches: list, the moment of starting, live scoring; date-only times
+
+Found by rendering the organizer screens at 390px against a mock API.
+- **The start moment** (`OrganizerScoring.jsx`): the pre-start card gave no hint of the matchup
+  (team names only appeared as small tabs). Now a match header shows crests, names,
+  division/stage, date, time and venue in every state; team sports get a **Starting lineup**
+  step (both teams' on-court players, "5 of 5 on court", tap to change) before Start — it used
+  to be possible only after starting; the Start button is big and says what it will do
+  ("Start match · 4 quarters"); after starting, a green "Match started · Quarter 1 of 4"
+  message shows, the page scrolls to the top and the phone vibrates briefly (also 15ms on a
+  score / undo tap; a no-op where unsupported, e.g. iOS Safari).
+- **Bug fixed — a one-quarter basketball game by default:** the period count defaulted to `1`,
+  which basketball doesn't even offer (its only option is 4), so an organizer who just tapped
+  Start began a ONE-quarter match. The default now comes from the sport's own options (3 if
+  offered, else the first).
+- **Live scoring on a phone:** the scoreboard panel sat BELOW the player list (~660px down), so
+  mid-game the score and Undo were out of sight. A slim **sticky bar** (LIVE, score, "Quarter 2
+  of 4", Undo) now stays at the top on phones while a match is live (`lg:hidden`; desktop keeps
+  the side panel). Verified: 0-0 -> 4-0 after two baskets, still pinned after scrolling 650px.
+- **Match list:** To play / Completed tabs (finished matches used to pile up at the bottom), a
+  division filter when there is more than one (basketball runs U15 and U30 side by side — the
+  round counting for "Semifinal" etc. still uses the unfiltered list), an **Overdue** section
+  for matches dated for a past day that never started, today's matches sorted by time with a
+  "Next up" tag, the kick-off time leading the row (it was a tiny line at the bottom), and the
+  two teams STACKED so names aren't cut to "Mukas… vs Bayba…".
+- **Bug fixed — a made-up "12:00 AM":** a date-only schedule is stored as midnight MANILA
+  (`parseManila`; older data: midnight UTC). The time helpers only recognised midnight UTC, so
+  every date-only match showed "12:00 AM". `hasTime` (`lib/dashboardFormat.js`) now treats both
+  as "no time", and BrgyMatches and the PUBLIC Matches page use it instead of their own copy;
+  the organizer's `timeOf` got the same fix.
+- Not changed: scoring rules, the backend organizer routes, undo semantics.

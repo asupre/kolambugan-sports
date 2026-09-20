@@ -1,7 +1,7 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { CheckCircle2, ChevronLeft, ChevronRight, CircleCheck, CircleX, ClipboardList, Search, Sparkles, UploadCloud } from "lucide-react";
+import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
+import { CheckCircle2, ChevronLeft, ChevronRight, CircleCheck, CircleX, ClipboardList, Search, Sparkles, TriangleAlert, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
@@ -12,13 +12,179 @@ import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import { useMediaQuery } from "../../lib/useMediaQuery";
 
 // Infinity = "All": one page, every row. The table is virtualized (see the
 // useVirtualizer call below), so this stays smooth on the full ~17k list.
 const PAGE_SIZES = [25, 50, 100, 200, 500, 1000, Infinity];
 const sizeLabel = (n) => (n === Infinity ? "All" : String(n));
+const DIVISION_TEXT = { boys: "Boys", girls: "Girls", under15: "Under 15", under30: "Under 30" };
+// "Basketball (Under 15)" — "open" divisions add nothing, so they're left off.
+const gameLabel = (g) =>
+  g.sport ? `${g.sport}${g.division && DIVISION_TEXT[g.division] ? ` (${DIVISION_TEXT[g.division]})` : ""}` : null;
+// One line listing the distinct games in `entries` (each is one team the resident is on).
+function GamesLine({ entries }) {
+  const games = [...new Set(entries.map(gameLabel).filter(Boolean))];
+  if (!games.length) return null;
+  return (
+    <p className="text-xs">
+      <span className="text-muted-foreground">Games: </span>
+      <span className="font-medium">{games.join(", ")}</span>
+    </p>
+  );
+}
+// A resident on several teams for ONE barangay is normal (a player may play as
+// many games as they like for the barangay they're on); grouping by barangay
+// lets a row flag only the real conflict — the same person on more than one
+// barangay's roster, which the roster routes now refuse.
+function groupByBarangay(entries) {
+  const groups = new Map();
+  for (const m of entries) {
+    const k = m.barangay || "?";
+    if (!groups.has(k)) groups.set(k, { barangay: m.barangay, entries: [] });
+    groups.get(k).entries.push(m);
+  }
+  return [...groups.values()].map((g) => ({
+    ...g,
+    first: g.entries[0],
+    flagged: g.entries.some((e) => e.status === "flagged"),
+  }));
+}
 // Same tolerance as norm() in the backend's prescreen service.
-const normName = (s) => (s || "").toString().trim().toLowerCase().replace(/s+/g, " ");
+const normName = (s) => (s || "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+
+// Row/card tint per kind of connection to a roster.
+const TONE_ROW = {
+  eligible: "bg-green-500/10 outline outline-1 -outline-offset-1 outline-green-500/40",
+  flagged: "bg-red-500/10 outline outline-1 -outline-offset-1 outline-red-500/40",
+  multi: "bg-amber-500/10 outline outline-1 -outline-offset-1 outline-amber-500/40",
+  minor: "bg-purple-500/10 outline outline-1 -outline-offset-1 outline-purple-500/40",
+  nearmiss: "bg-orange-500/10 outline outline-1 -outline-offset-1 outline-orange-500/40",
+};
+const TONE_CARD = {
+  eligible: "border-green-500/40 bg-green-500/10",
+  flagged: "border-red-500/40 bg-red-500/10",
+  multi: "border-amber-500/40 bg-amber-500/10",
+  minor: "border-purple-500/40 bg-purple-500/10",
+  nearmiss: "border-orange-500/40 bg-orange-500/10",
+};
+
+// `matches` is computed live on every load (see GET /api/reference-list) by
+// re-running the same decision the automated pre-screen uses against every
+// current player — so this lights up for ANY resident who's actually connected
+// to a player right now, search or no search, no matter when that player was
+// originally screened. It's an ARRAY (one entry per team), grouped by barangay
+// so a person on several teams for one barangay isn't shown as a conflict.
+function analyzeRow(r) {
+  const matches = r.matches || [];
+  const matchGroups = groupByBarangay(matches);
+  const minorMatches = r.minorMatches || [];
+  const nearMisses = r.nearMisses || [];
+  const rowTone =
+    matches.length > 0
+      ? matchGroups.length > 1
+        ? "multi"
+        : matchGroups[0].flagged
+        ? "flagged"
+        : "eligible"
+      : minorMatches.length > 0
+      ? "minor"
+      : nearMisses.length > 0
+      ? "nearmiss"
+      : null;
+  return { rowTone, matchGroups, minorMatches, nearMisses };
+}
+
+function MatchInfo({ info }) {
+  const { rowTone, matchGroups, minorMatches, nearMisses } = info;
+  return (
+    <>
+                              {rowTone === "multi" && (
+                                <p className="text-amber-600 dark:text-amber-400 text-[11px] font-medium">
+                                  On {matchGroups.length} barangays' rosters — a player may only play for one
+                                </p>
+                              )}
+                              {matchGroups.map((g, i) => {
+                                const m = g.first;
+                                const isMismatch = g.flagged;
+                                // Not a normal list match — the Super Admin approved this
+                                // under-15 player by hand (document review), so this row was
+                                // just promoted here from the purple informational hint below.
+                                const isApprovedMinor = m.status === "approved_minor";
+                                return (
+                                  <div key={i} className="min-w-0">
+                                    <span className={cn(
+                                      "inline-flex items-center gap-1 text-xs font-medium",
+                                      isMismatch ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                                    )}>
+                                      {isMismatch ? <CircleX className="size-3.5 shrink-0" /> : <CircleCheck className="size-3.5 shrink-0" />}
+                                      {isMismatch ? "Mismatch" : isApprovedMinor ? "Approved · document review" : "Matched"}
+                                    </span>
+                                    <p className="text-muted-foreground text-xs break-words md:truncate">
+                                      {m.playerName}{g.barangay ? ` · plays for ${g.barangay}` : ""}
+                                    </p>
+                                    <GamesLine entries={g.entries} />
+                                  </div>
+                                );
+                              })}
+                              {/* Same name, but the middle initial and/or birthdate disagree,
+                                  so the player was flagged "not on the list". Shows exactly
+                                  which details differ so it doesn't look like a bug. */}
+                              {nearMisses.map((m, i) => (
+                                <div key={`near-${i}`} className="min-w-0">
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400">
+                                    <TriangleAlert className="size-3.5 shrink-0" />
+                                    Same name, details differ
+                                  </span>
+                                  <p className="text-muted-foreground text-xs break-words md:truncate">
+                                    {m.playerName}{m.barangay ? ` · plays for ${m.barangay}` : ""}
+                                  </p>
+                                  <GamesLine entries={[m]} />
+                                  {m.differs.middle && (
+                                    <p className="text-xs">
+                                      <span className="text-muted-foreground">Middle: </span>
+                                      <span className="text-orange-600 dark:text-orange-400 font-medium">{m.differs.middle.roster || "none"}</span>
+                                      <span className="text-muted-foreground"> on roster vs </span>
+                                      <span className="font-medium">{m.differs.middle.list || "none"}</span>
+                                      <span className="text-muted-foreground"> on list</span>
+                                    </p>
+                                  )}
+                                  {m.differs.birthdate && (
+                                    <p className="text-xs">
+                                      <span className="text-muted-foreground">Birthdate: </span>
+                                      <span className="text-orange-600 dark:text-orange-400 font-medium">
+                                        {m.differs.birthdate.roster ? new Date(m.differs.birthdate.roster).toLocaleDateString() : "none"}
+                                      </span>
+                                      <span className="text-muted-foreground"> on roster vs </span>
+                                      <span className="font-medium">
+                                        {m.differs.birthdate.list ? new Date(m.differs.birthdate.list).toLocaleDateString() : "none"}
+                                      </span>
+                                      <span className="text-muted-foreground"> on list</span>
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                              {/* Under 15: never an official match (the voters' list starts
+                                  at 15), so this is shown separately and clearly labeled as
+                                  a hint, not a verdict — the player's own status stays
+                                  needs_document either way; this just helps judge the
+                                  uploaded document against whether the family shows up in
+                                  the barangay's own records at all. */}
+                              {minorMatches.map((m, i) => (
+                                <div key={`minor-${i}`} className="min-w-0">
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-600 dark:text-purple-400">
+                                    <Sparkles className="size-3.5 shrink-0" />
+                                    Same name, under 15{m.sameBarangay ? " · same barangay" : ""}
+                                  </span>
+                                  <p className="text-muted-foreground text-xs break-words md:truncate">
+                                    {m.playerName}{m.barangay ? ` · plays for ${m.barangay}` : ""} — needs a document regardless, informational only
+                                  </p>
+                                  <GamesLine entries={[m]} />
+                                </div>
+                              ))}
+    </>
+  );
+}
 
 export default function ReferenceList() {
   const [status, setStatus] = useState(null);   // { count, season }
@@ -133,48 +299,95 @@ export default function ReferenceList() {
   // A new search is a new result set — go back to its first page.
   useEffect(() => { setPage(1); }, [deferredSearch]);
 
-  // Windowing: only the rows in (or near) the scroll viewport exist in the
-  // DOM, whatever the page size. Paging alone still meant "All" / 1000 put
-  // thousands of <tr>s on screen at once, which is what made those choices
-  // lag. Row heights vary (a matched row stacks several lines), so each row
-  // is measured; the rows above/below the window are stood in for by two
-  // spacer rows so the scrollbar still reflects the real length.
+  // Two layouts share one data pipeline. Desktop (md+): a table in a
+  // fixed-height scroll box, virtualized against that box. Phone: stacked cards
+  // that scroll with the PAGE (window-virtualized). A small scroll box inside a
+  // scrolling page traps a finger — dragging the table scrolls the box, not the
+  // page — and seven columns don't fit a phone anyway. Only one layout is
+  // mounted at a time; `enabled` switches the other virtualizer off.
+  // Windowing keeps the DOM small whatever the page size (rows vary in height —
+  // a matched resident stacks several lines — so each is measured).
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const listRef = useRef(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
   const virtualizer = useVirtualizer({
     count: visibleRecords.length,
     getScrollElement: () => tableScrollRef.current,
     estimateSize: () => 37,
     overscan: 15,
+    enabled: isDesktop,
   });
   const virtualRows = virtualizer.getVirtualItems();
+  // The rows above/below the window are stood in for by two spacer rows so the
+  // scrollbar still reflects the real length.
   const padTop = virtualRows.length ? virtualRows[0].start : 0;
   const padBottom = virtualRows.length
     ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
     : 0;
 
-  // Changing page / page size / search starts the table back at its top.
+  const winVirtualizer = useWindowVirtualizer({
+    count: visibleRecords.length,
+    estimateSize: () => 132,
+    overscan: 6,
+    scrollMargin,
+    enabled: !isDesktop,
+  });
+  const winRows = winVirtualizer.getVirtualItems();
+
+  // The list's distance from the top of the page moves as the cards above it
+  // change (upload result, banners), so keep the window virtualizer's offset in sync.
+  // Runs after every render on purpose (anything above can shift the list) — it
+  // only sets state when the offset really moved, so it can't loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (isDesktop || !listRef.current) return;
+    const top = listRef.current.getBoundingClientRect().top + window.scrollY;
+    setScrollMargin((prev) => (Math.abs(prev - top) > 1 ? top : prev));
+  });
+
+  // Changing page / page size / search starts the desktop table back at its top.
   useEffect(() => {
-    tableScrollRef.current?.scrollTo({ top: 0 });
-  }, [currentPage, pageSize, deferredSearch]);
+    if (isDesktop) tableScrollRef.current?.scrollTo({ top: 0 });
+  }, [currentPage, pageSize, deferredSearch, isDesktop]);
+  // On a phone, paging brings the top of the list back into view. Not on a
+  // search: the box being typed in is just above the list, and jumping the page
+  // on every keystroke would fight the keyboard.
+  const firstPhoneScroll = useRef(true);
+  useEffect(() => {
+    if (isDesktop) return;
+    if (firstPhoneScroll.current) { firstPhoneScroll.current = false; return; }
+    listRef.current?.scrollIntoView({ block: "start" });
+  }, [currentPage, pageSize, isDesktop]);
 
   // Arriving from a "View in Reference List" link: once the list loads, bring
-  // the results into view. Two scrolls, both needed — the PAGE has to scroll
-  // down past the status/upload cards to the table (it used to stay parked at
-  // the top, so the click looked like it did nothing), and then the TABLE
-  // scrolls to the first matched row among the (already name-filtered)
-  // results. The second goes through the virtualizer, since that row may not
-  // be in the DOM to scrollIntoView. A player who isn't on the list at all
-  // (flagged as a possible Dayo) has no matched row — the page scroll still
-  // lands on the (empty or same-name) results.
+  // the results into view. Desktop needs two scrolls — the PAGE down past the
+  // status/upload cards to the table, then the TABLE to the first matched row;
+  // on a phone the window virtualizer's scrollToIndex does both at once. Both go
+  // through a virtualizer since that row may not be in the DOM. A player who
+  // isn't on the list at all (flagged as a possible Dayo) has no matched row —
+  // the page scroll still lands on the (empty or same-name) results.
   useEffect(() => {
     if (!cameFromLink.current || scrolledToMatch.current || records.length === 0) return;
-    const el = tableScrollRef.current;
-    if (!el) return;
-    scrolledToMatch.current = true;
-    const idx = visibleRecords.findIndex((r) => r.matches?.length || r.minorMatches?.length);
-    if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "center" });
-    // Next frame, so the table has its real height before the page centres on it.
-    requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
-  }, [records, visibleRecords, virtualizer]);
+    const idx = visibleRecords.findIndex((r) => r.matches?.length || r.minorMatches?.length || r.nearMisses?.length);
+    if (isDesktop) {
+      const el = tableScrollRef.current;
+      if (!el) return;
+      scrolledToMatch.current = true;
+      if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "center" });
+      // Next frame, so the table has its real height before the page centres on it.
+      requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
+    } else {
+      const el = listRef.current;
+      if (!el) return;
+      scrolledToMatch.current = true;
+      // Next frame, so the list's page offset (scrollMargin) has been measured.
+      requestAnimationFrame(() => {
+        if (idx >= 0) winVirtualizer.scrollToIndex(idx, { align: "center" });
+        else el.scrollIntoView({ block: "start" });
+      });
+    }
+  }, [records, visibleRecords, virtualizer, winVirtualizer, isDesktop]);
 
   async function handleUpload() {
     if (!file) return;
@@ -300,16 +513,23 @@ export default function ReferenceList() {
             <CardHeader>
               <CardTitle>Loaded residents</CardTitle>
               <CardDescription>
-                Search by name or barangay to look up a specific resident's record. Matching a
-                player now requires middle initial AND birthdate to agree, not just the name — a
-                blank middle name or birthdate here means that row can never confirm a match on
-                its own. Jersey numbers still aren't tracked here; those live on the player's
-                roster entry instead. A row highlighted{" "}
-                <span className="text-purple-600 dark:text-purple-400 font-medium">purple</span>{" "}
-                is a same-name hint for a player under 15 — they still need a document
-                regardless (the list starts at 15), but a same-name/same-barangay row is
-                worth weighing when reviewing that document.
+                Search a resident by name or barangay. Colors show how a resident connects to a
+                roster: <span className="text-green-600 dark:text-green-400 font-medium">green</span> matched,{" "}
+                <span className="text-red-600 dark:text-red-400 font-medium">red</span> mismatch,{" "}
+                <span className="text-orange-600 dark:text-orange-400 font-medium">orange</span> same name but
+                details differ, <span className="text-purple-600 dark:text-purple-400 font-medium">purple</span>{" "}
+                same-name hint for a player under 15.
               </CardDescription>
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer select-none hover:text-foreground">How matching works</summary>
+                <p className="mt-1.5">
+                  A player matches a row only when the name, middle initial AND birthdate all agree — a
+                  blank middle name or birthdate means that row can never confirm a match on its own.
+                  Under-15s can't be matched (the list starts at 15) and still need a document, but a
+                  same-name, same-barangay row is worth weighing when reviewing it. Jersey numbers aren't
+                  tracked here; those live on the player's roster entry.
+                </p>
+              </details>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="relative max-w-sm">
@@ -359,6 +579,7 @@ export default function ReferenceList() {
                 </div>
               )}
 
+              {isDesktop ? (
               <div ref={tableScrollRef} className="max-h-96 overflow-y-auto scrollbar-thin rounded-lg border">
                 {/* table-layout: fixed makes column widths independent of cell
                     content, so a sidebar-collapse reflow doesn't have to rescan
@@ -399,42 +620,13 @@ export default function ReferenceList() {
                       {padTop > 0 && <tr aria-hidden style={{ height: padTop }}><td colSpan={7} /></tr>}
                       {virtualRows.map((vr) => {
                         const r = visibleRecords[vr.index];
-                        // `matches` is computed live on every load (see
-                        // GET /api/reference-list) by re-running the same
-                        // decision the automated pre-screen uses against
-                        // every current player — so this lights up for ANY
-                        // resident who's actually connected to a player right
-                        // now, search or no search, no matter when that
-                        // player was originally screened. It's an ARRAY: name
-                        // matching means two different players (or the same
-                        // name entered on two different teams) can both land
-                        // on this one row — worth showing plainly rather than
-                        // picking one and hiding the other, since that's
-                        // exactly the kind of conflict this list should catch.
-                        const matches = r.matches || [];
-                        const minorMatches = r.minorMatches || [];
-                        const rowTone =
-                          matches.length > 0
-                            ? matches.length > 1
-                              ? "multi"
-                              : matches[0].status === "flagged"
-                              ? "flagged"
-                              : "eligible"
-                            : minorMatches.length > 0
-                            ? "minor"
-                            : null;
+                        const info = analyzeRow(r);
                         return (
                           <tr
                             key={r._id}
                             data-index={vr.index}
                             ref={virtualizer.measureElement}
-                            className={cn(
-                              "border-b",
-                              rowTone === "eligible" && "bg-green-500/10 outline outline-1 -outline-offset-1 outline-green-500/40",
-                              rowTone === "flagged" && "bg-red-500/10 outline outline-1 -outline-offset-1 outline-red-500/40",
-                              rowTone === "multi" && "bg-amber-500/10 outline outline-1 -outline-offset-1 outline-amber-500/40",
-                              rowTone === "minor" && "bg-purple-500/10 outline outline-1 -outline-offset-1 outline-purple-500/40"
-                            )}
+                            className={cn("border-b", info.rowTone && TONE_ROW[info.rowTone])}
                           >
                             <td className="px-3 py-2 text-muted-foreground tabular-nums">{masterNumber.get(r._id)}</td>
                             <td className="px-3 py-2 truncate">{r.lastName}</td>
@@ -445,49 +637,7 @@ export default function ReferenceList() {
                             </td>
                             <td className="px-3 py-2 text-muted-foreground truncate">{r.barangay || "—"}</td>
                             <td className="px-3 py-2 space-y-1">
-                              {rowTone === "multi" && (
-                                <p className="text-amber-600 dark:text-amber-400 text-[11px] font-medium">
-                                  {matches.length} players match this name
-                                </p>
-                              )}
-                              {matches.map((m, i) => {
-                                const isMismatch = m.status === "flagged";
-                                // Not a normal list match — the Super Admin approved this
-                                // under-15 player by hand (document review), so this row was
-                                // just promoted here from the purple informational hint below.
-                                const isApprovedMinor = m.status === "approved_minor";
-                                return (
-                                  <div key={i} className="min-w-0">
-                                    <span className={cn(
-                                      "inline-flex items-center gap-1 text-xs font-medium",
-                                      isMismatch ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
-                                    )}>
-                                      {isMismatch ? <CircleX className="size-3.5 shrink-0" /> : <CircleCheck className="size-3.5 shrink-0" />}
-                                      {isMismatch ? "Mismatch" : isApprovedMinor ? "Approved · document review" : "Matched"}
-                                    </span>
-                                    <p className="text-muted-foreground text-xs truncate">
-                                      {m.playerName}{m.teamName ? ` · ${m.teamName}` : ""}
-                                    </p>
-                                  </div>
-                                );
-                              })}
-                              {/* Under 15: never an official match (the voters' list starts
-                                  at 15), so this is shown separately and clearly labeled as
-                                  a hint, not a verdict — the player's own status stays
-                                  needs_document either way; this just helps judge the
-                                  uploaded document against whether the family shows up in
-                                  the barangay's own records at all. */}
-                              {minorMatches.map((m, i) => (
-                                <div key={`minor-${i}`} className="min-w-0">
-                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-600 dark:text-purple-400">
-                                    <Sparkles className="size-3.5 shrink-0" />
-                                    Same name, under 15{m.sameBarangay ? " · same barangay" : ""}
-                                  </span>
-                                  <p className="text-muted-foreground text-xs truncate">
-                                    {m.playerName}{m.teamName ? ` · ${m.teamName}` : ""} — needs a document regardless, informational only
-                                  </p>
-                                </div>
-                              ))}
+                              <MatchInfo info={info} />
                             </td>
                           </tr>
                         );
@@ -498,6 +648,56 @@ export default function ReferenceList() {
                   </tbody>
                 </table>
               </div>
+              ) : (
+                // Phone: one card per resident, listing with the page itself.
+                <div ref={listRef}>
+                  {visibleRecords.length === 0 ? (
+                    <p className="rounded-lg border px-3 py-6 text-center text-sm text-muted-foreground">
+                      {exactName
+                        ? "No one on the reference list has this exact name — this player isn't on the list."
+                        : "No residents match your search."}
+                    </p>
+                  ) : (
+                    <div className="relative w-full" style={{ height: winVirtualizer.getTotalSize() }}>
+                      {winRows.map((vr) => {
+                        const r = visibleRecords[vr.index];
+                        const info = analyzeRow(r);
+                        return (
+                          <div
+                            key={r._id}
+                            data-index={vr.index}
+                            ref={winVirtualizer.measureElement}
+                            className="absolute left-0 top-0 w-full pb-2"
+                            style={{ transform: `translateY(${vr.start - winVirtualizer.options.scrollMargin}px)` }}
+                          >
+                            <div className={cn("rounded-lg border p-3 text-sm", info.rowTone && TONE_CARD[info.rowTone])}>
+                              <div className="flex items-start gap-3">
+                                <span className="w-10 shrink-0 pt-0.5 text-xs tabular-nums text-muted-foreground">
+                                  {masterNumber.get(r._id)}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium break-words">
+                                    {r.lastName}, {r.firstName}{r.middleName ? ` ${r.middleName}` : ""}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {r.birthdate ? new Date(r.birthdate).toLocaleDateString() : "No birthdate"}
+                                    {r.barangay ? ` · ${r.barangay}` : ""}
+                                  </p>
+                                  {info.rowTone && (
+                                    <div className="mt-2 space-y-1.5 border-t border-border/60 pt-2">
+                                      <MatchInfo info={info} />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-end gap-2">

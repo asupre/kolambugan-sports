@@ -10,7 +10,7 @@ const Match = require('../models/Match');
 const Barangay = require('../models/Barangay');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
-const { prescreenTeam,  prescreenPlayer, norm } = require('../services/prescreen');
+const { prescreenTeam,  prescreenPlayer, norm, looseRegex } = require('../services/prescreen');
 const { uploadPhoto, uploadDoc, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
 const router = express.Router();
@@ -93,6 +93,37 @@ async function checkAddress(team, address) {
   const stripped = String(address || '').replace(/^\s*(barangay|brgy\.?)\s+/i, '');
   return { name, ok: !!name && norm(stripped) === norm(name) };
 }
+
+// One athlete plays for ONE barangay per season (Super Admin rule, Sep 2026).
+// They can play as many teams/sports as they like FOR that barangay (each team
+// gets its own Player record), and a barangay whose `allowsCrossBarangay` is
+// on may field a resident of another barangay — but once that athlete is on
+// barangay A's roster, no OTHER barangay may roster them this season. Matched
+// by name + birthdate (the same identity playerKey() uses), since nothing else
+// links two Player records for the same person. Returns
+// { barangay, teamName, sport } for the other barangay's team, or null.
+// A targeted lookup (names first, then their links), not a scan of the season.
+async function otherBarangayHolder(team, lastName, firstName, birthdate) {
+  const key = playerKey(lastName, firstName, birthdate);
+  const candidates = await Player.find({
+    lastName: looseRegex(lastName),
+    firstName: looseRegex(firstName),
+  }).select('lastName firstName birthdate').lean();
+  const same = candidates.filter((p) => playerKey(p.lastName, p.firstName, p.birthdate) === key);
+  if (!same.length) return null;
+
+  const links = await TeamPlayer.find({ player: { $in: same.map((p) => p._id) } }).select('team').lean();
+  if (!links.length) return null;
+  const teams = await Team.find({
+    _id: { $in: links.map((l) => l.team) },
+    season: team.season,
+    barangay: { $ne: team.barangay },
+  }).populate('barangay', 'name').populate('sport', 'name').lean();
+  const t = teams[0];
+  return t ? { barangay: t.barangay && t.barangay.name, teamName: t.teamName, sport: t.sport && t.sport.name } : null;
+}
+const otherBarangayMessage = (first, last, h) =>
+  `${String(first).trim()} ${String(last).trim()} is already on ${h.barangay}'s ${h.sport} roster this season. A player can only play for one barangay (they can play as many sports as they like for that one).`;
 
 // Load a team and confirm this barangay admin owns it (super_admin may access any).
 // Returns the team, or sends an error response and returns null.
@@ -325,6 +356,8 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
         message: `${firstName.trim()} ${lastName.trim()} is already on ${dupTeamName}'s roster for this sport — the same player can't be on two of your barangay's teams in one sport.`,
       });
     }
+    const holder = await otherBarangayHolder(team, lastName, firstName, birthdate);
+    if (holder) return res.status(409).json({ message: otherBarangayMessage(firstName, lastName, holder) });
 
     const player = await Player.create({
       firstName: firstName.trim(),
@@ -398,7 +431,7 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
 
     const skipped = [];
     const toCreate = [];
-    rows.forEach((row, i) => {
+    for (const [i, row] of rows.entries()) {
       const rowNum = i + 2; // +2 = header row + 1-based data row
       const rec = {};
       for (const [h, v] of Object.entries(row)) {
@@ -407,22 +440,27 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
       }
       if (!rec.firstName || !rec.lastName || !rec.birthdate) {
         skipped.push({ row: rowNum, reason: 'Missing first name, last name, or birthdate.' });
-        return;
+        continue;
       }
       const d = new Date(rec.birthdate);
       if (isNaN(d.getTime())) {
         skipped.push({ row: rowNum, reason: `Unreadable birthdate "${rec.birthdate}".` });
-        return;
+        continue;
       }
       const key2 = playerKey(rec.lastName, rec.firstName, d);
       const dupTeamName = dupIndex.get(key2);
       if (dupTeamName) {
         skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on ${dupTeamName}'s roster for this sport.` });
-        return;
+        continue;
+      }
+      const holder = await otherBarangayHolder(team, rec.lastName, rec.firstName, d);
+      if (holder) {
+        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on ${holder.barangay}'s ${holder.sport} roster — a player can only play for one barangay.` });
+        continue;
       }
       if (toCreate.length >= remaining) {
         skipped.push({ row: rowNum, reason: `Roster is full (max ${limits.max}).` });
-        return;
+        continue;
       }
       toCreate.push({
         firstName: rec.firstName.trim(),
@@ -434,7 +472,7 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
         jerseyNumber: rec.jerseyNumber != null && rec.jerseyNumber !== '' ? Number(rec.jerseyNumber) : undefined,
       });
       dupIndex.set(key2, team.teamName);
-    });
+    }
 
     if (!toCreate.length) {
       return res.status(400).json({ message: 'No valid rows to add.', added: 0, skippedRows: skipped });
@@ -552,6 +590,8 @@ router.patch('/:id/players/:playerId', authenticate,
           message: `${player.firstName} ${player.lastName} is already on ${dupTeamName}'s roster for this sport — the same player can't be on two of your barangay's teams in one sport.`,
         });
       }
+      const holder = await otherBarangayHolder(team, player.lastName, player.firstName, player.birthdate);
+      if (holder) return res.status(409).json({ message: otherBarangayMessage(player.firstName, player.lastName, holder) });
     }
 
     await player.save();

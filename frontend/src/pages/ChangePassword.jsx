@@ -14,8 +14,8 @@ export default function ChangePassword() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const dest = {
     super_admin: "/admin",
-    barangay_admin: "/brgy",
-    organizer: "/organizer",
+    barangay_admin: "/brgy/dashboard",
+    organizer: "/organizer/dashboard",
   }[user?.role] || "/";
 
   async function handleSubmit(e) {

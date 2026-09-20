@@ -8,9 +8,19 @@ function keyFor(userId) {
   return `brgy-theme:${userId ?? "anon"}`;
 }
 
+// A saved choice wins. With none saved yet (first visit for this account) it follows
+// the device's own light/dark setting, so a phone already in dark mode isn't greeted
+// with a bright screen. (index.html has a copy of this rule that runs before the app
+// loads — keep them in step.)
 export function getStoredTheme(userId) {
   try {
-    return localStorage.getItem(keyFor(userId)) === "dark" ? "dark" : "light";
+    const saved = localStorage.getItem(keyFor(userId));
+    if (saved === "dark" || saved === "light") return saved;
+  } catch {
+    // fall through to the device setting
+  }
+  try {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   } catch {
     return "light";
   }

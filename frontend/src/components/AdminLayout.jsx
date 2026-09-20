@@ -1,11 +1,15 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { HelpCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { HelpCircle, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { api } from "../api";
 import InstructionModal from "./InstructionModal";
 import LoadingScreen from "./LoadingScreen";
 import { getStoredTheme, storeTheme } from "../lib/theme";
 import ThemeToggle from "./ThemeToggle";
+import { SeasonBadge } from "./SeasonStatus";
+import { useSeason } from "../lib/season";
+import { useMediaQuery } from "../lib/useMediaQuery";
+import { DARK_CHROME, LIGHT_CHROME, setThemeColor } from "../lib/themeChrome";
 import { cn } from "../lib/utils";
 
 // menu can be flat ([{label, path, icon}, ...]) or grouped
@@ -20,15 +24,32 @@ function flattenItems(menu) {
 // the circular reveal. Used by the organizer scoring screen: a View Transition
 // makes the page non-interactive for its ~0.75s, so a score tap landing during
 // the reveal is silently swallowed (measured Sep 2026) — unacceptable mid-match.
-export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true }) {
+// `seasonStrip` — the slim season bar under the header on phones. The header pill
+// (desktop) costs no space, but the strip does, so the courtside scoring screen turns it off.
+export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true, seasonStrip = true }) {
   const [open, setOpen] = useState(false);          // mobile: sidebar shown as an overlay
-  const [rail, setRail] = useState(false);           // desktop: whole sidebar collapsed to an icon rail
+  // Desktop: the user's choice to collapse the whole sidebar to an icon rail. It only
+  // TAKES EFFECT at desktop width (`rail` below) — the rail toggle is hidden on
+  // phones, but this state used to leak into the phone menu: collapse at desktop
+  // width, then resize a window / rotate a tablet, and the phone-style menu opened
+  // at full width with every label hidden (icons only, nowhere to tell what's what).
+  const [railPref, setRailPref] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  // The circular theme reveal is a full-screen View Transition: smooth with a mouse,
+  // but on a phone it stutters on modest hardware and makes the page ignore taps for
+  // its ~0.75s. Touch screens get an instant swap (the sun/moon icon still animates).
+  const finePointer = useMediaQuery("(hover: hover) and (pointer: fine)");
+  const rail = railPref && isDesktop;
   const [loggingOut, setLoggingOut] = useState(false);
   const [showHelp, setShowHelp] = useState(false);   // on-demand reopen of the orientation modal
   const [sports, setSports] = useState([]);
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
   const [reviewPending, setReviewPending] = useState(0);
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  // The season stage, shown to the two admin roles on every page so they always
+  // know whether registration is open, rosters are being verified, or play is on.
+  const showSeason = user?.role === "barangay_admin" || user?.role === "organizer";
+  const { season } = useSeason();
   const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme(user?.id) : "light"));
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,7 +63,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
     if (!enableDarkMode) return;
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
-    return () => root.classList.remove("dark");
+    setThemeColor(theme === "dark" ? DARK_CHROME : LIGHT_CHROME);   // the phone's address bar
+    return () => { root.classList.remove("dark"); setThemeColor(LIGHT_CHROME); };
   }, [enableDarkMode, theme]);
 
   useEffect(() => {
@@ -206,10 +228,19 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             <img src="/logo/ksl-mark-simple.svg" alt="" className="h-8 w-8 shrink-0" />
             <span className="font-semibold text-sidebar-foreground text-sm truncate">Kolambugan Sports</span>
           </div>
+          {/* Phone menu: an explicit close button (it used to close only by tapping
+              the dimmed page behind it, which isn't obvious). */}
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Close menu"
+            className="lg:hidden flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent transition"
+          >
+            <X className="size-5" />
+          </button>
           {/* Desktop-only rail toggle, beside the logo — mobile has its own
               open/close via the header button, a separate overlay concept. */}
           <button
-            onClick={() => setRail((r) => !r)}
+            onClick={() => setRailPref((r) => !r)}
             className="hidden lg:flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition"
             title={rail ? "Expand sidebar" : "Collapse sidebar"}
           >
@@ -255,7 +286,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 lg:px-6">
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-3">
             <button onClick={() => setOpen(true)} className="lg:hidden text-foreground" aria-label="Open menu">
               <PanelLeftOpen className="size-5" />
@@ -271,13 +302,21 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             >
               <HelpCircle className="size-4" />
             </button>
-            {enableDarkMode && <ThemeToggle theme={theme} onThemeChange={handleThemeChange} animate={animateTheme} />}
+            {enableDarkMode && <ThemeToggle theme={theme} onThemeChange={handleThemeChange} animate={animateTheme && finePointer} />}
+            {showSeason && season && <SeasonBadge status={season.status} name={season.name} className="hidden sm:inline-flex" />}
             <span className="hidden sm:inline">{user?.username}</span>
             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-semibold">
               {user?.username?.slice(0, 2).toUpperCase()}
             </div>
           </div>
         </header>
+
+        {showSeason && seasonStrip && season && (
+          <div className="sm:hidden flex items-center gap-2 border-b bg-card px-4 py-2 text-xs text-muted-foreground">
+            <SeasonBadge status={season.status} />
+            <span className="truncate">{season.name}</span>
+          </div>
+        )}
 
         <main className="flex-1 p-4 lg:p-6 bg-background">{children}</main>
       </div>

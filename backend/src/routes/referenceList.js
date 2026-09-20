@@ -6,7 +6,7 @@ const Team = require('../models/Team');
 const TeamPlayer = require('../models/TeamPlayer');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
-const { decideFromCandidates, norm, ageFrom, MINOR_AGE, rescreenSeason } = require('../services/prescreen');
+const { decideFromCandidates, norm, ageFrom, sameDay, sameMiddleInitial, MINOR_AGE, rescreenSeason } = require('../services/prescreen');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -141,8 +141,21 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
       refIndex.get(key).push(r);
     }
 
-    const teams = await Team.find({ season: season._id }).populate('barangay', 'name allowsCrossBarangay').lean();
+    const teams = await Team.find({ season: season._id })
+      .populate('barangay', 'name allowsCrossBarangay')
+      .populate('sport', 'name')
+      .lean();
     const teamById = new Map(teams.map((t) => [String(t._id), t]));
+    // Which game (sport + division) and which barangay a player is rostered
+    // for — so the Super Admin can see what a resident plays, and for whom
+    // (a barangay may field another barangay's residents). Attached to every
+    // match entry below. One entry per team, so a resident on three teams
+    // for one barangay yields three entries with the same barangay.
+    const gameOf = (t) => ({
+      sport: t && t.sport ? t.sport.name : null,
+      division: t ? t.division || null : null,
+      barangay: t && t.barangay ? t.barangay.name : null,
+    });
     const links = await TeamPlayer.find({ team: { $in: teams.map((t) => t._id) } }).populate('player').lean();
 
     // referenceList _id (string) -> [{ status, playerName, teamName }, ...].
@@ -164,6 +177,13 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
     // family shows up in the municipality's own records at all — so surface
     // it, clearly labeled as informational, never as a real match.
     const minorMatchByRefId = new Map();
+    // Adults who share a NAME with a row but were still flagged "not on the
+    // list" because the middle initial and/or birthdate disagree. Without this
+    // the page showed the same-name row with no hint why it hadn't matched, so
+    // it looked like a bug. Super Admin only — this exposes the list's own
+    // birthdate/middle name next to the roster's, so it must never leak into
+    // the flagReason a Barangay Admin sees.
+    const nearMissByRefId = new Map();
     for (const link of links) {
       const p = link.player;
       if (!p) continue;
@@ -188,6 +208,7 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
             status: 'approved_minor',
             playerName: `${p.lastName}, ${p.firstName}`,
             teamName: team && team.teamName,
+            ...gameOf(team),
           });
         } else {
           for (const cand of candidates) {
@@ -196,6 +217,7 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
             minorMatchByRefId.get(key).push({
               playerName: `${p.lastName}, ${p.firstName}`,
               teamName: team && team.teamName,
+              ...gameOf(team),
               sameBarangay: !!(teamBrgyName && norm(cand.barangay) === teamBrgyName),
             });
           }
@@ -203,7 +225,24 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
         continue;
       }
 
-      const { status, matchedReferenceId } = decideFromCandidates(p, team && team.barangay, candidates);
+      const { status, code, matchedReferenceId } = decideFromCandidates(p, team && team.barangay, candidates);
+      if (code === 'not_on_list' && candidates.length > 0) {
+        for (const cand of candidates) {
+          const key = String(cand._id);
+          if (!nearMissByRefId.has(key)) nearMissByRefId.set(key, []);
+          nearMissByRefId.get(key).push({
+            playerName: `${p.lastName}, ${p.firstName}`,
+            teamName: team && team.teamName,
+            ...gameOf(team),
+            differs: {
+              middle: sameMiddleInitial(cand.middleName, p.middleName)
+                ? null : { roster: p.middleName || null, list: cand.middleName || null },
+              birthdate: sameDay(cand.birthdate, p.birthdate)
+                ? null : { roster: p.birthdate || null, list: cand.birthdate || null },
+            },
+          });
+        }
+      }
       if (matchedReferenceId) {
         const key = String(matchedReferenceId);
         if (!matchByRefId.has(key)) matchByRefId.set(key, []);
@@ -211,6 +250,7 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
           status,
           playerName: `${p.lastName}, ${p.firstName}`,
           teamName: team && team.teamName,
+          ...gameOf(team),
         });
       }
     }
@@ -219,6 +259,7 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
       ...r,
       matches: matchByRefId.get(String(r._id)) || [],
       minorMatches: minorMatchByRefId.get(String(r._id)) || [],
+      nearMisses: nearMissByRefId.get(String(r._id)) || [],
     }));
     res.json({ records: withMatch });
   } catch (err) {

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { Crest, Panel, SiteImage, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
 import Reveal, { RevealGroup, RevealItem } from "../../components/Reveal";
 import SportsMarquee from "../../components/SportsMarquee";
+import HeroImage from "../../components/HeroImage";
 
 
 
@@ -70,6 +71,7 @@ function MiniScore({ m }) {
 
 export default function Home() {
   const [data, setData] = useState(null);
+  const heroRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -112,14 +114,11 @@ export default function Home() {
           `-mt-6` cancels its py-6 so the hero sits flush under the nav. The
           min-heights subtract the nav's real height (~72px at lg, ~116-120px
           where the nav wraps/icons) so the hero fills the first screen and
-          the stat tiles start below the fold. No fade-ins on the hero. */}
-      <section className="relative isolate overflow-hidden bg-[#0C3550] -mx-4 lg:-mx-8 -mt-6 mb-6 flex flex-col justify-end min-h-[calc(100svh-7.5rem)] lg:min-h-[calc(100svh-4.5rem)]">
-        <SiteImage
-          slot="hero"
-          label="hero banner"
-          hideOnFail
-          className="absolute inset-0 -z-20 h-full w-full"
-        />
+          the stat tiles start below the fold. The headline and copy are NOT
+          animated; the PHOTO is (HeroImage: load-triggered fade + settle,
+          slow drift, scroll parallax — the last two honour reduced motion). */}
+      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#0C3550] -mx-4 lg:-mx-8 -mt-6 mb-6 flex flex-col justify-end min-h-[calc(100svh-7.5rem)] lg:min-h-[calc(100svh-4.5rem)]">
+        <HeroImage containerRef={heroRef} />
         <div
           className="pointer-events-none absolute inset-0 -z-10"
           style={{ background: "linear-gradient(180deg, rgba(8,35,52,0.55) 0%, rgba(8,35,52,0.30) 45%, rgba(8,35,52,0.88) 100%)" }}

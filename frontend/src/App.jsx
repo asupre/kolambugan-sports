@@ -8,8 +8,10 @@ import ReviewQueue from "./pages/admin/ReviewQueue";
 import Tournaments from "./pages/admin/Tournaments";
 import Accounts from "./pages/admin/Accounts";
 import BrgyDashboard from "./pages/brgy/BrgyDashboard";
+import BrgyHome from "./pages/brgy/BrgyHome";
 import Documents from "./pages/brgy/Documents";
 import OrganizerScoring from "./pages/organizer/OrganizerScoring";
+import OrganizerHome from "./pages/organizer/OrganizerHome";
 import PublicLayout from "./pages/public/PublicLayout";
 import Home from "./pages/public/Home";
 import Matches from "./pages/public/Matches";
@@ -60,11 +62,13 @@ export default function App() {
         <Route path="/admin/accounts" element={<RequireRole roles={["super_admin"]}><Accounts /></RequireRole>} />
 
         {/* Barangay Admin */}
+        <Route path="/brgy/dashboard" element={<RequireRole roles={["barangay_admin"]}><BrgyHome /></RequireRole>} />
         <Route path="/brgy" element={<RequireRole roles={["barangay_admin"]}><BrgyDashboard /></RequireRole>} />
         <Route path="/brgy/documents" element={<RequireRole roles={["barangay_admin"]}><Documents /></RequireRole>} />
         <Route path="/brgy/matches" element={<RequireRole roles={["barangay_admin"]}><BrgyMatches /></RequireRole>} />
 
         {/* Organizer — super admin may score too, matching the backend. */}
+        <Route path="/organizer/dashboard" element={<RequireRole roles={["organizer"]}><OrganizerHome /></RequireRole>} />
         <Route path="/organizer" element={<RequireRole roles={["organizer", "super_admin"]}><OrganizerScoring /></RequireRole>} />
 
         {/* Public */}

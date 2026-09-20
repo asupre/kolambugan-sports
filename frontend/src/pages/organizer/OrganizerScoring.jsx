@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CalendarClock, Circle, ListChecks, Radio, Undo2, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, Circle, CircleCheck, ListChecks, Play, Radio, TriangleAlert, Undo2, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -86,12 +86,18 @@ function describeMatch(m, all = []) {
   };
 }
 
-// A date-only schedule is stored as midnight UTC, which would render as 8:00 AM
-// in Manila — a time nobody set.
+// A schedule picked as a DATE only has no time of day, and must not show one. Those are
+// stored as midnight MANILA time (parseManila) — or, in older data, midnight UTC — and
+// either would otherwise render as "12:00 AM" / "8:00 AM", a time nobody set. (This only
+// recognised the UTC case, so every date-only match showed "12:00 AM".)
 const timeOf = (d) => {
   if (!d) return null;
   const x = new Date(d);
   if (x.getUTCHours() === 0 && x.getUTCMinutes() === 0) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(x);
+  const h = +parts.find((p) => p.type === "hour").value % 24;
+  const min = +parts.find((p) => p.type === "minute").value;
+  if (h === 0 && min === 0) return null;
   return x.toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
 };
 
@@ -183,11 +189,17 @@ function ScoringView({ matchId, onBack }) {
   const [busy, setBusy] = useState(false);
   const [ending, setEnding] = useState(false);
   const [mvp, setMvp] = useState(null);
-  const [periods, setPeriods] = useState(1);
+  // null until the organizer taps a choice; the default comes from the sport's own options
+  // (below). It used to default to 1 — which basketball doesn't even offer (only 4) — so an
+  // organizer who simply tapped Start began a ONE-quarter game.
+  const [periodsChoice, setPeriodsChoice] = useState(null);
   const [side, setSide] = useState("A");
   const [onCourt, setOnCourt] = useState({ A: [], B: [] });
   const [subbing, setSubbing] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
+  // True for a few seconds after Start, so the organizer SEES that the match began
+  // (the pre-start card used to just vanish and the player cards appeared).
+  const [justStarted, setJustStarted] = useState(false);
 
   async function load() {
     try {
@@ -206,6 +218,20 @@ function ScoringView({ matchId, onBack }) {
     } catch (e) { showError(e.message); }
   }
   useEffect(() => { load(); }, [matchId]);
+  useEffect(() => {
+    if (!justStarted) return undefined;
+    const t = setTimeout(() => setJustStarted(false), 8000);
+    return () => clearTimeout(t);
+  }, [justStarted]);
+
+  // A short buzz confirms a tap on a noisy court where you can't hear or always
+  // see it register. No-op where the browser has no vibration (iOS Safari).
+  const buzz = (ms) => { try { navigator.vibrate?.(ms); } catch { /* unsupported */ } };
+  const afterStart = () => {
+    setJustStarted(true);
+    buzz(35);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   async function call(path, body) {
     setBusy(true);
@@ -215,6 +241,8 @@ function ScoringView({ matchId, onBack }) {
         body: JSON.stringify(body || {}),
       });
       await load();
+      if (path === "start") afterStart();
+      else if (path === "score" || path === "undo") buzz(15);
     } catch (e) {
       // The start route returns 409 when the match is dated for another day.
       // Dates are guidance, not a lock — confirm and proceed.
@@ -226,6 +254,7 @@ function ScoringView({ matchId, onBack }) {
               body: JSON.stringify({ ...(body || {}), confirmOffSchedule: true }),
             });
             await load();
+            afterStart();
           } catch (e2) { showError(e2.message); }
         }
       } else {
@@ -259,6 +288,8 @@ function ScoringView({ matchId, onBack }) {
   const tied = (m.liveScoreA || 0) === (m.liveScoreB || 0);
   const allPeriodsDone = (m.games?.length || 0) >= (m.bestOf || 1) && !tied;
   const canEnd = finalMode ? !tied : allPeriodsDone;
+  const periodOpts = data.periodOptions || [1, 3, 5, 7];
+  const periods = periodsChoice ?? (periodOpts.includes(3) ? 3 : periodOpts[0]);
   const desc = describeMatch(m);
   const stat = (id) => data.statByPlayer?.[String(id)] || { points: 0, fouls: 0, rebounds: 0, assists: 0 };
 
@@ -269,14 +300,20 @@ function ScoringView({ matchId, onBack }) {
   const bench = roster.filter((p) => !courtIds.includes(String(p._id)));
   const teamName = side === "A" ? m.teamA?.teamName : m.teamB?.teamName;
 
-  function toggleCourt(id) {
+  function toggleCourtFor(sideKey, id) {
     setOnCourt((prev) => {
-      const cur = prev[side] || [];
-      if (cur.includes(id)) return { ...prev, [side]: cur.filter((x) => x !== id) };
-      if (cur.length >= limit) return prev;
-      return { ...prev, [side]: [...cur, id] };
+      const cur = prev[sideKey] || [];
+      if (cur.includes(id)) return { ...prev, [sideKey]: cur.filter((x) => x !== id) };
+      if (cur.length >= (data.onCourt || Infinity)) return prev;
+      return { ...prev, [sideKey]: [...cur, id] };
     });
   }
+  const toggleCourt = (id) => toggleCourtFor(side, id);
+  // Team sports with more players than fit on court get a pre-start lineup step.
+  const hasLineup = !finalMode && !!data.onCourt &&
+    ((data.rosterA || []).length > data.onCourt || (data.rosterB || []).length > data.onCourt);
+  const periodWord = (data.periodLabel || "period");
+  const when = [m.schedule ? dateOf(m.schedule) : null, timeOf(m.schedule), m.venue].filter(Boolean).join(" · ");
 
   const allPlayers = [
     ...(data.rosterA || []).map((p) => ({ ...p, side: "A" })),
@@ -364,13 +401,76 @@ function ScoringView({ matchId, onBack }) {
         <ArrowLeft className="size-3.5" /> All matches
       </button>
 
-      <div className="flex items-center gap-2 flex-wrap mb-3">
-        <span className="text-muted-foreground text-xs">
-          {data.sport}
-          {data.division && data.division !== "open" ? ` ${DIVISION_LABEL[data.division] || data.division}` : ""}
-          {" · "}{desc.stage}
-        </span>
-      </div>
+      {/* Phones: the scoreboard panel is BELOW the player list (~660px down), so mid-game
+          the score and Undo were out of sight. This slim bar sticks to the top while live. */}
+      {live && (
+        <div className="sticky top-0 z-20 -mx-4 mb-3 border-b bg-background/95 px-4 py-2 backdrop-blur lg:hidden">
+          <div className="flex items-center gap-3">
+            <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-red-600 dark:text-red-400">
+              <Circle className="size-2 fill-current" /> LIVE
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-center gap-2.5 tabular-nums">
+                <span className="max-w-[28%] truncate text-xs text-muted-foreground">{m.teamA?.teamName}</span>
+                <span className="text-2xl font-semibold leading-none">{m.liveScoreA} – {m.liveScoreB}</span>
+                <span className="max-w-[28%] truncate text-xs text-muted-foreground">{m.teamB?.teamName}</span>
+              </div>
+              {!finalMode && (
+                <p className="text-center text-[11px] text-muted-foreground">
+                  {periodWord.replace(/^./, (c) => c.toUpperCase())} {Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of {m.bestOf || 1}
+                </p>
+              )}
+            </div>
+            <button onClick={() => call("undo")} disabled={busy || !m.lastAction?.label}
+              className="flex h-9 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent disabled:opacity-40">
+              <Undo2 className="size-3.5" /> Undo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Who is playing, and when/where — shown in every state (the pre-start card used to
+          give no hint of the matchup at all; the team names only appeared as small tabs). */}
+      <Card className="mb-4 gap-0 p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-xs text-muted-foreground">
+            {[data.sport, data.division && data.division !== "open" ? (DIVISION_LABEL[data.division] || data.division) : null, desc.stage].filter(Boolean).join(" · ")}
+          </span>
+          {live ? (
+            <Badge className="shrink-0 gap-1 bg-red-500/15 text-red-600 dark:text-red-400"><Circle className="size-2 fill-current" /> Live</Badge>
+          ) : finished ? (
+            <Badge className="shrink-0 bg-green-500/15 text-green-600 dark:text-green-400">Final</Badge>
+          ) : forfeited ? (
+            <Badge className="shrink-0 bg-amber-500/15 text-amber-600 dark:text-amber-400">Forfeit</Badge>
+          ) : (
+            <Badge className="shrink-0 bg-blue-500/15 text-blue-600 dark:text-blue-400">Ready</Badge>
+          )}
+        </div>
+        <div className="flex items-start gap-2">
+          {[m.teamA, m.teamB].map((t, i) => (
+            <div key={i} className="contents">
+              <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-center">
+                <Crest team={t} size={52} />
+                <p className="line-clamp-2 text-sm font-semibold leading-tight break-words">{t?.teamName}</p>
+              </div>
+              {i === 0 && <span className="pt-4 text-xs font-medium text-muted-foreground">vs</span>}
+            </div>
+          ))}
+        </div>
+        {when && <p className="mt-3 text-center text-xs text-muted-foreground">{when}</p>}
+      </Card>
+
+      {live && justStarted && (
+        <Alert className="mb-4 border-green-500/30 bg-green-500/5">
+          <CircleCheck className="text-green-600 dark:text-green-400" />
+          <AlertDescription className="text-foreground">
+            <span className="font-medium">Match started.</span>{" "}
+            {finalMode
+              ? "Tap the winner of each game as it finishes."
+              : `${periodWord.replace(/^./, (c) => c.toUpperCase())} 1 of ${m.bestOf || 1}. Tap a player's +1 / +2 / +3 to score; Undo is at the top.`}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {!live && !finished && !forfeited && (
         <Card className="p-4 mb-4 gap-0">
@@ -380,13 +480,13 @@ function ScoringView({ matchId, onBack }) {
             </p>
           ) : (
             <>
-              <p className="text-sm font-medium mb-1">How many {data.periodLabel || "period"}s?</p>
+              <p className="text-sm font-medium mb-1">How many {periodWord}s?</p>
               <p className="text-muted-foreground text-xs mb-3">
                 All of them are played, and the winner is the higher total score.
               </p>
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {(data.periodOptions || [1, 3, 5, 7]).map((n) => (
-                  <button key={n} type="button" onClick={() => setPeriods(n)}
+                  <button key={n} type="button" onClick={() => setPeriodsChoice(n)}
                     className={cn(
                       "py-3 rounded-lg text-lg font-semibold transition",
                       periods === n ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
@@ -397,9 +497,49 @@ function ScoringView({ matchId, onBack }) {
               </div>
             </>
           )}
+          {hasLineup && (
+            <details open className="mb-4 rounded-lg border p-3">
+              <summary className="cursor-pointer select-none text-sm font-medium">Starting lineup</summary>
+              <p className="mb-3 mt-1 text-xs text-muted-foreground">
+                Pre-set to the lowest jersey numbers. Tap to change who starts — you can still
+                substitute during the game. This only changes which player cards are shown; it
+                isn't recorded.
+              </p>
+              {["A", "B"].map((sk) => {
+                const list = sk === "A" ? (data.rosterA || []) : (data.rosterB || []);
+                const ids = onCourt[sk] || [];
+                return (
+                  <div key={sk} className="mb-3 last:mb-0">
+                    <p className="mb-1.5 text-xs font-medium">
+                      {sk === "A" ? m.teamA?.teamName : m.teamB?.teamName}{" "}
+                      <span className={cn("font-normal", ids.length === data.onCourt ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400")}>
+                        · {ids.length} of {data.onCourt} on court
+                      </span>
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                      {list.map((p) => {
+                        const on = ids.includes(String(p._id));
+                        return (
+                          <button key={p._id} type="button" onClick={() => toggleCourtFor(sk, String(p._id))}
+                            className={cn(
+                              "truncate rounded-lg px-2 py-2 text-left text-xs transition",
+                              on ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                            )}>
+                            <span className="mr-1 opacity-70">{p.jerseyNumber ?? "—"}</span>{p.lastName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </details>
+          )}
+
           <button onClick={() => call("start", { periods: finalMode ? 1 : periods })} disabled={busy}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50">
-            {busy ? "Starting…" : "Start match"}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+            <Play className="size-4 fill-current" />
+            {busy ? "Starting…" : finalMode ? "Start match" : `Start match · ${periods} ${periodWord}${periods === 1 ? "" : "s"}`}
           </button>
 
           {!forfeiting ? (
@@ -613,6 +753,8 @@ export default function OrganizerScoring() {
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
   const [error, setError] = useState("");
+  const [tab, setTab] = useState("play");          // "play" | "done" — the list got long fast
+  const [division, setDivision] = useState("all"); // basketball runs U15 and U30 side by side
 
   async function load() {
     try {
@@ -628,24 +770,37 @@ export default function OrganizerScoring() {
 
   if (loading) {
     return (
-      <AdminLayout title="Matches" menu={organizerMenu} enableDarkMode animateTheme={false}>
+      <AdminLayout title="Matches" menu={organizerMenu} enableDarkMode animateTheme={false} seasonStrip={false}>
         <ListSkeleton />
       </AdminLayout>
     );
   }
 
-  const matches = feed?.matches || [];
+  // `allMatches` (unfiltered) is what describeMatch counts rounds against — filtering by
+  // division must not change whether a match reads as "Semifinal" or "Round of 8".
+  const allMatches = feed?.matches || [];
+  const divisions = [...new Set(allMatches.map((m) => m.division || "open"))];
+  const matches = division === "all" ? allMatches : allMatches.filter((m) => (m.division || "open") === division);
   const manilaDay = (d) =>
     new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
     }).format(new Date(d));
-  const isToday = (d) => !!d && manilaDay(d) === manilaDay(new Date());
+  const todayKey = manilaDay(new Date());
+  const isToday = (d) => !!d && manilaDay(d) === todayKey;
+  const bySchedule = (a, b) => new Date(a.schedule || 0) - new Date(b.schedule || 0);
+  const isReady = (m) => !!(m.teamA && m.teamB);
 
   const live = matches.filter((m) => m.status === "ongoing");
   const scheduled = matches.filter((m) => m.status === "scheduled");
-  const today = scheduled.filter((m) => isToday(m.schedule));
-  const upcoming = scheduled.filter((m) => !isToday(m.schedule));
+  // Dated for a day that has passed and never started — worth its own section, not
+  // buried among the upcoming dates.
+  const overdue = scheduled.filter((m) => isReady(m) && m.schedule && manilaDay(m.schedule) < todayKey).sort(bySchedule);
+  const overdueIds = new Set(overdue.map((m) => m._id));
+  const today = scheduled.filter((m) => isToday(m.schedule)).sort(bySchedule);
+  const upcoming = scheduled.filter((m) => !isToday(m.schedule) && !overdueIds.has(m._id));
+  const nextUpId = today.find(isReady)?._id;
   const done = matches.filter((m) => m.status === "completed" || m.status === "forfeited");
+  const toPlay = live.length + overdue.length + today.length + upcoming.length;
 
   const grouped = {};
   upcoming.forEach((m) => { (grouped[dateOf(m.schedule)] = grouped[dateOf(m.schedule)] || []).push(m); });
@@ -655,15 +810,15 @@ export default function OrganizerScoring() {
 
   if (openId) {
     return (
-      <AdminLayout title={feed.sport} menu={organizerMenu} enableDarkMode animateTheme={false}>
+      <AdminLayout title={feed.sport} menu={organizerMenu} enableDarkMode animateTheme={false} seasonStrip={false}>
         <ScoringView matchId={openId} onBack={() => { setOpenId(null); load(); }} />
       </AdminLayout>
     );
   }
 
-  const Row = ({ m, showDate }) => {
+  const Row = ({ m, showDate, isOverdue, nextUp }) => {
     const ready = m.teamA && m.teamB;
-    const d = describeMatch(m, matches);
+    const d = describeMatch(m, allMatches);
     const time = timeOf(m.schedule);
     const isLive = m.status === "ongoing";
     const isDone = m.status === "completed" || m.status === "forfeited";
@@ -682,6 +837,14 @@ export default function OrganizerScoring() {
           !ready && "cursor-not-allowed"
         )}>
         <div className="flex items-center gap-2 flex-wrap mb-2">
+          {/* The kick-off time leads (it used to be a tiny line at the bottom of the card). */}
+          {time && !isLive && !isDone && <span className="text-sm font-semibold tabular-nums">{time}</span>}
+          {nextUp && <Badge className="bg-primary text-primary-foreground">Next up</Badge>}
+          {isOverdue && (
+            <Badge className="gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <TriangleAlert className="size-3" /> Overdue
+            </Badge>
+          )}
           {d.group && <Badge className={TONE_BADGE[d.tone] || TONE_BADGE.accent}>{d.group}</Badge>}
           <span className="text-muted-foreground text-xs">
             {feed?.sport}
@@ -694,20 +857,17 @@ export default function OrganizerScoring() {
           {/* Each team gets its own min-w-0 flex-1 slot so a long barangay name
               on ONE side truncates on its own instead of starving (or being
               starved by) the other side, at any screen width. */}
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <Crest team={m.teamA} size={28} />
-              <span className={cn("min-w-0 truncate text-sm", ready ? "font-medium" : "text-muted-foreground")}>
-                {m.teamA?.teamName || "TBD"}
-              </span>
-            </div>
-            <span className="text-muted-foreground text-xs shrink-0">vs</span>
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <Crest team={m.teamB} size={28} />
-              <span className={cn("min-w-0 truncate text-sm", ready ? "font-medium" : "text-muted-foreground")}>
-                {m.teamB?.teamName || "TBD"}
-              </span>
-            </div>
+          {/* The two teams are STACKED (one per line) so each name gets the row's full width —
+              side by side on a phone, "Mukas U30 vs Baybay U30" was cut to "Mukas… vs Bayba…". */}
+          <div className="min-w-0 flex-1 space-y-1.5">
+            {[m.teamA, m.teamB].map((t, i) => (
+              <div key={i} className="flex min-w-0 items-center gap-2">
+                <Crest team={t} size={28} />
+                <span className={cn("min-w-0 truncate text-sm", ready ? "font-medium" : "text-muted-foreground")}>
+                  {t?.teamName || "TBD"}
+                </span>
+              </div>
+            ))}
           </div>
 
           {isLive ? (
@@ -729,7 +889,7 @@ export default function OrganizerScoring() {
 
         {(showDate || time || m.venue || d.note) && (
           <p className="text-muted-foreground text-xs mt-2">
-            {[showDate ? dateOf(m.schedule) : null, time, m.venue, d.note].filter(Boolean).join(" · ")}
+            {[showDate || isOverdue ? dateOf(m.schedule) : null, isLive || isDone ? time : null, m.venue, d.note].filter(Boolean).join(" · ")}
           </p>
         )}
       </button>
@@ -737,7 +897,7 @@ export default function OrganizerScoring() {
   };
 
   return (
-    <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode animateTheme={false}>
+    <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode animateTheme={false} seasonStrip={false}>
       <div className="space-y-6">
         {error && (
           <Alert variant="destructive">
@@ -745,59 +905,109 @@ export default function OrganizerScoring() {
           </Alert>
         )}
 
-        {live.length > 0 && (
-          <section>
-            <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-2">
-              <Radio className="size-4 text-red-500" /> Playing now
-            </h2>
-            <div className="space-y-2">{live.map((m) => <Row key={m._id} m={m} />)}</div>
-          </section>
+        {/* To play / Completed — finished matches used to pile up under everything else. */}
+        <div className="flex gap-2">
+          {[["play", "To play", toPlay], ["done", "Completed", done.length]].map(([key, label, n]) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={cn(
+                "flex-1 rounded-lg py-2.5 text-sm font-medium transition",
+                tab === key ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              )}>
+              {label} <span className="tabular-nums opacity-80">({n})</span>
+            </button>
+          ))}
+        </div>
+
+        {divisions.length > 1 && (
+          <div className="-mt-3 flex flex-wrap gap-1.5">
+            {["all", ...divisions].map((dv) => (
+              <button key={dv} onClick={() => setDivision(dv)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-medium transition",
+                  division === dv ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent"
+                )}>
+                {dv === "all" ? "All divisions" : (DIVISION_LABEL[dv] || dv)}
+              </button>
+            ))}
+          </div>
         )}
 
-        {today.length > 0 && (
-          <section>
-            <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-2">
-              <CalendarClock className="size-4 text-blue-500" />
-              Today <span className="text-muted-foreground font-normal">({today.length})</span>
-            </h2>
-            <div className="space-y-2">{today.map((m) => <Row key={m._id} m={m} />)}</div>
-          </section>
-        )}
+        {tab === "play" && (
+          <>
+            {live.length > 0 && (
+              <section>
+                <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-2">
+                  <Radio className="size-4 text-red-500" /> Playing now
+                </h2>
+                <div className="space-y-2">{live.map((m) => <Row key={m._id} m={m} />)}</div>
+              </section>
+            )}
 
-        {upcoming.length > 0 && (
-          <section>
-            <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-2">
-              <CalendarClock className="size-4 text-blue-500" />
-              Upcoming <span className="text-muted-foreground font-normal">({upcoming.length})</span>
-            </h2>
-            <div className="space-y-4">
-              {byDate.map(([date, list]) => (
-                <div key={date}>
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-xs font-semibold">{date}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {list.length} match{list.length === 1 ? "" : "es"}
-                    </span>
-                  </div>
-                  <div className="space-y-2">{list.map((m) => <Row key={m._id} m={m} />)}</div>
+            {overdue.length > 0 && (
+              <section>
+                <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-1">
+                  <TriangleAlert className="size-4 text-amber-500" />
+                  Overdue <span className="text-muted-foreground font-normal">({overdue.length})</span>
+                </h2>
+                <p className="text-muted-foreground text-xs mb-2">Dated for a day that has passed and never started.</p>
+                <div className="space-y-2">{overdue.map((m) => <Row key={m._id} m={m} isOverdue />)}</div>
+              </section>
+            )}
+
+            {today.length > 0 && (
+              <section>
+                <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-2">
+                  <CalendarClock className="size-4 text-blue-500" />
+                  Today <span className="text-muted-foreground font-normal">({today.length})</span>
+                </h2>
+                <div className="space-y-2">{today.map((m) => <Row key={m._id} m={m} nextUp={m._id === nextUpId} />)}</div>
+              </section>
+            )}
+
+            {upcoming.length > 0 && (
+              <section>
+                <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-2">
+                  <CalendarClock className="size-4 text-blue-500" />
+                  Upcoming <span className="text-muted-foreground font-normal">({upcoming.length})</span>
+                </h2>
+                <div className="space-y-4">
+                  {byDate.map(([date, list]) => (
+                    <div key={date}>
+                      <div className="flex items-baseline gap-2 mb-2">
+                        <span className="text-xs font-semibold">{date}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {list.length} match{list.length === 1 ? "" : "es"}
+                        </span>
+                      </div>
+                      <div className="space-y-2">{list.map((m) => <Row key={m._id} m={m} />)}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
+              </section>
+            )}
+
+            {toPlay === 0 && (
+              <p className="rounded-lg border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
+                {done.length > 0 ? "Nothing left to play — every match is finished. See Completed." : "Nothing scheduled yet."}
+              </p>
+            )}
+          </>
         )}
 
-        {upcoming.length === 0 && today.length === 0 && live.length === 0 && (
-          <p className="text-muted-foreground text-sm">Nothing scheduled.</p>
-        )}
-
-        {done.length > 0 && (
-          <section>
-            <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-2">
-              <ListChecks className="size-4 text-green-500" />
-              Completed <span className="text-muted-foreground font-normal">({done.length})</span>
-            </h2>
-            <div className="space-y-2">{done.map((m) => <Row key={m._id} m={m} />)}</div>
-          </section>
+        {tab === "done" && (
+          done.length > 0 ? (
+            <section>
+              <h2 className="flex items-center gap-1.5 font-semibold text-sm mb-2">
+                <ListChecks className="size-4 text-green-500" />
+                Completed <span className="text-muted-foreground font-normal">({done.length})</span>
+              </h2>
+              <div className="space-y-2">{done.map((m) => <Row key={m._id} m={m} />)}</div>
+            </section>
+          ) : (
+            <p className="rounded-lg border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
+              No finished matches yet.
+            </p>
+          )
         )}
       </div>
     </AdminLayout>

@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, CircleCheck, CircleX, ClipboardList, Search, Sparkles, UploadCloud } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { CheckCircle2, ChevronLeft, ChevronRight, CircleCheck, CircleX, ClipboardList, Search, Sparkles, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
@@ -8,8 +9,16 @@ import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+
+// Infinity = "All": one page, every row. The table is virtualized (see the
+// useVirtualizer call below), so this stays smooth on the full ~17k list.
+const PAGE_SIZES = [25, 50, 100, 200, 500, 1000, Infinity];
+const sizeLabel = (n) => (n === Infinity ? "All" : String(n));
+// Same tolerance as norm() in the backend's prescreen service.
+const normName = (s) => (s || "").toString().trim().toLowerCase().replace(/s+/g, " ");
 
 export default function ReferenceList() {
   const [status, setStatus] = useState(null);   // { count, season }
@@ -21,13 +30,22 @@ export default function ReferenceList() {
   const fileInputRef = useRef(null);
   const [records, setRecords] = useState([]);
   const [searchParams] = useSearchParams();
-  // Prefilled from the Review Queue's "View in Reference List" link
-  // (?q=<lastName> <firstName>) — read once on mount, the search box itself
-  // owns it from then on.
+  // Arriving from the Review Queue's "View in Reference List" link
+  // (?last=<lastName>&first=<firstName>): show ONLY rows whose name is exactly
+  // that player's — the same case/whitespace-tolerant comparison the
+  // screening uses. It used to prefill a loose word search instead, which
+  // dropped all-number words and matched on substrings, so a player who is NOT
+  // on the list ("Balindong 11, Jose") landed on other people who merely share
+  // a last name or contain "jose" ("Balindong 524, Josefina"). Typing in the
+  // search box leaves this mode. Read once on mount.
+  const [exactName, setExactName] = useState(() => {
+    const last = searchParams.get("last"), first = searchParams.get("first");
+    return last != null && first != null ? { last, first } : null;
+  });
   const [search, setSearch] = useState(() => searchParams.get("q") || "");
-  const cameFromLink = useRef(searchParams.get("q") != null);
+  const cameFromLink = useRef(searchParams.get("q") != null || searchParams.get("last") != null);
   const scrolledToMatch = useRef(false);
-  const rowRefs = useRef({});
+  const tableScrollRef = useRef(null);
 
   async function loadStatus() {
     setLoading(true);
@@ -49,20 +67,6 @@ export default function ReferenceList() {
   }
 
   useEffect(() => { loadStatus(); }, []);
-
-  // Arriving from a "View in Reference List" link: once the list loads,
-  // jump straight to the first matched row among the (already name-filtered)
-  // results, so the connection is easy to spot in a list that can run into
-  // the thousands of rows.
-  useEffect(() => {
-    if (!cameFromLink.current || scrolledToMatch.current || records.length === 0) return;
-    const target = records.find((r) => r.matches?.length || r.minorMatches?.length);
-    const el = target && rowRefs.current[target._id];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      scrolledToMatch.current = true;
-    }
-  }, [records]);
 
   // Deferred: with up to ~17k rows, re-filtering AND re-rendering the table
   // on every single keystroke was what made typing feel laggy — the input
@@ -92,21 +96,85 @@ export default function ReferenceList() {
   );
   const searchIsNoiseOnly = searchTokens.length > 0 && meaningfulTokens.length === 0;
 
+  // A resident's "#" is their position in the FULL list (as the server sorts
+  // it), not in the search results — so searching "Rivera" shows Rivera's real
+  // number, the same one you'd see scrolling the unfiltered list.
+  const masterNumber = useMemo(() => {
+    const m = new Map();
+    records.forEach((r, i) => m.set(r._id, i + 1));
+    return m;
+  }, [records]);
+
   const filteredRecords = useMemo(() => {
+    if (exactName) {
+      const l = normName(exactName.last), f = normName(exactName.first);
+      return records.filter((r) => normName(r.lastName) === l && normName(r.firstName) === f);
+    }
     if (!meaningfulTokens.length) return searchIsNoiseOnly ? [] : records;
     return records.filter((r) => {
       const haystack = `${r.lastName} ${r.firstName} ${r.middleName || ""} ${r.barangay || ""}`.toLowerCase();
       return meaningfulTokens.every((t) => haystack.includes(t));
     });
-  }, [records, meaningfulTokens, searchIsNoiseOnly]);
+  }, [records, exactName, meaningfulTokens, searchIsNoiseOnly]);
 
   // The other half of the lag: rendering every matching row at once, even
-  // when that's the full unfiltered list. Capping keeps the DOM small (and
+  // when that's the full unfiltered list. Paging keeps the DOM small (and
   // this page smooth) no matter how large the underlying list gets — the
-  // search box is how you narrow it down, not the scrollbar.
-  const RENDER_CAP = 200;
-  const visibleRecords = filteredRecords.slice(0, RENDER_CAP);
-  const truncated = filteredRecords.length > RENDER_CAP;
+  // Super Admin picks how many rows to show per page, then pages through or
+  // narrows with search. The "#" column numbers rows by their position in the
+  // FILTERED list, so page 2 continues from where page 1 stopped.
+  const [pageSize, setPageSize] = useState(50);
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = pageSize === Infinity ? 0 : (currentPage - 1) * pageSize;
+  const visibleRecords = filteredRecords.slice(pageStart, pageStart + pageSize);
+
+  // A new search is a new result set — go back to its first page.
+  useEffect(() => { setPage(1); }, [deferredSearch]);
+
+  // Windowing: only the rows in (or near) the scroll viewport exist in the
+  // DOM, whatever the page size. Paging alone still meant "All" / 1000 put
+  // thousands of <tr>s on screen at once, which is what made those choices
+  // lag. Row heights vary (a matched row stacks several lines), so each row
+  // is measured; the rows above/below the window are stood in for by two
+  // spacer rows so the scrollbar still reflects the real length.
+  const virtualizer = useVirtualizer({
+    count: visibleRecords.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 37,
+    overscan: 15,
+  });
+  const virtualRows = virtualizer.getVirtualItems();
+  const padTop = virtualRows.length ? virtualRows[0].start : 0;
+  const padBottom = virtualRows.length
+    ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+    : 0;
+
+  // Changing page / page size / search starts the table back at its top.
+  useEffect(() => {
+    tableScrollRef.current?.scrollTo({ top: 0 });
+  }, [currentPage, pageSize, deferredSearch]);
+
+  // Arriving from a "View in Reference List" link: once the list loads, bring
+  // the results into view. Two scrolls, both needed — the PAGE has to scroll
+  // down past the status/upload cards to the table (it used to stay parked at
+  // the top, so the click looked like it did nothing), and then the TABLE
+  // scrolls to the first matched row among the (already name-filtered)
+  // results. The second goes through the virtualizer, since that row may not
+  // be in the DOM to scrollIntoView. A player who isn't on the list at all
+  // (flagged as a possible Dayo) has no matched row — the page scroll still
+  // lands on the (empty or same-name) results.
+  useEffect(() => {
+    if (!cameFromLink.current || scrolledToMatch.current || records.length === 0) return;
+    const el = tableScrollRef.current;
+    if (!el) return;
+    scrolledToMatch.current = true;
+    const idx = visibleRecords.findIndex((r) => r.matches?.length || r.minorMatches?.length);
+    if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "center" });
+    // Next frame, so the table has its real height before the page centres on it.
+    requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }, [records, visibleRecords, virtualizer]);
 
   async function handleUpload() {
     if (!file) return;
@@ -213,7 +281,7 @@ export default function ReferenceList() {
                     <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
                       {result.missingForMatch} of {result.inserted} row(s) are missing a middle name and/or
                       birthdate — those residents can never auto-clear a player (name alone isn't enough
-                      anymore), only ever needs_document until a document is reviewed by hand.
+                      anymore), so an adult who only matches such a row is flagged as a possible Dayo until the Super Admin reviews them by hand.
                     </p>
                   )}
                 </AlertDescription>
@@ -248,42 +316,67 @@ export default function ReferenceList() {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setExactName(null); setSearch(e.target.value); }}
                   placeholder="Search by name or barangay…"
                   className="pl-8"
                 />
               </div>
+              {exactName && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/50 px-3 py-2 text-xs">
+                  <span>
+                    Exact name matches for{" "}
+                    <span className="font-medium text-foreground">{exactName.last}, {exactName.first}</span>{" "}
+                    — the same name check the screening uses.
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setExactName(null)}>Show all residents</Button>
+                </div>
+              )}
               {searchIsNoiseOnly ? (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
                   Jersey numbers aren't on the reference list — try a name instead.
                 </p>
-              ) : search ? (
-                <p className="text-xs text-muted-foreground">
-                  {filteredRecords.length} of {records.length} residents match "{search}"
-                  {truncated ? ` — showing the first ${RENDER_CAP}, narrow your search to see the rest.` : "."}
-                </p>
-              ) : truncated && (
-                <p className="text-xs text-muted-foreground">
-                  Showing the first {RENDER_CAP} of {records.length} residents — search by name to find someone specific.
-                </p>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {filteredRecords.length === 0
+                      ? "No residents to show."
+                      : `Showing ${pageStart + 1}–${pageStart + visibleRecords.length} of ${filteredRecords.length}`}
+                    {search ? ` (filtered from ${records.length} for "${search}")` : ""}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Rows per page</span>
+                    <Select value={sizeLabel(pageSize)} onValueChange={(v) => { setPageSize(v === "All" ? Infinity : Number(v)); setPage(1); }}>
+                      <SelectTrigger size="sm" className="w-[84px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAGE_SIZES.map((n) => (
+                          <SelectItem key={sizeLabel(n)} value={sizeLabel(n)}>{sizeLabel(n)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               )}
 
-              <div className="max-h-96 overflow-y-auto scrollbar-thin rounded-lg border">
+              <div ref={tableScrollRef} className="max-h-96 overflow-y-auto scrollbar-thin rounded-lg border">
                 {/* table-layout: fixed makes column widths independent of cell
                     content, so a sidebar-collapse reflow doesn't have to rescan
                     every row to recompute them — with hundreds/thousands of
                     residents, auto layout was the source of the collapse lag. */}
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
-                    <col className="w-[17%]" />
-                    <col className="w-[17%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[14%]" />
-                    <col className="w-[14%]" />
-                    <col className="w-[28%]" />
+                    <col className="w-[7%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[26%]" />
                   </colgroup>
                   <thead className="bg-muted text-muted-foreground text-left sticky top-0">
                     <tr>
+                      <th className="px-3 py-2 font-medium">#</th>
                       <th className="px-3 py-2 font-medium">Last name</th>
                       <th className="px-3 py-2 font-medium">First name</th>
                       <th className="px-3 py-2 font-medium">Middle</th>
@@ -292,15 +385,20 @@ export default function ReferenceList() {
                       <th className="px-3 py-2 font-medium">Matched player</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody>
                     {visibleRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
-                          No residents match your search.
+                        <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                          {exactName
+                            ? "No one on the reference list has this exact name — this player isn't on the list."
+                            : "No residents match your search."}
                         </td>
                       </tr>
                     ) : (
-                      visibleRecords.map((r) => {
+                      <>
+                      {padTop > 0 && <tr aria-hidden style={{ height: padTop }}><td colSpan={7} /></tr>}
+                      {virtualRows.map((vr) => {
+                        const r = visibleRecords[vr.index];
                         // `matches` is computed live on every load (see
                         // GET /api/reference-list) by re-running the same
                         // decision the automated pre-screen uses against
@@ -328,14 +426,17 @@ export default function ReferenceList() {
                         return (
                           <tr
                             key={r._id}
-                            ref={(el) => { rowRefs.current[r._id] = el; }}
+                            data-index={vr.index}
+                            ref={virtualizer.measureElement}
                             className={cn(
+                              "border-b",
                               rowTone === "eligible" && "bg-green-500/10 outline outline-1 -outline-offset-1 outline-green-500/40",
                               rowTone === "flagged" && "bg-red-500/10 outline outline-1 -outline-offset-1 outline-red-500/40",
                               rowTone === "multi" && "bg-amber-500/10 outline outline-1 -outline-offset-1 outline-amber-500/40",
                               rowTone === "minor" && "bg-purple-500/10 outline outline-1 -outline-offset-1 outline-purple-500/40"
                             )}
                           >
+                            <td className="px-3 py-2 text-muted-foreground tabular-nums">{masterNumber.get(r._id)}</td>
                             <td className="px-3 py-2 truncate">{r.lastName}</td>
                             <td className="px-3 py-2 truncate">{r.firstName}</td>
                             <td className="px-3 py-2 text-muted-foreground truncate">{r.middleName || "—"}</td>
@@ -390,11 +491,27 @@ export default function ReferenceList() {
                             </td>
                           </tr>
                         );
-                      })
+                      })}
+                      {padBottom > 0 && <tr aria-hidden style={{ height: padBottom }}><td colSpan={7} /></tr>}
+                      </>
                     )}
                   </tbody>
                 </table>
               </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-end gap-2">
+                  <span className="text-xs text-muted-foreground mr-1">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1}>
+                    <ChevronLeft /> Prev
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= totalPages}>
+                    Next <ChevronRight />
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

@@ -54,6 +54,7 @@ function decideFromCandidates(player, teamBarangay, candidates) {
   if (age !== null && age < MINOR_AGE) {
     return {
       status: 'needs_document',
+      code: 'minor',
       reason: `Under ${MINOR_AGE} — needs parental consent and documents`,
       matchedReferenceId: null,
     };
@@ -71,10 +72,16 @@ function decideFromCandidates(player, teamBarangay, candidates) {
     sameMiddleInitial(r.middleName, player.middleName)
   );
 
+  // Not on the list = a possible Dayo, so it's FLAGGED rather than merely
+  // "needs a document" (Sep 2026, Super Admin decision), and a flagged player
+  // can't be approved in the Review Queue — the way through is correcting a
+  // misspelled name (re-screens) or the list being updated. Under-15s never
+  // reach here (handled above).
   if (cands.length === 0) {
     return {
-      status: 'needs_document',
-      reason: 'Not found on the reference list (name, middle initial, and birthdate must all match) — check the spelling, or upload a residency document',
+      status: 'flagged',
+      code: 'not_on_list',
+      reason: 'Not found on the reference list (name, middle initial, and birthdate must all match) — possible Dayo. If the name is misspelled, correct it and it will be re-checked',
       matchedReferenceId: null,
     };
   }
@@ -97,6 +104,9 @@ function decideFromCandidates(player, teamBarangay, candidates) {
   const teamName = teamBarangay?.name || 'this barangay';
   return {
     status: 'flagged',
+    // A hard rule, not a judgment call: the team's barangay doesn't allow
+    // cross-barangay players, so the Review Queue won't let this be approved.
+    code: 'cross_barangay',
     reason: `Listed under ${cands[0].barangay}, not ${teamName} — ${teamName} doesn't allow cross-barangay players`,
     // The mismatched-barangay row itself — this IS the reason for the flag,
     // so it's worth surfacing the same way an eligible match is.
@@ -139,15 +149,18 @@ async function prescreenTeam(team) {
 // player — was the slow path: ~0.5-1s to fetch and scan 17k rows in Node
 // for a single correction, now a targeted lookup that returns at most a
 // handful of rows.
-async function prescreenPlayer(player, team) {
-  const teamBarangay = await Barangay.findById(team.barangay);
+async function decidePlayer(player, team, teamBarangay) {
+  const brgy = teamBarangay || await Barangay.findById(team.barangay && team.barangay._id ? team.barangay._id : team.barangay);
   const candidates = await ReferenceList.find({
     season: team.season,
     lastName: looseRegex(player.lastName),
     firstName: looseRegex(player.firstName),
   }).lean();
+  return decideFromCandidates(player, brgy, candidates);
+}
 
-  const { status, reason } = decideFromCandidates(player, teamBarangay, candidates);
+async function prescreenPlayer(player, team) {
+  const { status, reason } = await decidePlayer(player, team);
   await Player.updateOne({ _id: player._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
   return { status, reason };
 }
@@ -209,6 +222,7 @@ async function rescreenSeason(seasonId) {
 module.exports = {
   prescreenTeam,
   prescreenPlayer,
+  decidePlayer,
   rescreenSeason,
   MINOR_AGE,
   // Exported so the Reference List page can cross-reference LIVE, at read

@@ -2347,3 +2347,139 @@ Driven by the Super Admin's sketch (`bugo ka.png`), a reference page
   22 had already self-corrected to `eligible` before this ran, since its
   middle name was fixed live through the roster editor (which now
   re-screens on that field per the fix above).
+
+## 2026-09 — Reference List paging/row numbers; address required on correction
+
+- **Reference List page**: added a `#` column (numbered by position in the
+  filtered list, so page 2 continues from page 1), a "Rows per page" selector
+  (25/50/100/200/500/1000/All, default 50) and Prev/Next paging. Replaces the old hard
+  200-row cap, which gave no way to see rows past 200 except by searching.
+- **Address now required on "Correct this player"** (form + `PATCH
+  /api/teams/:id/players/:playerId` returns 400 on an empty address). The Add
+  form already required it. Deviation from the earlier note that a correction
+  tolerates a missing address: a player added before the rule existed must now
+  get an address filled in the next time they're edited. Bulk CSV import still
+  tolerates a missing address (unchanged).
+- Address still plays NO part in residency screening — not adding an
+  "address must mention the team's barangay" flag (tried and reverted, see
+  CLAUDE.md: it would wrongly flag the cross-barangay players the whitelist exists for).
+- **Reference List lag on 1000 / All fixed** by virtualizing the table
+  (`@tanstack/react-virtual`, new frontend dependency): only rows in/near the
+  scroll viewport are in the DOM, with two spacer rows standing in for the rest,
+  so "All" on the full ~17k list costs the same as 25 rows. The
+  "View in Reference List" auto-scroll now goes through the virtualizer
+  (`scrollToIndex`) since the target row may not be mounted.
+- **`#` is now the resident's number in the FULL list**, not their position in
+  the search results — searching shows each person's real master-list number
+  (supersedes the earlier "numbered by position in the filtered list").
+
+## 2026-09 — Not on the list = flagged (Dayo); address = barangay name
+
+- **Adult (15+) not found on the reference list is now `flagged`** ("possible
+  Dayo"), not `needs_document` (`decideFromCandidates` in `services/prescreen.js`).
+  Documents stay OPTIONAL: upload is still offered and the Super Admin can approve
+  or reject a flagged player with or without one. Under-15s are unchanged
+  (`needs_document`, consent + documents) — they can't be on a 15+ list.
+  Deviation from the July 20 meeting notes ("verification is document-based"),
+  chosen by the Super Admin — worth confirming with the SK Federation and true up
+  in the thesis. **Statuses already saved are stale until a re-screen runs**
+  (upload a reference list or toggle a barangay's cross-barangay checkbox). With
+  the current dev list having no middle names, a re-screen flags every adult.
+- **Player address must be the team's barangay name** (add, correct; the forms
+  prefill it and warn otherwise). CSV import ignores its address column and sets
+  the barangay name. Supersedes the "address is free text" decision above and
+  the earlier note in this file; address still plays no part in screening, so a
+  cross-barangay player's home barangay is no longer recorded anywhere.
+- **"View in Reference List" (Review Queue) now scrolls the page to the data.**
+  The Reference List page used to scroll only INSIDE the table (and only when a
+  matched row existed), so the page stayed at the top under the status/upload
+  cards and the click looked like nothing happened. Now the page scrolls the
+  results into view, then the table centres on the matched row. A player not on
+  the list (flagged as a possible Dayo) has no matched row, but the page still
+  lands on the results.
+
+## 2026-09 — Verified teams: player details locked (photos still editable)
+
+- Once a team is `verified`, the Barangay Admin can no longer edit its players'
+  details: `PATCH /api/teams/:id/players/:playerId` returns 409 for a
+  barangay_admin on a verified team, and the roster editor hides the edit
+  (pencil) button and shows a "verified — details locked, photos still editable"
+  notice. Reason: an edit re-runs the residency screen and could flip an
+  already-verified team back to pending. Photo upload/delete are separate routes
+  and are unchanged. **The Super Admin can still correct a player** (the existing
+  re-screen + reopen-to-pending safeguard still applies to that path). Add/remove
+  were already locked by submission.
+- **Super Admin "Reopen for corrections"** (fixes a dead end in the lock above:
+  the message told the Barangay Admin to "contact the Super Admin", but the Super
+  Admin has no player list to edit from, and the Review Queue only listed pending
+  teams). New `POST /api/review/teams/:teamId/reopen` sets a verified team back to
+  `pending` (blocked once the team is in any match — delete the tournament
+  first). `GET /api/review/queue` now also returns `verifiedTeams`; the Review
+  Queue shows a "Verified teams" card for the picked barangay with a Reopen
+  button. Reopened, the team is editable by its Barangay Admin again and lands
+  back in the queue to be re-verified. Lock/verify messages reworded to "ask the
+  Super Admin to reopen the team".
+- **Reopen is limited to the `verification` season state** (Super Admin decision):
+  `POST /api/review/teams/:teamId/reopen` returns 409 in any other state, the
+  queue response carries `seasonStatus`, and the "Verified teams" card is hidden
+  outside verification. Once the season is `ongoing`, verified teams are final.
+  (Verify/approve/reject are still ungated — unchanged.)
+
+## 2026-09 — Jersey number optional again
+
+- Jersey number is no longer required on "Add a player" (form + `POST
+  /api/teams/:id/players`); if one is given it must still be numeric. Placeholder
+  reads "Jersey # (optional)" on add and correct. Player model, CSV import and the
+  correct route already treated it as optional.
+
+## 2026-09 — Review Queue load time
+
+- `GET /api/review/queue` looped over every team doing its own roster query
+  (+ populate, + a count per verified team). Rewritten as a fixed handful of
+  batched queries grouped in memory. Measured against the dev Atlas DB with 5
+  pending + 29 verified teams: ~0.9-1.7s -> ~0.4s. Response verified identical
+  to the old code for `teams`, `barangays`, `totalPending`. The remaining ~0.4s
+  is the Atlas round trips (season -> teams/barangays/sports -> links -> players).
+
+## 2026-09 — Cross-barangay flag can't be approved
+
+- A `flagged` player whose flag is the cross-barangay rule ("Listed under X, not
+  Y — Y doesn't allow cross-barangay players") can no longer be approved in the
+  Review Queue: the Approve button is disabled with an explanation, and `POST
+  /api/review/teams/:teamId/players/:playerId/approve` returns 409. The way out is
+  to reject the player, or tick "allow cross-barangay" for that barangay in League
+  Setup (which re-screens the season and clears the flag on its own).
+  The "not on the list / possible Dayo" flag is unchanged and stays approvable.
+- `decideFromCandidates` now returns a `code` (`minor` / `not_on_list` /
+  `cross_barangay`) so this doesn't depend on the reason text, and a new
+  `decidePlayer()` in `services/prescreen.js` re-runs the decision for one player
+  without saving. `GET /api/review/teams/:teamId` adds `crossBarangayBlocked` to
+  each flagged player, computed LIVE (works for flags saved before this existed).
+  No model change, no restart needed beyond the normal reload.
+
+## 2026-09 — "View in Reference List" matches the exact name
+
+- The Review Queue link used to prefill a loose word search ("Lastname Firstname").
+  That search drops all-number words (meant for jersey numbers) and matches on
+  substrings, so a player NOT on the list landed on other people sharing a last
+  name or containing the first name ("Balindong 11, Jose" -> "Balindong 524,
+  Josefina"; the dev data's surnames carry numbers, which the search discarded).
+  The link now passes `?last=&first=` and the page shows only rows whose name is
+  exactly that player's (same case/whitespace-tolerant comparison as screening),
+  with a "Show all residents" button. A player not on the list shows "No one on the
+  reference list has this exact name". Typing in the search box leaves that mode.
+  The normal search box is unchanged (still drops number-only words).
+
+## 2026-09 — Flagged Dayo can't be approved either
+
+- Approve is now disabled for EVERY flagged player, not just the cross-barangay
+  kind: "not found on the reference list (possible Dayo)" joins it (button
+  disabled with a message; `POST .../approve` returns 409). Supersedes the
+  earlier "Dayo flag stays approvable, documents optional". The way through is the
+  Barangay Admin correcting a misspelled name (auto re-screen) or a reference-list
+  update; otherwise the Super Admin rejects the player. A stale flag that a live
+  re-run no longer flags isn't blocked. `GET /api/review/teams/:teamId` now returns
+  `flagBlock` (`cross_barangay` | `not_on_list` | null) instead of
+  `crossBarangayBlocked`. The Dayo reason text no longer invites a document upload.
+- Not changed: the Barangay Admin's document upload is still offered for flagged
+  players even though it can no longer lead to an approval.

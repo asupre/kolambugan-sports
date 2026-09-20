@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Camera, FileWarning, ImageIcon, Loader2, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { AlertTriangle, Camera, FileWarning, ImageIcon, Loader2, Lock, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import ImageCropDialog from "../../components/ImageCropDialog";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -112,7 +112,13 @@ function ageFrom(birthdate) {
 
 // Correcting a player. Deliberately available AFTER submission too — a typo is
 // usually only noticed once screening flags it, which happens on submit.
-function EditPlayer({ teamId, player, onSaved, onCancel }) {
+// The address is just the barangay's own name — the player plays for that
+// barangay, so it stands in as their address. Mirrors checkAddress() in
+// routes/team.js (an optional "Brgy."/"Barangay" prefix is tolerated).
+const normAddr = (s) => (s || "").toString().replace(/^\s*(barangay|brgy\.?)\s+/i, "").trim().toLowerCase().replace(/\s+/g, " ");
+const isBarangayAddress = (addr, name) => !!name && normAddr(addr) === normAddr(name);
+
+function EditPlayer({ teamId, barangayName, player, onSaved, onCancel }) {
   const rootRef = useRef(null);
   // Scrolls itself into view on mount — this form renders inline in a long,
   // scrollable player list, so clicking "Edit" on a player further down
@@ -126,7 +132,9 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
     middleName: player.middleName || "",
     lastName: player.lastName || "",
     birthdate: player.birthdate ? new Date(player.birthdate).toISOString().slice(0, 10) : "",
-    address: player.address || "",
+    // Prefilled with the barangay name — an older, free-text address would
+    // be rejected by the route, so correcting a legacy player just works.
+    address: barangayName || player.address || "",
     jerseyNumber: player.jerseyNumber ?? "",
   });
   const [busy, setBusy] = useState(false);
@@ -174,9 +182,14 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
           <DatePicker value={form.birthdate} captionLayout="dropdown" disableFuture
             onChange={(v) => setForm({ ...form, birthdate: v })} />
         </div>
-        <Input placeholder="Address (optional)" value={form.address}
-          onChange={(e) => setForm({ ...form, address: e.target.value })} />
-        <Input type="number" placeholder="Jersey #" value={form.jerseyNumber}
+        <div className="space-y-1">
+          <Input placeholder="Address" value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })} />
+          <p className={`text-xs ${!form.address.trim() || isBarangayAddress(form.address, barangayName) ? "text-muted-foreground" : "text-destructive"}`}>
+            Address must be your barangay's name{barangayName ? `: ${barangayName}` : ""}.
+          </p>
+        </div>
+        <Input type="number" placeholder="Jersey # (optional)" value={form.jerseyNumber}
           onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
       </div>
 
@@ -188,7 +201,7 @@ function EditPlayer({ teamId, player, onSaved, onCancel }) {
       {error && <p className="text-destructive text-sm mb-2">{error}</p>}
 
       <div className="flex gap-2">
-        <Button size="sm" onClick={save} disabled={busy || !form.firstName.trim() || !form.lastName.trim()}>
+        <Button size="sm" onClick={save} disabled={busy || !form.firstName.trim() || !form.lastName.trim() || !isBarangayAddress(form.address, barangayName)}>
           {busy ? "Saving…" : "Save"}
         </Button>
         <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
@@ -419,12 +432,16 @@ function RosterEditor({ team, sports, onClose }) {
   const [notice, setNotice] = useState("");
   const [uploadingId, setUploadingId] = useState(null);
   const [importing, setImporting] = useState(false);
-  const [form, setForm] = useState({ firstName: "", middleName: "", lastName: "", birthdate: "", address: "", jerseyNumber: "" });
+  const barangayName = team.barangayName || "";
+  const blankForm = { firstName: "", middleName: "", lastName: "", birthdate: "", address: barangayName, jerseyNumber: "" };
+  const [form, setForm] = useState(blankForm);
 
-  const sport = sports.find((s) => s._id === (team.sport?._id || team.sport));
+  const sport =sports.find((s) => s._id === (team.sport?._id || team.sport));
   const entryFormat = sport?.entryFormat || "team";
   const limits = rosterLimitsFor(sport);
   const locked = !!team.submittedAt;
+  // Verified by the Super Admin: player details are frozen, photos still editable.
+  const verified = team.status === "verified";
 
   async function load() {
     setLoading(true);
@@ -454,7 +471,7 @@ function RosterEditor({ team, sports, onClose }) {
           jerseyNumber: form.jerseyNumber !== "" ? Number(form.jerseyNumber) : undefined,
         }),
       });
-      setForm({ firstName: "", middleName: "", lastName: "", birthdate: "", address: "", jerseyNumber: "" });
+      setForm(blankForm);
       await load();
     } catch (e) {
       showError(e.message);
@@ -587,6 +604,16 @@ function RosterEditor({ team, sports, onClose }) {
           </div>
         ) : (
           <>
+            {verified && (
+              <Alert className="border-green-500/30 bg-green-500/5">
+                <Lock className="text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-foreground">
+                  This team is verified, so its player details are locked. You can still change
+                  player photos. If something needs correcting during the verification period,
+                  ask the Super Admin to reopen the team — it will then come back here as editable.
+                </AlertDescription>
+              </Alert>
+            )}
             <p className="text-xs text-muted-foreground">
               Player photos: close-up headshot, face clearly visible, plain background if possible.
               JPEG or PNG, max 3&nbsp;MB. Photos appear on the public team roster.
@@ -627,9 +654,11 @@ function RosterEditor({ team, sports, onClose }) {
                           {p.eligibilityStatus.replace("_", " ")}
                         </Badge>
                       )}
-                      <Button size="icon-sm" variant="outline" onClick={() => setEditingId(editingId === p._id ? null : p._id)}>
-                        <Pencil />
-                      </Button>
+                      {!verified && (
+                        <Button size="icon-sm" variant="outline" onClick={() => setEditingId(editingId === p._id ? null : p._id)}>
+                          <Pencil />
+                        </Button>
+                      )}
                       {!locked && (
                         <Button size="icon-sm" variant="destructive" onClick={() => removePlayer(p._id)}>
                           <Trash2 />
@@ -655,9 +684,10 @@ function RosterEditor({ team, sports, onClose }) {
                       </>
                     )}
 
-                    {editingId === p._id && (
+                    {editingId === p._id && !verified && (
                       <EditPlayer
                         teamId={team._id}
+                        barangayName={barangayName}
                         player={p}
                         onCancel={() => setEditingId(null)}
                         onSaved={(res) => {
@@ -701,8 +731,9 @@ function RosterEditor({ team, sports, onClose }) {
                   </div>
                   <p className="text-muted-foreground text-xs mb-3">
                     Already have a list? Upload a CSV with columns for first name, last name,
-                    birthdate, and optionally middle name, address, and jersey number — column
-                    names don't have to match exactly. Rows are added up to the roster's limit;
+                    birthdate, and optionally middle name and jersey number — column
+                    names don't have to match exactly. Every imported player's address is set to
+                    your barangay's name. Rows are added up to the roster's limit;
                     anything invalid or over the limit is skipped and reported.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
@@ -717,9 +748,14 @@ function RosterEditor({ team, sports, onClose }) {
                       <DatePicker value={form.birthdate} captionLayout="dropdown" disableFuture
                         onChange={(v) => setForm({ ...form, birthdate: v })} />
                     </div>
-                    <Input placeholder="Address" value={form.address}
-                      onChange={(e) => setForm({ ...form, address: e.target.value })} />
-                    <Input type="number" placeholder="Jersey #" value={form.jerseyNumber}
+                    <div className="space-y-1">
+                      <Input placeholder="Address" value={form.address}
+                        onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                      <p className={`text-xs ${!form.address.trim() || isBarangayAddress(form.address, barangayName) ? "text-muted-foreground" : "text-destructive"}`}>
+                        Address must be your barangay's name{barangayName ? `: ${barangayName}` : ""}.
+                      </p>
+                    </div>
+                    <Input type="number" placeholder="Jersey # (optional)" value={form.jerseyNumber}
                       onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
                   </div>
 
@@ -733,7 +769,7 @@ function RosterEditor({ team, sports, onClose }) {
                   <Button onClick={addPlayer}
                     disabled={
                       busy || !form.firstName.trim() || !form.middleName.trim() || !form.lastName.trim() ||
-                      !form.birthdate || !form.address.trim() || form.jerseyNumber === ""
+                      !form.birthdate || !isBarangayAddress(form.address, barangayName)
                     }>
                     {busy ? "Adding…" : "Add player"}
                   </Button>

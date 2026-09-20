@@ -68,7 +68,8 @@ score tallying, no public visibility, records lost every season.
   Barangay Admin upload a CSV instead of adding players one at a time — a
   coach's spreadsheet or a prior season's export. Tolerant column mapping
   (`canonicalPlayerKey` in routes/team.js) — first/last/middle name, birthdate,
-  address, jersey number, various header spellings. Same rules as a single
+  jersey number, various header spellings (an address column is IGNORED — every
+  imported player gets the barangay name, see the address rule below). Same rules as a single
   add: draft-only, capped at the roster's max; rows over the cap or missing a
   required field are skipped and reported back (row number + reason), not
   silently dropped. UI: an "Import CSV" button beside "Add a player" in the
@@ -76,16 +77,29 @@ score tallying, no public visibility, records lost every season.
 - New players / under 15: require **parental consent + supporting documents**.
 - Player fields collected: full name, birthdate (age derived), **photo**, address,
   jersey number. On the manual "Add a player" form (`POST /api/teams/:id/players`),
-  **every field is required** — first/middle/last name, birthdate, address, jersey
-  number (Sep 2026; middle name/address/jersey number used to be optional).
-  Enforced both in the form (Add button stays disabled until all are filled) and
-  in the route (400 if any is missing, and jersey number must be numeric). The
-  bulk CSV import (`/players/import`) and the "Correct this player" edit route
-  deliberately still tolerate a missing middle name/address/jersey number — CSV
-  data is often incomplete, and a correction has to work on players added before
-  this rule existed.
-- **Player addresses are free text — NOT required to mention the team's own
-  barangay** (tried and reverted, Sep 2026 — see CHANGES.md). A whitelisted
+  **every field is required EXCEPT jersey number** — first/middle/last name,
+  birthdate, address (Sep 2026; middle name/address used to be optional, and
+  jersey number was briefly required, then made optional again the same month).
+  Enforced both in the form (Add button stays disabled until the required ones
+  are filled) and in the route (400 if any is missing; a jersey number, if
+  given, must be numeric). The
+  bulk CSV import (`/players/import`) deliberately still tolerates a missing
+  middle name/jersey number — CSV data is often incomplete. The
+  "Correct this player" edit route tolerates a missing middle name/jersey
+  number, but the address rules below apply to it too.
+- **Player address = the team's own barangay name, and nothing else**
+  (Super Admin decision, Sep 2026 — the player plays for that barangay, so it
+  stands in as their address). `checkAddress()` in `routes/team.js` enforces
+  it on add and on "Correct this player" (400 unless the address equals the
+  team's barangay name, case/whitespace-tolerant, optional "Brgy."/"Barangay"
+  prefix; the STORED value is always the canonical name). The forms prefill it
+  (`barangayName` comes from `GET /api/teams/mine`) and flag anything else.
+  **CSV import ignores the file's address column** and stamps every imported
+  player with the barangay name. Players saved earlier with a free-text
+  address are left as-is until they're next edited. This REVERSES an earlier
+  free-text rule (below); it does not change screening — address still plays
+  no part in it. The old note, kept for the reasoning: addresses were free text — NOT required to mention the team's own
+  barangay (tried and reverted, Sep 2026 — see CHANGES.md). A whitelisted
   small/remote barangay's TEAM (Small Banisilon, Matampay, Bubong,
   Pantaon, Inudaran, San Roque, Palao, Sto. Niño, Sucodan, Lumbac) legitimately
   fields players from OTHER barangays, whose real address is their own
@@ -177,9 +191,16 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   1. Barangay Admin submits roster → system **auto pre-screens** each player
      against the reference list immediately (eligible / needs_document / flagged,
      with `flagReason`).
-  2. Players NOT on the list (minors, new players) upload a residency
-     document via the Barangay Admin's **Document Submission** page.
-     Documents are the EXCEPTION, not required for everyone.
+  2. **An adult (15+) NOT found on the list is `flagged` as a possible Dayo**
+     (Super Admin decision, Sep 2026 — was `needs_document`), with a
+     `flagReason` saying so. **A flagged player can never be approved** (see
+     step 3): the way through is the Barangay Admin correcting a misspelled
+     name (auto re-screen) or the reference list being updated — otherwise the
+     Super Admin rejects them. A document doesn't change that (the upload is
+     still offered on the **Document Submission** page but can't lead to an
+     approval for a flagged player). **Under-15s are unchanged**: they can never be on the list, so they stay
+     `needs_document` and need documents + parental consent. Documents are the
+     EXCEPTION, not required for everyone.
   3. **Super Admin reviews in the Review Queue** — sees the player's photo and
      the uploaded document inline (zoomable — wheel/pinch/+/- to zoom, drag to
      pan once zoomed, Sep 2026) — and gives the official verdict (approve /
@@ -187,13 +208,28 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
      blocked for a `needs_document` player with no document uploaded** (Sep
      2026, both the route and the button) — that status means there's no
      reference-list match at all, so a submitted document is the only
-     possible evidence; `flagged` (cross-barangay) isn't gated the same way,
-     since that's a barangay-rule judgment call, not missing paperwork.
+     possible evidence. **A `flagged` player CANNOT be approved — of either
+     kind** (Sep 2026, route 409 + button disabled): a cross-barangay violation
+     (the team's barangay doesn't allow cross-barangay players — reject, or
+     allow cross-barangay for that barangay in League Setup, which re-screens
+     the season and clears the flag) or "not on the list / possible Dayo"
+     (correct a misspelled name, or reject). The kind is the `code` on
+     `decideFromCandidates`' result, decided live via `decidePlayer()` and
+     returned as `flagBlock` — never parsed from the reason text. A stale
+     `flagged` whose live decision is no longer flagged isn't blocked.
      Approving also **clears `flagReason`** (fixed Sep 2026 — it used to be
      left stale, so an approved player could still show the old "needs
      document"/flag warning in the UI).
   4. Verify locks the team (`status: 'verified'`); only verified teams enter
-     tournaments. **A later correction can un-verify it** (fixed Sep 2026):
+     tournaments. **Once verified, a Barangay Admin can NOT edit its players'
+     details** (Sep 2026 — `PATCH .../players/:playerId` 409s; photos stay
+     editable). The way back is the Super Admin's **"Reopen for corrections"**
+     in the Review Queue (`POST /api/review/teams/:teamId/reopen` → `pending`,
+     only during the `verification` season state, blocked once the team is in any match): the team becomes editable again
+     and is re-verified afterwards. The Super Admin has no per-player edit UI.
+     **A later correction can un-verify it** (fixed Sep 2026 — this now only
+     applies to a Super Admin API correction, since the Barangay Admin is
+     locked out once verified):
      the "correct this player" PATCH re-screens on a name/middle
      name/birthdate change (`identityChanged` in `routes/team.js` — a
      middle-name-only edit was missing from this check until Sep 2026 and
@@ -211,14 +247,17 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
      NEVER write approvals into the reference list itself.
 - **Matching mechanics** (`services/prescreen.js`): a player matches a
   reference row on exact `lastName`+`firstName` (case/whitespace-tolerant —
-  "Dela  Cruz" and "dela cruz" are the same), **AND, since Sep 2026, middle
+  "Dela  Cruz" and "dela cruz" are the same — verified against real rows:
+  lower/UPPER case, extra spaces, and an initial-only middle name all still
+  match; accents and punctuation are NOT normalized, so "Niño" vs "Nino" or
+  "Ma. Luisa" vs "Ma Luisa" count as different names), **AND, since Sep 2026, middle
   initial + birthdate must ALSO both agree** — no longer just a tie-break
   used when more than one row shared the name. `sameMiddleInitial()`
   compares only the first letter (case-insensitive), so a reference row's
   full "Miguel" still matches a roster's abbreviated "M." A row (on either
   side) missing its middle name or birthdate can never confirm a match —
   excluded, not assumed, same as a spelling difference is treated as NOT
-  FOUND (→ `needs_document`), never fuzzy-matched — deliberate, so two
+  FOUND (→ `flagged` for an adult, `needs_document` for a minor), never fuzzy-matched — deliberate, so two
   different people with similar names can't cross-match. Multiple
   candidates sharing a name but disagreeing on barangay is possible; only
   `candidates[0]`'s barangay is used for the eligible/flagged decision once
@@ -230,9 +269,24 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   NONE of them (uploaded before this existed) — until the Super Admin
   re-uploads a CSV that actually includes middle names, literally nothing
   on the list can confirm a match, and any re-screen flips previously
-  `eligible` players back to `needs_document` across the board. This is
+  `eligible` players to `flagged` (possible Dayo) across the board. This is
   the intended, correct effect of the stricter rule, not a bug — but it
   means the feature isn't USEFUL yet without a re-upload.
+- **Reference List page — numbering, paging, virtualization, exact-name link**
+  (Sep 2026, `ReferenceList.jsx`): a `#` column shows each resident's number in
+  the FULL list (as the server sorts it), unchanged by search or paging. A "Rows
+  per page" selector (25/50/100/200/500/1000/All, default 50) plus Prev/Next
+  replaced the old hard 200-row cap. The table is **virtualized**
+  (`@tanstack/react-virtual`, a frontend dependency): only rows near the scroll
+  viewport are in the DOM, with two spacer rows for the rest, so "All" on the
+  ~17k list doesn't lag. The Review Queue's "View in Reference List" link now
+  passes `?last=&first=` and the page shows ONLY rows with that exact name
+  (same case/whitespace-tolerant comparison as screening) with a "Show all
+  residents" button — it used to prefill the loose word search, which drops
+  all-number words and substring-matches, so a player NOT on the list landed on
+  other people sharing a last name. Typing in the search box leaves that mode.
+  The link also scrolls the PAGE to the results, then the table to the match
+  (through the virtualizer's `scrollToIndex`).
 - **Reference List page — informational highlight for under-15 same-name
   rows** (Sep 2026): `decideFromCandidates` deliberately never matches a
   player under 15 to a reference row (the list starts at 15), so a minor's
@@ -646,7 +700,10 @@ so a bug in one route cannot expose the other.
   Motion animation state instead of the Tailwind class.
 - **Review Queue — barangay picker + a real "Cleared" definition** (Sep
   2026): `GET /api/review/queue` now also returns `barangays` (all 26,
-  not just ones with a pending team) and `totalPending`. The Review Queue
+  not just ones with a pending team), `totalPending`, `verifiedTeams` and
+  `seasonStatus` (for the "Reopen for corrections" card, shown only during
+  `verification`). The route runs a fixed handful of BATCHED queries — it used
+  to query per team (~1-1.7s at ~34 teams on Atlas, now ~0.4s); keep it batched. The Review Queue
   page (`ReviewQueue.jsx`) shows a row of barangay chips above the team
   list — click one to filter to just that barangay instead of scrolling
   the whole season. A chip shows a red pending-count badge, a green

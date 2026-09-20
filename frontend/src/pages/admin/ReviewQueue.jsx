@@ -52,7 +52,9 @@ function ReasonCallout({ status, reason, className }) {
 // needs to be re-saved to see the connection.
 function MatchCallout({ status, reason, lastName, firstName, navigate }) {
   const viewInReferenceList = () =>
-    navigate(`/admin/reference?q=${encodeURIComponent(`${lastName} ${firstName}`)}`);
+    // last/first as separate params so the Reference List can match the EXACT
+    // name (what screening does) instead of guessing from a loose search string.
+    navigate(`/admin/reference?last=${encodeURIComponent(lastName || "")}&first=${encodeURIComponent(firstName || "")}`);
 
   if (status === "eligible") {
     return (
@@ -320,6 +322,13 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
   // flagged (cross-barangay) and pending aren't gated the same way: a flag is
   // about the barangay rule, not missing paperwork.
   const blockedNoDocument = p.eligibilityStatus === "needs_document" && !p.documents?.length;
+  // A flagged player can't be approved, of either kind: a cross-barangay
+  // violation (the team's barangay isn't allowed to field players from another
+  // barangay) or not being on the reference list (possible Dayo). The server
+  // decides (`flagBlock`, live) and enforces it on the approve route too.
+  const blockedCrossBarangay = p.flagBlock === "cross_barangay";
+  const blockedDayo = p.flagBlock === "not_on_list";
+  const approveBlocked = blockedNoDocument || blockedCrossBarangay || blockedDayo;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -386,15 +395,19 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy }) {
 
         {/* Actions */}
         <div className="px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap shrink-0">
-          <p className={cn("text-xs", blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground")}>
-            {blockedNoDocument
+          <p className={cn("text-xs", blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground")}>
+            {blockedCrossBarangay
+              ? "This barangay doesn't allow cross-barangay players, so this player can't be approved. Reject them, or allow cross-barangay for this barangay in League Setup."
+              : blockedDayo
+              ? "Not on the reference list (possible Dayo) — this player can't be approved. If the name is misspelled, the Barangay Admin can correct it and it re-screens; otherwise reject them."
+              : blockedNoDocument
               ? "No document uploaded yet — Approve is disabled until the Barangay Admin submits one."
               : "Approving also marks this player's pending documents as approved. Rejecting removes the player and their files, and reopens the roster."}
           </p>
           {p.eligibilityStatus !== "eligible" && (
             <div className="flex gap-2 shrink-0">
-              <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || blockedNoDocument}
-                title={blockedNoDocument ? "This player has no document uploaded yet." : undefined}
+              <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || approveBlocked}
+                title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : blockedNoDocument ? "This player has no document uploaded yet." : undefined}
                 className="bg-green-600 text-white hover:bg-green-700 focus-visible:ring-green-500/40 dark:focus-visible:ring-green-500/40">
                 Approve
               </Button>
@@ -414,6 +427,8 @@ export default function ReviewQueue() {
   const showError = useErrorDialog();
   const confirm = useConfirm();
   const [teams, setTeams] = useState([]);
+  const [verifiedTeams, setVerifiedTeams] = useState([]); // for "Reopen for corrections"
+  const [seasonStatus, setSeasonStatus] = useState("");
   const [barangays, setBarangays] = useState([]);    // all 26, each with a pending/verified/cleared tally
   const [selectedBarangay, setSelectedBarangay] = useState(null); // null = "All"
   const [loading, setLoading] = useState(true);
@@ -429,9 +444,12 @@ export default function ReviewQueue() {
     try {
       const data = await api("/api/review/queue");
       setTeams(data.teams || []);
+      setVerifiedTeams(data.verifiedTeams || []);
+      setSeasonStatus(data.seasonStatus || "");
       setBarangays(data.barangays || []);
     } catch (e) {
       setTeams([]);
+      setVerifiedTeams([]);
       setBarangays([]);
     } finally {
       setLoading(false);
@@ -501,6 +519,30 @@ export default function ReviewQueue() {
     } catch (e) { showError(e.message); } // backend blocks if not all eligible — pops now, not buried off-screen
     finally { setBusy(false); }
   }
+
+  // Undo a verification. A verified team's player details are locked for its
+  // Barangay Admin; reopening sends it back to pending so they can correct it,
+  // and it lands back in this queue to be verified again. The backend refuses
+  // once the team is in a tournament's matches.
+  async function reopen(t) {
+    if (!(await confirm(
+      `Reopen ${t.teamName}? It goes back to the queue as pending and ${t.barangay}'s admin can edit its players again. You'll need to verify it again afterwards.`,
+      { confirmLabel: "Reopen" }
+    ))) return;
+    setBusy(true); setMsg("");
+    try {
+      const data = await api(`/api/review/teams/${t.teamId}/reopen`, { method: "POST" });
+      setMsg(data.message || "Team reopened.");
+      await loadQueue();
+    } catch (e) { showError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  // Reopening is only offered during the verification period — once the season
+  // is ongoing, verified teams are final (the backend enforces this too).
+  const visibleVerified = selectedBarangay && seasonStatus === "verification"
+    ? verifiedTeams.filter((t) => t.barangayId === selectedBarangay)
+    : [];
 
   const allEligible = players.length > 0 && players.every((p) => p.eligibilityStatus === "eligible");
 
@@ -650,6 +692,37 @@ export default function ReviewQueue() {
                 </Card>
               ))}
             </div>
+          )}
+
+          {/* Verified teams of the picked barangay — verified teams are locked
+              for their Barangay Admin, so this is the way back if one needs a
+              correction. Only shown once a barangay is picked (all 26 at once
+              would be a very long list). */}
+          {visibleVerified.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Verified teams</CardTitle>
+                <CardDescription>
+                  These are locked — their Barangay Admin can only change photos. Reopen one to let
+                  them correct a player; it returns to the queue and needs verifying again. A team
+                  already in a tournament can't be reopened (delete the tournament first).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {msg && <p className="text-sm bg-muted rounded px-3 py-2">{msg}</p>}
+                {visibleVerified.map((t) => (
+                  <div key={t.teamId} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{t.teamName}</p>
+                      <p className="text-muted-foreground text-xs truncate">{t.sport} · {t.playerCount} players</p>
+                    </div>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => reopen(t)}>
+                      <RotateCcw /> Reopen for corrections
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           )}
         </div>
       )}

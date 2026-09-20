@@ -7,6 +7,7 @@ const TeamPlayer = require('../models/TeamPlayer');
 const Sport = require('../models/Sport');
 const Document = require('../models/Document');
 const Match = require('../models/Match');
+const Barangay = require('../models/Barangay');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
 const { prescreenTeam,  prescreenPlayer, norm } = require('../services/prescreen');
@@ -79,6 +80,18 @@ async function siblingTeamRosterIndex(team) {
     index.set(playerKey(p.lastName, p.firstName, p.birthdate), teamNameById.get(String(link.team)));
   }
   return index;
+}
+
+// A player's address is deliberately just their team's barangay name and
+// nothing else (Sep 2026, Super Admin decision — the player plays for that
+// barangay, so it stands in as their address). An optional "Brgy."/"Barangay"
+// prefix is tolerated; the STORED value is always the canonical name.
+// Address plays no part in residency screening either way.
+async function checkAddress(team, address) {
+  const brgy = await Barangay.findById(team.barangay).select('name');
+  const name = brgy ? brgy.name : '';
+  const stripped = String(address || '').replace(/^\s*(barangay|brgy\.?)\s+/i, '');
+  return { name, ok: !!name && norm(stripped) === norm(name) };
 }
 
 // Load a team and confirm this barangay admin owns it (super_admin may access any).
@@ -174,9 +187,12 @@ router.get('/mine', authenticate, authorize('barangay_admin'), async (req, res) 
       .populate('sport', 'name')
       .sort({ createdAt: 1 });
 
+    // Sent as its own field (not by populating `barangay`, which other code
+    // reads as an id) — the roster form pre-fills each player's address with it.
+    const brgy = await Barangay.findById(req.user.barangay).select('name');
     const withCounts = await Promise.all(teams.map(async (t) => {
       const playerCount = await TeamPlayer.countDocuments({ team: t._id });
-      return { ...t.toObject(), playerCount };
+      return { ...t.toObject(), playerCount, barangayName: brgy ? brgy.name : '' };
     }));
 
     res.json({ teams: withCounts });
@@ -231,7 +247,7 @@ router.delete('/:id', authenticate, authorize('super_admin', 'barangay_admin'), 
       }
       if (team.status === 'verified') {
         return res.status(409).json({
-          message: 'This team is verified and locked. Contact the Super Admin to remove it.',
+          message: 'This team is verified and locked. Ask the Super Admin to reopen it first.',
         });
       }
     }
@@ -287,13 +303,19 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
     }
 
     const { firstName, middleName, lastName, birthdate, address, jerseyNumber } = req.body;
-    if (!firstName || !middleName || !lastName || !birthdate || !address || jerseyNumber === undefined || jerseyNumber === null || jerseyNumber === '') {
+    if (!firstName || !middleName || !lastName || !birthdate || !address) {
       return res.status(400).json({
-        message: 'First name, middle name, last name, birthdate, address, and jersey number are all required.',
+        message: 'First name, middle name, last name, birthdate, and address are all required.',
       });
     }
-    if (!Number.isFinite(Number(jerseyNumber))) {
+    // Jersey number is optional (Sep 2026) — but if one is given it must be numeric.
+    const hasJersey = jerseyNumber !== undefined && jerseyNumber !== null && jerseyNumber !== '';
+    if (hasJersey && !Number.isFinite(Number(jerseyNumber))) {
       return res.status(400).json({ message: 'Jersey number must be a number.' });
+    }
+    const addr = await checkAddress(team, address);
+    if (!addr.ok) {
+      return res.status(400).json({ message: `Address must be your barangay's name: "${addr.name}".` });
     }
 
     const dupIndex = await siblingTeamRosterIndex(team);
@@ -310,8 +332,8 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
       lastName: lastName.trim(),
       birthdate: new Date(birthdate),
       age: computeAge(birthdate),
-      address: address.trim(),
-      jerseyNumber: Number(jerseyNumber),
+      address: addr.name,
+      jerseyNumber: hasJersey ? Number(jerseyNumber) : undefined,
     });
 
     await TeamPlayer.create({ team: team._id, player: player._id });
@@ -370,6 +392,9 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
     // naming the same player get caught too, not just ones matched against
     // an already-saved sibling team.
     const dupIndex = await siblingTeamRosterIndex(team);
+    // The address is always the team's barangay name (see checkAddress), so a
+    // CSV's own address column is ignored — every imported player gets it.
+    const importAddress = (await checkAddress(team, '')).name || undefined;
 
     const skipped = [];
     const toCreate = [];
@@ -405,7 +430,7 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
         lastName: rec.lastName.trim(),
         birthdate: d,
         age: computeAge(d),
-        address: rec.address ? rec.address.trim() : undefined,
+        address: importAddress,
         jerseyNumber: rec.jerseyNumber != null && rec.jerseyNumber !== '' ? Number(rec.jerseyNumber) : undefined,
       });
       dupIndex.set(key2, team.teamName);
@@ -465,6 +490,16 @@ router.patch('/:id/players/:playerId', authenticate,
     const team = await loadOwnedTeam(req, res);
     if (!team) return;
 
+    // Once the Super Admin has verified a team its player details are FROZEN
+    // for the Barangay Admin (Sep 2026) — an edit re-runs the residency screen
+    // and can flip an already-verified team back to pending. Photos are a
+    // separate route and stay editable. The Super Admin can still correct.
+    if (team.status === 'verified' && req.user.role === 'barangay_admin') {
+      return res.status(409).json({
+        message: 'This team is verified, so its player details are locked. Only player photos can be changed. If something needs correcting, ask the Super Admin to reopen the team (only possible during the verification period).',
+      });
+    }
+
     const link = await TeamPlayer.findOne({ team: team._id, player: req.params.playerId });
     if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
 
@@ -488,7 +523,14 @@ router.patch('/:id/players/:playerId', authenticate,
       player.lastName = String(lastName).trim();
     }
     if (middleName !== undefined) player.middleName = String(middleName).trim() || undefined;
-    if (address !== undefined) player.address = String(address).trim() || undefined;
+    if (address !== undefined) {
+      if (!String(address).trim()) return res.status(400).json({ message: 'Address cannot be empty.' });
+      const addr = await checkAddress(team, address);
+      if (!addr.ok) {
+        return res.status(400).json({ message: `Address must be your barangay's name: "${addr.name}".` });
+      }
+      player.address = addr.name;
+    }
     if (jerseyNumber !== undefined) {
       player.jerseyNumber = jerseyNumber === null || jerseyNumber === '' ? undefined : Number(jerseyNumber);
     }

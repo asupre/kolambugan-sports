@@ -835,62 +835,6 @@ router.get('/:id/bracket', async (req, res) => {
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
-// POST /api/tournaments/:id/simulate-groups — DEV ONLY: auto-score all group matches.
-// Assigns clean results that avoid cutoff ties, so testing can skip manual entry.
-// REMOVE BEFORE DEPLOYMENT.
-router.post('/:id/simulate-groups', authenticate, authorize('super_admin'), async (req, res) => {
-  try {
-    const matches = await Match.find({
-      tournament: req.params.id,
-      bracket: 'group',
-      status: { $ne: 'completed' },
-    });
-    if (matches.length === 0) {
-      return res.status(400).json({ message: 'No unscored group matches to simulate.' });
-    }
-
-    // To avoid cutoff ties, give each team a deterministic "strength" from its id,
-    // and let the stronger team win. Stable + tie-avoiding across a group.
-    const strength = (id) => {
-      const s = String(id);
-      let h = 0;
-      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100000;
-      return h;
-    };
-
-    let scored = 0;
-    for (const m of matches) {
-      if (!m.teamA || !m.teamB) continue;
-      const aStr = strength(m.teamA), bStr = strength(m.teamB);
-      const aWins = aStr >= bStr; // deterministic winner
-      const scoreA = aWins ? 1 : 0;
-      const scoreB = aWins ? 0 : 1;
-      const winner = aWins ? m.teamA : m.teamB;
-      m.games = [{ gameNumber: 1, scoreA, scoreB, winner }];
-      m.seriesWinner = winner;
-      m.status = 'completed';
-      await m.save();
-      scored++;
-    }
-
-    res.json({ message: `Simulated ${scored} group match(es).`, scored });
-  } catch (err) {
-    console.error('Simulate groups error:', err);
-    res.status(500).json({ message: 'Something went wrong.' });
-  }
-});
-
-// TEMP DEV ROUTE — test one group's double-elim generation. REMOVE before deploy.
-router.post('/:id/test-de', authenticate, authorize('super_admin'), async (req, res) => {
-  try {
-    const ids = Array.isArray(req.body.teamIds) ? req.body.teamIds : [];
-    if (ids.length < 2) return res.status(400).json({ message: 'Need at least 2 team ids.' });
-    const result = await generateGroupDoubleElim(req.params.id, req.body.group || 'A', ids);
-    res.status(201).json({ message: 'Double-elim group generated.', ...result });
-  } catch (err) {
-    console.error('test-de error:', err); res.status(500).json({ message: err.message });
-  }
-});
 // GET /api/tournaments/:id/de-qualification — physical sports (double-elim groups).
 // Per group: the 2 qualifiers, tagged with rank (1 = upper-bracket winner,
 // 2 = lower-bracket winner). Item 3 uses these tags for standard Top 8 seeding.

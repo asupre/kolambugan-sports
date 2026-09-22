@@ -1723,21 +1723,24 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   deliberately include playoff wins in the DISPLAYED table while excluding
   them from tie detection — intentional, not a bug (see CHANGES.md).
 
-## DEV-ONLY SCRIPTS + ROUTES — DELETE BEFORE DEPLOYMENT
-In `backend/src/config/` (these write DIRECTLY to the DB, bypassing app rules):
-seedTestTeams.js, showOrReset.js, clearTournament.js,
-seedTie5Test.js, seed52WithTies.js,
-seedVerifiedTeam.js, seedPlayersForTeams.js, **seedSportConfig.js** (the
-config UI now exists — this can go), and `wipe.js`, `makeReferenceCsv.js`,
-`seedSportTeams.js`, `deleteSeason.js` if/where created. **KEEP `seed.js`
-AND `seedData.js`** — `seed.js` imports `seedData.js` for the 26 barangays
-and 7 sports a fresh install needs, so deleting one without the other
-breaks it. (`seedReviewTest.js` / `seedTiebreakerTest.js`, previously
-listed here, no longer exist — already gone.)
-Routes/UI: `POST /api/tournaments/:id/simulate-groups`, the temp
+## DEV-ONLY SCRIPTS + ROUTES — DONE (Sep 2026, pre-deployment cleanup)
+All removed from `backend/src/config/`: seedTestTeams.js, showOrReset.js,
+clearTournament.js, seedTie5Test.js, seed52WithTies.js, seedVerifiedTeam.js,
+seedPlayersForTeams.js, seedSportConfig.js, wipe.js, makeReferenceCsv.js,
+seedSportTeams.js. Confirmed none were `require()`'d anywhere in the running
+app before deleting. **KEPT `seed.js` AND `seedData.js`** — `seed.js`
+imports `seedData.js` for the 26 barangays and 7 sports a fresh install
+needs, so deleting one without the other breaks it; these are the only
+files left in `backend/src/config/` besides `gridfs.js`/`password.js`/`time.js`.
+Routes/UI removed: `POST /api/tournaments/:id/simulate-groups`,
 `POST /api/tournaments/:id/test-de`, and the amber "Auto-score all group
-matches" button in Tournaments.jsx.
-Also gitignore any `dev-setup.ps1` (it holds a password).
+matches" button + `simulateGroups()` in `Tournaments.jsx` (also dropped the
+now-unused `Zap` icon import and a `showError` declaration that had no other
+caller in that component).
+`dev-setup.ps1` was checked — it exists locally (gitignored) and was never
+committed, so nothing to do there.
+If a new dev-only script/route gets added later, list it here again and
+repeat this pass before the next deploy.
 
 ## GOTCHAS (bit us repeatedly)
 - **Adding or changing a field/enum on a Mongoose model needs a FULL server

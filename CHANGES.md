@@ -2965,3 +2965,26 @@ Found by rendering the organizer screens at 390px against a mock API.
   "View in Reference List" link (`MatchCallout`) works unchanged, so a verified player's match can
   still be checked. Only the Reopen button itself stays gated to the `verification` stage
   (disabled + tooltip outside it — the backend still enforces the same 409).
+
+## 2026-09 — Session: pre-deployment cleanup — dev-only scripts, routes, and the auto-score button
+
+- `ui-polish` merged into `main` (fast-forward, 17 commits, no divergence) and pushed — `main` now
+  matches what's about to be deployed.
+- **Removed every dev-only script listed in CLAUDE.md's deploy checklist**: `seedTestTeams.js`,
+  `showOrReset.js`, `clearTournament.js`, `seedTie5Test.js`, `seed52WithTies.js`,
+  `seedVerifiedTeam.js`, `seedPlayersForTeams.js`, `seedSportConfig.js`, `wipe.js`,
+  `makeReferenceCsv.js`, `seedSportTeams.js` — confirmed first that none were `require()`'d
+  anywhere in the running app (they were only ever run manually via `node src/config/x.js`).
+  Kept `seed.js` + `seedData.js` (the fresh-install seed, 26 barangays + 7 sports).
+- **Removed the "Dev: Auto-score all group matches" button** (Super Admin request — it wrote
+  fabricated results straight to `Match` documents, deterministic but fake, purely to skip manual
+  scoring while testing group-stage advancement). Deleted `POST /api/tournaments/:id/simulate-groups`
+  and the temp `POST /api/tournaments/:id/test-de` from `routes/tournament.js` (the real
+  `generateGroupDoubleElim()` they both exercised is still used by the actual `/generate` route,
+  untouched), and `simulateGroups()` + the button itself from `Tournaments.jsx`, along with the
+  now-unused `Zap` icon import and a `showError` declaration that had no other caller in that
+  component.
+- Checked `dev-setup.ps1` (holds a password) — exists locally, already gitignored, never committed.
+  Nothing to clean up there.
+- Full backend syntax check (`node -c` on every file) and a clean frontend production build after
+  all of the above; no other code referenced the removed files/routes.

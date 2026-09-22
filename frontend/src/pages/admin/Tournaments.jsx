@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight, RotateCcw, Trash2, Zap } from "lucide-react";
+import { ChevronDown, ChevronRight, RotateCcw, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { DateTimePicker } from "../../components/DateTimePicker";
@@ -408,25 +408,11 @@ function ScheduleSection({ tournamentId }) {
 }
 
 function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
-  const showError = useErrorDialog();
   const [refreshKey, setRefreshKey] = useState(0);
   const [qualification, setQualification] = useState(null);  // ML tiebreaker UI
   const [readiness, setReadiness] = useState(null);          // who actually qualified
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [simulating, setSimulating] = useState(false);
-
-  async function simulateGroups() {
-    setSimulating(true);
-    try {
-      await api(`/api/tournaments/${tournamentId}/simulate-groups`, { method: "POST" });
-      setRefreshKey((k) => k + 1);
-    } catch (e) {
-      showError(e.message);
-    } finally {
-      setSimulating(false);
-    }
-  }
 
   // The public bracket endpoint is the single source of truth for who has
   // qualified: it accounts for tiebreaker playoffs (ML) and for upper/lower
@@ -535,18 +521,6 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
         <BracketView tournamentId={tournamentId} />
       ) : (
         <>
-          <div className="mb-4">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={simulateGroups}
-              disabled={simulating}
-              className="border-dashed border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10"
-            >
-              <Zap /> {simulating ? "Simulating…" : "Dev: Auto-score all group matches"}
-            </Button>
-          </div>
-
           {isML ? (
             <>
               <StandingsView tournamentId={tournamentId} key={`s-${refreshKey}`} />

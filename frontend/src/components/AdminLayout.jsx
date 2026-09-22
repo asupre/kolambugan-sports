@@ -332,13 +332,13 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             </button>
             {enableDarkMode && <ThemeToggle theme={theme} onThemeChange={handleThemeChange} animate={animateTheme && finePointer} />}
             {showSeason && season && <SeasonBadge status={season.status} name={season.name} className="hidden sm:inline-flex" />}
+            <span className="hidden sm:inline">{user?.username}</span>
             <button
               onClick={() => setShowProfile(true)}
               aria-label="Profile"
               title="Profile"
-              className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-accent transition"
+              className="rounded-full transition hover:ring-2 hover:ring-primary/40 hover:ring-offset-2 hover:ring-offset-card"
             >
-              <span className="hidden sm:inline">{user?.username}</span>
               <HeaderAvatar user={user} v={avatarV} />
             </button>
           </div>

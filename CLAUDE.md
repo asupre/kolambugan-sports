@@ -1262,6 +1262,11 @@ so a bug in one route cannot expose the other.
   first sport) instead of expanding inline. The mobile header's own
   open-sidebar button uses the same `PanelLeftOpen` icon (not a `☰` hamburger
   character) for one consistent icon language.
+- **Sticky header (Sep 2026):** `AdminLayout`'s `<header>` is `sticky top-0 z-10` — this layout
+  scrolls the whole page (not a constrained `main`), so an unpositioned header just scrolled away
+  with everything else, losing access to the menu toggle / help / theme toggle / profile avatar
+  without scrolling back up (mobile and desktop both had the gap). `z-10` sits under the mobile
+  sidebar drawer (`z-30`) and its backdrop (`z-20`), so the open phone menu still covers it.
 - **Full-screen loading on login/logout** (Sep 2026): `components/
   LoadingScreen.jsx` (K mark + spinner + message, theme-token based — dark
   automatically when shown from inside `AdminLayout` with dark mode on).

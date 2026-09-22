@@ -3079,3 +3079,12 @@ Found by rendering the organizer screens at 390px against a mock API.
   re-measured on a real device this session — reasoned from the mechanism (fetch/render firing
   exactly on animation start is the one thing that differs from every other Dialog/Sheet in the
   app, which don't fetch+re-render on open), worth confirming Sep evaluation-week if it's still felt.
+- **Admin header made sticky (Sep 2026).** `AdminLayout.jsx`'s `<header>` (menu toggle, help,
+  theme toggle, season badge, profile avatar) wasn't positioned at all — this layout scrolls the
+  whole page rather than a constrained `main`, so the header simply scrolled away with everything
+  else, and reaching the collapse/profile/theme controls again meant scrolling all the way back up.
+  Super Admin: "can we make the top float so they don't need to scroll back up." Now
+  `sticky top-0 z-10` — pinned on both mobile and desktop (the same gap existed on desktop, just
+  less noticed since the sidebar nav stays put there). `z-10` keeps it under the mobile sidebar
+  drawer (`z-30`) and its backdrop (`z-20`), so opening the phone menu still covers the header
+  instead of leaving its buttons tappable underneath.

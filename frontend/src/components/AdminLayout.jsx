@@ -315,7 +315,12 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
+        {/* Sticky so the menu/profile/theme controls stay reachable without scrolling back
+            up — the page (not `main`) is what actually scrolls in this layout, so without
+            this the header just scrolled away like any other content. z-10 keeps it under
+            the mobile sidebar (z-30) and its backdrop (z-20), so opening the menu still
+            covers it instead of leaving header buttons tappable underneath. */}
+        <header className="sticky top-0 z-10 h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-3">
             <button onClick={() => setOpen(true)} className="lg:hidden text-foreground" aria-label="Open menu">
               <PanelLeftOpen className="size-5" />

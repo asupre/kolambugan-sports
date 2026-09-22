@@ -728,14 +728,24 @@ so a bug in one route cannot expose the other.
 - Super Admin **Accounts panel**: lists all accounts by role with their
   password status; "Provision all" fills any missing barangay-admin /
   organizer accounts; "Add an account" for anything else (e.g. a second
-  super admin); per-account "Reset password" (barangay_admin/organizer only —
-  see below); guarded delete.
-- **A Super Admin's password can't be reset by a peer, and no account can
-  delete itself (Sep 2026).** `POST /api/accounts/:id/reset-password` 409s
-  when the target is `role: 'super_admin'` (and the button doesn't render for
-  one in `Accounts.jsx`) — a Super Admin manages their own password entirely
-  now (change-password / recovery code, both from their own profile panel);
-  a peer silently resetting it would bypass that. `DELETE /api/accounts/:id`
+  super admin); per-account "Reset password" (barangay_admin/organizer always;
+  super_admin only until they've changed their own password — see below);
+  guarded delete.
+- **A Super Admin's password can be reset by a peer only up until they change
+  it themselves; after that, never — and no account can delete itself (Sep
+  2026, revised Sep 2026).** `POST /api/accounts/:id/reset-password` 409s
+  when the target is `role: 'super_admin'` AND `mustChangePassword` is
+  already `false` (they've logged in and set their own password) — the
+  button in `Accounts.jsx` stays enabled/visible up to that point (e.g. right
+  after a peer provisions a new Super Admin account, or a temp password gets
+  lost before first login) and then renders disabled with an explanatory
+  tooltip. `mustChangePassword` defaults `true` on every new account
+  (including a freshly-provisioned Super Admin), so a newly created Super
+  Admin account is resettable by a peer until its first real login — from
+  then on the Super Admin manages their own password entirely (change-password
+  / recovery code, both from their own profile panel); a peer resetting it
+  after that would silently override a password only the owner chose.
+  `DELETE /api/accounts/:id`
   409s when the target is the caller's own account (`req.user.id`) — e.g.
   `sk_federation` can delete `lydo_head` but never itself, even mid-session —
   stacked with the existing "can't delete the last super admin" guard.

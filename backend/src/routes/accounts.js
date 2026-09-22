@@ -105,18 +105,22 @@ router.post('/', async (req, res) => {
 });
 
 // POST /api/accounts/:id/reset-password — new temp password, forces change on next login.
-// NOT available for a super_admin account (Sep 2026) — a Super Admin's password
-// is their own to manage now that they have self-service recovery (see
-// POST /api/auth/recovery-code / /api/auth/forgot-password); a peer silently
-// handing them a new temp password bypasses that and is a trust/security gap
-// between the two Super Admin accounts.
+// A super_admin account is resettable by a peer ONLY while it's still on its
+// original/temp password (mustChangePassword: true, Sep 2026) — e.g. right
+// after a peer provisions it and needs to hand off the credential, or a temp
+// password got lost before the new Super Admin ever logged in. The moment
+// that Super Admin changes their own password (mustChangePassword flips to
+// false), the password becomes theirs alone to manage — a peer resetting it
+// after that would silently override a password only the owner chose, and
+// self-service recovery exists for exactly that case (see
+// POST /api/auth/recovery-code / /api/auth/forgot-password).
 router.post('/:id/reset-password', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    if (user.role === 'super_admin') {
+    if (user.role === 'super_admin' && !user.mustChangePassword) {
       return res.status(409).json({
-        message: 'A Super Admin\'s password can\'t be reset by another account. They can change it themselves from their profile, or use their own recovery code from the login page if they\'re locked out.',
+        message: 'This Super Admin has already set their own password, so it can\'t be reset by another account. They can change it themselves from their profile, or use their own recovery code from the login page if they\'re locked out.',
       });
     }
     const tempPassword = generateTempPassword();

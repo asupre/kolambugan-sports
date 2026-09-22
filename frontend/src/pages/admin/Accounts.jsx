@@ -187,14 +187,24 @@ function AccountRow({ a, resetting, onReset, onDelete, currentUserId }) {
           </Badge>
         </div>
         <div className="flex items-center gap-1.5 sm:justify-end">
-          {/* A Super Admin's password is theirs to manage now (change password /
-              recovery code from their own profile) — no peer reset button, see
-              routes/accounts.js. */}
-          {a.role !== "super_admin" && (
-            <Button size="sm" variant="outline" onClick={() => onReset(a)} disabled={resetting}>
-              <KeyRound /> {resetting ? "…" : "Reset password"}
-            </Button>
-          )}
+          {/* A Super Admin can be reset by a peer only until they change their own
+              password for the first time (mustChangePassword flips to false) —
+              after that it's theirs alone to manage (profile panel / recovery
+              code). See routes/accounts.js. */}
+          {(() => {
+            const locked = a.role === "super_admin" && !a.mustChangePassword;
+            return (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onReset(a)}
+                disabled={resetting || locked}
+                title={locked ? "This Super Admin already set their own password — only they can change it now." : undefined}
+              >
+                <KeyRound /> {resetting ? "…" : "Reset password"}
+              </Button>
+            );
+          })()}
           <Button
             size="icon-sm"
             variant="destructive"

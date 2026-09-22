@@ -3030,3 +3030,16 @@ Found by rendering the organizer screens at 390px against a mock API.
   (`BrgyDashboard.jsx`'s add-player form disables Add + shows a hint below age 16 for an under30
   team, same treatment as the existing over-the-cap hint). under15 is unaffected — it still has no
   floor, only the existing 15-and-under ceiling.
+- Header profile trigger: split the username `<span>` out of the avatar `<button>` in
+  `AdminLayout.jsx` — hovering/clicking the account name next to the avatar used to also open the
+  Profile panel; now only the avatar circle itself is the click/hover target.
+- **Super Admin peer password-reset revised**: a Super Admin's account can now be reset by a peer
+  ONLY until they've changed their own password for the first time (`mustChangePassword` flips to
+  `false`) — not permanently blocked as it was before. Covers the actual gap: a peer provisions a
+  new Super Admin account and needs to pass the temp password along (or it gets lost before that
+  Super Admin's first login), and there was previously no way to regenerate it since the reset
+  route always 409'd for `role: 'super_admin'`. Once that Super Admin has set their own password,
+  the peer-reset route 409s again, same as before — the password becomes theirs alone (profile
+  panel change-password / recovery code). `routes/accounts.js`'s reset route now checks
+  `mustChangePassword` instead of blanket-blocking the role; `Accounts.jsx`'s reset button mirrors
+  it — enabled up to that point, then disabled with an explanatory tooltip.

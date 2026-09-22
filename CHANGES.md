@@ -3015,3 +3015,18 @@ Found by rendering the organizer screens at 390px against a mock API.
   never on these tokens, so it's unaffected either way. Verified by building a production preview
   and screenshotting the login page with headless Edge — button, focus ring, and the login panel's
   gradient all confirmed blue, not just inferred from the CSS.
+
+## 2026-09-22 — Session: bug fix — under30 basketball had no age floor
+
+- **Bug**: `checkDivisionAge()`/`DIVISION_AGE_LIMIT` in `routes/team.js` only enforced an upper
+  bound per division (under15 <= 15, under30 <= 30). A player of any age, including one who
+  clearly belongs on an under15 roster, could be added to an under30 team — the two divisions
+  overlapped instead of being a clean age split. Found by the Super Admin manually testing the
+  under30 roster form.
+- **Fix**: added a floor of 16 for `under30` (`DIVISION_AGE_MIN = { under30: 16 }`), so under15
+  is 0-15 and under30 is 16-30 with no overlap. Enforced everywhere the cap already was: add-player,
+  CSV import (row skipped + reported), "Correct this player" (birthdate edits), and the
+  `POST /:id/submit` backstop (re-checks every rostered player). Mirrored on the frontend
+  (`BrgyDashboard.jsx`'s add-player form disables Add + shows a hint below age 16 for an under30
+  team, same treatment as the existing over-the-cap hint). under15 is unaffected — it still has no
+  floor, only the existing 15-and-under ceiling.

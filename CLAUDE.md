@@ -86,7 +86,12 @@ score tallying, no public visibility, records lost every season.
   as a backstop on `POST /:id/submit` (re-checks every rostered player,
   catches one added before this check existed or by any other path — past
   submission a player is only screened for residency, never for the
-  division's age cap). `open`/`boys`/`girls` are gender/skill divisions and
+  division's age cap). **`under30` also has a FLOOR of 16** (bug fix, Sep
+  2026 — `DIVISION_AGE_MIN = { under30: 16 }`, same call sites as the ceiling
+  above): without it a player young enough for the under15 roster could
+  ALSO legally sit on under30, so the two divisions overlapped instead of
+  being a clean age split. `under15` has no floor — it's 0-15, `under30` is
+  16-30. `open`/`boys`/`girls` are gender/skill divisions and
   carry no age limit.
 - Player fields collected: full name, birthdate (age derived), **photo**, address,
   jersey number. On the manual "Add a player" form (`POST /api/teams/:id/players`),

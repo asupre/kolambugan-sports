@@ -52,15 +52,29 @@ function computeAge(birthdate) {
 // under, and not unlimited either — 31+ doesn't belong there). Every other
 // division (open/boys/girls) is gender/skill-based, not age-based, so it has
 // no entry here and no cap applies.
+// 'under30' also has a FLOOR of 16 (Sep 2026) — the two divisions must not
+// overlap. Without a floor, a 15-and-under player could legally sit on
+// EITHER roster, which defeats the point of splitting them by age in the
+// first place. under15 stays 0-15; under30 is 16-30.
 const DIVISION_AGE_LIMIT = { under15: 15, under30: 30 };
+const DIVISION_AGE_MIN = { under30: 16 };
 const DIVISION_AGE_LABEL = { under15: 'Under 15', under30: 'Under 30' };
 
 function checkDivisionAge(division, birthdate) {
   const limit = DIVISION_AGE_LIMIT[division];
   if (!limit) return { ok: true };
   const age = computeAge(birthdate);
-  if (age > limit) return { ok: false, age, limit, label: DIVISION_AGE_LABEL[division] };
+  if (age > limit) return { ok: false, age, limit, label: DIVISION_AGE_LABEL[division], reason: 'over' };
+  const min = DIVISION_AGE_MIN[division];
+  if (min && age < min) return { ok: false, age, limit, min, label: DIVISION_AGE_LABEL[division], reason: 'under' };
   return { ok: true };
+}
+
+function divisionAgeMessage(ageCheck, playerPhrase) {
+  if (ageCheck.reason === 'under') {
+    return `This is a ${ageCheck.label} team — ${playerPhrase} ${ageCheck.age}, under the ${ageCheck.min}-and-up minimum for this division.`;
+  }
+  return `This is a ${ageCheck.label} team — ${playerPhrase} ${ageCheck.age}, over the ${ageCheck.limit}-and-under limit.`;
 }
 
 // Identity key for the same-sport duplicate-roster check below — name
@@ -366,9 +380,7 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
     }
     const ageCheck = checkDivisionAge(team.division, birthdate);
     if (!ageCheck.ok) {
-      return res.status(400).json({
-        message: `This is a ${ageCheck.label} team — this player is ${ageCheck.age}, over the ${ageCheck.limit}-and-under limit.`,
-      });
+      return res.status(400).json({ message: divisionAgeMessage(ageCheck, 'this player is') });
     }
 
     const dupIndex = await siblingTeamRosterIndex(team);
@@ -471,7 +483,10 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
       }
       const ageCheck = checkDivisionAge(team.division, d);
       if (!ageCheck.ok) {
-        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is ${ageCheck.age}, over the ${ageCheck.label} team's ${ageCheck.limit}-and-under limit.` });
+        const limitPhrase = ageCheck.reason === 'under'
+          ? `under the ${ageCheck.label} team's ${ageCheck.min}-and-up minimum`
+          : `over the ${ageCheck.label} team's ${ageCheck.limit}-and-under limit`;
+        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is ${ageCheck.age}, ${limitPhrase}.` });
         continue;
       }
       const key2 = playerKey(rec.lastName, rec.firstName, d);
@@ -604,9 +619,7 @@ router.patch('/:id/players/:playerId', authenticate,
       if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid birthdate.' });
       const ageCheck = checkDivisionAge(team.division, d);
       if (!ageCheck.ok) {
-        return res.status(400).json({
-          message: `This is a ${ageCheck.label} team — this player would be ${ageCheck.age}, over the ${ageCheck.limit}-and-under limit.`,
-        });
+        return res.status(400).json({ message: divisionAgeMessage(ageCheck, 'this player would be') });
       }
       player.birthdate = d;
       player.age = computeAge(d);
@@ -725,14 +738,22 @@ router.post('/:id/submit', authenticate, authorize('barangay_admin'),
     // for residency only, never for the division's age cap, at all).
     const ageLimit = DIVISION_AGE_LIMIT[team.division];
     if (ageLimit) {
+      const ageMin = DIVISION_AGE_MIN[team.division];
       const links = await TeamPlayer.find({ team: team._id }).populate('player', 'firstName lastName birthdate');
-      const overAge = links
-        .map((l) => l.player)
-        .filter((p) => p && computeAge(p.birthdate) > ageLimit);
+      const players = links.map((l) => l.player).filter(Boolean);
+      const overAge = players.filter((p) => computeAge(p.birthdate) > ageLimit);
       if (overAge.length) {
         return res.status(400).json({
           message: `This is a ${DIVISION_AGE_LABEL[team.division]} team (${ageLimit} and under). Over the limit: ${overAge.map((p) => `${p.firstName} ${p.lastName} (${computeAge(p.birthdate)})`).join(', ')}.`,
         });
+      }
+      if (ageMin) {
+        const underAge = players.filter((p) => computeAge(p.birthdate) < ageMin);
+        if (underAge.length) {
+          return res.status(400).json({
+            message: `This is a ${DIVISION_AGE_LABEL[team.division]} team (${ageMin} and up). Under the minimum: ${underAge.map((p) => `${p.firstName} ${p.lastName} (${computeAge(p.birthdate)})`).join(', ')}.`,
+          });
+        }
       }
     }
 

@@ -51,10 +51,12 @@ const DIVISION_LABEL = {
   under15: "Under 15", under30: "Under 30",
 };
 
-// Matches DIVISION_AGE_LIMIT in routes/team.js. Under15/Under30 are age caps
-// (15-and-under, 30-and-under) — every other division is gender/skill-based
-// and has no entry here.
+// Matches DIVISION_AGE_LIMIT/DIVISION_AGE_MIN in routes/team.js. Under15/Under30
+// are age caps (15-and-under, 30-and-under) — every other division is
+// gender/skill-based and has no entry here. under30 also has a 16 floor so
+// the two divisions don't overlap.
 const DIVISION_AGE_LIMIT = { under15: 15, under30: 30 };
+const DIVISION_AGE_MIN = { under30: 16 };
 
 const ELIGIBILITY_BADGE = {
   eligible: "bg-green-500/15 text-green-600 dark:text-green-400",
@@ -575,7 +577,9 @@ function RosterEditor({ team, sports, onClose }) {
   const canSubmit = !locked && players.length >= limits.min && players.length <= limits.max;
   const newAge = ageFrom(form.birthdate);
   const divisionAgeLimit = DIVISION_AGE_LIMIT[team.division];
+  const divisionAgeMin = DIVISION_AGE_MIN[team.division];
   const overAgeLimit = divisionAgeLimit != null && newAge !== null && newAge > divisionAgeLimit;
+  const underAgeMin = divisionAgeMin != null && newAge !== null && newAge < divisionAgeMin;
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -794,10 +798,16 @@ function RosterEditor({ team, sports, onClose }) {
                     </p>
                   )}
 
+                  {underAgeMin && (
+                    <p className="text-destructive text-xs mb-2">
+                      Age {newAge} — this is a {DIVISION_LABEL[team.division]} team, {divisionAgeMin} and up.
+                    </p>
+                  )}
+
                   <Button onClick={addPlayer}
                     disabled={
                       busy || !form.firstName.trim() || !form.middleName.trim() || !form.lastName.trim() ||
-                      !form.birthdate || !isBarangayAddress(form.address, barangayName) || overAgeLimit
+                      !form.birthdate || !isBarangayAddress(form.address, barangayName) || overAgeLimit || underAgeMin
                     }>
                     {busy ? "Adding…" : "Add player"}
                   </Button>

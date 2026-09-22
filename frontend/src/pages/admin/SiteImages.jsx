@@ -4,6 +4,7 @@ import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
 import { useConfirm } from "../../components/ConfirmDialog";
+import InfoHint from "../../components/InfoHint";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -155,9 +156,9 @@ export default function SiteImages() {
               <ImageIcon className="size-4 text-blue-500" /> Photos on the public site
             </CardTitle>
             <CardDescription>
-              These images appear on the public pages. Pick a photo, position it in
-              the frame, and it's live — no code change needed. Every image here is
-              public, so don't upload anything you wouldn't put on a poster.
+              <InfoHint summary="These images are public on the site — don't upload anything you wouldn't put on a poster.">
+                <p>Pick a photo, position it in the frame, and it's live on the public pages — no code change needed.</p>
+              </InfoHint>
             </CardDescription>
           </CardHeader>
         </Card>

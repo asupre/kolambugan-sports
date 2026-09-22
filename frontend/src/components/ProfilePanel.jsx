@@ -243,6 +243,7 @@ function AvatarUpload({ userId, hasPhoto, onChanged }) {
             <img
               src={`/api/auth/users/${userId}/photo?v=${v}`}
               alt=""
+              decoding="async"
               className="h-full w-full object-cover"
               onError={() => setImgError(true)}
             />
@@ -303,7 +304,15 @@ export default function ProfilePanel({ open, onOpenChange }) {
   useEffect(() => {
     if (!open) return;
     setError("");
-    api("/api/auth/profile").then(setProfile).catch((e) => setError(e.message));
+    // Wait out the sheet's ~200ms slide-in transition before doing async work —
+    // firing the fetch (and the re-render/avatar-image-load it triggers) at the
+    // same instant as the CSS animation starts is what made this feel janky on
+    // lower-power phones: the animation and the fetch/render were competing for
+    // the same frame budget right when the panel is moving.
+    const t = setTimeout(() => {
+      api("/api/auth/profile").then(setProfile).catch((e) => setError(e.message));
+    }, 220);
+    return () => clearTimeout(t);
   }, [open]);
 
   return (

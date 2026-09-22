@@ -4,6 +4,7 @@ import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
 import { useConfirm } from "../../components/ConfirmDialog";
+import InfoHint from "../../components/InfoHint";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -580,9 +581,10 @@ function BarangayCard({ onError, onNotice }) {
           </span>
         </CardTitle>
         <CardDescription>
-          Tick a barangay to let its teams field players from <span className="font-medium text-foreground">any</span> barangay
-          — for barangays too small to field a roster alone. An unticked barangay's teams may only field its own residents.
-          Changing a tick re-checks every player straight away.
+          <InfoHint summary="Tick a barangay to let its teams field players from any barangay — for ones too small to field a roster alone.">
+            <p>An unticked barangay's teams may only field its own residents.</p>
+            <p className="mt-1.5">Changing a tick re-checks every player straight away.</p>
+          </InfoHint>
         </CardDescription>
       </CardHeader>
       <CardContent>

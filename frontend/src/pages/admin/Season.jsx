@@ -8,6 +8,7 @@ import { SeasonBadge, SeasonTracker } from "../../components/SeasonStatus";
 import { SEASON_STAGES } from "../../lib/season";
 import { CONSEQUENCES, NEXT_LABEL, buildReadiness } from "../../lib/seasonReadiness";
 import { fmtDate } from "../../lib/dashboardFormat";
+import InfoHint from "../../components/InfoHint";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
@@ -166,8 +167,9 @@ function SportSetupSummary() {
           </Link>
         </div>
         <CardDescription>
-          Check these before opening registration. Once barangays start registering,
-          divisions and entry formats are locked — rosters get built against them.
+          <InfoHint summary="Check these before opening registration.">
+            <p>Once barangays start registering, divisions and entry formats are locked — rosters get built against them.</p>
+          </InfoHint>
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -307,8 +309,10 @@ export default function Season() {
               <CardHeader>
                 <CardTitle>Ready to move on?</CardTitle>
                 <CardDescription>
-                  Moving on can't be undone. Registration and the Review Queue verdicts are tied to the season stage —
-                  brackets and scoring aren't — so nothing else will stop a premature move. This checklist is the safety net.
+                  <InfoHint summary="Moving on can't be undone — this checklist is the safety net." label="Why">
+                    <p>Registration and the Review Queue verdicts are tied to the season stage — brackets and scoring
+                    aren't — so nothing else will stop a premature move.</p>
+                  </InfoHint>
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

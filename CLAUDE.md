@@ -793,6 +793,12 @@ so a bug in one route cannot expose the other.
   revealing a recovery code) used to overflow with nothing to scroll it into
   view, which is exactly why a just-generated code went unseen; fixed once,
   applies to every `Sheet` use, not just this panel.
+- **Mobile open-lag fix (Sep 2026).** Opening the panel used to fire its `GET /api/auth/profile`
+  fetch (which flips `AvatarUpload`'s `hasPhoto` and swaps in a new avatar image) at the exact
+  instant the Sheet's ~200ms slide-in transition started — on lower-power phones that fetch/
+  re-render/image-decode competed with the CSS animation for the same frame budget and read as
+  stutter. The fetch is now deferred 220ms (until the transition settles), and the profile/header
+  avatar `<img>`s got `decoding="async"` so decode doesn't block the main thread either.
 - **Profile picture, all three roles (Sep 2026).** `User.photo` (GridFS id in
   the `photos` bucket — same bucket player headshots use; new field, needs a
   full server restart). `AvatarUpload` in `ProfilePanel.jsx` reuses the
@@ -987,6 +993,19 @@ so a bug in one route cannot expose the other.
   — an item can set `badge: "reviewPending"` (done for Review Queue in
   `menus.js`) and the layout fetches the count once per mount, rendered
   as a red pill (expanded) or a dot on the icon (collapsed rail).
+- **Barangay chip row, mobile (Sep 2026):** the chip row above wrapped into several packed lines
+  on a phone (26 barangays + "All"). Below `sm:` it's now `overflow-x-auto` — one swipeable row —
+  and wraps normally from `sm:` up where there's room. `BarangayChip` got `shrink-0` so chips don't
+  get squeezed to fit.
+- **Collapsible explanations — `components/InfoHint.jsx` (Sep 2026):** a one-sentence summary
+  that's always visible, plus a small "Details"/"Why" trigger (shadcn `Popover`) for the full
+  explanation — replaces several `CardDescription`/`AlertDescription` paragraphs that used to sit
+  on the page permanently across Review Queue, Reference List, League Setup, Site Images, and
+  Season (Super Admin: "too much text information in all of our admins"). NOT used for a
+  safety-critical warning sitting right before an irreversible action (the season-advance dialog,
+  orphaned-tournament/team delete cards) — those stay fully visible; only the "why" mechanism gets
+  tucked away where one already existed. Most `CardDescription`s were already a single short
+  sentence and were deliberately left alone.
 - **Animation accessibility status (Sep 2026, NOT formally audited — no
   screen-reader test):** nothing flashes/strobes, nothing carries essential
   information, all motion is small. Honours `prefers-reduced-motion`: Lenis
@@ -1582,7 +1601,13 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   **Zoomable** (Sep 2026, `Lightbox` in `ReviewQueue.jsx`): mouse wheel,
   double-click, or +/-/reset buttons to zoom (1x–5x), drag/touch-drag to
   pan once zoomed — the old version only fit the image to screen, not
-  enough to read small print on a phone-photographed ID.
+  enough to read small print on a phone-photographed ID. **Real two-finger
+  pinch-to-zoom added (Sep 2026)** — the original build only had the buttons/wheel/double-click
+  above, no actual pinch gesture despite the name; `onTouchStart/Move/End` now handle a two-touch
+  pinch (distance-ratio scaling, anchored to the pinch midpoint) and a one-touch pan, kept separate
+  from the mouse `onPointerDown/Move/Up` handlers (`pointerType !== "touch"` guard) so the two
+  gesture paths don't fight over the same drag state. `touch-none` on the container already blocks
+  the browser's own pinch-zoom/scroll, so no `preventDefault()` is needed in the touch handlers.
 - **Approve is blocked for a `needs_document` player with no document
   uploaded** (Sep 2026) — enforced in the route (400 if `Document`
   records = 0 for that player) and in the UI (Approve button disabled,

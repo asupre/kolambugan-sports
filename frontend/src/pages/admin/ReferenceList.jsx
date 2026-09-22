@@ -4,6 +4,7 @@ import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
 import { CheckCircle2, ChevronLeft, ChevronRight, CircleCheck, CircleX, ClipboardList, Search, Sparkles, TriangleAlert, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
+import InfoHint from "../../components/InfoHint";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -459,11 +460,12 @@ export default function ReferenceList() {
           <CardHeader>
             <CardTitle>Upload a new list</CardTitle>
             <CardDescription>
-              Upload a CSV of eligible residents. This <span className="font-medium text-foreground">replaces</span> the
-              current list for this season. Columns can be named flexibly (first/middle/last name, birthdate,
-              barangay). <span className="font-medium text-foreground">Middle name and birthdate are now
-              required for a match</span> — a row missing either can never confirm a player as eligible,
-              so include them if you have them.
+              <InfoHint summary="Upload a CSV of eligible residents — this replaces the current list for this season.">
+                <p>Columns can be named flexibly (first/middle/last name, birthdate, barangay).</p>
+                <p className="mt-1.5"><span className="font-medium text-foreground">Middle name and birthdate are
+                now required for a match</span> — a row missing either can never confirm a player as eligible,
+                so include them if you have them.</p>
+              </InfoHint>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -471,12 +473,13 @@ export default function ReferenceList() {
               <Alert className="border-amber-500/30 bg-amber-500/5">
                 <TriangleAlert className="text-amber-600 dark:text-amber-400" />
                 <AlertDescription className="text-foreground">
-                  <p className="font-medium">The list is locked.</p>
-                  <p className="text-muted-foreground">
-                    It can't be replaced once verification starts, and stays locked until the season ends — the
-                    Review Queue is judging players against this list, and a new one would re-check everyone
-                    (the season is "{season.status.replace(/_/g, " ")}"). You can still search and view it below.
-                    Upload a new list before verification, or when the next season begins.
+                  <p className="font-medium">
+                    <InfoHint summary="The list is locked — it can't be replaced until the season ends." label="Why">
+                      <p>The Review Queue is judging players against this list, and a new one would re-check
+                      everyone (the season is "{season.status.replace(/_/g, " ")}").</p>
+                      <p className="mt-1.5">You can still search and view it below. Upload a new list before
+                      verification, or when the next season begins.</p>
+                    </InfoHint>
                   </p>
                 </AlertDescription>
               </Alert>

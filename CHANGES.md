@@ -3043,3 +3043,39 @@ Found by rendering the organizer screens at 390px against a mock API.
   panel change-password / recovery code). `routes/accounts.js`'s reset route now checks
   `mustChangePassword` instead of blanket-blocking the role; `Accounts.jsx`'s reset button mirrors
   it — enabled up to that point, then disabled with an explanatory tooltip.
+
+## 2026-09-23 — Session: admin UI polish — collapsible explanations, mobile perf, pinch-zoom
+
+- **New `components/InfoHint.jsx`**: a one-sentence summary that's always visible plus a small
+  "Details"/"Why" trigger that pops the full explanation (built on the existing shadcn `Popover`).
+  Replaces several 3-4 sentence `CardDescription`/`AlertDescription` paragraphs that used to sit on
+  the page permanently — Super Admin feedback was "too much text information in all of our admins."
+  Applied to: Review Queue's Barangays and Verified-teams cards, Reference List's CSV-upload
+  description and its "list is locked" alert, League Setup's cross-barangay card, Site Images'
+  intro card, and Season's sport-setup summary and "Ready to move on?" card. Deliberately NOT
+  applied to safety-critical warnings sitting right before a destructive/irreversible action (e.g.
+  the season-advance confirmation dialog, the orphaned-tournament/team delete cards) — those stay
+  fully visible; only the "why" mechanism gets tucked behind a link where one existed. Many
+  `CardDescription`s across these same 9 pages were already a single short sentence and were left
+  untouched — the point was cutting genuine paragraphs, not converting everything on principle.
+- **Review Queue barangay chips, mobile**: the 26-barangay + "All" chip row used to `flex-wrap`,
+  turning into several packed rows on a phone. Now `overflow-x-auto` (single swipeable row) below
+  `sm:`, wraps normally from `sm:` up where there's room. `BarangayChip` gained `shrink-0` so chips
+  don't compress inside the scroll container.
+- **Review Queue document `Lightbox`: real pinch-to-zoom.** It only supported mouse wheel, +/-
+  buttons, and double-click — no two-finger pinch, so a Super Admin reviewing a phone-photographed
+  ID on their own phone had to reach for the on-screen +/- buttons. Added `onTouchStart/Move/End`
+  handling: two touches pinch (distance-ratio scaling, anchored to the pinch midpoint so it zooms
+  toward where the fingers are, not the image center), one touch pans once zoomed in. Mouse-only
+  pointer handlers now check `pointerType !== "touch"` so the two gesture paths don't fight over the
+  same drag state. `touch-none` on the container already blocked the browser's own
+  pinch-zoom/scroll, so no `preventDefault()` needed in the touch handlers.
+- **Profile panel mobile lag.** Opening `ProfilePanel.jsx` fired its `GET /api/auth/profile` fetch
+  (which flips `AvatarUpload`'s `hasPhoto` and loads a new avatar image) at the same instant the
+  Sheet's ~200ms slide-in CSS transition started — on lower-power phones the fetch/re-render/image
+  decode competed with the animation for the same frame budget and read as stutter. Deferred the
+  fetch by 220ms (after the transition settles) and added `decoding="async"` to the profile and
+  header avatar `<img>`s so image decode doesn't block the main thread either. Not independently
+  re-measured on a real device this session — reasoned from the mechanism (fetch/render firing
+  exactly on animation start is the one thing that differs from every other Dialog/Sheet in the
+  app, which don't fetch+re-render on open), worth confirming Sep evaluation-week if it's still felt.

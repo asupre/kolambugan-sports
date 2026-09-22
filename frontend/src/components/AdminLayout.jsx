@@ -39,6 +39,7 @@ function HeaderAvatar({ user, v }) {
     <img
       src={`/api/auth/users/${user.id}/photo?v=${v}`}
       alt=""
+      decoding="async"
       className="h-8 w-8 rounded-full object-cover bg-muted"
       onError={() => setImgError(true)}
     />

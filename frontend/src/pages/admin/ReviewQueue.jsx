@@ -5,6 +5,7 @@ import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
 import { useConfirm } from "../../components/ConfirmDialog";
+import InfoHint from "../../components/InfoHint";
 import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -127,7 +128,9 @@ const MAX_SCALE = 5;
 function Lightbox({ src, onClose }) {
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const dragRef = useRef(null); // { startX, startY, origX, origY } while dragging
+  const dragRef = useRef(null); // { startX, startY, origX, origY } while dragging with a mouse
+  const pinchRef = useRef(null); // { startDist, startScale, startMidX, startMidY, origX, origY } while pinching
+  const [pinching, setPinching] = useState(false);
 
   function clampScale(s) {
     return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
@@ -148,20 +151,88 @@ function Lightbox({ src, onClose }) {
     zoomTo(scale > MIN_SCALE ? MIN_SCALE : 2.5);
   }
 
+  // Mouse-only drag-to-pan — touch gets its own handlers below so a
+  // single-finger pan and a two-finger pinch don't fight over the same state.
   function handlePointerDown(e) {
+    if (e.pointerType === "touch") return;
     if (scale <= MIN_SCALE) return;
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
 
   function handlePointerMove(e) {
+    if (e.pointerType === "touch") return;
     if (!dragRef.current) return;
     const { startX, startY, origX, origY } = dragRef.current;
     setPos({ x: origX + (e.clientX - startX), y: origY + (e.clientY - startY) });
   }
 
-  function handlePointerUp() {
+  function handlePointerUp(e) {
+    if (e.pointerType === "touch") return;
     dragRef.current = null;
+  }
+
+  function touchDist(touches) {
+    const [a, b] = touches;
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  }
+
+  function touchMid(touches) {
+    const [a, b] = touches;
+    return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+  }
+
+  // Real two-finger pinch-to-zoom, plus a one-finger touch drag once zoomed in
+  // — the +/- buttons stay as a fallback, but a residency doc is usually a
+  // phone photo of an ID, and pinching to read it is the natural gesture.
+  // `touch-none` (below) tells the browser not to handle these itself, so no
+  // page-zoom/scroll fights the gesture and preventDefault isn't needed here.
+  function handleTouchStart(e) {
+    if (e.touches.length === 2) {
+      const mid = touchMid(e.touches);
+      pinchRef.current = {
+        startDist: touchDist(e.touches),
+        startScale: scale,
+        startMidX: mid.x,
+        startMidY: mid.y,
+        origX: pos.x,
+        origY: pos.y,
+      };
+      dragRef.current = null;
+      setPinching(true);
+    } else if (e.touches.length === 1 && scale > MIN_SCALE) {
+      const t = e.touches[0];
+      dragRef.current = { startX: t.clientX, startY: t.clientY, origX: pos.x, origY: pos.y };
+    }
+  }
+
+  function handleTouchMove(e) {
+    if (e.touches.length === 2 && pinchRef.current) {
+      const { startDist, startScale, startMidX, startMidY, origX, origY } = pinchRef.current;
+      const mid = touchMid(e.touches);
+      const nextScale = clampScale(startScale * (touchDist(e.touches) / startDist));
+      setScale(nextScale);
+      setPos({ x: origX + (mid.x - startMidX), y: origY + (mid.y - startMidY) });
+    } else if (e.touches.length === 1 && dragRef.current) {
+      const t = e.touches[0];
+      const { startX, startY, origX, origY } = dragRef.current;
+      setPos({ x: origX + (t.clientX - startX), y: origY + (t.clientY - startY) });
+    }
+  }
+
+  function handleTouchEnd(e) {
+    if (e.touches.length < 2) {
+      pinchRef.current = null;
+      setPinching(false);
+    }
+    if (e.touches.length === 1) {
+      // one finger lifted off a pinch, the other keeps panning
+      const t = e.touches[0];
+      dragRef.current = { startX: t.clientX, startY: t.clientY, origX: pos.x, origY: pos.y };
+    } else if (e.touches.length === 0) {
+      dragRef.current = null;
+    }
+    if (scale <= MIN_SCALE) setPos({ x: 0, y: 0 });
   }
 
   return (
@@ -175,6 +246,10 @@ function Lightbox({ src, onClose }) {
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         >
           <img
             src={src}
@@ -183,7 +258,7 @@ function Lightbox({ src, onClose }) {
             className="h-full w-full object-contain select-none"
             style={{
               transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
-              transition: dragRef.current ? "none" : "transform 0.15s ease-out",
+              transition: dragRef.current || pinching ? "none" : "transform 0.15s ease-out",
             }}
           />
         </div>
@@ -329,7 +404,7 @@ function BarangayChip({ label, count, cleared, completedSlots, requiredSlots, ac
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition",
+        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition",
         active ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-accent"
       )}
     >
@@ -624,12 +699,18 @@ export default function ReviewQueue() {
               <CardHeader>
                 <CardTitle>Barangays</CardTitle>
                 <CardDescription>
-                  Pick a barangay to review just its teams. Red = still needs a verdict, green =
-                  cleared (a verified team in every sport/division this season), gray x/N = partway
-                  there with nothing currently pending.
+                  <InfoHint summary="Pick a barangay to review just its teams.">
+                    <p><span className="text-red-600 dark:text-red-400 font-medium">Red</span> = still needs a verdict.</p>
+                    <p><span className="text-green-600 dark:text-green-400 font-medium">Green</span> = cleared (a verified team in every sport/division this season).</p>
+                    <p><span className="font-medium text-foreground">Gray x/N</span> = partway there with nothing currently pending.</p>
+                  </InfoHint>
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
+              {/* Horizontally scrollable on phones instead of wrapping into many
+                  rows — 26 barangays + "All" wrapped to a wall of chips on a narrow
+                  screen; a single swipeable row reads cleaner. Wraps normally from
+                  sm up, where there's room. */}
+              <CardContent className="flex gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-1 px-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
                 <BarangayChip
                   label="All barangays"
                   count={teams.length}
@@ -736,11 +817,11 @@ export default function ReviewQueue() {
               <CardHeader>
                 <CardTitle>Verified teams</CardTitle>
                 <CardDescription>
-                  Locked for their Barangay Admin — they can only change photos. Open one to view its
-                  roster and check players against the Reference List; nothing here can be edited.
-                  Reopen one (verification stage only) to let the Barangay Admin correct a player; it
-                  returns to the queue above and needs verifying again. A team already in a tournament
-                  can't be reopened — delete the tournament first.
+                  <InfoHint summary="Locked for their Barangay Admin — open one to view its roster and check players against the Reference List.">
+                    <p>Nothing here can be edited directly. Reopen one (verification stage only) to let the
+                    Barangay Admin correct a player; it returns to the queue above and needs verifying again.</p>
+                    <p className="mt-1.5">A team already in a tournament can't be reopened — delete the tournament first.</p>
+                  </InfoHint>
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">

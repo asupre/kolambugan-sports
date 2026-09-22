@@ -2884,4 +2884,9 @@ Found by rendering the organizer screens at 390px against a mock API.
   carry a limit; `open`/`boys`/`girls` are gender/skill divisions and stay unrestricted. Mirrored
   client-side in `BrgyDashboard.jsx`'s add-player form (amber warning + disabled Add button) for
   the same UX pattern as the existing address/minor-age hints; the "Correct this player" form
-  relies on the backend's error message (same as its other cross-checks).
+  relies on the backend's error message (same as its other cross-checks). Also added a backstop
+  at `POST /:id/submit`: since the per-player check only runs at add/import/correct time, a
+  player added before this fix existed (or by any other path) could otherwise reach submission
+  and be screened for residency only, never for the division's age cap — submit now re-checks
+  every rostered player against `DIVISION_AGE_LIMIT` and 400s naming whoever is over, before
+  locking the roster.

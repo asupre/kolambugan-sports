@@ -82,8 +82,12 @@ score tallying, no public visibility, records lost every season.
   (not 14-and-under), "30 under" means 30-and-under (not unlimited up to
   100). `checkDivisionAge()`/`DIVISION_AGE_LIMIT` (`under15: 15, under30: 30`)
   in `routes/team.js`, checked on add-player, CSV import (over-limit rows
-  skipped + reported), and "Correct this player" (birthdate changes only).
-  `open`/`boys`/`girls` are gender/skill divisions and carry no age limit.
+  skipped + reported), "Correct this player" (birthdate changes only), AND
+  as a backstop on `POST /:id/submit` (re-checks every rostered player,
+  catches one added before this check existed or by any other path — past
+  submission a player is only screened for residency, never for the
+  division's age cap). `open`/`boys`/`girls` are gender/skill divisions and
+  carry no age limit.
 - Player fields collected: full name, birthdate (age derived), **photo**, address,
   jersey number. On the manual "Add a player" form (`POST /api/teams/:id/players`),
   **every field is required EXCEPT jersey number** — first/middle/last name,

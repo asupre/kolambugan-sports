@@ -719,6 +719,23 @@ router.post('/:id/submit', authenticate, authorize('barangay_admin'),
       });
     }
 
+    // Backstop for the per-player age-cap check on add/import/correct (a
+    // player added before that check existed, or by some other path, could
+    // otherwise reach submission — and past this point they'd be screened
+    // for residency only, never for the division's age cap, at all).
+    const ageLimit = DIVISION_AGE_LIMIT[team.division];
+    if (ageLimit) {
+      const links = await TeamPlayer.find({ team: team._id }).populate('player', 'firstName lastName birthdate');
+      const overAge = links
+        .map((l) => l.player)
+        .filter((p) => p && computeAge(p.birthdate) > ageLimit);
+      if (overAge.length) {
+        return res.status(400).json({
+          message: `This is a ${DIVISION_AGE_LABEL[team.division]} team (${ageLimit} and under). Over the limit: ${overAge.map((p) => `${p.firstName} ${p.lastName} (${computeAge(p.birthdate)})`).join(', ')}.`,
+        });
+      }
+    }
+
     team.submittedAt = new Date();
     team.status = 'pending';        // ← add: resubmit clears a prior 'rejected'
     await team.save();

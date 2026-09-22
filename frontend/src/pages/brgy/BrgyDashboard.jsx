@@ -51,6 +51,11 @@ const DIVISION_LABEL = {
   under15: "Under 15", under30: "Under 30",
 };
 
+// Matches DIVISION_AGE_LIMIT in routes/team.js. Under15/Under30 are age caps
+// (15-and-under, 30-and-under) — every other division is gender/skill-based
+// and has no entry here.
+const DIVISION_AGE_LIMIT = { under15: 15, under30: 30 };
+
 const ELIGIBILITY_BADGE = {
   eligible: "bg-green-500/15 text-green-600 dark:text-green-400",
   flagged: "bg-red-500/15 text-red-600 dark:text-red-400",
@@ -77,8 +82,9 @@ function ReasonCallout({ status, reason }) {
   );
 }
 
-// Matches MINOR_AGE in the pre-screen service. Under this age a player can't be
-// on the SK voters' list at all, so documents are needed regardless of spelling.
+// Matches MINOR_AGE in the pre-screen service. Inclusive: this age or younger
+// can't be on the SK voters' list at all, so documents are needed regardless
+// of spelling.
 const MINOR_AGE = 15;
 
 const DOC_TYPES = [
@@ -210,8 +216,8 @@ function EditPlayer({ teamId, barangayName, player, onSaved, onCancel }) {
   );
 }
 
-// Upload a residency document for one player. Shown for under-15s, who can never
-// be on the voters' list, and for anyone screening has flagged.
+// Upload a residency document for one player. Shown for players 15 and under,
+// who can never be on the voters' list, and for anyone screening has flagged.
 function DocumentUpload({ teamId, playerId, onUploaded }) {
   const [docType, setDocType] = useState("birth_certificate");
   const [busy, setBusy] = useState(false);
@@ -568,6 +574,8 @@ function RosterEditor({ team, sports, onClose }) {
 
   const canSubmit = !locked && players.length >= limits.min && players.length <= limits.max;
   const newAge = ageFrom(form.birthdate);
+  const divisionAgeLimit = DIVISION_AGE_LIMIT[team.division];
+  const overAgeLimit = divisionAgeLimit != null && newAge !== null && newAge > divisionAgeLimit;
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -623,7 +631,7 @@ function RosterEditor({ team, sports, onClose }) {
               {players.length === 0 && <p className="text-muted-foreground text-sm">No players yet.</p>}
               {players.map((p) => {
                 const age = p.age ?? ageFrom(p.birthdate);
-                const isMinor = age !== null && age < MINOR_AGE;
+                const isMinor = age !== null && age <= MINOR_AGE;
                 const needsDoc = isMinor
                   || p.eligibilityStatus === "needs_document"
                   || p.eligibilityStatus === "flagged";
@@ -691,7 +699,7 @@ function RosterEditor({ team, sports, onClose }) {
                         {isMinor && !p.eligibilityStatus && (
                           <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
                             <ShieldAlert className="size-3.5 shrink-0" />
-                            Under {MINOR_AGE} — too young for the voters' list, so a document is needed.
+                            {MINOR_AGE} or under — too young for the voters' list, so a document is needed.
                           </p>
                         )}
                         <DocumentUpload teamId={team._id} playerId={p._id} onUploaded={load} />
@@ -773,17 +781,23 @@ function RosterEditor({ team, sports, onClose }) {
                       onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
                   </div>
 
-                  {newAge !== null && newAge < MINOR_AGE && (
+                  {newAge !== null && newAge <= MINOR_AGE && (
                     <p className="text-amber-700 dark:text-amber-400 text-xs mb-2">
-                      Age {newAge} — under {MINOR_AGE}s aren't on the voters' list, so you'll be asked
+                      Age {newAge} — players {MINOR_AGE} and under aren't on the voters' list, so you'll be asked
                       to attach a birth certificate or parental consent once they're added.
+                    </p>
+                  )}
+
+                  {overAgeLimit && (
+                    <p className="text-destructive text-xs mb-2">
+                      Age {newAge} — this is a {DIVISION_LABEL[team.division]} team, capped at {divisionAgeLimit} and under.
                     </p>
                   )}
 
                   <Button onClick={addPlayer}
                     disabled={
                       busy || !form.firstName.trim() || !form.middleName.trim() || !form.lastName.trim() ||
-                      !form.birthdate || !isBarangayAddress(form.address, barangayName)
+                      !form.birthdate || !isBarangayAddress(form.address, barangayName) || overAgeLimit
                     }>
                     {busy ? "Adding…" : "Add player"}
                   </Button>

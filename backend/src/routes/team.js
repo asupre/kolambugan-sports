@@ -47,6 +47,22 @@ function computeAge(birthdate) {
   return age;
 }
 
+// Basketball's two divisions are age caps, not just labels: 'under15' means
+// 15 and under (not 14 and under), 'under30' means 30 and under (not 29 and
+// under, and not unlimited either — 31+ doesn't belong there). Every other
+// division (open/boys/girls) is gender/skill-based, not age-based, so it has
+// no entry here and no cap applies.
+const DIVISION_AGE_LIMIT = { under15: 15, under30: 30 };
+const DIVISION_AGE_LABEL = { under15: 'Under 15', under30: 'Under 30' };
+
+function checkDivisionAge(division, birthdate) {
+  const limit = DIVISION_AGE_LIMIT[division];
+  if (!limit) return { ok: true };
+  const age = computeAge(birthdate);
+  if (age > limit) return { ok: false, age, limit, label: DIVISION_AGE_LABEL[division] };
+  return { ok: true };
+}
+
 // Identity key for the same-sport duplicate-roster check below — name
 // (case/whitespace-tolerant, same convention as prescreen.js) + birthdate,
 // so two unrelated people who happen to share a name aren't conflated.
@@ -348,6 +364,12 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
     if (!addr.ok) {
       return res.status(400).json({ message: `Address must be your barangay's name: "${addr.name}".` });
     }
+    const ageCheck = checkDivisionAge(team.division, birthdate);
+    if (!ageCheck.ok) {
+      return res.status(400).json({
+        message: `This is a ${ageCheck.label} team — this player is ${ageCheck.age}, over the ${ageCheck.limit}-and-under limit.`,
+      });
+    }
 
     const dupIndex = await siblingTeamRosterIndex(team);
     const dupTeamName = dupIndex.get(playerKey(lastName, firstName, birthdate));
@@ -445,6 +467,11 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
       const d = new Date(rec.birthdate);
       if (isNaN(d.getTime())) {
         skipped.push({ row: rowNum, reason: `Unreadable birthdate "${rec.birthdate}".` });
+        continue;
+      }
+      const ageCheck = checkDivisionAge(team.division, d);
+      if (!ageCheck.ok) {
+        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is ${ageCheck.age}, over the ${ageCheck.label} team's ${ageCheck.limit}-and-under limit.` });
         continue;
       }
       const key2 = playerKey(rec.lastName, rec.firstName, d);
@@ -575,6 +602,12 @@ router.patch('/:id/players/:playerId', authenticate,
     if (birthdate !== undefined) {
       const d = new Date(birthdate);
       if (isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid birthdate.' });
+      const ageCheck = checkDivisionAge(team.division, d);
+      if (!ageCheck.ok) {
+        return res.status(400).json({
+          message: `This is a ${ageCheck.label} team — this player would be ${ageCheck.age}, over the ${ageCheck.limit}-and-under limit.`,
+        });
+      }
       player.birthdate = d;
       player.age = computeAge(d);
     }

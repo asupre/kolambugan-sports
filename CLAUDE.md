@@ -74,7 +74,16 @@ score tallying, no public visibility, records lost every season.
   required field are skipped and reported back (row number + reason), not
   silently dropped. UI: an "Import CSV" button beside "Add a player" in the
   roster editor (`RosterEditor` in `BrgyDashboard.jsx`).
-- New players / under 15: require **parental consent + supporting documents**.
+- New players / 15 and under: require **parental consent + supporting documents**.
+  (`MINOR_AGE` cutoff is inclusive — `age <= 15` — since Sep 2026; see the
+  verification rule below.)
+- **Basketball's `under15`/`under30` divisions are enforced age caps, not just
+  labels** (Sep 2026, Super Admin decision): "15 under" means 15-and-under
+  (not 14-and-under), "30 under" means 30-and-under (not unlimited up to
+  100). `checkDivisionAge()`/`DIVISION_AGE_LIMIT` (`under15: 15, under30: 30`)
+  in `routes/team.js`, checked on add-player, CSV import (over-limit rows
+  skipped + reported), and "Correct this player" (birthdate changes only).
+  `open`/`boys`/`girls` are gender/skill divisions and carry no age limit.
 - Player fields collected: full name, birthdate (age derived), **photo**, address,
   jersey number. On the manual "Add a player" form (`POST /api/teams/:id/players`),
   **every field is required EXCEPT jersey number** — first/middle/last name,
@@ -172,7 +181,7 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   fix, statuses saved under the old logic are stale until a re-screen runs**
   (toggle any barangay's checkbox off/on, or call `rescreenSeason`).
   Kolambugan residency with a Valid ID, Voter's Certification, or Birth
-  Certificate. New players / those under 15 also need PARENTAL CONSENT
+  Certificate. New players / those 15 or under also need PARENTAL CONSENT
   plus supporting documents.
 - **Uploading a NEW reference list also re-screens the whole season
   immediately** (fixed Sep 2026 — was a real bug: `POST
@@ -189,17 +198,25 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   List page disables the upload and says why; the list stays viewable/searchable). Reason: replacing
   the list re-screens every player, and once the Review Queue is open the verdicts are being made
   against that list. A new season has its own list, so the next season's setup stage is open again.
-- **A re-screen never undoes the approval of an under-15 (Sep 2026, `rescreenSeason()`).** An under-15
-  can never be on the list, so re-screening one can only ever produce `needs_document` — i.e. it could
-  only wipe the Super Admin's document approval (and reopen a verified team). Players who are
-  `eligible` and under 15 are skipped. This also covers the other caller, the cross-barangay toggle
-  (`allowsCrossBarangay`), which is NOT locked by season stage. (Reported: "U15 players go back to
-  needs document when I re-upload the list".)
+- **A re-screen never undoes the approval of a minor (Sep 2026, `rescreenSeason()`).** A player
+  15 or under can never be on the list, so re-screening one can only ever produce `needs_document`
+  — i.e. it could only wipe the Super Admin's document approval (and reopen a verified team).
+  Players who are `eligible` and 15 or under are skipped. This also covers the other caller, the
+  cross-barangay toggle (`allowsCrossBarangay`), which is NOT locked by season stage. (Reported:
+  "U15 players go back to needs document when I re-upload the list".)
+- **`MINOR_AGE` cutoff corrected to INCLUSIVE (Sep 2026)** — `services/prescreen.js` used
+  `age < 15`, so a 15-year-old was screened as an adult against the reference list (and could be
+  `flagged` as a possible Dayo, unapprovable, if not on it). Now `age <= 15`: a 15-year-old routes
+  to `needs_document` (parental consent + document) like a younger player, same as everywhere else
+  `MINOR_AGE` is checked (`decideFromCandidates`, `rescreenSeason`'s skip-guard,
+  `referenceList.js`'s informational-highlight logic). This is now in slight tension with the next
+  bullet's "list starts at 15" framing below — the real voters' list, once obtained, may in fact
+  carry 15-year-olds; worth re-confirming with Hon. Reserva.
 - The **SK voters' list** (ages 15–30 — confirmed by the SK Chairperson; NOT
   the COMELEC general register) can power an automatic pre-check, but it can
   only be obtained through the **LYDO**. **Still EXPECTED, not in hand**
-  (Aug 2026). Because the list starts at 15, players under 15 route straight
-  to `needs_document` with no lookup — they cannot be on it by definition.
+  (Aug 2026). Players 15 or under route straight
+  to `needs_document` with no lookup, per the inclusive cutoff above.
   Until then, verification runs on the SK Federation's own
   reference list + uploaded documents + Super Admin review. When the
   voters' list arrives it drops into the SAME reference-list upload (it is
@@ -332,10 +349,11 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   which fields disagree (roster vs list) — `nearMisses` on `GET
   /api/reference-list`. Super Admin only, on purpose: it reveals the list's real
   birthdate, so it must NEVER go into `flagReason` (Barangay Admins see that).
-- **Reference List page — informational highlight for under-15 same-name
+- **Reference List page — informational highlight for 15-and-under same-name
   rows** (Sep 2026): `decideFromCandidates` deliberately never matches a
-  player under 15 to a reference row (the list starts at 15), so a minor's
-  official status is always `needs_document` regardless of a same-name row.
+  player 15 or under to a reference row (`MINOR_AGE` cutoff is inclusive, Sep
+  2026), so a minor's official status is always `needs_document` regardless
+  of a same-name row.
   `GET /api/reference-list` now ALSO surfaces a same-name hit for a minor as
   a separate, clearly-labeled **purple "informational only"** row highlight
   (not green/red, and never counted as a real match) — helps the Super

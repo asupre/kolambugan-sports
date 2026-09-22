@@ -2858,3 +2858,30 @@ Found by rendering the organizer screens at 390px against a mock API.
   document), reopening verified teams. Approved under-15s are now left alone by a re-screen. And the
   list can no longer be replaced from verification until the season ends (server 409 + disabled
   upload with an explanation); it can be uploaded in setup / registration only.
+
+## 2026-09 — Session: minor-age cutoff made inclusive; division age caps enforced
+
+- **Minor-age cutoff corrected to inclusive** (Super Admin decision): `MINOR_AGE` (15) in
+  `services/prescreen.js` was `age < 15`, so a 15-year-old was screened as an adult against the
+  reference list (and could land `flagged`/possible-Dayo with no path to approval if the SK
+  Federation's list didn't happen to carry them — the actual voters' list is still not in hand).
+  Changed to `age <= 15` everywhere the cutoff is checked: `decideFromCandidates`,
+  `rescreenSeason`'s skip-guard, and `referenceList.js`'s `isMinor` flag (the informational
+  purple-highlight logic). A 15-year-old now routes to `needs_document` (parental consent +
+  document) like a younger player, instead of reference-list screening. Frontend copy updated to
+  say "15 and under" instead of "under 15" everywhere this boundary is described
+  (`BrgyDashboard.jsx`, `Documents.jsx`, `instructionContent.js`, `ReferenceList.jsx`).
+  **Deviation from the previously stakeholder-confirmed wording** ("SK voters' list, ages 15–30")
+  — worth re-confirming with Hon. Reserva since the list, once obtained, does start at 15.
+- **Basketball's `under15`/`under30` divisions are now enforced age caps, not just labels**
+  (Super Admin decision: "15 under" means 15-and-under, not 14-and-under; "30 under" means
+  30-and-under, not unlimited up to 100). Previously nothing in the code checked a rostered
+  player's age against their team's division at all. New `checkDivisionAge()` /
+  `DIVISION_AGE_LIMIT` (`under15: 15`, `under30: 30`) in `routes/team.js`, wired into add-player
+  (`POST /:id/players`), CSV import (`POST /:id/players/import` — over-limit rows are skipped
+  and reported like any other bad row), and "Correct this player"
+  (`PATCH /:id/players/:playerId`, only when the birthdate changes). Only `under15`/`under30`
+  carry a limit; `open`/`boys`/`girls` are gender/skill divisions and stay unrestricted. Mirrored
+  client-side in `BrgyDashboard.jsx`'s add-player form (amber warning + disabled Add button) for
+  the same UX pattern as the existing address/minor-age hints; the "Correct this player" form
+  relies on the backend's error message (same as its other cross-checks).

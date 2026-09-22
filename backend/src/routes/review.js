@@ -249,7 +249,7 @@ router.post('/teams/:teamId/players/:playerId/approve', requireVerificationStage
     }
 
     // Clear flagReason too — a manual approve overrides whatever the automated
-    // pre-screen said (e.g. "Under 15 — needs parental consent and documents",
+    // pre-screen said (e.g. "15 or under — needs parental consent and documents",
     // "Not found on the reference list…"), so leaving the old reason in place
     // made the Review Queue and player modal keep showing that warning even
     // though the player is now eligible.

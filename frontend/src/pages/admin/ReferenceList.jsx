@@ -109,7 +109,7 @@ function MatchInfo({ info }) {
                                 const m = g.first;
                                 const isMismatch = g.flagged;
                                 // Not a normal list match — the Super Admin approved this
-                                // under-15 player by hand (document review), so this row was
+                                // 15-and-under player by hand (document review), so this row was
                                 // just promoted here from the purple informational hint below.
                                 const isApprovedMinor = m.status === "approved_minor";
                                 return (
@@ -165,8 +165,8 @@ function MatchInfo({ info }) {
                                   )}
                                 </div>
                               ))}
-                              {/* Under 15: never an official match (the voters' list starts
-                                  at 15), so this is shown separately and clearly labeled as
+                              {/* 15 and under: never an official match (the voters' list starts
+                                  at 16), so this is shown separately and clearly labeled as
                                   a hint, not a verdict — the player's own status stays
                                   needs_document either way; this just helps judge the
                                   uploaded document against whether the family shows up in
@@ -175,7 +175,7 @@ function MatchInfo({ info }) {
                                 <div key={`minor-${i}`} className="min-w-0">
                                   <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-600 dark:text-purple-400">
                                     <Sparkles className="size-3.5 shrink-0" />
-                                    Same name, under 15{m.sameBarangay ? " · same barangay" : ""}
+                                    Same name, 15 or under{m.sameBarangay ? " · same barangay" : ""}
                                   </span>
                                   <p className="text-muted-foreground text-xs break-words md:truncate">
                                     {m.playerName}{m.barangay ? ` · plays for ${m.barangay}` : ""} — needs a document regardless, informational only
@@ -539,14 +539,14 @@ export default function ReferenceList() {
                 <span className="text-red-600 dark:text-red-400 font-medium">red</span> mismatch,{" "}
                 <span className="text-orange-600 dark:text-orange-400 font-medium">orange</span> same name but
                 details differ, <span className="text-purple-600 dark:text-purple-400 font-medium">purple</span>{" "}
-                same-name hint for a player under 15.
+                same-name hint for a player 15 or under.
               </CardDescription>
               <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer select-none hover:text-foreground">How matching works</summary>
                 <p className="mt-1.5">
                   A player matches a row only when the name, middle initial AND birthdate all agree — a
                   blank middle name or birthdate means that row can never confirm a match on its own.
-                  Under-15s can't be matched (the list starts at 15) and still need a document, but a
+                  Players 15 and under can't be matched (the list starts at 16) and still need a document, but a
                   same-name, same-barangay row is worth weighing when reviewing it. Jersey numbers aren't
                   tracked here; those live on the player's roster entry.
                 </p>

@@ -22,7 +22,7 @@ const DOC_TYPES = [
   { value: "birth_certificate", label: "Birth Certificate" },
   { value: "voters_id", label: "Voter's ID / Certification" },
   { value: "barangay_clearance", label: "Barangay Clearance" },
-  { value: "parental_consent", label: "Parental Consent (under 15)" },
+  { value: "parental_consent", label: "Parental Consent (15 and under)" },
 ];
 
 const ELIGIBILITY_BADGE = {
@@ -153,7 +153,7 @@ export default function Documents() {
               </CardTitle>
               <CardDescription>
                 These players weren't matched on the reference list, so they need proof of
-                Kolambugan residency. Players under 15 also need parental consent.
+                Kolambugan residency. Players 15 and under also need parental consent.
                 Accepted files: image or PDF, max 8&nbsp;MB. The SK Federation reviews each one.
               </CardDescription>
             </CardHeader>

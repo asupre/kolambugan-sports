@@ -175,11 +175,11 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
     // home barangay correctly clears them on one team but flags them as a
     // mismatch on another).
     const matchByRefId = new Map();
-    // Separate, INFORMATIONAL-only map for under-15 players who are STILL
-    // awaiting a decision. decideFromCandidates deliberately never matches a
-    // minor to a reference row — the list is the SK voters' list (15-30), so
-    // nobody under 15 can legitimately be on it, and a minor's official status
-    // is always needs_document regardless of a same-name row. But while the
+    // Separate, INFORMATIONAL-only map for minor (15-and-under) players who
+    // are STILL awaiting a decision. decideFromCandidates deliberately never
+    // matches a minor to a reference row — the list is the SK voters' list
+    // (16-30), so nobody 15 or under can legitimately be on it, and a minor's
+    // official status is always needs_document regardless of a same-name row. But while the
     // Super Admin is reviewing one of those documents by hand, a same-name
     // (and ideally same-barangay) row is still a useful signal of whether the
     // family shows up in the municipality's own records at all — so surface
@@ -198,7 +198,7 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
       const team = teamById.get(String(link.team));
       const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
       const age = ageFrom(p.birthdate);
-      const isMinor = age !== null && age < MINOR_AGE;
+      const isMinor = age !== null && age <= MINOR_AGE;
 
       if (isMinor) {
         if (candidates.length === 0) continue;

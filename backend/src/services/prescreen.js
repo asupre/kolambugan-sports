@@ -4,6 +4,10 @@ const Barangay = require('../models/Barangay');
 const ReferenceList = require('../models/ReferenceList');
 const Team = require('../models/Team');
 
+// Inclusive: a player THIS AGE OR YOUNGER is a minor (needs parental consent
+// + documents, skips the reference-list lookup). The SK voters' list starts
+// at 16, so 15-year-olds are on the minor path too (Sep 2026 — was `< 15`,
+// which left 15-year-olds screened as adults).
 const MINOR_AGE = 15;
 
 const norm = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
@@ -49,13 +53,14 @@ function sameMiddleInitial(a, b) {
 function decideFromCandidates(player, teamBarangay, candidates) {
   const age = ageFrom(player.birthdate);
 
-  // Under 15 can't be on a voters' list at all, so there's nothing to look up —
-  // no candidate is "matched" here even if a name happens to coincide.
-  if (age !== null && age < MINOR_AGE) {
+  // 15 and under can't be on the voters' list (it starts at 16 — see MINOR_AGE),
+  // so there's nothing to look up — no candidate is "matched" here even if a
+  // name happens to coincide.
+  if (age !== null && age <= MINOR_AGE) {
     return {
       status: 'needs_document',
       code: 'minor',
-      reason: `Under ${MINOR_AGE} — needs parental consent and documents`,
+      reason: `${MINOR_AGE} or under — needs parental consent and documents`,
       matchedReferenceId: null,
     };
   }
@@ -201,7 +206,7 @@ async function rescreenSeason(seasonId) {
       // "needs document" — i.e. it could only UNDO the Super Admin's approval (their document
       // review) and, on a verified team, reopen it. Approved minors are left as they are.
       const age = ageFrom(p.birthdate);
-      if (p.eligibilityStatus === 'eligible' && age !== null && age < MINOR_AGE) { screened++; continue; }
+      if (p.eligibilityStatus === 'eligible' && age !== null && age <= MINOR_AGE) { screened++; continue; }
 
       const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
       const { status, reason } = decideFromCandidates(p, teamBarangay, candidates);

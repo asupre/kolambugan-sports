@@ -85,7 +85,7 @@ const RAW_STEPS = {
     {
       title: "Documents",
       description:
-        "Players under 15, or anyone the system can't confirm from the reference list, need a supporting document. Upload it from Document Submission — the Super Admin reviews it before your team can be verified.",
+        "Players 15 and under, or anyone the system can't confirm from the reference list, need a supporting document. Upload it from Document Submission — the Super Admin reviews it before your team can be verified.",
       icon: ClipboardList,
     },
     {

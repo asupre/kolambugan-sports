@@ -67,12 +67,14 @@
 }
 
 /*
-  Neutral-preset shadcn tokens, with --primary/--ring set to a richer
-  indigo-violet (deeper + a bit more saturated than the plain indigo-600
-  Button/ui.jsx uses) — a deliberate small upgrade over the flat brand
-  indigo, not a re-brand. Font stays Inter — the Nova preset's Geist font
-  isn't applied, since this file is global and Public/Organizer's look is
-  decided and out of scope here.
+  Neutral-preset shadcn tokens, with --primary/--ring set to a rich blue
+  (Sep 2026 — was an indigo-violet, hue 285; Super Admin request: most of
+  the admin UI read as violet, wanted blue instead. Hue 258 lands in the
+  same family as Tailwind's blue-600/blue-500, keeping the same
+  lightness/chroma the violet had so nothing else about the palette's
+  weight changes, just the hue). Font stays Inter — the Nova preset's Geist
+  font isn't applied, since this file is global and Public/Organizer's look
+  is decided and out of scope here.
 */
 :root {
   /* Tell the browser which scheme the page is in, so its OWN UI — scrollbars, date
@@ -85,7 +87,7 @@
   --card-foreground: oklch(0.2 0.012 270);
   --popover: oklch(0.978 0.003 270);
   --popover-foreground: oklch(0.2 0.012 270);
-  --primary: oklch(0.53 0.26 285);
+  --primary: oklch(0.53 0.26 258);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.925 0.007 270);
   --secondary-foreground: oklch(0.24 0.012 270);
@@ -96,7 +98,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.875 0.008 270);
   --input: oklch(0.86 0.008 270);
-  --ring: oklch(0.62 0.22 285);
+  --ring: oklch(0.62 0.22 258);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -105,12 +107,12 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.968 0.004 270);
   --sidebar-foreground: oklch(0.2 0.012 270);
-  --sidebar-primary: oklch(0.53 0.26 285);
+  --sidebar-primary: oklch(0.53 0.26 258);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.925 0.007 270);
   --sidebar-accent-foreground: oklch(0.24 0.012 270);
   --sidebar-border: oklch(0.875 0.008 270);
-  --sidebar-ring: oklch(0.62 0.22 285);
+  --sidebar-ring: oklch(0.62 0.22 258);
 }
 
 .dark {
@@ -121,7 +123,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.62 0.24 285);
+  --primary: oklch(0.62 0.24 258);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -132,7 +134,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.62 0.24 285);
+  --ring: oklch(0.62 0.24 258);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -140,12 +142,12 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.62 0.24 285);
+  --sidebar-primary: oklch(0.62 0.24 258);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.62 0.24 285);
+  --sidebar-ring: oklch(0.62 0.24 258);
 }
 
 @layer base {

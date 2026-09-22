@@ -3,14 +3,19 @@
 // for the September evaluation to orient a real SK Chairperson/organizer who
 // has never seen this system before.
 //
-// Each step carries an `icon` (fallback) AND a screenshot (Sep 2026, brought
-// back at the Super Admin's request — the modal is now a wide two-pane layout,
-// explanation left / clickable screenshot right). Screenshots live in
-// frontend/public/instructions/ named `<role>-<step number>.png`, where role is
-// super-admin | barangay-admin | organizer and the number is the step's
-// position below (1-based). See that folder's README.md. A step whose file
-// isn't there yet just shows its icon instead — nothing breaks. Screenshots go
-// stale when a page is redesigned, so re-capture the affected ones after a UI pass.
+// Each step carries an `icon` (fallback) AND up to a handful of screenshots
+// (Sep 2026, brought back at the Super Admin's request — the modal is a wide
+// two-pane layout, explanation left / clickable screenshot(s) right; extended
+// same session to allow MULTIPLE screenshots per step, e.g. "Start a season"
+// walking through more than one screen). Screenshots live in
+// frontend/public/instructions/ named `<role>-<step number>-<n>.png` — role is
+// super-admin | barangay-admin | organizer, step number is the step's position
+// below (1-based), and n starts at 1 and must be CONTIGUOUS (no gaps) — the
+// modal probes -1, -2, -3… and stops at the first one that doesn't exist, so a
+// step with only -1.png and -3.png would only ever show the first image. See
+// that folder's README.md. A step with no files at all just shows its icon
+// instead — nothing breaks. Screenshots go stale when a page is redesigned, so
+// re-capture the affected ones after a UI pass.
 
 import {
   Building2, CalendarRange, ClipboardList, Flag, KeyRound,
@@ -137,6 +142,6 @@ const SHOT_FOLDER = {
 export const INSTRUCTION_STEPS = Object.fromEntries(
   Object.entries(RAW_STEPS).map(([role, steps]) => [
     role,
-    steps.map((s, i) => ({ ...s, image: `/instructions/${SHOT_FOLDER[role]}-${i + 1}.png` })),
+    steps.map((s, i) => ({ ...s, imageBase: `/instructions/${SHOT_FOLDER[role]}-${i + 1}` })),
   ])
 );

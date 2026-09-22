@@ -1149,10 +1149,26 @@ so a bug in one route cannot expose the other.
   clean after the upgrade.
 - shadcn's default font (Geist) was deliberately NOT applied globally — kept
   Inter, since `index.css` is shared by every page including Public, whose
-  look is decided and out of scope. `--primary`/`--ring` were set to a
-  richer indigo-violet (`oklch(0.53 0.26 285)`, deeper/more saturated than
-  plain indigo-600) so the converted pages read as a polish pass, not a
-  re-brand.
+  look is decided and out of scope. `--primary`/`--ring` were originally set
+  to a richer indigo-violet (`oklch(0.53 0.26 285)`) so the converted pages
+  read as a polish pass, not a re-brand. **Changed to blue (Sep 2026, Super
+  Admin request — most of the admin UI read as violet)**: hue shifted from
+  285 to 258 (Tailwind's blue-600/blue-500 family), lightness/chroma left
+  alone so the palette's weight is unchanged, just the hue — `light --primary:
+  oklch(0.53 0.26 258)`, `dark --primary: oklch(0.62 0.24 258)`, same shift
+  on `--ring`/`--sidebar-primary`/`--sidebar-ring` in both themes (8 values
+  total, all in `index.css`). This is the ONE source of truth for the admin
+  brand color — every shadcn `Button`/focus-ring/sidebar-highlight across all
+  three roles picks it up automatically via the CSS variable, no per-page
+  changes needed. Also fixed `pages/ChangePassword.jsx`, which had hardcoded
+  raw `indigo-*` Tailwind classes instead of the token (missed by the shadcn
+  pass since it's a pre-login page) — now `blue-*` to match. **Deliberately
+  NOT touched**: `components/DashboardBits.jsx`'s `violet` entry in
+  `TONE_ICON` (one hue among seven used to visually tell stat tiles apart,
+  not the brand color) and `ReferenceList.jsx`'s `purple` (the deliberate
+  "informational only" under-15 same-name highlight — a status meaning, like
+  green/red/amber, not decoration). Public Viewer is untouched either way —
+  separate dark design, gold accent, never used shadcn tokens.
 - `components/ui.jsx` (Button/Card/Input/Label/Pill) is now DEAD — nothing
   imports it. Safe to delete once someone confirms nothing else references it.
 - A `.scrollbar-thin` utility class (in `index.css`, themed off `--border`/

@@ -2988,3 +2988,30 @@ Found by rendering the organizer screens at 390px against a mock API.
   Nothing to clean up there.
 - Full backend syntax check (`node -c` on every file) and a clean frontend production build after
   all of the above; no other code referenced the removed files/routes.
+
+## 2026-09 — Session: instruction-modal photo galleries; admin brand color violet → blue
+
+- **Instruction modal: a step can now show multiple screenshots**, not just one. Filenames changed
+  from `<role>-<step>.png` to `<role>-<step>-<n>.png` (n starts at 1, must be contiguous — the modal
+  probes `-1`, `-2`, `-3`… and stops at the first gap). `StepShot` in `InstructionModal.jsx` preloads
+  each candidate with a bare `Image()` (so there's never a flash of a broken-image icon while it
+  figures out how many shots a step has), then renders whatever it found as a small gallery —
+  hover arrows + dot indicators when there's more than one, a plain image when there's exactly one,
+  the step's icon when there are none. The enlarge/zoom view steps through multiple images too.
+  Folder's still empty locally — nothing changes visually until screenshots are actually dropped in
+  following the new naming pattern (see `frontend/public/instructions/README.md`, also updated).
+- **Admin brand color changed from violet to blue** (Super Admin: "most of the colors of our system
+  is violet on the buttons and others"). The whole admin UI's accent runs through two CSS custom
+  properties in `index.css` — `--primary` and `--ring` (plus `--sidebar-primary`/`--sidebar-ring`,
+  which mirror them) — so every shadcn `Button`, focus ring, and sidebar highlight across all three
+  roles updates from one change: hue shifted from 285 (indigo-violet) to 258 (Tailwind's
+  blue-600/blue-500 family) in both light and dark mode, 8 values total, lightness/chroma left alone
+  so nothing else about the palette's weight changed. Also fixed `pages/ChangePassword.jsx`, which
+  had hardcoded raw `indigo-*` Tailwind classes instead of the token (a pre-login page the shadcn
+  pass missed) — now `blue-*`. Deliberately NOT touched: `DashboardBits.jsx`'s `violet` stat-tile
+  tone (one of seven hues used just to tell tiles apart, not the brand color) and
+  `ReferenceList.jsx`'s `purple` (the "informational only" under-15 same-name highlight — a status
+  meaning, not decoration). Public Viewer is a separate dark design with its own gold accent and was
+  never on these tokens, so it's unaffected either way. Verified by building a production preview
+  and screenshotting the login page with headless Edge — button, focus ring, and the login panel's
+  gradient all confirmed blue, not just inferred from the CSS.

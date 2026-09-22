@@ -4,6 +4,7 @@ import { HelpCircle, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { api } from "../api";
 import InstructionModal from "./InstructionModal";
 import LoadingScreen from "./LoadingScreen";
+import ProfilePanel from "./ProfilePanel";
 import { getStoredTheme, storeTheme } from "../lib/theme";
 import ThemeToggle from "./ThemeToggle";
 import { SeasonBadge } from "./SeasonStatus";
@@ -18,6 +19,30 @@ import { cn } from "../lib/utils";
 // active-route effects don't need to know which shape they got.
 function flattenItems(menu) {
   return menu[0]?.header !== undefined ? menu.flatMap((g) => g.items) : menu;
+}
+
+// Header avatar: tries the account's profile photo, falls back to initials
+// on a 404 (no photo set) — same "image is the upload control" avatar the
+// profile panel uses, just read-only here. `v` bumps after the panel closes
+// so a just-changed photo shows up without a full page reload.
+function HeaderAvatar({ user, v }) {
+  const [imgError, setImgError] = useState(false);
+  useEffect(() => { setImgError(false); }, [v]);   // give a just-uploaded photo another chance to load
+  if (!user?.id || imgError) {
+    return (
+      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-semibold">
+        {user?.username?.slice(0, 2).toUpperCase()}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={`/api/auth/users/${user.id}/photo?v=${v}`}
+      alt=""
+      className="h-8 w-8 rounded-full object-cover bg-muted"
+      onError={() => setImgError(true)}
+    />
+  );
 }
 
 // animateTheme={false} makes the theme toggle swap instantly instead of playing
@@ -43,6 +68,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const rail = railPref && isDesktop;
   const [loggingOut, setLoggingOut] = useState(false);
   const [showHelp, setShowHelp] = useState(false);   // on-demand reopen of the orientation modal
+  const [showProfile, setShowProfile] = useState(false);
+  const [avatarV, setAvatarV] = useState(0);   // bumped when the profile panel closes, to refresh a just-changed photo
   const [sports, setSports] = useState([]);
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
   const [reviewPending, setReviewPending] = useState(0);
@@ -305,10 +332,15 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             </button>
             {enableDarkMode && <ThemeToggle theme={theme} onThemeChange={handleThemeChange} animate={animateTheme && finePointer} />}
             {showSeason && season && <SeasonBadge status={season.status} name={season.name} className="hidden sm:inline-flex" />}
-            <span className="hidden sm:inline">{user?.username}</span>
-            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-semibold">
-              {user?.username?.slice(0, 2).toUpperCase()}
-            </div>
+            <button
+              onClick={() => setShowProfile(true)}
+              aria-label="Profile"
+              title="Profile"
+              className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-accent transition"
+            >
+              <span className="hidden sm:inline">{user?.username}</span>
+              <HeaderAvatar user={user} v={avatarV} />
+            </button>
           </div>
         </header>
 
@@ -325,6 +357,10 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       {showHelp && (
         <InstructionModal role={user?.role} onClose={() => setShowHelp(false)} />
       )}
+      <ProfilePanel
+        open={showProfile}
+        onOpenChange={(o) => { setShowProfile(o); if (!o) setAvatarV((n) => n + 1); }}
+      />
     </div>
   );
 }

@@ -880,6 +880,44 @@ router.post('/:id/players/:playerId/documents', authenticate, authorize('baranga
   }
 });
 
+// DELETE /api/teams/:id/players/:playerId/documents/:docId — remove a wrongly
+// uploaded document (Sep 2026). Barangay Admin, own team only. Blocked once the
+// SK Federation has already reviewed it (`approved`/`rejected` — the verdict is
+// on record; ask the Super Admin to reopen the team instead) or once the team
+// itself is verified and locked, same as the player-detail edit lock.
+router.delete('/:id/players/:playerId/documents/:docId', authenticate, authorize('barangay_admin'),
+  async (req, res) => {
+  try {
+    const team = await loadOwnedTeam(req, res);
+    if (!team) return;
+
+    if (team.status === 'verified') {
+      return res.status(409).json({
+        message: 'This team is verified and locked. Ask the Super Admin to reopen it first.',
+      });
+    }
+
+    const link = await TeamPlayer.findOne({ team: team._id, player: req.params.playerId });
+    if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
+
+    const doc = await Document.findOne({ _id: req.params.docId, player: req.params.playerId });
+    if (!doc) return res.status(404).json({ message: 'Document not found.' });
+    if (doc.verifyStatus !== 'pending') {
+      return res.status(409).json({
+        message: `This document has already been ${doc.verifyStatus} — it can no longer be deleted. Upload a new one instead, or ask the Super Admin to reopen the team.`,
+      });
+    }
+
+    await deleteFile('documents', doc.file);
+    await Document.deleteOne({ _id: doc._id });
+
+    res.json({ message: 'Document deleted.' });
+  } catch (err) {
+    console.error('Document delete error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
 // GET /api/teams/documents/:docId/file — SUPER ADMIN ONLY. Residency documents are
 // private (IDs, birth certificates) — never public, unlike player photos.
 router.get('/documents/:docId/file', authenticate, authorize('super_admin'), async (req, res) => {

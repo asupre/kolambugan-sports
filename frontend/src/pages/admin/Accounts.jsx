@@ -161,8 +161,9 @@ function CopyButton({ text }) {
 // header and each row would disagree and the headers wouldn't line up.
 const ROW_GRID = "sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_7.5rem_11rem]";
 
-function AccountRow({ a, resetting, onReset, onDelete }) {
+function AccountRow({ a, resetting, onReset, onDelete, currentUserId }) {
   const assigned = a.barangay?.name || a.assignedSport?.name || "";
+  const isSelf = String(a._id) === String(currentUserId);
   return (
     <div className={cn("grid gap-y-2 px-3 py-2.5 sm:items-center sm:gap-x-3", ROW_GRID)}>
       {/* Name and what it's assigned to share a line on a phone (three lines per
@@ -186,10 +187,22 @@ function AccountRow({ a, resetting, onReset, onDelete }) {
           </Badge>
         </div>
         <div className="flex items-center gap-1.5 sm:justify-end">
-          <Button size="sm" variant="outline" onClick={() => onReset(a)} disabled={resetting}>
-            <KeyRound /> {resetting ? "…" : "Reset password"}
-          </Button>
-          <Button size="icon-sm" variant="destructive" aria-label={`Delete ${a.username}`} title="Delete account" onClick={() => onDelete(a)}>
+          {/* A Super Admin's password is theirs to manage now (change password /
+              recovery code from their own profile) — no peer reset button, see
+              routes/accounts.js. */}
+          {a.role !== "super_admin" && (
+            <Button size="sm" variant="outline" onClick={() => onReset(a)} disabled={resetting}>
+              <KeyRound /> {resetting ? "…" : "Reset password"}
+            </Button>
+          )}
+          <Button
+            size="icon-sm"
+            variant="destructive"
+            aria-label={`Delete ${a.username}`}
+            title={isSelf ? "You can't delete your own account" : "Delete account"}
+            disabled={isSelf}
+            onClick={() => onDelete(a)}
+          >
             <Trash2 />
           </Button>
         </div>
@@ -201,6 +214,7 @@ function AccountRow({ a, resetting, onReset, onDelete }) {
 export default function Accounts() {
   const showError = useErrorDialog();
   const confirm = useConfirm();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -432,6 +446,7 @@ export default function Accounts() {
                           resetting={resettingId === a._id}
                           onReset={resetPassword}
                           onDelete={deleteAccount}
+                          currentUserId={currentUser?.id}
                         />
                       ))}
                     </div>

@@ -2890,3 +2890,78 @@ Found by rendering the organizer screens at 390px against a mock API.
   and be screened for residency only, never for the division's age cap — submit now re-checks
   every rostered player against `DIVISION_AGE_LIMIT` and 400s naming whoever is over, before
   locking the roster.
+
+## 2026-09 — Session: document delete, Super Admin profile panel + recovery code
+
+- **Delete a wrongly-uploaded document** (Documents.jsx / "Verification Status"):
+  `DELETE /api/teams/:id/players/:playerId/documents/:docId` (barangay_admin, own team) removes
+  the GridFS file + `Document` record. Blocked once the document is already `approved`/`rejected`
+  (the verdict is on record — ask the Super Admin to reopen the team) or the team is verified and
+  locked. A trash-icon button now sits on each `pending` document row, behind a confirm dialog.
+- **Super Admin profile panel + account-recovery code.** New right-side `Sheet` component
+  (`components/ui/sheet.jsx`, modeled on the existing `dialog.jsx`, no new dependency — uses the
+  project's existing `radix-ui` package) opened from the header avatar/username in `AdminLayout`
+  (all three roles). `ProfilePanel.jsx`: a "Change password" form for everyone (reuses
+  `POST /api/auth/change-password`), plus a Super-Admin-only "Account recovery" section that
+  generates a backup code (`POST /api/auth/recovery-code`, requires the current password) —
+  `generateRecoveryCode()` in `config/password.js` makes an `XXXX-XXXX-XXXX-XXXX` code from an
+  unambiguous charset (no 0/O/1/I/L). The code is shown **exactly once**, in that response — only
+  its bcrypt hash is ever stored (`User.recoveryCodeHash`/`recoveryCodeSetAt`, new fields, full
+  server restart needed). Regenerating replaces the old code; every Super Admin's code is
+  independent (per-account field), so resetting one never touches another's.
+  On the login page, a new "Forgot your password?" button opens `ForgotPasswordDialog`
+  (`Login.jsx`) — username + recovery code + new password, posted to
+  `POST /api/auth/forgot-password` (PUBLIC, no token; rate-limited tighter than login itself,
+  5 attempts/15min). Server-scoped to `role: 'super_admin'` accounts with a code set; a wrong
+  username, wrong role, or wrong code all return the same generic "Invalid username or recovery
+  code," same reasoning as login's own generic error. **One-time use**: a successful reset clears
+  `recoveryCodeHash`, so a leaked/observed code can't be replayed — the admin generates a fresh
+  code from the profile panel after logging back in. This is the "Super admin password recovery
+  when both super admins are locked out" item that was on the pending list — the two Super Admin
+  accounts have no one above them to reset a forgotten password the way a Barangay Admin/Organizer
+  does via the Accounts panel.
+- **Fixed same session, right after landing:** `SheetContent` had no scroll handling — on a
+  shorter screen, the profile panel's content (avatar + change-password form + recovery section)
+  could overflow past the visible panel with nothing to scroll it into view, which is exactly why
+  a just-generated recovery code was reported as invisible. Restructured so the close (X) button
+  stays pinned to the panel frame while only the body scrolls (`overflow-y-auto` on an inner wrapper,
+  not the outer `Sheet.Content` itself — putting it there would have scrolled the close button away
+  too).
+- **Accounts panel: Super Admin passwords are no longer peer-resettable** (Sep 2026). A Super
+  Admin now manages their own password entirely (change-password + recovery code from their own
+  profile) — `POST /api/accounts/:id/reset-password` 409s when the target is `role: 'super_admin'`,
+  and the "Reset password" button no longer renders for a super_admin row in `Accounts.jsx`. Removes
+  a trust gap where one Super Admin could silently hand the other a new temp password, bypassing
+  the account-recovery system entirely.
+- **An account can't delete itself** (Sep 2026): `DELETE /api/accounts/:id` 409s when the target
+  id is the caller's own (`req.user.id`) — e.g. `sk_federation` can delete `lydo_head`, but never
+  itself, even mid-session while signed in. The Delete button is disabled on your own row in
+  `Accounts.jsx` with a tooltip explaining why. Stacks with the existing "can't delete the last
+  super admin" guard, which still matters if there's ever only one Super Admin account again.
+- **Profile picture** (Sep 2026): `User.photo` (new field, GridFS id in the existing `photos`
+  bucket — same bucket player headshots use, needs a full server restart). `AvatarUpload` in
+  `ProfilePanel.jsx` reuses the Barangay Admin logo uploader's pattern (`ImageCropDialog`,
+  hover-to-change, round crop) — `POST`/`DELETE /api/auth/profile/photo` (self only), served back
+  publicly via `GET /api/auth/users/:id/photo` (no auth — a staff avatar isn't sensitive the way a
+  residency document is, same reasoning as public player photos). `AdminLayout`'s header avatar
+  (`HeaderAvatar`, all three roles) now shows the real photo when one's set, falling back to
+  initials on a 404, and refreshes right after the profile panel closes so a just-uploaded photo
+  shows up without a page reload.
+
+## 2026-09 — Session: Review Queue — verified teams viewable any time
+
+- **Verified teams were only visible during the `verification` stage, and only once a barangay was
+  picked** (the "Verified teams" card existed purely to offer "Reopen for corrections"). Reported:
+  "show verified teams of each barangay in the review queue... but can still see players and check
+  if its in the reference list." The underlying API already supported this —
+  `GET /api/review/teams/:teamId` never filtered by status — the gate was purely in `ReviewQueue.jsx`.
+  Fixed: the card now shows for "All barangays" too and at every season stage; each verified team
+  expands into its roster (reused `openTeamDetail`/`players` state from the pending list, and
+  extracted a shared `PlayerRow` component so the row markup isn't duplicated a third time).
+  Clicking a player opens the same `PlayerModal` used for pending teams, now passed an explicit
+  `teamVerified` flag: it hides Approve/Reject and shows "This team is verified and locked —
+  nothing here can be edited. Reopen the team above to make corrections," instead of just
+  happening to have no buttons because every player on a verified team is already `eligible`. The
+  "View in Reference List" link (`MatchCallout`) works unchanged, so a verified player's match can
+  still be checked. Only the Reopen button itself stays gated to the `verification` stage
+  (disabled + tooltip outside it — the backend still enforces the same 409).

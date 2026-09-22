@@ -1,12 +1,124 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, LockKeyhole, ShieldCheck, Trophy, Users2 } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, KeyRound, LockKeyhole, ShieldCheck, Trophy, Users2 } from "lucide-react";
 import { api } from "../api";
 import LoadingScreen from "../components/LoadingScreen";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+
+// Super Admin password reset via a saved recovery code — see
+// POST /api/auth/forgot-password. Scoped server-side to super_admin accounts
+// (a Barangay Admin/Organizer has no recovery code; they're reset by a Super
+// Admin from the Accounts panel instead), but the form itself doesn't need to
+// know that — a wrong username/role just comes back as "Invalid username or
+// recovery code," same generic message as login.
+function ForgotPasswordDialog({ open, onOpenChange }) {
+  const [username, setUsername] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  function reset() {
+    setUsername(""); setRecoveryCode(""); setNewPassword(""); setConfirm("");
+    setError(""); setBusy(false); setDone(false);
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    if (newPassword.length < 8) return setError("New password must be at least 8 characters.");
+    if (newPassword !== confirm) return setError("The new passwords do not match.");
+    setBusy(true);
+    try {
+      await api("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ username: username.trim(), recoveryCode: recoveryCode.trim(), newPassword }),
+      });
+      setDone(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><KeyRound className="size-4" /> Reset with recovery code</DialogTitle>
+          <DialogDescription>
+            For Super Admin accounts only. Enter the recovery code you saved when you generated it
+            from your profile. Barangay Admins and Organizers should ask their Super Admin to reset
+            their password instead.
+          </DialogDescription>
+        </DialogHeader>
+
+        {done ? (
+          <>
+            <Alert className="border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400">
+              <CheckCircle2 className="size-4" />
+              <AlertDescription>
+                Password reset. You can now sign in with your new password. Once you're back in,
+                generate a new recovery code from your profile — this one has been used up.
+              </AlertDescription>
+            </Alert>
+            <DialogFooter>
+              <Button onClick={() => onOpenChange(false)}>Back to sign in</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <form onSubmit={submit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="fp-username">Username</Label>
+              <Input id="fp-username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fp-code">Recovery code</Label>
+              <Input id="fp-code" value={recoveryCode} onChange={(e) => setRecoveryCode(e.target.value)}
+                placeholder="XXXX-XXXX-XXXX-XXXX" className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fp-new">New password</Label>
+              <Input id="fp-new" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 8 characters" autoComplete="new-password" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fp-confirm">Confirm new password</Label>
+              <Input id="fp-confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                autoComplete="new-password" />
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <DialogFooter>
+              <Button type="submit" disabled={busy || !username.trim() || !recoveryCode.trim()}>
+                {busy ? "Resetting…" : "Reset password"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // React Bits "Gradient Waves" (WebGL). Lazy so its chunk + `ogl` never touch the
 // main bundle — only the login page ever fetches it.
@@ -30,6 +142,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [counts, setCounts] = useState(null); // { barangays, sports } — from /api/public/overview
+  const [forgotOpen, setForgotOpen] = useState(false);
   const navigate = useNavigate();
   // The brand panel is `hidden lg:flex`, so on phones it is display:none — but a
   // hidden element would still MOUNT the WebGL canvas. Only render the waves at
@@ -208,16 +321,22 @@ export default function Login() {
             </Button>
           </form>
 
-          <p className="flex items-center gap-1.5 justify-center text-muted-foreground text-xs mt-6">
+          <button
+            type="button"
+            onClick={() => setForgotOpen(true)}
+            className="flex items-center gap-1.5 justify-center text-muted-foreground text-xs mt-6 mx-auto hover:text-foreground transition"
+          >
             <LockKeyhole className="size-3.5" />
-            Forgot your password? Ask your Super Admin to reset it.
-          </p>
+            Forgot your password?
+          </button>
 
           <p className="text-center text-muted-foreground/70 text-xs mt-4">
             Inter-Barangay Sports League · Municipality of Kolambugan
           </p>
         </div>
       </div>
+
+      <ForgotPasswordDialog open={forgotOpen} onOpenChange={setForgotOpen} />
     </div>
   );
 }

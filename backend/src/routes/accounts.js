@@ -105,10 +105,20 @@ router.post('/', async (req, res) => {
 });
 
 // POST /api/accounts/:id/reset-password — new temp password, forces change on next login.
+// NOT available for a super_admin account (Sep 2026) — a Super Admin's password
+// is their own to manage now that they have self-service recovery (see
+// POST /api/auth/recovery-code / /api/auth/forgot-password); a peer silently
+// handing them a new temp password bypasses that and is a trust/security gap
+// between the two Super Admin accounts.
 router.post('/:id/reset-password', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Account not found.' });
+    if (user.role === 'super_admin') {
+      return res.status(409).json({
+        message: 'A Super Admin\'s password can\'t be reset by another account. They can change it themselves from their profile, or use their own recovery code from the login page if they\'re locked out.',
+      });
+    }
     const tempPassword = generateTempPassword();
     user.passwordHash = await hashPassword(tempPassword);
     user.mustChangePassword = true;
@@ -174,11 +184,18 @@ router.post('/provision-all', async (req, res) => {
 const Match = require('../models/Match');
 
 // DELETE /api/accounts/:id — remove an account. Blocked if it has scored any
-// match (would orphan the enteredBy audit trail) or if it's the last super admin.
+// match (would orphan the enteredBy audit trail), if it's the last super admin,
+// or if it's YOUR OWN account (Sep 2026 — e.g. sk_federation can delete
+// lydo_head, but never itself; deleting yourself mid-session is how an admin
+// accidentally locks themselves out with no one else signed in to undo it).
 router.delete('/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Account not found.' });
+
+    if (String(user._id) === String(req.user.id)) {
+      return res.status(409).json({ message: "You can't delete your own account while signed in as it." });
+    }
 
     // Don't let the system be left with zero super admins.
     if (user.role === 'super_admin') {

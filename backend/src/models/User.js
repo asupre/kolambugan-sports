@@ -38,6 +38,30 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Account-recovery code (Super Admin only, Sep 2026) — a self-service
+    // backup for "I forgot my password and there's no one above me to reset
+    // it" (the two Super Admin accounts have no one else to turn to). Never
+    // stored in plaintext, same as passwordHash; shown to the account holder
+    // exactly once, at generation, in POST /api/auth/recovery-code. Consumed
+    // (cleared) the moment it's used to reset a password via
+    // POST /api/auth/forgot-password, so a leaked code can't be replayed —
+    // the account holder generates a fresh one afterward. Per-account, so
+    // regenerating or using one Super Admin's code never touches another's.
+    recoveryCodeHash: {
+      type: String,
+      default: null,
+    },
+    recoveryCodeSetAt: {
+      type: Date,
+      default: null,
+    },
+    // Profile picture (Sep 2026) — a GridFS id in the `photos` bucket, same
+    // bucket player headshots use. Served publicly like a player photo (a
+    // staff avatar isn't sensitive the way a residency document is).
+    photo: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
   },
   {
     timestamps: true,

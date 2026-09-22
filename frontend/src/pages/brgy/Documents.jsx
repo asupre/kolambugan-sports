@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, FileText, FileWarning, Inbox, UploadCloud } from "lucide-react";
+import { AlertTriangle, FileText, FileWarning, Inbox, Trash2, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { brgyMenu } from "../../components/menus";
 import { useErrorDialog } from "../../components/ErrorDialog";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { api } from "../../api";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
-import { buttonVariants } from "../../components/ui/button";
+import { Button, buttonVariants } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import {
@@ -63,11 +64,13 @@ function ReasonCallout({ status, reason }) {
 
 export default function Documents() {
   const showError = useErrorDialog();
+  const confirm = useConfirm();
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [docType, setDocType] = useState({});     // playerId -> chosen type
   const [uploadingId, setUploadingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);   // docId being deleted
 
   async function load() {
     setLoading(true);
@@ -105,6 +108,19 @@ export default function Documents() {
       showError(e.message);
     } finally {
       setUploadingId(null);
+    }
+  }
+
+  async function remove(p, doc) {
+    if (!(await confirm(`Delete this ${DOC_TYPES.find((t) => t.value === doc.docType)?.label || doc.docType}? This can't be undone.`, { confirmLabel: "Delete", danger: true }))) return;
+    setDeletingId(doc._id);
+    try {
+      await api(`/api/teams/${p.teamId}/players/${p.playerId}/documents/${doc._id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -204,6 +220,18 @@ export default function Documents() {
                           <Badge className={VERIFY_BADGE[d.verifyStatus]}>
                             {d.verifyStatus}
                           </Badge>
+                          {d.verifyStatus === "pending" && (
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              aria-label="Delete document"
+                              className="text-destructive hover:text-destructive"
+                              disabled={deletingId === d._id}
+                              onClick={() => remove(p, d)}
+                            >
+                              <Trash2 />
+                            </Button>
+                          )}
                         </div>
                       ))}
                     </div>

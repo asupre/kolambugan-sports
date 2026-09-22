@@ -279,6 +279,43 @@ function Field({ label, value }) {
   );
 }
 
+// One roster row — shared by the pending-team list and the verified-team list,
+// which used to duplicate this markup. Always opens the same PlayerModal; the
+// modal itself decides what's actionable (a verified team's players are all
+// `eligible` by definition, so it naturally shows no Approve/Reject buttons).
+function PlayerRow({ p, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-3 py-2 border-b last:border-0 text-left hover:bg-accent/50 rounded-lg px-2 transition"
+    >
+      {p.photo ? (
+        <img src={`/api/teams/players/${p._id}/photo`} alt=""
+          className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
+      ) : (
+        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
+          {p.lastName?.[0]}{p.firstName?.[0]}
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm">{p.lastName}, {p.firstName}</span>
+          <Badge className={STATUS_BADGE[p.eligibilityStatus] || STATUS_BADGE.pending}>
+            {STATUS_LABEL[p.eligibilityStatus] || p.eligibilityStatus}
+          </Badge>
+          {p.documents?.length > 0 && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <FileText className="size-3" /> {p.documents.length} doc{p.documents.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} className="mt-1" />
+      </div>
+      <span className="text-muted-foreground text-xs shrink-0">View →</span>
+    </button>
+  );
+}
+
 // One barangay in the picker — name, plus whichever badge applies: a red
 // count of teams still needing a verdict, a green "Cleared" once it has a
 // VERIFIED team in every sport/division slot this season is running (not
@@ -316,7 +353,12 @@ function BarangayChip({ label, count, cleared, completedSlots, requiredSlots, ac
 
 // `locked` = the season isn't at the verification stage yet: everything is viewable,
 // but Approve / Reject stay disabled (the server refuses them too).
-function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locked }) {
+// `teamVerified` = this player's TEAM is already verified and locked — a stronger,
+// different reason than `locked`: it's not that verdicts haven't opened yet, it's
+// that this roster is finalized. Buttons are hidden outright rather than disabled
+// (every player on a verified team is `eligible` anyway, which already hides them,
+// but this makes the reason explicit instead of relying on that coincidence).
+function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locked, teamVerified }) {
   const p = player;
   const navigate = useNavigate();
   // needs_document has no reference-list match at all, so a document is the
@@ -397,8 +439,10 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
 
         {/* Actions */}
         <div className="px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap shrink-0">
-          <p className={cn("text-xs", locked ? "text-muted-foreground font-medium" : blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground")}>
-            {locked
+          <p className={cn("text-xs", locked || teamVerified ? "text-muted-foreground font-medium" : blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground")}>
+            {teamVerified
+              ? "This team is verified and locked — nothing here can be edited. Reopen the team above to make corrections."
+              : locked
               ? "View only — approving and rejecting open once the season moves to the verification stage."
               : blockedCrossBarangay
               ? "This barangay doesn't allow cross-barangay players, so this player can't be approved. Reject them, or allow cross-barangay for this barangay in League Setup."
@@ -408,7 +452,7 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
               ? "No document uploaded yet — Approve is disabled until the Barangay Admin submits one."
               : "Approving also marks this player's pending documents as approved. Rejecting removes the player and their files, and reopens the roster."}
           </p>
-          {p.eligibilityStatus !== "eligible" && (
+          {!teamVerified && p.eligibilityStatus !== "eligible" && (
             <div className="flex gap-2 shrink-0">
               <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || locked || approveBlocked}
                 title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : blockedNoDocument ? "This player has no document uploaded yet." : undefined}
@@ -542,11 +586,12 @@ export default function ReviewQueue() {
     finally { setBusy(false); }
   }
 
-  // Reopening is only offered during the verification period — once the season
-  // is ongoing, verified teams are final (the backend enforces this too).
-  const visibleVerified = selectedBarangay && seasonStatus === "verification"
+  // Verified teams are viewable ANY time (same "viewing is always open, verdicts
+  // aren't" rule as the pending list above) — only the Reopen action itself is
+  // restricted to the verification period (the backend enforces that too).
+  const visibleVerified = selectedBarangay
     ? verifiedTeams.filter((t) => t.barangayId === selectedBarangay)
-    : [];
+    : verifiedTeams;
 
   const allEligible = players.length > 0 && players.every((p) => p.eligibilityStatus === "eligible");
   // Anything can be viewed at any time; verdicts only during the verification stage.
@@ -660,35 +705,7 @@ export default function ReviewQueue() {
                           {msg && <p className="text-sm mb-3 bg-muted rounded px-3 py-2">{msg}</p>}
                           <div className="space-y-2">
                             {players.map((p) => (
-                              <button
-                                key={p._id}
-                                onClick={() => setModalPlayer(p)}
-                                className="w-full flex items-center gap-3 py-2 border-b last:border-0 text-left hover:bg-accent/50 rounded-lg px-2 transition"
-                              >
-                                {p.photo ? (
-                                  <img src={`/api/teams/players/${p._id}/photo`} alt=""
-                                    className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
-                                ) : (
-                                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
-                                    {p.lastName?.[0]}{p.firstName?.[0]}
-                                  </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-sm">{p.lastName}, {p.firstName}</span>
-                                    <Badge className={STATUS_BADGE[p.eligibilityStatus] || STATUS_BADGE.pending}>
-                                      {STATUS_LABEL[p.eligibilityStatus] || p.eligibilityStatus}
-                                    </Badge>
-                                    {p.documents?.length > 0 && (
-                                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        <FileText className="size-3" /> {p.documents.length} doc{p.documents.length > 1 ? "s" : ""}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} className="mt-1" />
-                                </div>
-                                <span className="text-muted-foreground text-xs shrink-0">View →</span>
-                              </button>
+                              <PlayerRow key={p._id} p={p} onClick={() => setModalPlayer(p)} />
                             ))}
                           </div>
 
@@ -710,32 +727,70 @@ export default function ReviewQueue() {
             </div>
           )}
 
-          {/* Verified teams of the picked barangay — verified teams are locked
-              for their Barangay Admin, so this is the way back if one needs a
-              correction. Only shown once a barangay is picked (all 26 at once
-              would be a very long list). */}
+          {/* Verified teams — locked for their Barangay Admin, but always viewable
+              here: open one to see its roster and check each player against the
+              Reference List, the same as a pending team. Shown for "All
+              barangays" too, not just once one is picked. */}
           {visibleVerified.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Verified teams</CardTitle>
                 <CardDescription>
-                  These are locked — their Barangay Admin can only change photos. Reopen one to let
-                  them correct a player; it returns to the queue and needs verifying again. A team
-                  already in a tournament can't be reopened (delete the tournament first).
+                  Locked for their Barangay Admin — they can only change photos. Open one to view its
+                  roster and check players against the Reference List; nothing here can be edited.
+                  Reopen one (verification stage only) to let the Barangay Admin correct a player; it
+                  returns to the queue above and needs verifying again. A team already in a tournament
+                  can't be reopened — delete the tournament first.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 {msg && <p className="text-sm bg-muted rounded px-3 py-2">{msg}</p>}
                 {visibleVerified.map((t) => (
-                  <div key={t.teamId} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{t.teamName}</p>
-                      <p className="text-muted-foreground text-xs truncate">{t.sport} · {t.playerCount} players</p>
+                  <Card key={t.teamId} className="overflow-hidden py-0 gap-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4">
+                      <button
+                        onClick={() => openTeamDetail(t.teamId)}
+                        className="flex-1 min-w-0 text-left hover:opacity-80 transition"
+                      >
+                        <p className="font-semibold flex items-center gap-2 flex-wrap">
+                          {t.teamName}
+                          <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>Verified</Badge>
+                        </p>
+                        <p className="text-muted-foreground text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>
+                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy || !reviewOpen}
+                          title={!reviewOpen ? "Reopening is only allowed during the verification stage." : undefined}
+                          onClick={() => reopen(t)}
+                        >
+                          <RotateCcw /> Reopen for corrections
+                        </Button>
+                        <button onClick={() => openTeamDetail(t.teamId)} aria-label="Toggle roster" className="text-muted-foreground">
+                          {openTeam === t.teamId ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                        </button>
+                      </div>
                     </div>
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => reopen(t)}>
-                      <RotateCcw /> Reopen for corrections
-                    </Button>
-                  </div>
+
+                    {openTeam === t.teamId && (
+                      <div className="border-t px-5 py-4">
+                        {playersLoading ? (
+                          <div className="space-y-2">
+                            <Skeleton className="h-12 w-full" />
+                            <Skeleton className="h-12 w-full" />
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {players.map((p) => (
+                              <PlayerRow key={p._id} p={p} onClick={() => setModalPlayer(p)} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Card>
                 ))}
               </CardContent>
             </Card>
@@ -749,6 +804,7 @@ export default function ReviewQueue() {
           teamId={openTeam}
           busy={busy}
           locked={!reviewOpen}
+          teamVerified={verifiedTeams.some((t) => t.teamId === openTeam)}
           onClose={() => setModalPlayer(null)}
           onApprove={async (tid, pid) => { await approve(tid, pid); setModalPlayer(null); }}
           onReject={async (tid, pid) => { await reject(tid, pid); setModalPlayer(null); }}

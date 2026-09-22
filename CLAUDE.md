@@ -723,7 +723,17 @@ so a bug in one route cannot expose the other.
 - Super Admin **Accounts panel**: lists all accounts by role with their
   password status; "Provision all" fills any missing barangay-admin /
   organizer accounts; "Add an account" for anything else (e.g. a second
-  super admin); per-account "Reset password"; guarded delete.
+  super admin); per-account "Reset password" (barangay_admin/organizer only —
+  see below); guarded delete.
+- **A Super Admin's password can't be reset by a peer, and no account can
+  delete itself (Sep 2026).** `POST /api/accounts/:id/reset-password` 409s
+  when the target is `role: 'super_admin'` (and the button doesn't render for
+  one in `Accounts.jsx`) — a Super Admin manages their own password entirely
+  now (change-password / recovery code, both from their own profile panel);
+  a peer silently resetting it would bypass that. `DELETE /api/accounts/:id`
+  409s when the target is the caller's own account (`req.user.id`) — e.g.
+  `sk_federation` can delete `lydo_head` but never itself, even mid-session —
+  stacked with the existing "can't delete the last super admin" guard.
 - **Temp passwords are shown exactly ONCE**, at creation or reset — bcrypt is
   one-way, so they cannot be retrieved later. The Super Admin copies and
   distributes them (Messenger/text). Copy button copies the password only.
@@ -739,6 +749,47 @@ so a bug in one route cannot expose the other.
 - Token expiry is 8h; an expired token now redirects to login — a 401 handler
   in `api.js` clears the session and redirects (previously showed
   "Authentication required" with no redirect).
+- **Profile panel + Super Admin account recovery (Sep 2026).** The header
+  avatar/username (`AdminLayout.jsx`, all three roles) opens `ProfilePanel.jsx`
+  — a right-side `Sheet` (`components/ui/sheet.jsx`, new, modeled on the
+  existing `dialog.jsx`) with a "Change password" form (reuses
+  `POST /api/auth/change-password`) for everyone, plus a Super-Admin-only
+  "Account recovery" section. That section generates a **recovery code**
+  (`POST /api/auth/recovery-code`, requires the current password, `super_admin`
+  only) — `generateRecoveryCode()` in `config/password.js` makes an
+  unambiguous-charset `XXXX-XXXX-XXXX-XXXX` code, shown **exactly once** in the
+  response (same "shown once" rule as a temp password); only its bcrypt hash
+  is stored (`User.recoveryCodeHash`/`recoveryCodeSetAt`, new fields — needs a
+  full server restart the first time). Generating a new code replaces the old
+  one; each Super Admin's code is independent. On the login page, "Forgot your
+  password?" opens a dialog (`ForgotPasswordDialog` in `Login.jsx`) that posts
+  username + recovery code + new password to `POST /api/auth/forgot-password`
+  (PUBLIC, no token — this IS the "I can't log in" path; rate-limited tighter
+  than login itself, 5/15min). Scoped server-side to `role: 'super_admin'`
+  rows with a code set; wrong username/role/code all return the same generic
+  "Invalid username or recovery code." **One-time use**: a successful reset
+  clears `recoveryCodeHash`, so a leaked code can't be replayed — the admin
+  generates a fresh one from the profile panel once back in. Exists because
+  the two Super Admin accounts have no one above them to reset a forgotten
+  password the way a Barangay Admin/Organizer does (the Super Admin's
+  Accounts-panel "Reset password"). **`SheetContent` scrolls its body, not the
+  whole frame**: the close (X) button is pinned outside the inner
+  `overflow-y-auto` wrapper — a taller-than-viewport panel (e.g. right after
+  revealing a recovery code) used to overflow with nothing to scroll it into
+  view, which is exactly why a just-generated code went unseen; fixed once,
+  applies to every `Sheet` use, not just this panel.
+- **Profile picture, all three roles (Sep 2026).** `User.photo` (GridFS id in
+  the `photos` bucket — same bucket player headshots use; new field, needs a
+  full server restart). `AvatarUpload` in `ProfilePanel.jsx` reuses the
+  Barangay Admin logo uploader's exact pattern (`ImageCropDialog`,
+  hover-to-change, crop-before-save) with `cropShape="round"`.
+  `POST`/`DELETE /api/auth/profile/photo` (self only) upload/remove it;
+  `GET /api/auth/users/:id/photo` serves it back PUBLICLY (no auth — a staff
+  avatar isn't sensitive the way a residency document is, same call as public
+  player photos). `AdminLayout`'s header avatar (`HeaderAvatar`) shows the
+  real photo when set, falls back to initials on a 404, and refreshes right
+  after the profile panel closes (a version counter bumped on close) so a
+  just-uploaded photo appears without a page reload.
 
 ---
 
@@ -888,8 +939,22 @@ so a bug in one route cannot expose the other.
 - **Review Queue — barangay picker + a real "Cleared" definition** (Sep
   2026): `GET /api/review/queue` now also returns `barangays` (all 26,
   not just ones with a pending team), `totalPending`, `verifiedTeams` and
-  `seasonStatus` (for the "Reopen for corrections" card, shown only during
-  `verification`). The route runs a fixed handful of BATCHED queries — it used
+  `seasonStatus`. **Verified teams are viewable at ANY season stage (Sep
+  2026 correction)** — the "Verified teams" card used to only render once a
+  barangay was picked AND the season was in `verification` (so it existed
+  purely for "Reopen for corrections"); that made a verified roster
+  invisible the rest of the season, with no way to check its players against
+  the Reference List. Now shown for "All barangays" too, and each row
+  expands (same `openTeamDetail`/`PlayerRow` as the pending list above —
+  `GET /api/review/teams/:teamId` already worked for any team status, this
+  was purely a frontend gate) into its roster; clicking a player opens the
+  same `PlayerModal`, which now takes an explicit `teamVerified` flag to show
+  "This team is verified and locked — nothing here can be edited" and hide
+  Approve/Reject outright (previously relied on the coincidence that every
+  player on a verified team is already `eligible`, which happens to hide the
+  buttons anyway, but didn't say WHY). Only the **Reopen** button itself
+  stays gated to the `verification` stage (disabled + tooltip outside it —
+  the backend enforces the same). The route runs a fixed handful of BATCHED queries — it used
   to query per team (~1-1.7s at ~34 teams on Atlas, now ~0.4s); keep it batched. The Review Queue
   page (`ReviewQueue.jsx`) shows a row of barangay chips above the team
   list — click one to filter to just that barangay instead of scrolling
@@ -1475,7 +1540,12 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   - Player photos: upload (barangay admin, own team), public serve, delete.
   - Residency documents: upload with docType, **super-admin-only** serve.
 - Barangay Admin **Document Submission** page (lists players needing docs,
-  doc-type picker, upload, shows verify status).
+  doc-type picker, upload, shows verify status). **Delete a wrongly-uploaded
+  document** (Sep 2026): `DELETE /api/teams/:id/players/:playerId/documents/:docId`
+  (barangay_admin, own team) + a trash-icon button on each `pending` document
+  row. Blocked once the SK Federation has already ruled on it (`approved`/
+  `rejected` — the verdict is on record; ask the Super Admin to reopen the
+  team) or once the team itself is verified and locked.
 - Review Queue shows the player's **photo + uploaded document inline**
   (blob fetch with token) so the Federation can judge with evidence.
   **Zoomable** (Sep 2026, `Lightbox` in `ReviewQueue.jsx`): mouse wheel,
@@ -1636,7 +1706,9 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
    Admin's roster editor, see Tournaments/Roster section below.
 4. ~~Tournament delete from the UI.~~ Done (Sep 2026) — see Tournaments below,
    plus a new team-delete route/UI alongside it (there wasn't one before).
-5. Super admin password recovery when both super admins are locked out.
+5. ~~Super admin password recovery when both super admins are locked out.~~ Done
+   (Sep 2026) — per-account recovery code + profile panel; see the Accounts &
+   authentication section below.
 6. Delete the now-dead `components/ui.jsx` (Button/Card/Input/Label/Pill) once
    confirmed nothing still imports it — the shadcn/ui pass replaced it
    everywhere. Light animation over the shadcn pages is still an open nice-to-have.

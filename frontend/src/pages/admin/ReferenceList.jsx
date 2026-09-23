@@ -89,10 +89,10 @@ function analyzeRow(r) {
         : matchGroups[0].flagged
         ? "flagged"
         : "eligible"
-      : minorMatches.length > 0
-      ? "minor"
       : nearMisses.length > 0
       ? "nearmiss"
+      : minorMatches.length > 0
+      ? "minor"
       : null;
   return { rowTone, matchGroups, minorMatches, nearMisses };
 }
@@ -129,9 +129,12 @@ function MatchInfo({ info }) {
                                   </div>
                                 );
                               })}
-                              {/* Same name, but the middle initial and/or birthdate disagree,
-                                  so the player was flagged "not on the list". Shows exactly
-                                  which details differ so it doesn't look like a bug. */}
+                              {/* Same name, but the middle initial and/or birthdate disagree.
+                                  For an adult that's why they were flagged "not on the list";
+                                  for a minor (`m.minor`) it doesn't change their status — always
+                                  needs_document either way — it's still worth surfacing the same
+                                  way so a mistyped middle name/birthdate on a minor's roster
+                                  entry doesn't look identical to a clean same-name hint. */}
                               {nearMisses.map((m, i) => (
                                 <div key={`near-${i}`} className="min-w-0">
                                   <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400">
@@ -140,6 +143,7 @@ function MatchInfo({ info }) {
                                   </span>
                                   <p className="text-muted-foreground text-xs break-words md:truncate">
                                     {m.playerName}{m.barangay ? ` · plays for ${m.barangay}` : ""}
+                                    {m.minor ? " — 15 or under, needs a document either way" : ""}
                                   </p>
                                   <GamesLine entries={[m]} />
                                   {m.differs.middle && (
@@ -541,17 +545,20 @@ export default function ReferenceList() {
                 roster: <span className="text-green-600 dark:text-green-400 font-medium">green</span> matched,{" "}
                 <span className="text-red-600 dark:text-red-400 font-medium">red</span> mismatch,{" "}
                 <span className="text-orange-600 dark:text-orange-400 font-medium">orange</span> same name but
-                details differ, <span className="text-purple-600 dark:text-purple-400 font-medium">purple</span>{" "}
-                same-name hint for a player 15 or under.
+                middle initial/birthdate differ, <span className="text-purple-600 dark:text-purple-400 font-medium">purple</span>{" "}
+                same-name hint for a player 15 or under whose details actually agree.
               </CardDescription>
               <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer select-none hover:text-foreground">How matching works</summary>
                 <p className="mt-1.5">
                   A player matches a row only when the name, middle initial AND birthdate all agree — a
                   blank middle name or birthdate means that row can never confirm a match on its own.
-                  Players 15 and under can't be matched (the list starts at 16) and still need a document, but a
-                  same-name, same-barangay row is worth weighing when reviewing it. Jersey numbers aren't
-                  tracked here; those live on the player's roster entry.
+                  Players 15 and under can never be officially matched (the list starts at 16) and always
+                  still need a document, but a same-name row is still checked the same way: if the middle
+                  initial or birthdate disagrees, it shows orange just like an adult near-miss so a typo or a
+                  genuinely different person isn't mistaken for a clean hint; if the details actually agree,
+                  it shows purple instead. Jersey numbers aren't tracked here; those live on the player's
+                  roster entry.
                 </p>
               </details>
             </CardHeader>

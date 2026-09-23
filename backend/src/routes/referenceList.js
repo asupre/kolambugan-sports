@@ -221,13 +221,35 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
         } else {
           for (const cand of candidates) {
             const key = String(cand._id);
-            if (!minorMatchByRefId.has(key)) minorMatchByRefId.set(key, []);
-            minorMatchByRefId.get(key).push({
-              playerName: `${p.lastName}, ${p.firstName}`,
-              teamName: team && team.teamName,
-              ...gameOf(team),
-              sameBarangay: !!(teamBrgyName && norm(cand.barangay) === teamBrgyName),
-            });
+            // Same name, but the middle initial and/or birthdate disagree — worth the
+            // same orange near-miss flag an adult gets, even though a minor's official
+            // status is always needs_document either way (never matched/flagged).
+            // Without this, a deliberately-mistyped middle name on a minor's roster
+            // entry looked identical to a clean same-name hint, which made the
+            // mismatch detection look like it didn't cover minors at all.
+            const middleDiffers = !sameMiddleInitial(cand.middleName, p.middleName);
+            const birthDiffers = !sameDay(cand.birthdate, p.birthdate);
+            if (middleDiffers || birthDiffers) {
+              if (!nearMissByRefId.has(key)) nearMissByRefId.set(key, []);
+              nearMissByRefId.get(key).push({
+                playerName: `${p.lastName}, ${p.firstName}`,
+                teamName: team && team.teamName,
+                ...gameOf(team),
+                minor: true,
+                differs: {
+                  middle: middleDiffers ? { roster: p.middleName || null, list: cand.middleName || null } : null,
+                  birthdate: birthDiffers ? { roster: p.birthdate || null, list: cand.birthdate || null } : null,
+                },
+              });
+            } else {
+              if (!minorMatchByRefId.has(key)) minorMatchByRefId.set(key, []);
+              minorMatchByRefId.get(key).push({
+                playerName: `${p.lastName}, ${p.firstName}`,
+                teamName: team && team.teamName,
+                ...gameOf(team),
+                sameBarangay: !!(teamBrgyName && norm(cand.barangay) === teamBrgyName),
+              });
+            }
           }
         }
         continue;

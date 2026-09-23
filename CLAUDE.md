@@ -353,9 +353,9 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   works at any width — unlike `--window-size`, it isn't clamped near 500px — and a
   small mock API can stand in for the backend, so no real login is needed. Git Bash
   rewrites a leading `/path` argument into a Windows path; set `MSYS_NO_PATHCONV=1`.
-  **Near misses**: a flagged adult who shares a NAME with a row (but not middle
-  initial/birthdate) makes that row orange, "Same name, details differ", listing
-  which fields disagree (roster vs list) — `nearMisses` on `GET
+  **Near misses**: a flagged adult (or, since Sep 2026, a 15-and-under player — see below) who
+  shares a NAME with a row (but not middle initial/birthdate) makes that row orange, "Same name,
+  details differ", listing which fields disagree (roster vs list) — `nearMisses` on `GET
   /api/reference-list`. Super Admin only, on purpose: it reveals the list's real
   birthdate, so it must NEVER go into `flagReason` (Barangay Admins see that).
 - **Reference List page — informational highlight for 15-and-under same-name
@@ -371,7 +371,17 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   row is promoted into the real match set (`status: 'approved_minor'`,
   labeled "Approved · document review", normal green) — the highlight
   changes to reflect that the case is resolved, instead of staying purple
-  forever.
+  forever. **The purple hint only shows when the minor's middle initial and birthdate actually
+  agree with that row (Sep 2026 fix)** — found by the Super Admin deliberately mistyping a minor's
+  middle name to test detection and getting purple instead of the expected orange. Before this fix
+  the `isMinor` branch in `routes/referenceList.js` pushed every same-name candidate to the purple
+  map unconditionally and skipped the near-miss check entirely, so a minor's details were never
+  actually compared — only an adult could ever produce orange. Now each candidate runs the same
+  `sameMiddleInitial`/`sameDay` comparison adults get: disagreement → orange near-miss (tagged
+  `minor: true`, caption "15 or under, needs a document either way" so it isn't read as an adult
+  flag), agreement → purple as before. Doesn't change the player's actual status (`needs_document`
+  either way, per `MINOR_AGE`) — only what the Super Admin sees while reviewing. `analyzeRow()`'s
+  row-tone priority in `ReferenceList.jsx` now checks `nearmiss` before `minor`.
 - **Performance (fixed Sep 2026):** roster-submit screening
   (`prescreenTeam`) fetches the season's whole reference list ONCE and
   reuses it across every player on the roster — correct tradeoff at

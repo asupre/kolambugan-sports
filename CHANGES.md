@@ -3088,3 +3088,20 @@ Found by rendering the organizer screens at 390px against a mock API.
   less noticed since the sidebar nav stays put there). `z-10` keeps it under the mobile sidebar
   drawer (`z-30`) and its backdrop (`z-20`), so opening the phone menu still covers the header
   instead of leaving its buttons tappable underneath.
+- **Reference List near-miss (orange) detection extended to minors.** Found via the Super Admin
+  deliberately testing it: mistyped a 15-and-under player's (Ali Navarro, Basketball U15, Baybay)
+  middle name against the reference list, expecting the orange "same name, details differ"
+  highlight — only got the purple informational one. Root cause: `routes/referenceList.js`'s
+  `isMinor` branch pushed every same-name candidate straight to `minorMatchByRefId` (purple)
+  unconditionally and `continue`d past the near-miss computation below entirely, so a minor's
+  middle-name/birthdate agreement was never actually checked — only adults ever reached the
+  `nearMissByRefId` (orange) logic. **Fix:** the `isMinor` branch now runs the same
+  `sameMiddleInitial`/`sameDay` comparison used for adults per candidate; a disagreement pushes to
+  `nearMissByRefId` (orange, tagged `minor: true`, same `differs` breakdown as an adult near-miss)
+  instead of the purple map — a minor's official status is still always `needs_document` either
+  way (never matched/flagged), this only changes what's *shown*, not the decision. `analyzeRow()`'s
+  tone priority in `ReferenceList.jsx` flipped so `nearmiss` outranks `minor` (a real discrepancy is
+  more actionable than a plain same-name hint). The near-miss caption appends "15 or under, needs a
+  document either way" when `m.minor` so it's not read as an adult flag. Updated the page's color
+  legend and "How matching works" text to describe the orange/purple split accurately (previously
+  implied orange was adults-only).

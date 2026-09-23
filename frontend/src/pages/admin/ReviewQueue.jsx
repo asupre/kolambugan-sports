@@ -197,20 +197,40 @@ const MAX_SCALE = 5;
 // real zoom: mouse wheel, +/- buttons, double-click, and drag-to-pan once
 // zoomed in. Pointer events cover both mouse drag and single-finger touch.
 function Lightbox({ src, onClose }) {
+  // `scale`/`pos` are the COMMITTED values — read by the +/- buttons, the %
+  // readout, and as the starting point of the next gesture. During an active
+  // drag/pinch we do NOT call setState on every move (that was the actual
+  // cause of the reported lag: a touchmove can fire 60-120x/sec, and each one
+  // was a full React re-render). Instead `paint()` writes straight to the
+  // image's DOM style, and the gesture's own ref tracks the live value; state
+  // is only committed once, when the finger/mouse lifts.
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const dragRef = useRef(null); // { startX, startY, origX, origY } while dragging with a mouse
-  const pinchRef = useRef(null); // { startDist, startScale, startMidX, startMidY, origX, origY } while pinching
-  const [pinching, setPinching] = useState(false);
+  const [gesturing, setGesturing] = useState(false); // true for the transition's OFF duration only
+  const imgRef = useRef(null);
+  const dragRef = useRef(null); // mouse pan: { startX, startY, origX, origY, x, y }
+  const touchDragRef = useRef(null); // one-finger touch pan: same shape
+  const pinchRef = useRef(null); // { startDist, startScale, startMidX, startMidY, origX, origY, scale, x, y }
 
   function clampScale(s) {
     return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
   }
 
-  function zoomTo(next) {
-    const clamped = clampScale(next);
+  function paint(nextScale, x, y) {
+    if (imgRef.current) imgRef.current.style.transform = `translate(${x}px, ${y}px) scale(${nextScale})`;
+  }
+
+  function commit(nextScale, x, y) {
+    const clamped = clampScale(nextScale);
+    const finalX = clamped === MIN_SCALE ? 0 : x;
+    const finalY = clamped === MIN_SCALE ? 0 : y;
     setScale(clamped);
-    if (clamped === MIN_SCALE) setPos({ x: 0, y: 0 });
+    setPos({ x: finalX, y: finalY });
+    paint(clamped, finalX, finalY);
+  }
+
+  function zoomTo(next) {
+    commit(next, pos.x, pos.y);
   }
 
   function handleWheel(e) {
@@ -227,20 +247,27 @@ function Lightbox({ src, onClose }) {
   function handlePointerDown(e) {
     if (e.pointerType === "touch") return;
     if (scale <= MIN_SCALE) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y, x: pos.x, y: pos.y };
+    setGesturing(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   }
 
   function handlePointerMove(e) {
     if (e.pointerType === "touch") return;
     if (!dragRef.current) return;
-    const { startX, startY, origX, origY } = dragRef.current;
-    setPos({ x: origX + (e.clientX - startX), y: origY + (e.clientY - startY) });
+    const d = dragRef.current;
+    d.x = d.origX + (e.clientX - d.startX);
+    d.y = d.origY + (e.clientY - d.startY);
+    paint(scale, d.x, d.y);
   }
 
   function handlePointerUp(e) {
     if (e.pointerType === "touch") return;
-    dragRef.current = null;
+    if (dragRef.current) {
+      commit(scale, dragRef.current.x, dragRef.current.y);
+      dragRef.current = null;
+      setGesturing(false);
+    }
   }
 
   function touchDist(touches) {
@@ -268,42 +295,55 @@ function Lightbox({ src, onClose }) {
         startMidY: mid.y,
         origX: pos.x,
         origY: pos.y,
+        scale, x: pos.x, y: pos.y,
       };
-      dragRef.current = null;
-      setPinching(true);
+      touchDragRef.current = null;
+      setGesturing(true);
     } else if (e.touches.length === 1 && scale > MIN_SCALE) {
       const t = e.touches[0];
-      dragRef.current = { startX: t.clientX, startY: t.clientY, origX: pos.x, origY: pos.y };
+      touchDragRef.current = { startX: t.clientX, startY: t.clientY, origX: pos.x, origY: pos.y, x: pos.x, y: pos.y };
+      setGesturing(true);
     }
   }
 
   function handleTouchMove(e) {
     if (e.touches.length === 2 && pinchRef.current) {
-      const { startDist, startScale, startMidX, startMidY, origX, origY } = pinchRef.current;
+      const p = pinchRef.current;
       const mid = touchMid(e.touches);
-      const nextScale = clampScale(startScale * (touchDist(e.touches) / startDist));
-      setScale(nextScale);
-      setPos({ x: origX + (mid.x - startMidX), y: origY + (mid.y - startMidY) });
-    } else if (e.touches.length === 1 && dragRef.current) {
+      p.scale = clampScale(p.startScale * (touchDist(e.touches) / p.startDist));
+      p.x = p.origX + (mid.x - p.startMidX);
+      p.y = p.origY + (mid.y - p.startMidY);
+      paint(p.scale, p.x, p.y);
+    } else if (e.touches.length === 1 && touchDragRef.current) {
       const t = e.touches[0];
-      const { startX, startY, origX, origY } = dragRef.current;
-      setPos({ x: origX + (t.clientX - startX), y: origY + (t.clientY - startY) });
+      const d = touchDragRef.current;
+      d.x = d.origX + (t.clientX - d.startX);
+      d.y = d.origY + (t.clientY - d.startY);
+      paint(scale, d.x, d.y);
     }
   }
 
   function handleTouchEnd(e) {
-    if (e.touches.length < 2) {
+    if (e.touches.length < 2 && pinchRef.current) {
+      // Read the pinch's own live values, not `pos`/`scale` React state —
+      // commit() below only SCHEDULES that state update, it isn't applied
+      // synchronously, so `pos` here would still be last render's value.
+      const { scale: endScale, x: endX, y: endY } = pinchRef.current;
+      commit(endScale, endX, endY);
       pinchRef.current = null;
-      setPinching(false);
+      if (e.touches.length === 1) {
+        // one finger lifted off a pinch, the other keeps panning from where
+        // the pinch left off
+        const t = e.touches[0];
+        touchDragRef.current = { startX: t.clientX, startY: t.clientY, origX: endX, origY: endY, x: endX, y: endY };
+        return; // still gesturing — don't clear it below
+      }
     }
-    if (e.touches.length === 1) {
-      // one finger lifted off a pinch, the other keeps panning
-      const t = e.touches[0];
-      dragRef.current = { startX: t.clientX, startY: t.clientY, origX: pos.x, origY: pos.y };
-    } else if (e.touches.length === 0) {
-      dragRef.current = null;
+    if (e.touches.length === 0) {
+      if (touchDragRef.current) commit(scale, touchDragRef.current.x, touchDragRef.current.y);
+      touchDragRef.current = null;
+      setGesturing(false);
     }
-    if (scale <= MIN_SCALE) setPos({ x: 0, y: 0 });
   }
 
   return (
@@ -323,13 +363,15 @@ function Lightbox({ src, onClose }) {
           onTouchCancel={handleTouchEnd}
         >
           <img
+            ref={imgRef}
             src={src}
             alt=""
             draggable={false}
+            decoding="async"
             className="h-full w-full object-contain select-none"
             style={{
               transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
-              transition: dragRef.current || pinching ? "none" : "transform 0.15s ease-out",
+              transition: gesturing ? "none" : "transform 0.15s ease-out",
             }}
           />
         </div>
@@ -401,7 +443,7 @@ function DocumentView({ doc, large }) {
         <>
           {type.startsWith("image/") ? (
             <>
-              <img src={url} alt="" onClick={() => setZoom(true)}
+              <img src={url} alt="" onClick={() => setZoom(true)} decoding="async"
                 className={cn("cursor-zoom-in rounded border", large ? "max-h-[26rem] w-full object-contain" : "max-h-48")} />
               {zoom && <Lightbox src={url} onClose={() => setZoom(false)} />}
             </>
@@ -436,7 +478,7 @@ function PlayerRow({ p, onClick }) {
       className="w-full flex items-center gap-3 py-2 border-b last:border-0 text-left hover:bg-accent/50 rounded-lg px-2 transition"
     >
       {p.photo ? (
-        <img src={`/api/teams/players/${p._id}/photo`} alt=""
+        <img src={`/api/teams/players/${p._id}/photo`} alt="" decoding="async"
           className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
       ) : (
         <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
@@ -556,7 +598,7 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
           <div className={cn("grid grid-cols-1 sm:grid-cols-[13rem_1fr] gap-6", (p.flagReason || p.eligibilityStatus === "eligible") && "mt-5")}>
             <div className="sm:sticky sm:top-0 space-y-4 self-start">
               {p.photo ? (
-                <img src={`/api/teams/players/${p._id}/photo`} alt=""
+                <img src={`/api/teams/players/${p._id}/photo`} alt="" decoding="async"
                   className="w-full aspect-square rounded-xl object-cover bg-muted border" />
               ) : (
                 <div className="w-full aspect-square rounded-xl bg-muted border flex items-center justify-center text-muted-foreground text-sm text-center px-3">

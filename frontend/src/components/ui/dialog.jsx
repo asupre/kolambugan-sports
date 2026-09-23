@@ -36,8 +36,13 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
+      // No backdrop-blur: it's one of the most GPU-expensive CSS effects on a
+      // phone, and every Dialog on the site uses this overlay — opening the
+      // Review Queue's player modal (over a busy page) and then its zoom
+      // lightbox (a SECOND dialog stacked on top) meant two blur passes at
+      // once. bg-black/30 alone reads as "definitely a modal" without it.
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/30 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}

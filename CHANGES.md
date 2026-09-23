@@ -3138,3 +3138,46 @@ Found by rendering the organizer screens at 390px against a mock API.
   deliberately not the "all clear" color — with a title tooltip explaining why. Not a hard block
   (approving a near-miss is still allowed — it's a document-review judgment call, not a rule), just
   impossible to click past without noticing.
+
+## 2026-09-23 — Session: mobile performance — theme toggle, Review Queue modal, pinch-zoom
+
+Super Admin: "lets fix our dark mode light mode its kinda laggy and also when we are using phone to
+check the information of the player on the review queue its also laggy same to when we click the
+picture and zoom in and out." Three separate root causes, all mobile-CPU/GPU-cost issues rather than
+network or backend:
+
+- **Removed `backdrop-blur-xs` from the shared `DialogOverlay`** (`components/ui/dialog.jsx`) —
+  `backdrop-filter: blur()` is one of the most GPU-expensive CSS effects on a phone, and EVERY
+  `Dialog` in the app uses this one overlay component. Opening the Review Queue's player modal (over
+  a page full of rows/photos) paid that cost once; opening the zoom lightbox from inside it — a
+  SECOND `Dialog` stacked on top — paid it a second time simultaneously. Replaced with a plain
+  `bg-black/30` (no blur) — reads as "definitely a modal" without the compositing cost. Affects every
+  dialog site-wide (Player modal, Lightbox, confirm dialogs, Season's create dialog, Site Images'
+  crop dialog, etc.) — none of them needed the blur specifically.
+- **Dark/light toggle: real root cause wasn't the circular-reveal animation** (already skipped on
+  touch — see the Sep 2026 Profile-panel-adjacent theme-toggle work). Flipping the `dark` class
+  recomputes every CSS-variable-driven color at once, and hundreds of elements across the admin UI
+  carry their OWN Tailwind `transition`/`transition-colors` class for hover states — those don't
+  scope to `:hover`, so the exact same transition ALSO plays on this bulk color recompute, meaning
+  hundreds of elements cross-fade simultaneously on every toggle, independent of whatever the
+  toggle's own animation does. New `.theme-switching, .theme-switching * { transition: none !important; }`
+  in `index.css`; `AdminLayout.jsx`'s `handleThemeChange` adds that class to `<html>` right before
+  flipping the theme, then removes it two `requestAnimationFrame`s later (long enough for the new
+  colors to have actually painted). Normal hover/interaction transitions are unaffected outside that
+  one-frame window.
+- **Pinch-to-zoom lag — the actual cause of the Sep 2026 pinch-zoom feature itself feeling laggy**:
+  `Lightbox` in `ReviewQueue.jsx` was calling `setScale`/`setPos` (React state) on EVERY
+  `touchmove` event — a touchmove can fire 60-120x/sec, so every finger movement was a full React
+  re-render of the whole Lightbox tree. Rewritten so a `paint(scale, x, y)` helper writes straight to
+  the `<img>` element's `style.transform` via a ref during an active gesture (mouse drag, one-finger
+  touch pan, OR two-finger pinch — tracked in per-gesture refs, e.g. `pinchRef.current.scale/x/y`),
+  with React state (`scale`/`pos`) only committed ONCE, when the gesture ends (`commit()` at
+  pointerup/touchend). A `gesturing` boolean (set true for the gesture's duration) replaces the old
+  incidental "transition is off because a state update happens to be firing every frame" behavior
+  with an explicit one. Fixed a stale-closure bug in the pinch→single-finger-pan handoff along the
+  way: reading `pos`/`scale` React state immediately after calling `commit()` in the same function
+  call returns the PREVIOUS render's value (state updates aren't synchronous), so the handoff now
+  reads the pinch's own just-computed `x`/`y`/`scale` instead. Also added `decoding="async"` to the
+  player photo, document thumbnail, and lightbox `<img>`s so decode work doesn't block the main
+  thread right as the modal/lightbox opens (same fix already applied to the Profile panel's avatar
+  images).

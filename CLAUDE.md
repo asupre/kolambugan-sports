@@ -1279,6 +1279,19 @@ so a bug in one route cannot expose the other.
   with everything else, losing access to the menu toggle / help / theme toggle / profile avatar
   without scrolling back up (mobile and desktop both had the gap). `z-10` sits under the mobile
   sidebar drawer (`z-30`) and its backdrop (`z-20`), so the open phone menu still covers it.
+- **Dark/light toggle mobile perf (Sep 2026):** the circular-reveal View Transition was already
+  skipped on touch, but the toggle still felt laggy on a phone — the REAL cause: flipping the `dark`
+  class recomputes every CSS-variable color at once, and hundreds of elements carry their own
+  Tailwind `transition`/`transition-colors` for hover states, which ALSO plays on that bulk
+  recompute (it doesn't scope to `:hover`) — hundreds of elements cross-fading simultaneously.
+  `.theme-switching, .theme-switching * { transition: none !important; }` in `index.css`;
+  `handleThemeChange` adds that class to `<html>` right before the flip, removes it two
+  `requestAnimationFrame`s later. Normal hover transitions are unaffected outside that window.
+- **`DialogOverlay` has no `backdrop-blur` (Sep 2026):** `backdrop-filter: blur()` is one of the
+  costliest CSS effects on a phone GPU, and it was on the ONE shared overlay every `Dialog` in the
+  app uses — opening a dialog over a busy page (e.g. the Review Queue's player modal), or a SECOND
+  dialog stacked on a first (the zoom lightbox opened from inside the player modal), paid that cost
+  once or twice at once. Now plain `bg-black/30`, no blur — same visual weight, no compositing cost.
 - **Full-screen loading on login/logout** (Sep 2026): `components/
   LoadingScreen.jsx` (K mark + spinner + message, theme-token based — dark
   automatically when shown from inside `AdminLayout` with dark mode on).
@@ -1646,6 +1659,13 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   from the mouse `onPointerDown/Move/Up` handlers (`pointerType !== "touch"` guard) so the two
   gesture paths don't fight over the same drag state. `touch-none` on the container already blocks
   the browser's own pinch-zoom/scroll, so no `preventDefault()` is needed in the touch handlers.
+  **Perf rewrite (Sep 2026, same session as the mobile perf pass above):** the pinch/pan was calling
+  `setScale`/`setPos` (React state) on every `touchmove` — up to 60-120 re-renders/sec, reported as
+  laggy. Now a `paint(scale, x, y)` helper writes straight to the `<img>`'s `style.transform` via a
+  ref during the gesture (live values tracked in the gesture's own ref — `pinchRef.current.scale/x/y`
+  etc.), and React state only commits ONCE at pointerup/touchend (`commit()`). A `gesturing` boolean
+  replaces the old accidental "transition is off because a state update happens to fire every frame"
+  behavior with an explicit one.
 - **Approve is blocked for a `needs_document` player with no document
   uploaded** (Sep 2026) — enforced in the route (400 if `Document`
   records = 0 for that player) and in the UI (Approve button disabled,

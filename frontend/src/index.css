@@ -160,6 +160,19 @@
   }
 }
 
+/* Dark/light toggle perf (Sep 2026): flipping the `dark` class recomputes every
+   CSS-variable-driven color at once, and hundreds of elements across the admin
+   UI carry their own Tailwind `transition`/`transition-colors` (for hover
+   states) — those don't scope to :hover, so the SAME transition also plays on
+   this bulk color change, meaning hundreds of elements cross-fade at once on
+   every toggle. That's what read as "laggy," independent of the circular-reveal
+   animation (which is already skipped on touch). AdminLayout briefly adds this
+   class around the class-flip so the swap is genuinely instant; normal
+   hover/interaction transitions resume right after. */
+.theme-switching, .theme-switching * {
+  transition: none !important;
+}
+
 /* A themed, low-profile scrollbar for horizontal/vertical overflow panels
    (bracket trees, long tables) — the bare OS scrollbar read as visual noise
    next to everything else being restyled. */

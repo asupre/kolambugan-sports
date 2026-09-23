@@ -131,8 +131,22 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   // fade here any more — the reveal IS the transition, and the fallbacks are
   // meant to be instant.
   function handleThemeChange(next) {
+    // Suppress every element's own hover/interaction `transition` for one
+    // paint so the bulk CSS-variable recompute doesn't ALSO cross-fade
+    // hundreds of elements at once (see `.theme-switching` in index.css) —
+    // that cascade, not the circular reveal (already skipped on touch), is
+    // what read as lag on a phone. Two rAFs: one to let the class-flip below
+    // actually paint, one more before handing transitions back so nothing
+    // still mid-recompute picks up a transition on the same frame.
+    const root = document.documentElement;
+    root.classList.add("theme-switching");
     setTheme(next);
     storeTheme(user?.id, next);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        root.classList.remove("theme-switching");
+      });
+    });
   }
 
   function logout() {

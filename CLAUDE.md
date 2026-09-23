@@ -1664,7 +1664,13 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   eager fetch-everything-on-open — this page can list many players/documents
   at once, and eagerly loading every thumbnail would risk the same "many
   concurrent fetch+decode" lag the Review Queue's own modal just got fixed for
-  (see the Sep 2026 mobile-perf session in CHANGES.md).
+  (see the Sep 2026 mobile-perf session in CHANGES.md). **Row overflow guard**:
+  the label `<span>` needs `min-w-0 truncate` and the badge/buttons `shrink-0`
+  — `Card` clips overflow by default, and without these a long label (e.g.
+  "Parental Consent (15 and under)") on a narrow screen pushes the row past
+  the Card's clipped edge, cutting the Eye/Delete buttons off entirely rather
+  than just cramming them. Keep this pattern for any future button added to
+  this row.
 - Review Queue shows the player's **photo + uploaded document inline**
   (blob fetch with token) so the Federation can judge with evidence.
   **Zoomable** (Sep 2026, `Lightbox` in `ReviewQueue.jsx`): mouse wheel,

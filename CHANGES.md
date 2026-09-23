@@ -3211,3 +3211,15 @@ its filename and status, making "should I delete this and re-upload" a guess.
   that screen) — a Barangay Admin's document list could span many players/documents, and eagerly
   fetching every thumbnail on page load would risk reintroducing the same "many concurrent
   fetch+decode on open" lag just fixed above.
+- **Document row overflow guard (same session, follow-up):** the Super Admin reported not being
+  able to see the new View button on mobile/tablet, then retracted it ("my bad we can") — but while
+  checking, a real latent bug surfaced in the same row regardless: `Card` clips overflow by default
+  (`overflow-hidden` baked into `components/ui/card.jsx`), and the document row's label `<span>` had
+  `flex-1` with no `min-w-0`/`truncate`. A long label (e.g. "Parental Consent (15 and under)") on a
+  narrow screen would force the row wider than available space, and since flex items default to
+  `min-width: auto` (their own content's width), the row wouldn't shrink — it would just overflow
+  past the Card's clipped edge, cutting the Eye/Delete buttons off entirely rather than merely
+  cramming them. Fixed: `min-w-0 truncate` on the label (so IT shrinks/ellipsizes instead), `shrink-0`
+  on the status badge and both buttons (so they never compress). Not confirmed as the exact cause of
+  the original report (which the Super Admin said wasn't actually happening), but a real defect
+  regardless — worth fixing on its own.

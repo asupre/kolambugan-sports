@@ -243,10 +243,14 @@ export default function Documents() {
                     <div className="space-y-1">
                       {p.documents.map((d) => (
                         <div key={d._id} className="flex items-center gap-2 rounded-md bg-muted px-2 py-1.5 text-xs">
-                          <span className="flex-1">
+                          {/* min-w-0 + truncate: Card clips overflow, so without this a long
+                              label (e.g. "Parental Consent (15 and under)") on a narrow phone
+                              pushed the row wider than the screen and the buttons below were
+                              clipped off entirely — invisible, not just cramped. */}
+                          <span className="flex-1 min-w-0 truncate">
                             {DOC_TYPES.find((t) => t.value === d.docType)?.label || d.docType}
                           </span>
-                          <Badge className={VERIFY_BADGE[d.verifyStatus]}>
+                          <Badge className={cn(VERIFY_BADGE[d.verifyStatus], "shrink-0")}>
                             {d.verifyStatus}
                           </Badge>
                           <Button
@@ -254,6 +258,7 @@ export default function Documents() {
                             variant="ghost"
                             aria-label="View document"
                             title="View document"
+                            className="shrink-0"
                             onClick={() => setPreviewDoc({ p, doc: d })}
                           >
                             <Eye />
@@ -263,7 +268,7 @@ export default function Documents() {
                               size="icon-sm"
                               variant="ghost"
                               aria-label="Delete document"
-                              className="text-destructive hover:text-destructive"
+                              className="shrink-0 text-destructive hover:text-destructive"
                               disabled={deletingId === d._id}
                               onClick={() => remove(p, d)}
                             >

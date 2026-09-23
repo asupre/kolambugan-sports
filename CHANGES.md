@@ -3123,3 +3123,18 @@ Found by rendering the organizer screens at 390px against a mock API.
   near-miss — this is the one place the list's real birthdate is allowed to surface; it must never
   go into `flagReason`, which Barangay Admins also see (unchanged — `flagReason` itself wasn't
   touched, this is purely additive display data).
+- **Near-miss given its own louder red+orange treatment (same session).** Super Admin: "highlight
+  it as red and orange... superadmin might automatically approve it if its orange same on the
+  others" — a near-miss minor was rendering in the exact same plain amber box as any routine
+  needs_document case (nothing wrong, just no document yet), so nothing visually flagged it as
+  needing a closer look before approving. New `NEAR_MISS_TONE` in `ReviewQueue.jsx` (red border,
+  orange tint, red text) now OVERRIDES the status-based amber/red tone on both the row's
+  `ReasonCallout` and the modal's `MatchCallout` whenever `nearMiss.length > 0` — same override on
+  both, so it already stands out before the modal is even opened. `NearMissDetail`'s roster-vs-list
+  values are colored red (roster) vs orange (list) instead of plain text, so which side is which is
+  legible at a glance. The action bar's own note (which can be the only thing still visible once
+  scrolled down, since the buttons are pinned) gets a matching red caution line when a near-miss
+  isn't otherwise a hard block, and **Approve itself turns orange instead of green** for that case —
+  deliberately not the "all clear" color — with a title tooltip explaining why. Not a hard block
+  (approving a near-miss is still allowed — it's a document-review judgment call, not a rule), just
+  impossible to click past without noticing.

@@ -1337,6 +1337,14 @@ so a bug in one route cannot expose the other.
   same wording as the Reference List page's own near-miss). Super Admin only, same carve-out as
   Reference List's near-miss — this is the one place the list's real birthdate is allowed to show;
   `flagReason` itself is untouched and must never carry it (Barangay Admins see `flagReason` too).
+  **Louder red+orange tone (Sep 2026 follow-up):** a near-miss minor rendered in the exact same
+  plain amber box as any routine needs_document case, so a Super Admin skimming the queue could
+  approve it off the uploaded document alone without noticing the name might not be this player.
+  `NEAR_MISS_TONE` (red border, orange tint, red text) now OVERRIDES the status tone on both
+  `ReasonCallout` and `MatchCallout` whenever `nearMiss.length > 0`; `NearMissDetail`'s roster-vs-list
+  values are colored red (roster) vs orange (list); the action bar's caution note goes red and
+  **Approve turns orange instead of green** for this case (title tooltip explains why) — not a hard
+  block, a near-miss is still a judgment call for the document review, just impossible to miss.
 - **Shared `components/ImageCropDialog.jsx` + `lib/imageCrop.js`** (Sep
   2026): extracted Site Images' existing react-easy-crop position-and-zoom
   dialog into one reusable implementation, then rebuilt the Barangay

@@ -30,15 +30,27 @@ const REASON_TONE = {
     btn: "border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10",
   },
 };
+// A near-miss (a same-name reference row that disagrees on middle initial
+// and/or birthdate) gets its OWN louder red+orange tone, overriding whatever
+// REASON_TONE the status alone would give it — a needs_document minor with a
+// near-miss looked exactly like any routine "just needs a document" case in
+// plain amber, which is precisely the case a Super Admin skimming the queue
+// might approve on the document alone without noticing the name might not
+// actually be this player.
+const NEAR_MISS_TONE = {
+  icon: AlertTriangle,
+  box: "border-red-500/50 bg-orange-500/10 text-red-700 dark:text-red-400",
+  btn: "border-red-500/50 text-red-700 dark:text-red-400 hover:bg-red-500/10",
+};
 
 function ReasonCallout({ status, reason, nearMiss, className }) {
   // Belt-and-suspenders alongside the backend clearing flagReason on approve:
   // an eligible player should never show the old flag/needs-document reason,
   // even against stale data.
   if (!reason || status === "eligible") return null;
-  const tone = REASON_TONE[status] || REASON_TONE.needs_document;
-  const Icon = tone.icon;
   const hasNearMiss = nearMiss && nearMiss.length > 0;
+  const tone = hasNearMiss ? NEAR_MISS_TONE : (REASON_TONE[status] || REASON_TONE.needs_document);
+  const Icon = tone.icon;
   return (
     <p className={cn("flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium w-fit", tone.box, className)}>
       <Icon className="size-3.5 shrink-0" />
@@ -61,24 +73,28 @@ function ReasonCallout({ status, reason, nearMiss, className }) {
 // wording as the Reference List page's own near-miss rendering, since both
 // come from the same backend comparison (`nearMissesFor` in prescreen.js).
 function NearMissDetail({ m }) {
+  // Red = what the roster says (what the Barangay Admin typed/what's on file
+  // for this player); orange = what the reference list's row actually says —
+  // same red+orange pairing as the callout box around it, so the two sides
+  // being compared are visually distinct instead of both reading as plain text.
   return (
     <div className="text-xs space-y-0.5">
       {m.barangay && <p className="text-muted-foreground">Listed under {m.barangay}.</p>}
       {m.differs.middle && (
         <p>
           <span className="text-muted-foreground">Middle name: </span>
-          <span className="font-medium">{m.differs.middle.roster || "none"}</span>
+          <span className="font-semibold text-red-600 dark:text-red-400">{m.differs.middle.roster || "none"}</span>
           <span className="text-muted-foreground"> on roster vs </span>
-          <span className="font-medium">{m.differs.middle.list || "none"}</span>
+          <span className="font-semibold text-orange-600 dark:text-orange-400">{m.differs.middle.list || "none"}</span>
           <span className="text-muted-foreground"> on the list.</span>
         </p>
       )}
       {m.differs.birthdate && (
         <p>
           <span className="text-muted-foreground">Birthdate: </span>
-          <span className="font-medium">{m.differs.birthdate.roster ? new Date(m.differs.birthdate.roster).toLocaleDateString() : "none"}</span>
+          <span className="font-semibold text-red-600 dark:text-red-400">{m.differs.birthdate.roster ? new Date(m.differs.birthdate.roster).toLocaleDateString() : "none"}</span>
           <span className="text-muted-foreground"> on roster vs </span>
-          <span className="font-medium">{m.differs.birthdate.list ? new Date(m.differs.birthdate.list).toLocaleDateString() : "none"}</span>
+          <span className="font-semibold text-orange-600 dark:text-orange-400">{m.differs.birthdate.list ? new Date(m.differs.birthdate.list).toLocaleDateString() : "none"}</span>
           <span className="text-muted-foreground"> on the list.</span>
         </p>
       )}
@@ -112,9 +128,12 @@ function MatchCallout({ status, reason, nearMiss, lastName, firstName, navigate 
   }
 
   if (!reason) return null;
-  const tone = REASON_TONE[status] || REASON_TONE.needs_document;
-  const Icon = tone.icon;
   const hasNearMiss = nearMiss && nearMiss.length > 0;
+  // Near-miss overrides the status-based tone — same reasoning as
+  // ReasonCallout above: a needs_document minor with a near-miss must not
+  // read as the routine amber "just needs a document" case.
+  const tone = hasNearMiss ? NEAR_MISS_TONE : (REASON_TONE[status] || REASON_TONE.needs_document);
+  const Icon = tone.icon;
   return (
     <Alert className={tone.box}>
       <Icon />
@@ -138,7 +157,9 @@ function MatchCallout({ status, reason, nearMiss, lastName, firstName, navigate 
             orange near-miss uses (`nearMiss` from GET /review/teams/:teamId). */}
         {hasNearMiss && (
           <div className="space-y-2 border-t border-current/20 pt-2.5">
-            <p className="text-xs font-medium">Possible match on the list — same name, details differ:</p>
+            <p className="text-xs font-semibold flex items-center gap-1.5">
+              <AlertTriangle className="size-3.5 shrink-0" /> Possible match on the list — same name, details differ:
+            </p>
             {nearMiss.map((m, i) => <NearMissDetail key={i} m={m} />)}
           </div>
         )}
@@ -498,6 +519,10 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
   const blockedCrossBarangay = p.flagBlock === "cross_barangay";
   const blockedDayo = p.flagBlock === "not_on_list";
   const approveBlocked = blockedNoDocument || blockedCrossBarangay || blockedDayo;
+  // Not a hard block (a near-miss is a judgment call for the document review,
+  // not a rule) but the action bar's own note needs to say so too — the callout
+  // above can scroll out of view while the buttons stay pinned at the bottom.
+  const hasNearMiss = p.nearMiss && p.nearMiss.length > 0;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -565,7 +590,7 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
 
         {/* Actions */}
         <div className="px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap shrink-0">
-          <p className={cn("text-xs", locked || teamVerified ? "text-muted-foreground font-medium" : blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground")}>
+          <p className={cn("text-xs", locked || teamVerified ? "text-muted-foreground font-medium" : blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : hasNearMiss ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
             {teamVerified
               ? "This team is verified and locked — nothing here can be edited. Reopen the team above to make corrections."
               : locked
@@ -576,13 +601,20 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
               ? "Not on the reference list (possible Dayo) — this player can't be approved. If the name is misspelled, the Barangay Admin can correct it and it re-screens; otherwise reject them."
               : blockedNoDocument
               ? "No document uploaded yet — Approve is disabled until the Barangay Admin submits one."
+              : hasNearMiss
+              ? "Check the near-miss details above before approving — a same-name row exists but the middle name or birthdate doesn't match it."
               : "Approving also marks this player's pending documents as approved. Rejecting removes the player and their files, and reopens the roster."}
           </p>
           {!teamVerified && p.eligibilityStatus !== "eligible" && (
             <div className="flex gap-2 shrink-0">
               <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || locked || approveBlocked}
-                title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : blockedNoDocument ? "This player has no document uploaded yet." : undefined}
-                className="bg-green-600 text-white hover:bg-green-700 focus-visible:ring-green-500/40 dark:focus-visible:ring-green-500/40">
+                title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : blockedNoDocument ? "This player has no document uploaded yet." : hasNearMiss ? "A same-name reference-list row exists but the middle name or birthdate differs — double-check before approving." : undefined}
+                className={cn(
+                  "text-white",
+                  hasNearMiss
+                    ? "bg-orange-600 hover:bg-orange-700 focus-visible:ring-orange-500/40 dark:focus-visible:ring-orange-500/40"
+                    : "bg-green-600 hover:bg-green-700 focus-visible:ring-green-500/40 dark:focus-visible:ring-green-500/40"
+                )}>
                 Approve
               </Button>
               <Button onClick={() => onReject(teamId, p._id)} disabled={busy || locked}

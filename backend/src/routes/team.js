@@ -939,6 +939,30 @@ router.delete('/:id/players/:playerId/documents/:docId', authenticate, authorize
   }
 });
 
+// GET /api/teams/:id/players/:playerId/documents/:docId/file — Barangay Admin,
+// own team only. Lets them actually SEE what they uploaded (not just its
+// filename and status) before deciding whether to keep it or delete/replace
+// it — the super-admin-only route below has no ownership check at all, so it
+// can't just be reused here with a role added to `authorize`.
+router.get('/:id/players/:playerId/documents/:docId/file', authenticate, authorize('barangay_admin'),
+  async (req, res) => {
+  try {
+    const team = await loadOwnedTeam(req, res);
+    if (!team) return;
+
+    const link = await TeamPlayer.findOne({ team: team._id, player: req.params.playerId });
+    if (!link) return res.status(404).json({ message: 'That player is not on this team.' });
+
+    const doc = await Document.findOne({ _id: req.params.docId, player: req.params.playerId });
+    if (!doc) return res.status(404).json({ message: 'Document not found.' });
+
+    await sendFile('documents', doc.file, res);
+  } catch (err) {
+    console.error('Document file (barangay admin) error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
 // GET /api/teams/documents/:docId/file — SUPER ADMIN ONLY. Residency documents are
 // private (IDs, birth certificates) — never public, unlike player photos.
 router.get('/documents/:docId/file', authenticate, authorize('super_admin'), async (req, res) => {

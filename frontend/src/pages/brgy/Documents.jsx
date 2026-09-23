@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, FileText, FileWarning, Inbox, Trash2, UploadCloud } from "lucide-react";
+import { AlertTriangle, Eye, FileText, FileWarning, Inbox, Trash2, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { brgyMenu } from "../../components/menus";
 import { useErrorDialog } from "../../components/ErrorDialog";
 import { useConfirm } from "../../components/ConfirmDialog";
+import { DocumentFrame } from "../../components/DocumentViewer";
 import { api } from "../../api";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button, buttonVariants } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Skeleton } from "../../components/ui/skeleton";
 import {
   Select,
@@ -62,6 +64,32 @@ function ReasonCallout({ status, reason }) {
   );
 }
 
+// Lets a Barangay Admin actually SEE what they uploaded — not just its filename
+// and status — before deciding whether to delete it (a `pending` one) or upload
+// a replacement. Fetches through the ownership-checked
+// `/:id/players/:playerId/documents/:docId/file` route (Barangay Admin, own
+// team only — the Super Admin's Review Queue uses a different, super-admin-only
+// route for the same file). Reuses the same zoomable viewer the Review Queue
+// uses (`DocumentFrame`/`Lightbox` in components/DocumentViewer.jsx).
+function DocumentPreviewDialog({ p, doc, onClose }) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
+            {DOC_TYPES.find((t) => t.value === doc.docType)?.label || doc.docType}
+            <Badge className={VERIFY_BADGE[doc.verifyStatus]}>{doc.verifyStatus}</Badge>
+          </DialogTitle>
+        </DialogHeader>
+        <DocumentFrame
+          fetchUrl={`/api/teams/${p.teamId}/players/${p.playerId}/documents/${doc._id}/file`}
+          large
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Documents() {
   const showError = useErrorDialog();
   const confirm = useConfirm();
@@ -71,6 +99,7 @@ export default function Documents() {
   const [docType, setDocType] = useState({});     // playerId -> chosen type
   const [uploadingId, setUploadingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);   // docId being deleted
+  const [previewDoc, setPreviewDoc] = useState(null);   // { p, doc } currently open in the preview dialog
 
   async function load() {
     setLoading(true);
@@ -220,6 +249,15 @@ export default function Documents() {
                           <Badge className={VERIFY_BADGE[d.verifyStatus]}>
                             {d.verifyStatus}
                           </Badge>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label="View document"
+                            title="View document"
+                            onClick={() => setPreviewDoc({ p, doc: d })}
+                          >
+                            <Eye />
+                          </Button>
                           {d.verifyStatus === "pending" && (
                             <Button
                               size="icon-sm"
@@ -274,6 +312,14 @@ export default function Documents() {
             ))
           )}
         </div>
+      )}
+
+      {previewDoc && (
+        <DocumentPreviewDialog
+          p={previewDoc.p}
+          doc={previewDoc.doc}
+          onClose={() => setPreviewDoc(null)}
+        />
       )}
     </AdminLayout>
   );

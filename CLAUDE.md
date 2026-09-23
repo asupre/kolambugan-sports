@@ -1553,9 +1553,13 @@ respondents); deployment Sep–Oct; FINAL DEFENSE OCTOBER 2026.)
   face only), and address/birthdate/documents remain private. **This reverses
   a privacy decision originally made with minors in mind — worth confirming
   with Hon. Reserva, and it must be trued up in the thesis document.**
-- **Documents stay PRIVATE** — super-admin-only route, separate GridFS bucket.
-  A plain `<img src>` cannot fetch them (no auth header), so the Review Queue
-  fetches with the token and renders a blob URL.
+- **Documents stay PRIVATE** — separate GridFS bucket, never a plain `<img src>` (no auth header).
+  Served through TWO auth-gated routes, not one: `GET /api/teams/documents/:docId/file` (super-admin
+  only, no ownership check needed — Super Admin can see any team's) and, since Sep 2026,
+  `GET /api/teams/:id/players/:playerId/documents/:docId/file` (barangay_admin, `loadOwnedTeam`
+  ownership check — same file, but only for a document on the caller's own team). Both routes are
+  fetched with the token and rendered as a blob URL, shared code in `components/DocumentViewer.jsx`
+  (`Lightbox` + `DocumentFrame`) — see the Documents-page bullet further down.
 - **Accounts are provisioned, never self-registered.** Random per-account
   passwords, forced change on first login, shown once, Super Admin reset.
 - **Organizer count is dynamic**: one per sport (7). An earlier seed created
@@ -1639,7 +1643,9 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
 - Reject removes the player and reopens the roster; verify locks the team.
 - **GridFS file storage** (`config/gridfs.js`), two buckets:
   - Player photos: upload (barangay admin, own team), public serve, delete.
-  - Residency documents: upload with docType, **super-admin-only** serve.
+  - Residency documents: upload with docType, serve **super-admin (any team) or
+    barangay-admin (own team only, since Sep 2026)** — see the "Documents stay
+    PRIVATE" bullet above for the two routes.
 - Barangay Admin **Document Submission** page (lists players needing docs,
   doc-type picker, upload, shows verify status). **Delete a wrongly-uploaded
   document** (Sep 2026): `DELETE /api/teams/:id/players/:playerId/documents/:docId`
@@ -1647,6 +1653,18 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   row. Blocked once the SK Federation has already ruled on it (`approved`/
   `rejected` — the verdict is on record; ask the Super Admin to reopen the
   team) or once the team itself is verified and locked.
+  **View a document (Sep 2026)**: an "eye" button on EVERY document row (not
+  `pending`-gated like delete — viewing has no such restriction) opens a
+  zoomable preview (`DocumentPreviewDialog` → shared `DocumentFrame`/
+  `Lightbox` from `components/DocumentViewer.jsx`), fetched through the new
+  ownership-checked `GET /:id/players/:playerId/documents/:docId/file` route —
+  before this, a Barangay Admin could see a document's TYPE and verify status
+  but never the file itself, so "should I delete and re-upload this" was a
+  guess. Deliberately LAZY (fetches only on click), unlike the Review Queue's
+  eager fetch-everything-on-open — this page can list many players/documents
+  at once, and eagerly loading every thumbnail would risk the same "many
+  concurrent fetch+decode" lag the Review Queue's own modal just got fixed for
+  (see the Sep 2026 mobile-perf session in CHANGES.md).
 - Review Queue shows the player's **photo + uploaded document inline**
   (blob fetch with token) so the Federation can judge with evidence.
   **Zoomable** (Sep 2026, `Lightbox` in `ReviewQueue.jsx`): mouse wheel,
@@ -1665,7 +1683,11 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   ref during the gesture (live values tracked in the gesture's own ref — `pinchRef.current.scale/x/y`
   etc.), and React state only commits ONCE at pointerup/touchend (`commit()`). A `gesturing` boolean
   replaces the old accidental "transition is off because a state update happens to fire every frame"
-  behavior with an explicit one.
+  behavior with an explicit one. **Extracted into `components/DocumentViewer.jsx` (Sep 2026)** —
+  `Lightbox` (this component) + `DocumentFrame` (the fetch-with-token/blob-URL/skeleton wrapper
+  around it) are now shared with the Barangay Admin's Documents page, which needed the exact same
+  private-file-fetch-and-zoom capability; `ReviewQueue.jsx`'s own `DocumentView` is now just the
+  label/status header wrapper around a `<DocumentFrame>`.
 - **Approve is blocked for a `needs_document` player with no document
   uploaded** (Sep 2026) — enforced in the route (400 if `Document`
   records = 0 for that player) and in the UI (Approve button disabled,

@@ -3181,3 +3181,33 @@ network or backend:
   player photo, document thumbnail, and lightbox `<img>`s so decode work doesn't block the main
   thread right as the modal/lightbox opens (same fix already applied to the Profile panel's avatar
   images).
+
+## 2026-09-23 — Session: Barangay Admin can now VIEW their own uploaded documents
+
+Super Admin: "can we also have the brgy admin verification status has a way of seeing their uploaded
+documents to see if they will remove it or change it." Before this, a Barangay Admin's Verification
+Status page (`pages/brgy/Documents.jsx`) only ever showed a document's TYPE + verify status + a
+delete button — never the file itself. The only file-serving route,
+`GET /api/teams/documents/:docId/file`, is hard-locked to `super_admin` (residency documents are
+private — IDs, birth certs), so a Barangay Admin genuinely could not see what they'd uploaded, only
+its filename and status, making "should I delete this and re-upload" a guess.
+
+- **New scoped route**: `GET /api/teams/:id/players/:playerId/documents/:docId/file`
+  (`routes/team.js`, `authorize('barangay_admin')` + `loadOwnedTeam` — same ownership check every
+  other Barangay Admin roster route uses) serves the SAME GridFS file, but only when the caller owns
+  the team the player is on. The existing super-admin-only route is untouched — this is a parallel,
+  ownership-scoped path to the same bytes, not a loosening of it.
+- **Extracted `components/DocumentViewer.jsx`** (`Lightbox` + `DocumentFrame`) out of
+  `ReviewQueue.jsx`, which used to have its own private copies — now BOTH the Super Admin's Review
+  Queue and the Barangay Admin's Documents page share the exact same fetch-with-token / blob-URL /
+  zoomable-image code (including the Sep 2026 pinch-zoom perf work above), so a future fix to one
+  only ever needs making once. `ReviewQueue.jsx`'s `DocumentView` is now just the label/status header
+  wrapper around a shared `<DocumentFrame fetchUrl=... />`.
+- **`Documents.jsx`**: each document row gets an "eye" View button (available for every document,
+  not just `pending` ones — the delete button stays `pending`-only, viewing has no such restriction)
+  that opens a `DocumentPreviewDialog` — the same zoomable viewer, pointed at the new scoped route.
+  Deliberately lazy: nothing is fetched until the Barangay Admin actually clicks View, unlike the
+  Review Queue (which eagerly loads every document for a player, since reviewing IS the point of
+  that screen) — a Barangay Admin's document list could span many players/documents, and eagerly
+  fetching every thumbnail on page load would risk reintroducing the same "many concurrent
+  fetch+decode on open" lag just fixed above.

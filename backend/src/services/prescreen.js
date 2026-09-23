@@ -45,6 +45,32 @@ function sameMiddleInitial(a, b) {
   return !!ai && !!bi && ai === bi;
 }
 
+// Which detail(s) disagree between a player and each same-name reference row —
+// shared by the Reference List page (every same-name row, any player) and the
+// Review Queue (this one player) so "is this actually the same person, just a
+// typo" lives in exactly one place instead of two copies that can drift apart
+// (which is exactly how a minor's near-miss went undetected before this was
+// extracted — see CHANGES.md). Only meaningful for a player who ISN'T a
+// confirmed match — a flagged adult (not_on_list) or a needs_document minor —
+// candidates that fully agree belong in the real match set, not here.
+function nearMissesFor(player, candidates) {
+  return candidates
+    .map((cand) => {
+      const middleDiffers = !sameMiddleInitial(cand.middleName, player.middleName);
+      const birthDiffers = !sameDay(cand.birthdate, player.birthdate);
+      if (!middleDiffers && !birthDiffers) return null;
+      return {
+        referenceId: cand._id,
+        barangay: cand.barangay || null,
+        differs: {
+          middle: middleDiffers ? { roster: player.middleName || null, list: cand.middleName || null } : null,
+          birthdate: birthDiffers ? { roster: player.birthdate || null, list: cand.birthdate || null } : null,
+        },
+      };
+    })
+    .filter(Boolean);
+}
+
 // The decision for ONE player, given reference rows already matched by name.
 // `teamBarangay` must be a FULL Barangay doc/object including allowsCrossBarangay.
 // Pure function — same inputs always produce the same output, no I/O here,
@@ -248,4 +274,5 @@ module.exports = {
   sameDay,
   sameMiddleInitial,
   looseRegex,
+  nearMissesFor,
 };

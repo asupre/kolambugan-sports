@@ -356,7 +356,9 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   **Near misses**: a flagged adult (or, since Sep 2026, a 15-and-under player — see below) who
   shares a NAME with a row (but not middle initial/birthdate) makes that row orange, "Same name,
   details differ", listing which fields disagree (roster vs list) — `nearMisses` on `GET
-  /api/reference-list`. Super Admin only, on purpose: it reveals the list's real
+  /api/reference-list`, computed via the shared `nearMissesFor()` in `services/prescreen.js` (also
+  used by the Review Queue's player modal — see the Review Queue near-miss bullet further down).
+  Super Admin only, on purpose: it reveals the list's real
   birthdate, so it must NEVER go into `flagReason` (Barangay Admins see that).
 - **Reference List page — informational highlight for 15-and-under same-name
   rows** (Sep 2026): `decideFromCandidates` deliberately never matches a
@@ -1322,6 +1324,19 @@ so a bug in one route cannot expose the other.
   `Button`s with the solid green/red colors kept via `className`, since
   shadcn's own `destructive` variant is a soft/muted style that doesn't fit
   the "these stay vivid on purpose" rule above.
+- **Review Queue near-miss breakdown (Sep 2026):** the player modal used to show only the static
+  generic reason (e.g. "15 or under — needs parental consent and documents" / "Not found on the
+  reference list…"), with no hint that a same-name candidate existed at all. `nearMissesFor(player,
+  candidates)` (`services/prescreen.js`) is the ONE shared comparison — extracted so Reference List
+  and Review Queue can't drift apart the way the minor near-miss did (see above). `GET
+  /api/review/teams/:teamId` computes `nearMiss` per player (targeted indexed lookup, same pattern
+  as `decidePlayer`) whenever they aren't a confirmed match — a `needs_document` minor, or a
+  `flagged` adult with `flagBlock === 'not_on_list'` (a `cross_barangay` flag means they WERE found,
+  nothing to compare). `ReviewQueue.jsx`: the row's `ReasonCallout` appends "— possible match on the
+  list, details differ"; the modal's `MatchCallout` gets a field-by-field breakdown (`NearMissDetail`,
+  same wording as the Reference List page's own near-miss). Super Admin only, same carve-out as
+  Reference List's near-miss — this is the one place the list's real birthdate is allowed to show;
+  `flagReason` itself is untouched and must never carry it (Barangay Admins see `flagReason` too).
 - **Shared `components/ImageCropDialog.jsx` + `lib/imageCrop.js`** (Sep
   2026): extracted Site Images' existing react-easy-crop position-and-zoom
   dialog into one reusable implementation, then rebuilt the Barangay

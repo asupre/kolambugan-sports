@@ -3105,3 +3105,21 @@ Found by rendering the organizer screens at 390px against a mock API.
   document either way" when `m.minor` so it's not read as an adult flag. Updated the page's color
   legend and "How matching works" text to describe the orange/purple split accurately (previously
   implied orange was adults-only).
+- **Near-miss detection carried into the Review Queue too** (same session, follow-up ask: "for now
+  its still '15 or under — needs parental consent and documents', it should be updated as what is
+  changed"). The Review Queue's player modal only ever showed the static generic reason — it never
+  told the Super Admin a same-name candidate existed at all, let alone which field disagreed.
+  **Extracted `nearMissesFor(player, candidates)` into `services/prescreen.js`** (shared by
+  Reference List and Review Queue, so the comparison lives in exactly one place instead of two
+  copies that can drift — refactored `routes/referenceList.js`'s two near-miss call sites, adult and
+  minor, onto it; no behavior change there, same output). `GET /api/review/teams/:teamId`
+  (`routes/review.js`) now computes `nearMiss` per player (a targeted indexed lookup, same pattern
+  as `decidePlayer`) whenever they're NOT a confirmed match — a `needs_document` minor, or a
+  `flagged` adult specifically for `not_on_list` (a `cross_barangay` flag means they WERE found, so
+  there's nothing to compare). `ReviewQueue.jsx`: the compact row callout appends "— possible match
+  on the list, details differ"; the modal's full-width alert gets a new breakdown section (new
+  `NearMissDetail`, same wording/shape as the Reference List page's own near-miss) listing exactly
+  which field(s) disagree, roster vs list. Super Admin only, same as the Reference List page's
+  near-miss — this is the one place the list's real birthdate is allowed to surface; it must never
+  go into `flagReason`, which Barangay Admins also see (unchanged — `flagReason` itself wasn't
+  touched, this is purely additive display data).

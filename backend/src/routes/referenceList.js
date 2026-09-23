@@ -6,7 +6,7 @@ const Team = require('../models/Team');
 const TeamPlayer = require('../models/TeamPlayer');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
-const { decideFromCandidates, norm, ageFrom, sameDay, sameMiddleInitial, MINOR_AGE, rescreenSeason } = require('../services/prescreen');
+const { decideFromCandidates, norm, ageFrom, MINOR_AGE, rescreenSeason, nearMissesFor } = require('../services/prescreen');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -219,37 +219,35 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
             ...gameOf(team),
           });
         } else {
+          // Same shared comparison an adult near-miss uses (`nearMissesFor` —
+          // see services/prescreen.js): a candidate that fully agrees is a plain
+          // purple same-name hint; one that disagrees on middle initial and/or
+          // birthdate gets the same orange near-miss flag an adult gets, even
+          // though a minor's official status is always needs_document either way
+          // (never matched/flagged).
+          const misses = nearMissesFor(p, candidates);
+          const missedIds = new Set(misses.map((m) => String(m.referenceId)));
+          for (const m of misses) {
+            const key = String(m.referenceId);
+            if (!nearMissByRefId.has(key)) nearMissByRefId.set(key, []);
+            nearMissByRefId.get(key).push({
+              playerName: `${p.lastName}, ${p.firstName}`,
+              teamName: team && team.teamName,
+              ...gameOf(team),
+              minor: true,
+              differs: m.differs,
+            });
+          }
           for (const cand of candidates) {
             const key = String(cand._id);
-            // Same name, but the middle initial and/or birthdate disagree — worth the
-            // same orange near-miss flag an adult gets, even though a minor's official
-            // status is always needs_document either way (never matched/flagged).
-            // Without this, a deliberately-mistyped middle name on a minor's roster
-            // entry looked identical to a clean same-name hint, which made the
-            // mismatch detection look like it didn't cover minors at all.
-            const middleDiffers = !sameMiddleInitial(cand.middleName, p.middleName);
-            const birthDiffers = !sameDay(cand.birthdate, p.birthdate);
-            if (middleDiffers || birthDiffers) {
-              if (!nearMissByRefId.has(key)) nearMissByRefId.set(key, []);
-              nearMissByRefId.get(key).push({
-                playerName: `${p.lastName}, ${p.firstName}`,
-                teamName: team && team.teamName,
-                ...gameOf(team),
-                minor: true,
-                differs: {
-                  middle: middleDiffers ? { roster: p.middleName || null, list: cand.middleName || null } : null,
-                  birthdate: birthDiffers ? { roster: p.birthdate || null, list: cand.birthdate || null } : null,
-                },
-              });
-            } else {
-              if (!minorMatchByRefId.has(key)) minorMatchByRefId.set(key, []);
-              minorMatchByRefId.get(key).push({
-                playerName: `${p.lastName}, ${p.firstName}`,
-                teamName: team && team.teamName,
-                ...gameOf(team),
-                sameBarangay: !!(teamBrgyName && norm(cand.barangay) === teamBrgyName),
-              });
-            }
+            if (missedIds.has(key)) continue;
+            if (!minorMatchByRefId.has(key)) minorMatchByRefId.set(key, []);
+            minorMatchByRefId.get(key).push({
+              playerName: `${p.lastName}, ${p.firstName}`,
+              teamName: team && team.teamName,
+              ...gameOf(team),
+              sameBarangay: !!(teamBrgyName && norm(cand.barangay) === teamBrgyName),
+            });
           }
         }
         continue;
@@ -257,19 +255,14 @@ router.get('/', authenticate, authorize('super_admin'), async (req, res) => {
 
       const { status, code, matchedReferenceId } = decideFromCandidates(p, team && team.barangay, candidates);
       if (code === 'not_on_list' && candidates.length > 0) {
-        for (const cand of candidates) {
-          const key = String(cand._id);
+        for (const m of nearMissesFor(p, candidates)) {
+          const key = String(m.referenceId);
           if (!nearMissByRefId.has(key)) nearMissByRefId.set(key, []);
           nearMissByRefId.get(key).push({
             playerName: `${p.lastName}, ${p.firstName}`,
             teamName: team && team.teamName,
             ...gameOf(team),
-            differs: {
-              middle: sameMiddleInitial(cand.middleName, p.middleName)
-                ? null : { roster: p.middleName || null, list: cand.middleName || null },
-              birthdate: sameDay(cand.birthdate, p.birthdate)
-                ? null : { roster: p.birthdate || null, list: cand.birthdate || null },
-            },
+            differs: m.differs,
           });
         }
       }

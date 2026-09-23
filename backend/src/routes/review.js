@@ -6,8 +6,9 @@ const Document = require('../models/Document');
 const Barangay = require('../models/Barangay');
 const Sport = require('../models/Sport');
 const Match = require('../models/Match');
+const ReferenceList = require('../models/ReferenceList');
 const { deleteFile } = require('../config/gridfs');
-const { decidePlayer } = require('../services/prescreen');
+const { decidePlayer, nearMissesFor, looseRegex } = require('../services/prescreen');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 
@@ -192,7 +193,24 @@ router.get('/teams/:teamId', async (req, res) => {
           const d = await decidePlayer(p, team, teamBarangay);
           if (d.status === 'flagged') flagBlock = d.code;   // 'cross_barangay' | 'not_on_list'
         }
-        return { ...p.toObject(), documents: docs, flagBlock };
+        // Same-name reference rows that disagree on middle initial/birthdate —
+        // the Reference List page's orange near-miss, scoped to just this
+        // player, so the generic "not on the list" / "15 or under" reason
+        // doesn't hide what's actually a likely typo. Only worth computing for
+        // a player who ISN'T a confirmed match: a needs_document minor, or an
+        // adult flagged specifically for not being found at all (a
+        // cross_barangay flag means they WERE found, just under the wrong
+        // barangay's rule, so there's nothing to compare).
+        let nearMiss = [];
+        if (p.eligibilityStatus === 'needs_document' || flagBlock === 'not_on_list') {
+          const candidates = await ReferenceList.find({
+            season: team.season,
+            lastName: looseRegex(p.lastName),
+            firstName: looseRegex(p.firstName),
+          }).lean();
+          nearMiss = nearMissesFor(p, candidates);
+        }
+        return { ...p.toObject(), documents: docs, flagBlock, nearMiss };
       })
     );
 

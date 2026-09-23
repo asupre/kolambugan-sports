@@ -31,16 +31,22 @@ const REASON_TONE = {
   },
 };
 
-function ReasonCallout({ status, reason, className }) {
+function ReasonCallout({ status, reason, nearMiss, className }) {
   // Belt-and-suspenders alongside the backend clearing flagReason on approve:
   // an eligible player should never show the old flag/needs-document reason,
   // even against stale data.
   if (!reason || status === "eligible") return null;
   const tone = REASON_TONE[status] || REASON_TONE.needs_document;
   const Icon = tone.icon;
+  const hasNearMiss = nearMiss && nearMiss.length > 0;
   return (
     <p className={cn("flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium w-fit", tone.box, className)}>
-      <Icon className="size-3.5 shrink-0" /> {reason}
+      <Icon className="size-3.5 shrink-0" />
+      {reason}
+      {/* A same-name row exists but the middle initial/birthdate disagree —
+          see the full breakdown in the player modal instead of repeating it
+          here, this row just needs to say a likely match exists at all. */}
+      {hasNearMiss && " — possible match on the list, details differ"}
     </p>
   );
 }
@@ -51,7 +57,36 @@ function ReasonCallout({ status, reason, className }) {
 // referenceList.js), so it works for every player regardless of when they
 // were screened — nothing here depends on a stored "matched" id, and nothing
 // needs to be re-saved to see the connection.
-function MatchCallout({ status, reason, lastName, firstName, navigate }) {
+// Field-by-field breakdown for one near-miss candidate — same shape and same
+// wording as the Reference List page's own near-miss rendering, since both
+// come from the same backend comparison (`nearMissesFor` in prescreen.js).
+function NearMissDetail({ m }) {
+  return (
+    <div className="text-xs space-y-0.5">
+      {m.barangay && <p className="text-muted-foreground">Listed under {m.barangay}.</p>}
+      {m.differs.middle && (
+        <p>
+          <span className="text-muted-foreground">Middle name: </span>
+          <span className="font-medium">{m.differs.middle.roster || "none"}</span>
+          <span className="text-muted-foreground"> on roster vs </span>
+          <span className="font-medium">{m.differs.middle.list || "none"}</span>
+          <span className="text-muted-foreground"> on the list.</span>
+        </p>
+      )}
+      {m.differs.birthdate && (
+        <p>
+          <span className="text-muted-foreground">Birthdate: </span>
+          <span className="font-medium">{m.differs.birthdate.roster ? new Date(m.differs.birthdate.roster).toLocaleDateString() : "none"}</span>
+          <span className="text-muted-foreground"> on roster vs </span>
+          <span className="font-medium">{m.differs.birthdate.list ? new Date(m.differs.birthdate.list).toLocaleDateString() : "none"}</span>
+          <span className="text-muted-foreground"> on the list.</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MatchCallout({ status, reason, nearMiss, lastName, firstName, navigate }) {
   const viewInReferenceList = () =>
     // last/first as separate params so the Reference List can match the EXACT
     // name (what screening does) instead of guessing from a loose search string.
@@ -79,19 +114,34 @@ function MatchCallout({ status, reason, lastName, firstName, navigate }) {
   if (!reason) return null;
   const tone = REASON_TONE[status] || REASON_TONE.needs_document;
   const Icon = tone.icon;
+  const hasNearMiss = nearMiss && nearMiss.length > 0;
   return (
     <Alert className={tone.box}>
       <Icon />
-      <AlertDescription className="text-inherit flex items-center justify-between gap-3 flex-wrap">
-        <span>{reason}</span>
-        <Button
-          size="sm"
-          variant="outline"
-          className={cn("shrink-0", tone.btn)}
-          onClick={viewInReferenceList}
-        >
-          View in Reference List →
-        </Button>
+      <AlertDescription className="text-inherit space-y-2.5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <span>{reason}</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className={cn("shrink-0", tone.btn)}
+            onClick={viewInReferenceList}
+          >
+            View in Reference List →
+          </Button>
+        </div>
+        {/* A same-name row exists but the middle initial and/or birthdate
+            disagree — shows exactly what's different, instead of leaving the
+            generic reason above ("Not found on the list" / "15 or under…")
+            looking like a clean miss when it might just be a typo. Same
+            comparison and same field breakdown the Reference List page's
+            orange near-miss uses (`nearMiss` from GET /review/teams/:teamId). */}
+        {hasNearMiss && (
+          <div className="space-y-2 border-t border-current/20 pt-2.5">
+            <p className="text-xs font-medium">Possible match on the list — same name, details differ:</p>
+            {nearMiss.map((m, i) => <NearMissDetail key={i} m={m} />)}
+          </div>
+        )}
       </AlertDescription>
     </Alert>
   );
@@ -384,7 +434,7 @@ function PlayerRow({ p, onClick }) {
             </span>
           )}
         </div>
-        <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} className="mt-1" />
+        <ReasonCallout status={p.eligibilityStatus} reason={p.flagReason} nearMiss={p.nearMiss} className="mt-1" />
       </div>
       <span className="text-muted-foreground text-xs shrink-0">View →</span>
     </button>
@@ -473,6 +523,7 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
           <MatchCallout
             status={p.eligibilityStatus}
             reason={p.flagReason}
+            nearMiss={p.nearMiss}
             lastName={p.lastName}
             firstName={p.firstName}
             navigate={navigate}

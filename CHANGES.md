@@ -3353,3 +3353,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   profile panel (change password, recovery code) and forgot-password. A live
   "Passwords match" / "Passwords don't match yet" line sits under each confirm field.
   Checked at 390px: tapping the eye shows the text, and the hint turns red, then green.
+- **My Teams shows what screening found on each submitted roster.** Beside the status
+  badge ("Draft" / "Submitted" / now also "Verified"), a submitted team shows "N
+  flagged", "N need a document" (tap → Verification Status), "N documents in review"
+  (uploaded, waiting for the SK Federation) or "All eligible". `GET /api/teams/mine`
+  returns a `screening` tally per team from 3 batched queries (it used to run one
+  count query per team). Checked read-only against the dev data (Mukas U15: 10
+  documents in review; Matampay U15: 10 need a document), and rendered at 390px and
+  1280px (on a phone the badges get their own line, above the buttons).

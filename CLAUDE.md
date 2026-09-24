@@ -157,6 +157,13 @@ score tallying, no public visibility, records lost every season.
   the age divisions (under15/under30) are never checked. Limitation: the FIRST
   boys/girls roster a new player joins can't be checked. Found by uploading a
   Badminton Girls CSV into Badminton Boys, which used to be accepted.
+- **My Teams shows what screening found on each submitted roster** (Sep 2026,
+  `ScreeningBadges` in `BrgyDashboard.jsx`): beside "Submitted" come "N flagged"
+  (red), "N need a document" (amber, links to Verification Status), "N documents
+  in review" (sky: a `needs_document` player who already has an upload), or "All
+  eligible". A verified team just says "Verified" (no warnings); a draft says
+  "Draft". The data is `screening` on each team from `GET /api/teams/mine`, a
+  batched tally (3 queries for the whole list — keep it batched).
 - **Team registration shows the per-sport team limit** (Sep 2026,
   `BrgyDashboard.jsx`): "1 team per barangay — already registered" or "Up to 2
   teams — N of 2 registered" (from `teamsAllowed` on `GET /api/sports`, the

@@ -294,10 +294,38 @@ router.get('/mine', authenticate, authorize('barangay_admin'), async (req, res) 
     // Sent as its own field (not by populating `barangay`, which other code
     // reads as an id) — the roster form pre-fills each player's address with it.
     const brgy = await Barangay.findById(req.user.barangay).select('name');
-    const withCounts = await Promise.all(teams.map(async (t) => {
-      const playerCount = await TeamPlayer.countDocuments({ team: t._id });
-      return { ...t.toObject(), playerCount, barangayName: brgy ? brgy.name : '' };
-    }));
+
+    // Per-team screening tally, shown beside "Submitted" on My Teams (Sep 2026):
+    // how many players are flagged, still need a document, or have one uploaded and
+    // are waiting for the SK Federation. Batched — three queries for the whole list,
+    // not one per team.
+    const links = await TeamPlayer.find({ team: { $in: teams.map((t) => t._id) } })
+      .populate('player', 'eligibilityStatus').lean();
+    const needDocIds = links
+      .filter((l) => l.player && l.player.eligibilityStatus === 'needs_document')
+      .map((l) => l.player._id);
+    const withDoc = new Set(
+      (await Document.distinct('player', { player: { $in: needDocIds } })).map(String)
+    );
+    const tallyByTeam = new Map();
+    for (const l of links) {
+      const key = String(l.team);
+      const t = tallyByTeam.get(key) || { players: 0, eligible: 0, flagged: 0, needsDocument: 0, docInReview: 0, pending: 0 };
+      t.players++;
+      const s = l.player && l.player.eligibilityStatus;
+      if (s === 'eligible') t.eligible++;
+      else if (s === 'flagged') t.flagged++;
+      else if (s === 'needs_document') {
+        if (withDoc.has(String(l.player._id))) t.docInReview++;
+        else t.needsDocument++;
+      } else t.pending++;
+      tallyByTeam.set(key, t);
+    }
+
+    const withCounts = teams.map((t) => {
+      const tally = tallyByTeam.get(String(t._id)) || { players: 0, eligible: 0, flagged: 0, needsDocument: 0, docInReview: 0, pending: 0 };
+      return { ...t.toObject(), playerCount: tally.players, screening: tally, barangayName: brgy ? brgy.name : '' };
+    });
 
     res.json({ teams: withCounts });
   } catch (err) {

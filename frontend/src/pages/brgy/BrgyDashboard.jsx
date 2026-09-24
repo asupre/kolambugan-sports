@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Camera, FileWarning, ImageIcon, Loader2, Lock, Pencil, ShieldAlert, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/AdminLayout";
 import ImageCropDialog from "../../components/ImageCropDialog";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -837,6 +838,48 @@ function RosterEditor({ team, sports, onClose }) {
   );
 }
 
+// What screening found on a SUBMITTED roster, beside its "Submitted" badge (Sep 2026):
+// flagged players, players still missing a document, and documents waiting for the SK
+// Federation. Counts come from GET /api/teams/mine (`screening`). The two actionable
+// ones link to where they're fixed: flagged → open the roster (correct a misspelled
+// name), missing document → the Verification Status page.
+function ScreeningBadges({ s }) {
+  const navigate = useNavigate();
+  if (!s) return null;
+  const chips = [];
+  if (s.flagged > 0) {
+    chips.push(
+      <Badge key="f" className="bg-red-500/15 text-red-600 dark:text-red-400 whitespace-nowrap">
+        <ShieldAlert className="size-3" /> {s.flagged} flagged
+      </Badge>
+    );
+  }
+  if (s.needsDocument > 0) {
+    chips.push(
+      <button key="n" type="button" onClick={() => navigate("/brgy/documents")} title="Upload the missing documents">
+        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 whitespace-nowrap hover:bg-amber-500/25">
+          <FileWarning className="size-3" /> {s.needsDocument} need{s.needsDocument === 1 ? "s" : ""} a document
+        </Badge>
+      </button>
+    );
+  }
+  if (s.docInReview > 0) {
+    chips.push(
+      <Badge key="r" className="bg-sky-500/15 text-sky-700 dark:text-sky-300 whitespace-nowrap">
+        {s.docInReview} document{s.docInReview === 1 ? "" : "s"} in review
+      </Badge>
+    );
+  }
+  if (!chips.length && s.players > 0 && s.eligible === s.players) {
+    chips.push(
+      <Badge key="ok" variant="outline" className="text-green-700 dark:text-green-400 whitespace-nowrap">
+        All eligible
+      </Badge>
+    );
+  }
+  return chips;
+}
+
 export default function BrgyDashboard() {
   const showError = useErrorDialog();
   const confirm = useConfirm();
@@ -1075,14 +1118,20 @@ export default function BrgyDashboard() {
                       </div>
                       {/* Below the name on a phone (so the name gets the full row), inline
                           beside it from sm up. */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
+                        {/* Badges get their own line on a phone, so the buttons stay together below. */}
+                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                         <Badge
-                          className={t.submittedAt
+                          className={t.status === "verified"
                             ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}
+                            : t.submittedAt
+                              ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                              : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}
                         >
-                          {t.submittedAt ? "Submitted" : "Draft"}
+                          {t.status === "verified" ? "Verified" : t.submittedAt ? "Submitted" : "Draft"}
                         </Badge>
+                        {t.submittedAt && t.status !== "verified" && <ScreeningBadges s={t.screening} />}
+                        </div>
                         <div className="flex items-center gap-2 ml-auto sm:ml-0">
                           <Button size="sm" variant="outline" onClick={() => setOpenTeam(t)}>
                             {t.submittedAt ? "View roster" : "Edit roster"}

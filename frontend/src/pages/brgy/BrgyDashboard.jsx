@@ -617,6 +617,16 @@ function RosterEditor({ team, sports, onClose }) {
           </div>
         ) : (
           <>
+            {team.status === "rejected" && !locked && (
+              <Alert className="border-amber-500/40 bg-amber-500/10">
+                <AlertTriangle className="text-amber-600 dark:text-amber-400" />
+                <AlertDescription className="text-foreground">
+                  The SK Federation rejected a player from this team, so it's reopened for you only.
+                  Add a replacement if you need one, then submit again. Once you resubmit it locks and
+                  goes back for review.
+                </AlertDescription>
+              </Alert>
+            )}
             {verified && (
               <Alert className="border-green-500/30 bg-green-500/5">
                 <Lock className="text-green-600 dark:text-green-400" />
@@ -1126,9 +1136,14 @@ export default function BrgyDashboard() {
                             ? "bg-green-500/15 text-green-600 dark:text-green-400"
                             : t.submittedAt
                               ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
-                              : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}
+                              : t.status === "rejected"
+                                ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                                : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}
                         >
-                          {t.status === "verified" ? "Verified" : t.submittedAt ? "Submitted" : "Draft"}
+                          {t.status === "verified" ? "Verified"
+                            : t.submittedAt ? "Submitted"
+                            : t.status === "rejected" ? "Player rejected: fix and resubmit"
+                            : "Draft"}
                         </Badge>
                         {t.submittedAt && t.status !== "verified" && <ScreeningBadges s={t.screening} />}
                         </div>

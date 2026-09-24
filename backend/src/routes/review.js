@@ -52,13 +52,21 @@ router.get('/queue', async (req, res) => {
     // "Every barangay" so a barangay with nothing submitted yet, or one that's
     // fully verified, still shows up (as empty / cleared) — the picker always
     // lists all 26.
-    const [submitted, allBarangays, seasonSports] = await Promise.all([
+    const [submitted, allBarangays, seasonSports, reopened] = await Promise.all([
       Team.find({ season: season._id, submittedAt: { $ne: null } })
         .populate('barangay', 'name')
         .populate('sport', 'name')
         .lean(),
       Barangay.find().sort({ name: 1 }).lean(),
       Sport.find({ divisions: { $exists: true, $ne: [] } }).select('divisions').lean(),
+      // Teams a player was rejected from: reopened for their barangay to add a
+      // replacement and resubmit (see requireRosterWindow in routes/team.js). Listed
+      // so they don't vanish from the queue while they're being fixed.
+      Team.find({ season: season._id, status: 'rejected', submittedAt: null })
+        .populate('barangay', 'name')
+        .populate('sport', 'name')
+        .sort({ updatedAt: 1 })
+        .lean(),
     ]);
 
     const pendingTeams = submitted
@@ -158,6 +166,14 @@ router.get('/queue', async (req, res) => {
         sport: t.sport && t.sport.name,
         division: t.division,
         playerCount: (playersByTeam.get(String(t._id)) || []).length,
+      })),
+      reopenedTeams: reopened.map((t) => ({
+        teamId: t._id,
+        teamName: t.teamName,
+        barangayId: t.barangay && String(t.barangay._id),
+        barangay: t.barangay && t.barangay.name,
+        sport: t.sport && t.sport.name,
+        division: t.division,
       })),
       barangays,
       totalPending: out.length,
@@ -315,7 +331,7 @@ router.post('/teams/:teamId/players/:playerId/reject', requireVerificationStage,
 
     const remaining = await TeamPlayer.countDocuments({ team: team._id });
     res.json({
-      message: 'Player rejected and removed, along with their documents and photo. The roster has been reopened.',
+      message: 'Player rejected and removed, along with their documents and photo. This team is reopened for its barangay only: they can add a replacement and resubmit, and it comes back to this queue when they do.',
       teamStatus: team.status,
       remainingPlayers: remaining,
     });

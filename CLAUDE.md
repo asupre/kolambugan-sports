@@ -299,7 +299,17 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   3. **Super Admin reviews in the Review Queue** — sees the player's photo and
      the uploaded document inline (zoomable — wheel/pinch/+/- to zoom, drag to
      pan once zoomed, Sep 2026) — and gives the official verdict (approve /
-     reject). Reject removes the player and REOPENS the roster. **Approve is
+     reject). Reject removes the player and REOPENS the roster **for that
+     team only** (Sep 2026 fix — before, "reopened" was in name only: add /
+     import / remove / submit all needed `registration_open`, and the team
+     left the Review Queue, so one rejection meant it could never be
+     verified). `requireRosterWindow` in `routes/team.js` allows those four
+     during `verification` ONLY for a team with `status: 'rejected'` and no
+     `submittedAt` in the current season; resubmitting sets it `pending` and
+     closes the window. Creating a team still needs `registration_open`. The
+     queue lists these teams under "Waiting for the barangay to resubmit"
+     (`reopenedTeams`), and My Teams / the roster editor tell the Barangay
+     Admin to add a replacement and resubmit. **Approve is
      blocked for a `needs_document` player with no document uploaded** (Sep
      2026, both the route and the button) — that status means there's no
      reference-list match at all, so a submitted document is the only
@@ -785,7 +795,9 @@ so a bug in one route cannot expose the other.
   anyway" (soft, not a block; sends `expectedNext`), and season history from
   `GET /api/seasons`. **What the season stage really controls** (verified in the
   backend, updated Sep 2026): registration — create team / add-remove player / CSV import / submit
-  roster need `registration_open` — and the Review Queue verdicts (approve / reject / verify) plus
+  roster need `registration_open` (exception: during `verification`, a team the Super Admin
+  rejected a player from may add/remove/import/resubmit until it resubmits — `requireRosterWindow`)
+  — and the Review Queue verdicts (approve / reject / verify) plus
   "reopen a verified team" need `verification` (the queue is VIEW-ONLY at every other stage).
   Bracket generation and scoring are NOT gated by stage, so nothing stops a
   premature advance except that checklist; keep the "what changes" copy to what is

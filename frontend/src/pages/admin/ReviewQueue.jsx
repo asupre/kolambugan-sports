@@ -444,6 +444,7 @@ export default function ReviewQueue() {
   const confirm = useConfirm();
   const [teams, setTeams] = useState([]);
   const [verifiedTeams, setVerifiedTeams] = useState([]); // for "Reopen for corrections"
+  const [reopenedTeams, setReopenedTeams] = useState([]); // a player was rejected: waiting to resubmit
   const [seasonStatus, setSeasonStatus] = useState("");
   const [barangays, setBarangays] = useState([]);    // all 26, each with a pending/verified/cleared tally
   const [selectedBarangay, setSelectedBarangay] = useState(null); // null = "All"
@@ -461,6 +462,7 @@ export default function ReviewQueue() {
       const data = await api("/api/review/queue");
       setTeams(data.teams || []);
       setVerifiedTeams(data.verifiedTeams || []);
+      setReopenedTeams(data.reopenedTeams || []);
       setSeasonStatus(data.seasonStatus || "");
       setBarangays(data.barangays || []);
     } catch (e) {
@@ -557,6 +559,9 @@ export default function ReviewQueue() {
   // Verified teams are viewable ANY time (same "viewing is always open, verdicts
   // aren't" rule as the pending list above) — only the Reopen action itself is
   // restricted to the verification period (the backend enforces that too).
+  const visibleReopened = selectedBarangay
+    ? reopenedTeams.filter((t) => t.barangayId === selectedBarangay)
+    : reopenedTeams;
   const visibleVerified = selectedBarangay
     ? verifiedTeams.filter((t) => t.barangayId === selectedBarangay)
     : verifiedTeams;
@@ -702,6 +707,33 @@ export default function ReviewQueue() {
                 </Card>
               ))}
             </div>
+          )}
+
+          {/* Teams a player was rejected from (Sep 2026): reopened for their barangay
+              ONLY, to add a replacement and resubmit. They used to vanish from the
+              queue at this point; listed here so they aren't forgotten. */}
+          {visibleReopened.length > 0 && (
+            <Card className="border-l-4 border-l-amber-500">
+              <CardHeader>
+                <CardTitle>Waiting for the barangay to resubmit</CardTitle>
+                <CardDescription>
+                  A player was rejected, so these teams are reopened for their Barangay Admin only. They
+                  come back to the queue above when resubmitted.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {visibleReopened.map((t) => (
+                  <div key={t.teamId} className="rounded-lg border px-3 py-2">
+                    <p className="text-sm font-medium flex items-center gap-2 flex-wrap">
+                      {t.teamName}
+                      <DivisionBadge division={t.division} />
+                      <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 whitespace-nowrap">Reopened</Badge>
+                    </p>
+                    <p className="text-muted-foreground text-xs">{t.barangay} · {t.sport}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           )}
 
           {/* Verified teams — locked for their Barangay Admin, but always viewable

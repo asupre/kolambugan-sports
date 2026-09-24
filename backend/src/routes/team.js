@@ -187,6 +187,36 @@ async function crossBarangayBlock(team, teamBrgy, player, { address, barangays }
   return null;
 }
 
+// Who may change a roster's players (add, import, remove, submit). Normally only while
+// registration is open. The ONE exception (Sep 2026): during Verification, a team the
+// Super Admin just rejected a player from (status 'rejected', not submitted) is reopened
+// for THAT team only, so the barangay can add a replacement and resubmit. Before this,
+// rejecting a player reopened the roster in name only: every edit needed
+// registration_open, and the rejected team dropped out of the Review Queue, so it could
+// never be verified. The window closes by itself on resubmit (status -> pending,
+// submittedAt set); every other team stays locked.
+async function requireRosterWindow(req, res, next) {
+  try {
+    const season = await getCurrentSeason();
+    if (!season) return res.status(409).json({ message: 'No active season. This action is unavailable right now.' });
+    if (season.status === 'registration_open') { req.season = season; return next(); }
+    if (season.status === 'verification') {
+      const t = await Team.findById(req.params.id).select('status submittedAt season').lean();
+      if (t && t.status === 'rejected' && !t.submittedAt && String(t.season) === String(season._id)) {
+        req.season = season;
+        return next();
+      }
+      return res.status(409).json({
+        message: 'Registration is closed. During verification a roster can only be changed after the SK Federation rejects one of its players, and only until it is resubmitted.',
+      });
+    }
+    return res.status(409).json({ message: `Rosters can't be changed right now. The season is currently "${season.status}".` });
+  } catch (err) {
+    console.error('Roster window error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+}
+
 // A player's address is deliberately just their team's barangay name and
 // nothing else (Sep 2026, Super Admin decision — the player plays for that
 // barangay, so it stands in as their address). An optional "Brgy."/"Barangay"
@@ -454,7 +484,7 @@ router.delete('/:id', authenticate, authorize('super_admin', 'barangay_admin'), 
 
 // POST /api/teams/:id/players  — add one player to a draft roster.
 router.post('/:id/players', authenticate, authorize('barangay_admin'),
-  requireSeasonState('registration_open'), async (req, res) => {
+  requireRosterWindow, async (req, res) => {
   try {
     const team = await loadOwnedTeam(req, res);
     if (!team) return;
@@ -552,7 +582,7 @@ function canonicalPlayerKey(h) {
 // skipped and reported, not silently dropped, mirroring the reference-list
 // upload's skippedRows shape.
 router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
-  requireSeasonState('registration_open'), uploadCsv.single('file'), async (req, res) => {
+  requireRosterWindow, uploadCsv.single('file'), async (req, res) => {
   try {
     const team = await loadOwnedTeam(req, res);
     if (!team) return;
@@ -833,7 +863,7 @@ router.patch('/:id/players/:playerId', authenticate,
 
 // DELETE /api/teams/:id/players/:playerId  — remove a player from a draft roster.
 router.delete('/:id/players/:playerId', authenticate, authorize('barangay_admin'),
-  requireSeasonState('registration_open'), async (req, res) => {
+  requireRosterWindow, async (req, res) => {
   try {
     const team = await loadOwnedTeam(req, res);
     if (!team) return;
@@ -863,7 +893,7 @@ router.delete('/:id/players/:playerId', authenticate, authorize('barangay_admin'
 
 // POST /api/teams/:id/submit  — lock the roster; enforce 10–15.
 router.post('/:id/submit', authenticate, authorize('barangay_admin'),
-  requireSeasonState('registration_open'), async (req, res) => {
+  requireRosterWindow, async (req, res) => {
   try {
     const team = await loadOwnedTeam(req, res);
     if (!team) return;

@@ -3380,3 +3380,15 @@ its filename and status, making "should I delete this and re-upload" a guess.
   throwaway team (deleted afterwards): "Inudaran" and "Brgy. Inudaran" rows skipped,
   "Tabigue" added. Players ALREADY imported before the fix stay on the roster; the
   check only stops new entries.
+- **A team with a rejected player is reopened for that team only (fixes a dead end).**
+  Rejecting a player during verification removed them and said "the roster has been
+  reopened", but adding a replacement, importing, removing and resubmitting all needed
+  registration to be open. The team also dropped out of the Review Queue, so one
+  rejection meant it could never be verified. New `requireRosterWindow` (routes/team.js)
+  allows those four during verification only for a team whose status is `rejected` and
+  that hasn't resubmitted, in the current season. Resubmitting puts it back to pending
+  (with residency screening) and closes the window; every other team stays locked, and
+  creating new teams still needs registration open. The Review Queue lists these teams
+  under "Waiting for the barangay to resubmit"; My Teams shows "Player rejected: fix and
+  resubmit", and the roster editor explains it. Gate tested with 9 cases (allowed only
+  for a rejected, not-yet-resubmitted, current-season team during verification).

@@ -3361,3 +3361,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
   count query per team). Checked read-only against the dev data (Mukas U15: 10
   documents in review; Matampay U15: 10 need a document), and rendered at 390px and
   1280px (on a phone the badges get their own line, above the buttons).
+- **Cross-barangay direction re-confirmed (no code change).** Inudaran (cross-barangay
+  on) importing Tabigue (off) players into its U15 team was reported as a bug. Under
+  the stakeholder rule it's correct: the checkbox belongs to the RECRUITING team's
+  barangay, so a checked barangay may field residents of any barangay. The Super Admin
+  chose to keep that rule over "both barangays checked" or "player's home barangay must
+  be checked". Recorded in CLAUDE.md with two related limits: residency is screened on
+  submit (not import), and the system has no record of a minor's home barangay.

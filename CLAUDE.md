@@ -201,6 +201,17 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   Small Banisilon, Matampay, Bubong, Pantaon, Inudaran, San Roque,
   Palao, Sto. Niño, Sucodan, Lumbac.
   Teams from the larger barangays field their OWN barangay's residents.
+  **Re-confirmed by the Super Admin, Sep 24 2026 — don't change it.** A test
+  where Inudaran (checked) imported Tabigue (unchecked) players into its U15
+  team was reported as a bug. It isn't: an unchecked barangay's residents CAN
+  play for a checked barangay's team. The "both barangays checked" and "player's
+  home barangay must be checked" alternatives were offered and declined. Keep in
+  mind: (1) the CSV import / add-player never check residency — screening runs
+  on SUBMIT; (2) a player 15 or under is never looked up on the list, and their
+  stored address is forced to the team's barangay, so the system has NO record
+  of a minor's home barangay. For minors, only the parental-consent documents
+  and the "one athlete, one barangay" rule (which needs them already on their
+  home barangay's roster) stand between a recruit and the team.
   (`allowsCrossBarangay` boolean on the barangays collection, editable via
   League Setup at `/admin/config`.) **Toggling it re-screens the whole
   season immediately** (`rescreenSeason()` in `services/prescreen.js`,

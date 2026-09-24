@@ -201,17 +201,26 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   Small Banisilon, Matampay, Bubong, Pantaon, Inudaran, San Roque,
   Palao, Sto. Niño, Sucodan, Lumbac.
   Teams from the larger barangays field their OWN barangay's residents.
-  **Re-confirmed by the Super Admin, Sep 24 2026 — don't change it.** A test
-  where Inudaran (checked) imported Tabigue (unchecked) players into its U15
-  team was reported as a bug. It isn't: an unchecked barangay's residents CAN
-  play for a checked barangay's team. The "both barangays checked" and "player's
-  home barangay must be checked" alternatives were offered and declined. Keep in
-  mind: (1) the CSV import / add-player never check residency — screening runs
-  on SUBMIT; (2) a player 15 or under is never looked up on the list, and their
-  stored address is forced to the team's barangay, so the system has NO record
-  of a minor's home barangay. For minors, only the parental-consent documents
-  and the "one athlete, one barangay" rule (which needs them already on their
-  home barangay's roster) stand between a recruit and the team.
+  **Re-confirmed by the Super Admin, Sep 24 2026 — don't change the direction.**
+  Only a CHECKED barangay's team may recruit from other barangays; an unchecked
+  one (e.g. Tabigue) fields only its own residents. ("Both barangays checked" and
+  "player's home barangay must be checked" were offered and declined.)
+  **Now enforced at ENTRY, not just at submit (Sep 2026 fix).** A Tabigue admin
+  imported a CSV of Inudaran players into Tabigue's U15 team and it was accepted:
+  the import ignored the CSV's address column (stamping every row "Tabigue"), and
+  residency was only screened on submit, and never for minors. `crossBarangayBlock()`
+  in `routes/team.js`, for an UNCHECKED team's barangay only, refuses on add
+  (409), CSV import (row skipped + reason) and "Correct this player" (409) when
+  (1) the CSV row's address names a different barangay (`barangayNamedIn()`:
+  accent/punctuation-tolerant, "Sto."/"Sta." = Santo/Santa, longest name wins so
+  "Small Banisilon" isn't read as "Banisilon"), or (2) an adult's
+  `decidePlayer()` result is `cross_barangay` (on the list under another
+  barangay). The stored address is still the team's barangay name. Remaining gap:
+  a minor typed in by hand, or imported with no address, has no home-barangay
+  record anywhere, so only the documents and "one athlete, one barangay" (if
+  they're already on their home roster) catch them. Tested through the real
+  import route on a throwaway team: Inudaran-address row skipped with the reason;
+  Tabigue-address and no-address rows added.
   (`allowsCrossBarangay` boolean on the barangays collection, editable via
   League Setup at `/admin/config`.) **Toggling it re-screens the whole
   season immediately** (`rescreenSeason()` in `services/prescreen.js`,

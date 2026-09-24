@@ -11,7 +11,7 @@ const Barangay = require('../models/Barangay');
 const { knockoutSizeOf, teamsAllowedFor } = require('../lib/sportRules');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
-const { prescreenTeam,  prescreenPlayer, norm, looseRegex } = require('../services/prescreen');
+const { prescreenTeam,  prescreenPlayer, decidePlayer, norm, looseRegex } = require('../services/prescreen');
 const { uploadPhoto, uploadDoc, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
 const router = express.Router();
@@ -151,6 +151,41 @@ async function genderConflictIndex(team) {
 }
 const genderConflictMessage = (first, last, team, where) =>
   `${String(first).trim()} ${String(last).trim()} is already on your ${where} roster, so they can't play in a ${GENDER_LABEL[team.division]} division. A player on a ${GENDER_LABEL[OPPOSITE_GENDER[team.division]]} team can only join other ${GENDER_LABEL[OPPOSITE_GENDER[team.division]]} or Open teams.`;
+
+// An UNCHECKED barangay's team fields ONLY its own residents (the cross-barangay
+// checkbox in League Setup belongs to the RECRUITING team's barangay). This used to be
+// enforced only at SUBMIT, and only for players on the reference list, so a Tabigue
+// (unchecked) admin could import a CSV of Inudaran players and the import stamped
+// every one of them with Tabigue as their address (Sep 2026 bug). Now add, CSV import
+// and "Correct this player" refuse a player the system can tell belongs elsewhere:
+//   1. the CSV row's own address names a different barangay (import only; the manual
+//      form's address must already be the team's barangay, see checkAddress), or
+//   2. an adult (16+) is on the reference list under a different barangay.
+// Minors are never on the list, so with no address column there's no way to know
+// their home barangay; the "one athlete, one barangay" rule and the documents are
+// what's left. A checked barangay's team (e.g. Inudaran) is never blocked here.
+function barangayNamedIn(address, barangays, ownName) {
+  const words = (s) => ` ${String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/\bsto\b/g, 'santo').replace(/\bsta\b/g, 'santa').trim()} `;
+  const addr = words(address);
+  if (!addr.trim()) return null;
+  const hits = barangays.filter((b) => addr.includes(words(b.name)));
+  // "Small Banisilon" also contains "Banisilon": keep only the longest names.
+  const named = hits.filter((b) => !hits.some((o) => o !== b && words(o.name).includes(words(b.name))));
+  if (!named.length || named.some((b) => norm(b.name) === norm(ownName))) return null;
+  return named[0].name;
+}
+async function crossBarangayBlock(team, teamBrgy, player, { address, barangays } = {}) {
+  if (!teamBrgy || teamBrgy.allowsCrossBarangay) return null;
+  if (address !== undefined && barangays) {
+    const other = barangayNamedIn(address, barangays, teamBrgy.name);
+    if (other) return `their address is in ${other}, and ${teamBrgy.name} can only field its own residents (cross-barangay isn't allowed for ${teamBrgy.name})`;
+  }
+  const d = await decidePlayer(player, team, teamBrgy);
+  if (d.code === 'cross_barangay') {
+    return `the reference list has them under another barangay, and ${teamBrgy.name} can only field its own residents (cross-barangay isn't allowed for ${teamBrgy.name})`;
+  }
+  return null;
+}
 
 // A player's address is deliberately just their team's barangay name and
 // nothing else (Sep 2026, Super Admin decision — the player plays for that
@@ -468,6 +503,11 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
     }
     const holder = await otherBarangayHolder(team, lastName, firstName, birthdate);
     if (holder) return res.status(409).json({ message: otherBarangayMessage(firstName, lastName, holder) });
+    const teamBrgy = await Barangay.findById(team.barangay).select('name allowsCrossBarangay');
+    const crossReason = await crossBarangayBlock(team, teamBrgy, { firstName, middleName, lastName, birthdate: new Date(birthdate) });
+    if (crossReason) {
+      return res.status(409).json({ message: `${firstName.trim()} ${lastName.trim()} can't be added: ${crossReason}.` });
+    }
 
     const player = await Player.create({
       firstName: firstName.trim(),
@@ -539,6 +579,10 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
     // The address is always the team's barangay name (see checkAddress), so a
     // CSV's own address column is ignored — every imported player gets it.
     const importAddress = (await checkAddress(team, '')).name || undefined;
+    // For the cross-barangay check below (the CSV address is read for THAT, then
+    // still replaced by the team's barangay name when stored).
+    const teamBrgy = await Barangay.findById(team.barangay).select('name allowsCrossBarangay');
+    const allBarangays = teamBrgy && !teamBrgy.allowsCrossBarangay ? await Barangay.find().select('name').lean() : null;
 
     const skipped = [];
     const toCreate = [];
@@ -580,6 +624,13 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
       const holder = await otherBarangayHolder(team, rec.lastName, rec.firstName, d);
       if (holder) {
         skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on ${holder.barangay}'s ${holder.sport} roster — a player can only play for one barangay.` });
+        continue;
+      }
+      const crossReason = await crossBarangayBlock(team, teamBrgy,
+        { firstName: rec.firstName, middleName: rec.middleName, lastName: rec.lastName, birthdate: d },
+        { address: rec.address, barangays: allBarangays });
+      if (crossReason) {
+        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName}: ${crossReason}.` });
         continue;
       }
       if (toCreate.length >= remaining) {
@@ -724,6 +775,13 @@ router.patch('/:id/players/:playerId', authenticate,
       }
       const holder = await otherBarangayHolder(team, player.lastName, player.firstName, player.birthdate);
       if (holder) return res.status(409).json({ message: otherBarangayMessage(player.firstName, player.lastName, holder) });
+    }
+    if (firstName !== undefined || lastName !== undefined || middleName !== undefined || birthdate !== undefined) {
+      const teamBrgy = await Barangay.findById(team.barangay).select('name allowsCrossBarangay');
+      const crossReason = await crossBarangayBlock(team, teamBrgy, player);
+      if (crossReason) {
+        return res.status(409).json({ message: `${player.firstName} ${player.lastName} can't be saved like this: ${crossReason}.` });
+      }
     }
 
     await player.save();

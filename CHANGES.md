@@ -3361,10 +3361,16 @@ its filename and status, making "should I delete this and re-upload" a guess.
   count query per team). Checked read-only against the dev data (Mukas U15: 10
   documents in review; Matampay U15: 10 need a document), and rendered at 390px and
   1280px (on a phone the badges get their own line, above the buttons).
-- **Cross-barangay direction re-confirmed (no code change).** Inudaran (cross-barangay
-  on) importing Tabigue (off) players into its U15 team was reported as a bug. Under
-  the stakeholder rule it's correct: the checkbox belongs to the RECRUITING team's
-  barangay, so a checked barangay may field residents of any barangay. The Super Admin
-  chose to keep that rule over "both barangays checked" or "player's home barangay must
-  be checked". Recorded in CLAUDE.md with two related limits: residency is screened on
-  submit (not import), and the system has no record of a minor's home barangay.
+- **An unchecked barangay could import other barangays' players (fixed).** A Tabigue
+  (cross-barangay OFF) admin imported a CSV of Inudaran players into Tabigue's U15 team
+  and it was accepted: the import ignored the CSV's address column and stamped every
+  row "Tabigue", and residency was only screened on submit (and never for minors,
+  who aren't on the list). The rule itself was right and was re-confirmed: only a
+  CHECKED barangay may recruit from other barangays. New `crossBarangayBlock()` in
+  routes/team.js, for an unchecked team only, refuses on add, CSV import (row skipped
+  with the reason) and "Correct this player" when the CSV address names another
+  barangay, or an adult is on the reference list under another barangay. Tested on
+  the dev data (address matching, a real Inudaran adult blocked from Tabigue but
+  allowed on Inudaran) and through the real import route on a throwaway team that
+  was deleted afterwards. Gap: a minor with no address given has no home-barangay
+  record anywhere.

@@ -159,11 +159,11 @@ score tallying, no public visibility, records lost every season.
   Badminton Girls CSV into Badminton Boys, which used to be accepted.
 - **Team registration shows the per-sport team limit** (Sep 2026,
   `BrgyDashboard.jsx`): "1 team per barangay — already registered" or "Up to 2
-  teams — N of 2 registered" (mirrors `maxTeams` in `POST /api/teams`), and
-  Create is disabled at the limit. For Mobile Legends it explains that Top 8
-  takes one team per barangay, so a 2nd team only plays under Top 16. The ML
-  limit is deliberately NOT tied to a League Setup knockout size, because
-  knockout size is picked at generate time (see Tournament format).
+  teams — N of 2 registered" (from `teamsAllowed` on `GET /api/sports`, the
+  same `teamsAllowedFor()` that `POST /api/teams` enforces), and Create is
+  disabled at the limit. For Mobile Legends the limit follows the knockout
+  size set in League Setup (Top 8 = 1, Top 16 = 2 — see Tournament format),
+  and the card says which one this season is.
 - There is a **registration deadline**; teams cannot freely add players
   mid-tournament (exact deadline handling still open).
 
@@ -438,11 +438,26 @@ TWO formats, both ending in a single-elimination knockout.
   Final = BO5; earlier rounds = BO3; 3rd place = BO3 (the two SF losers).
   `numRounds = log2(N)`; wires `nextMatchWin` so winners advance and SF losers
   route to the 3rd-place match.
-- ML is OPEN division (mixed gender); a barangay MAY field 2 teams. **Top 8 needs one
-  team per barangay:** the Super Admin picks the knockout size at generate time (after
-  registration), and `POST /generate` refuses Top 8 (409, Sep 2026) if a barangay has two
-  verified teams — remove the extra, or pick Top 16. Registration itself is NOT capped by
-  the knockout size (a first attempt read it from League Setup; removed with that panel).
+- ML is OPEN division (mixed gender). **The knockout size is set in League Setup
+  BEFORE registration and decides the team limit (Sep 2026, Super Admin decision
+  — reverses the earlier "pick it at generate time"):** Top 8 = ONE team per
+  barangay, Top 16 = up to TWO (`Sport.knockoutSize`; `knockoutSizeOf()` /
+  `teamsAllowedFor()` in `lib/sportRules.js` — unset = Top 16, the old default).
+  Applies to any `round_robin` sport; every double-elim sport is 1 team per
+  division. Why: Barangay Admins need to know how many teams to register.
+  - Set on the game's Registration section in League Setup, saved through
+    `PATCH /api/sports/:id/config` (`knockoutSize`, validated there — it was
+    removed from the generic `PATCH /api/sports/:id` list). Switching to Top 8
+    is refused (409, naming them) while any barangay already has two teams;
+    any change is refused once this season's bracket exists.
+  - `POST /api/teams` caps registration with `teamsAllowedFor()` (no longer the
+    hardcoded "Mobile Legends = 2"); `GET /api/sports` returns the effective
+    `knockoutSize` + `teamsAllowed`, and the Barangay Admin's Register-a-team
+    card shows them ("This season is a Top 8 knockout… only one team").
+  - `POST /generate` uses the saved size and ignores any `knockoutSize` in the
+    request; the Tournaments page shows it read-only with a link to League Setup.
+    The "refuse Top 8 if a barangay has two verified teams" check stays as a
+    backstop.
 
 ### ML group-stage tiebreakers — DONE (per-group single-elimination)
 - A cutoff tie = teams sharing the same (wins, gameWinDiff) that spans a
@@ -572,7 +587,8 @@ drawn.
   is scored by games won and has none). Validated in `scoringFromBody()` (`routes/reference.js`):
   whole numbers 1–20, period counts only from 1, 2, 3, 4, 5, 7 (the start route accepts nothing
   else); an empty value = "use the built-in default" ("Use the defaults" button). Everything else
-  (players on court, teams per barangay, groups, knockout size, draw format) is a fixed default;
+  (players on court, groups, draw format) is a fixed default — except a round-robin game's
+  knockout size (Top 8 / Top 16), which has its own control in Registration and sets teams per barangay;
   `Sport.scoringMode / statTypes / onCourt` are DEAD (nothing reads them). `loadOwnedMatch` populates
   the rule fields — before that only `name` was loaded, so saved values were silently ignored by
   the organizer routes.
@@ -674,8 +690,10 @@ Sport          name, category ∈ {physical, esports, board}, tournamentFormat,
                scoreSheet[]  ← the after-match player form's columns, edited
                in League Setup; absent = built-in default
                customStats[{key,label}]  ← columns the Super Admin added
+               knockoutSize ∈ {8,16}|null  ← round-robin sports only, set in
+               League Setup; Top 8 = 1 team per barangay, Top 16 = 2
                (scoringMode, statTypes, onCourt, teamsPerBarangay,
-               numGroups, knockoutSize, `isDivided`: kept on the model, nothing
+               numGroups, `isDivided`: kept on the model, nothing
                edits them — scoringMode/statTypes/onCourt/isDivided are not read)
 Team           teamName, barangay, sport, season, status ∈ {pending, verified,
                rejected}, submittedAt, division, format
@@ -1197,7 +1215,7 @@ so a bug in one route cannot expose the other.
   `localStorage` under `brgy-theme:<userId>` — PER ACCOUNT (Sep 2026), not
   shared: it used to be one `brgy-theme` key for the whole browser, so a
   Super Admin choosing dark made the next Barangay Admin to log in on that
-  browser get dark too. The old shared key is ignored. Defaults to the phone's own setting (light if none), see the note on theme plumbing.
+  browser get dark too. The old shared key is ignored. **Defaults to LIGHT when nothing is saved** (Sep 2026, Super Admin: newly created accounts kept opening in dark mode) — it used to follow the device's own dark setting. Dark is opt-in from the header toggle.
   **Animated toggle (Sep 2026):** the ONE shared `components/ThemeToggle.jsx`
   (rendered by `AdminLayout`, so Super Admin / Barangay Admin / Organizer all
   get it — no per-page copy) uses `useModeAnimation` from
@@ -1282,7 +1300,7 @@ so a bug in one route cannot expose the other.
   (`menu[0].header !== undefined` ⇒ grouped).
 - **Theme plumbing on phones (Sep 2026)**: `index.html` applies the saved theme BEFORE
   React (no bright first frame) — its logic mirrors `lib/theme.js`, keep them in step;
-  first visit follows `prefers-color-scheme`, a saved choice wins. `color-scheme` is set on
+  first visit is LIGHT (Sep 2026 — no longer `prefers-color-scheme`), a saved choice wins. `color-scheme` is set on
   `:root`/`.dark` (native controls follow the theme). `lib/themeChrome.js` owns the
   `theme-color` meta (address-bar colour = the header colour of each theme; change both
   when the tokens change). The circular reveal only runs on a fine pointer — touch gets an

@@ -3265,3 +3265,24 @@ its filename and status, making "should I delete this and re-upload" a guess.
   tinted with a left border (amber = awaiting review, green = approved, red = rejected),
   and the badge reads "Awaiting review" / "Approved" / "Rejected". The Review Queue's
   document header uses the same badge colours.
+
+## 2026-09-24 — Session (cont.): ML knockout size set before registration, light default
+
+- **Mobile Legends' knockout size is now chosen in League Setup BEFORE registration,
+  and it sets the team limit** (Super Admin decision; reverses "pick it at generate
+  time"). Top 8 = one team per barangay, Top 16 = up to two. Stored on
+  `Sport.knockoutSize` (unset = Top 16, the old behaviour, so nothing changes until
+  it's set). `knockoutSizeOf()` / `teamsAllowedFor()` in `lib/sportRules.js` are the
+  single source: `POST /api/teams` enforces the limit, `GET /api/sports` returns
+  `knockoutSize` + `teamsAllowed` for the registration card, and `POST /generate`
+  uses the saved size (a `knockoutSize` in the request is now ignored). Saved via
+  `PATCH /api/sports/:id/config`, which refuses Top 8 while any barangay already has
+  two teams (409, names them) and refuses any change once the season's bracket
+  exists. The Tournaments page's Top 8 / Top 16 picker became a read-only line
+  linking to League Setup. Replaces the hardcoded "Mobile Legends = 2 teams" and the
+  never-edited `teamsPerBarangay`. Checked on dev data: ML unset → Top 16 / 2 teams;
+  switching to Top 8 right now would be refused (3 barangays have two ML teams).
+- **Admin theme defaults to LIGHT.** With no saved choice it used to follow the
+  device's dark setting, so every newly created account opened in dark mode on a
+  dark-mode phone/PC. `getStoredTheme()` (`lib/theme.js`) and the pre-React script in
+  `index.html` now both default to light; a saved choice still wins.

@@ -115,6 +115,12 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
   const savedDivisions = sport.divisions?.length ? sport.divisions : ["open"];
   const [divisions, setDivisions] = useState(savedDivisions);
   const [format, setFormat] = useState(sport.entryFormat || "team");
+  // Round-robin games (Mobile Legends) pick their knockout here, BEFORE registration:
+  // it decides how many teams each barangay may enter (Top 8 = 1, Top 16 = 2).
+  const isRoundRobin = sport.tournamentFormat === "round_robin";
+  const savedKo = sport.knockoutSize || 16;
+  const [koSize, setKoSize] = useState(savedKo);
+  useEffect(() => { setKoSize(sport.knockoutSize || 16); }, [sport.knockoutSize]);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(sport.name);
   const [busy, setBusy] = useState(false);
@@ -140,7 +146,8 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
 
   const configDirty =
     JSON.stringify([...divisions].sort()) !== JSON.stringify([...savedDivisions].sort()) ||
-    format !== sport.entryFormat;
+    format !== sport.entryFormat ||
+    (isRoundRobin && koSize !== savedKo);
   const dirty = configDirty || sheetDirty || rulesDirty;
 
   const touch = () => setSaved("");
@@ -155,6 +162,7 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
   function discard() {
     setDivisions(savedDivisions);
     setFormat(sport.entryFormat || "team");
+    setKoSize(savedKo);
     setSheet(currentSheet);
     setRulesForm(effForm);
     setSaved("");
@@ -168,7 +176,8 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
       let updated = sport;
       if (configDirty) {
         const d = await api(`/api/sports/${sport._id}/config`, {
-          method: "PATCH", body: JSON.stringify({ divisions, entryFormat: format }),
+          method: "PATCH",
+          body: JSON.stringify({ divisions, entryFormat: format, ...(isRoundRobin ? { knockoutSize: koSize } : {}) }),
         });
         updated = d.sport;
       }
@@ -294,6 +303,32 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
                 </button>
               ))}
             </div>
+
+            {isRoundRobin && (
+              <>
+                <Label className="mb-2 mt-5">Knockout size</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { n: 8, hint: "1 team per barangay" },
+                    { n: 16, hint: "Up to 2 teams per barangay" },
+                  ].map(({ n, hint }) => (
+                    <button key={n} type="button" aria-pressed={koSize === n}
+                      onClick={() => { touch(); setKoSize(n); }}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-left transition",
+                        koSize === n ? "border-primary bg-primary/10" : "hover:bg-accent"
+                      )}>
+                      <span className="block text-sm font-medium">Top {n}</span>
+                      <span className="block text-[11px] text-muted-foreground">{hint}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  8 groups play round-robin, then the Top {koSize} go to the knockout. Barangay Admins see
+                  this limit when they register. Can't switch to Top 8 while a barangay has two teams.
+                </p>
+              </>
+            )}
           </Section>
 
           {/* Scoring */}

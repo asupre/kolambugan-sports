@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, RotateCcw, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
@@ -1153,7 +1153,6 @@ export default function Tournaments() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [knockoutSize, setKnockoutSize] = useState(16);
   const [division, setDivision] = useState("");
 
   async function loadAll() {
@@ -1205,7 +1204,6 @@ export default function Tournaments() {
     setError("");
     try {
       const body = { sportId: selectedSport._id, division: activeDivision };
-      if (isEsports) body.knockoutSize = Number(knockoutSize);
       await api("/api/tournaments/generate", { method: "POST", body: JSON.stringify(body) });
       await loadAll();
     } catch (e) {
@@ -1318,25 +1316,17 @@ export default function Tournaments() {
                       : "This sport uses four groups of double-elimination."}
                   </p>
 
-                  {isEsports && (
-                    <div className="mb-4 space-y-1.5">
-                      <Label>Knockout size</Label>
-                      <div className="flex gap-2">
-                        {[8, 16].map((n) => (
-                          <Button
-                            key={n}
-                            type="button"
-                            variant={Number(knockoutSize) === n ? "default" : "secondary"}
-                            onClick={() => setKnockoutSize(n)}
-                          >
-                            Top {n}
-                          </Button>
-                        ))}
-                      </div>
+                  {/* The knockout size is set in League Setup BEFORE registration (Sep 2026),
+                      because it decides how many teams each barangay may enter. */}
+                  {selectedSport.knockoutSize && (
+                    <div className="mb-4 space-y-1">
+                      <p className="text-sm">
+                        Knockout size: <span className="font-semibold">Top {selectedSport.knockoutSize}</span>
+                      </p>
                       <p className="text-muted-foreground text-xs">
-                        The system creates 8 groups and funnels down to the Top {knockoutSize}.
-                        Needs at least {knockoutSize} verified teams.
-                        {Number(knockoutSize) === 8 && " Top 8 needs one team per barangay."}
+                        The system creates 8 groups and funnels down to the Top {selectedSport.knockoutSize}.
+                        Needs at least {selectedSport.knockoutSize} verified teams. Set in{" "}
+                        <Link to="/admin/config" className="underline underline-offset-2">League Setup</Link>.
                       </p>
                     </div>
                   )}

@@ -871,12 +871,12 @@ export default function BrgyDashboard() {
   const divisions = selectedSport?.divisions?.length ? selectedSport.divisions : ["open"];
   const entryFormat = selectedSport?.entryFormat || "team";
   const limits = rosterLimitsFor(selectedSport);
-  // How many teams this barangay may enter for the picked sport + division —
-  // mirrors maxTeams in POST /api/teams (Mobile Legends is the seeded 2).
+  // How many teams this barangay may enter for the picked sport + division — from the
+  // server (teamsAllowedFor in lib/sportRules.js). For Mobile Legends it follows the
+  // knockout size the Super Admin set in League Setup: Top 8 = 1 team, Top 16 = 2.
   const activeDivision = division || divisions[0];
-  const maxTeams = selectedSport
-    ? selectedSport.teamsPerBarangay ?? (selectedSport.name === "Mobile Legends" ? 2 : 1)
-    : 1;
+  const maxTeams = selectedSport?.teamsAllowed ?? 1;
+  const koSize = selectedSport?.knockoutSize || null;
   const registeredHere = selectedSport
     ? teams.filter((t) => String(t.sport?._id || t.sport) === selectedSport._id && (t.division || "open") === activeDivision).length
     : 0;
@@ -1028,12 +1028,13 @@ export default function BrgyDashboard() {
                       ? `1 team per barangay${divisions.length > 1 ? ` in ${DIVISION_LABEL[activeDivision] || activeDivision}` : ""} — ${registeredHere ? "already registered" : "not registered yet"}.`
                       : `Up to ${maxTeams} teams per barangay — ${registeredHere} of ${maxTeams} registered.`}
                   </p>
-                  {maxTeams > 1 && (
+                  {koSize ? (
                     <p>
-                      One team is enough to join; the others are optional.
-                      {selectedSport.category === "esports" &&
-                        " If the league runs a Top 8 knockout, only ONE team per barangay can enter — a second team only plays when the league picks Top 16."}
+                      This season is a Top {koSize} knockout, set by the SK Federation.
+                      {maxTeams > 1 ? " One team is enough to join; the second is optional." : " Only one team per barangay can enter."}
                     </p>
+                  ) : maxTeams > 1 && (
+                    <p>One team is enough to join; the others are optional.</p>
                   )}
                 </div>
               )}

@@ -10,7 +10,7 @@ const { putFile, sendFile, deleteFile } = require('../config/gridfs');
 const Tournament = require('../models/Tournament');
 const User = require('../models/User');
 const { rescreenSeason } = require('../services/prescreen');
-const { rulesFor, sheetOptionsFor, STAT_CATALOG } = require('../lib/sportRules');
+const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, knockoutSizeOf, teamsAllowedFor } = require('../lib/sportRules');
 
 // League Setup needs to know a sport's BUILT-IN scoring mode: which fields matter (point
 // buttons, periods, stats…) depends on it, and a blank "Scoring" means "use the default".
@@ -21,6 +21,10 @@ const withDefaults = (s) => ({
   // The score-sheet picker: what this sport's type can offer, and whether the sheet is the built-in one.
   sheetOptions: sheetOptionsFor(s),
   sheetIsDefault: !Array.isArray(s.scoreSheet),
+  // What's IN EFFECT: the round-robin knockout size (null for double-elim) and how many
+  // teams one barangay may register per division — the team-registration form shows it.
+  knockoutSize: knockoutSizeOf(s),
+  teamsAllowed: teamsAllowedFor(s),
 });
 
 router.get('/sports', async (req, res) => {
@@ -64,7 +68,9 @@ const ALLOWED_DIVISIONS = ['open', 'boys', 'girls', 'under15', 'under30'];
 const ALLOWED_FORMATS = ['team', 'singles', 'doubles'];
 
 // PATCH /api/sports/:id/config — super admin; replaces seedSportConfig.js.
-// body: { divisions: ['under15','under30'], entryFormat: 'team' }
+// body: { divisions: ['under15','under30'], entryFormat: 'team', knockoutSize?: 8|16 }
+// knockoutSize only applies to a round-robin sport (Mobile Legends) and decides how
+// many teams a barangay may register: Top 8 = 1, Top 16 = 2 (Sep 2026).
 router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const sport = await Sport.findById(req.params.id);
@@ -95,6 +101,39 @@ router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async
           message: `${teamCount} team(s) are already registered for ${sport.name} this season. Set this up before registration opens, or remove those teams first.`,
         });
       }
+    }
+
+    // Knockout size (round-robin sports only). Registration is built on it, so:
+    // Top 8 is refused while any barangay already has two teams (they'd be over the
+    // new one-team limit), and nothing changes once this season's bracket exists.
+    if (req.body.knockoutSize !== undefined && req.body.knockoutSize !== null) {
+      const ko = Number(req.body.knockoutSize);
+      if (sport.tournamentFormat !== 'round_robin') {
+        return res.status(400).json({ message: `${sport.name} isn't a round-robin game — its knockout is always a Top 8.` });
+      }
+      if (!KNOCKOUT_SIZES.includes(ko)) {
+        return res.status(400).json({ message: 'Knockout size must be Top 8 or Top 16.' });
+      }
+      if (ko !== knockoutSizeOf(sport) && season) {
+        if (await Tournament.exists({ sport: sport._id, season: season._id })) {
+          return res.status(409).json({ message: `${sport.name}'s bracket for this season is already generated, so its knockout size can't change.` });
+        }
+        if (ko === 8) {
+          const doubled = await Team.aggregate([
+            { $match: { sport: sport._id, season: season._id } },
+            { $group: { _id: { barangay: '$barangay', division: '$division' }, n: { $sum: 1 } } },
+            { $match: { n: { $gt: 1 } } },
+          ]);
+          if (doubled.length) {
+            const names = (await Barangay.find({ _id: { $in: doubled.map((d) => d._id.barangay) } }).select('name'))
+              .map((b) => b.name).sort();
+            return res.status(409).json({
+              message: `Top 8 allows one team per barangay, but ${names.join(', ')} already ${names.length === 1 ? 'has' : 'have'} two ${sport.name} teams. Remove the extra team(s) first, or keep Top 16.`,
+            });
+          }
+        }
+      }
+      sport.knockoutSize = ko;
     }
 
     sport.divisions = divisions;
@@ -364,7 +403,9 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
     ['scoringMode'].forEach((k) => {
       if (req.body[k] !== undefined) sport[k] = req.body[k] || null;
     });
-    ['onCourt', 'teamsPerBarangay', 'numGroups', 'knockoutSize'].forEach((k) => {
+    // (knockoutSize is NOT here: it goes through PATCH /sports/:id/config, which checks it
+    // against the teams already registered.)
+    ['onCourt', 'teamsPerBarangay', 'numGroups'].forEach((k) => {
       if (req.body[k] !== undefined) {
         sport[k] = req.body[k] === null || req.body[k] === '' ? null : Number(req.body[k]);
       }

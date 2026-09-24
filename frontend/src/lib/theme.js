@@ -8,22 +8,19 @@ function keyFor(userId) {
   return `brgy-theme:${userId ?? "anon"}`;
 }
 
-// A saved choice wins. With none saved yet (first visit for this account) it follows
-// the device's own light/dark setting, so a phone already in dark mode isn't greeted
-// with a bright screen. (index.html has a copy of this rule that runs before the app
-// loads — keep them in step.)
+// A saved choice wins. With none saved yet (a new account, or first visit on this
+// browser) it is LIGHT (Super Admin decision, Sep 2026). It used to follow the
+// device's own dark setting, so every newly created account opened in dark mode on
+// a dark-mode phone/PC. Dark is opt-in from the header toggle. (index.html has a
+// copy of this rule that runs before the app loads — keep them in step.)
 export function getStoredTheme(userId) {
   try {
     const saved = localStorage.getItem(keyFor(userId));
     if (saved === "dark" || saved === "light") return saved;
   } catch {
-    // fall through to the device setting
+    // storage unavailable — use the default
   }
-  try {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  } catch {
-    return "light";
-  }
+  return "light";
 }
 
 export function storeTheme(userId, theme) {

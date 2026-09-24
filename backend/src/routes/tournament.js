@@ -4,6 +4,7 @@ const Match = require('../models/Match');
 const Team = require('../models/Team');
 const Sport = require('../models/Sport');
 const Barangay = require('../models/Barangay');
+const { knockoutSizeOf } = require('../lib/sportRules');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 const { parseManila } = require('../config/time');
@@ -294,11 +295,10 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
 
     // Knockout size drives everything: always 8 groups.
     // Top 8  -> advance 1 per group.  Top 16 -> advance 2 per group.
-        // The request may override, but a configured sport supplies its own default.
-    const knockoutSize = parseInt(req.body.knockoutSize, 10) || sport.knockoutSize || 8;
-    if (![8, 16, 32].includes(knockoutSize)) {
-      return res.status(400).json({ message: 'Knockout size must be 8, 16, or 32.' });
-    }
+    // Set in League Setup BEFORE registration (Sep 2026) — registration's team limit
+    // is built on it, so generation uses the saved value and no longer takes one from
+    // the request.
+    const knockoutSize = knockoutSizeOf(sport);
     // Top 8 = one team per barangay (see the cap in POST /api/teams). A barangay that
     // already has two verified teams — registered while the cap was looser — must be
     // resolved first, or pick Top 16.
@@ -310,7 +310,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
         const names = (await Barangay.find({ _id: { $in: doubled } }).select('name')).map((b) => b.name).sort();
         return res.status(409).json({
           message: `A Top 8 knockout allows one team per barangay, but ${names.join(', ')} ` +
-            `${names.length === 1 ? 'has' : 'have'} more than one verified team. Remove the extra team(s), or choose Top 16.`,
+            `${names.length === 1 ? 'has' : 'have'} more than one verified team. Remove the extra team(s), or switch to Top 16 in League Setup.`,
         });
       }
     }

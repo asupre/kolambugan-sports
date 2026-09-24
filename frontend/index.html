@@ -10,7 +10,7 @@
     <!-- Apply the saved theme BEFORE the app loads. Otherwise a dark-mode user sees a
          bright light-grey page until React starts and adds the `dark` class. Admin routes
          only (the public site is always dark). KEEP IN SYNC with src/lib/theme.js
-         (same storage key, same fall-back to the phone's own setting) and the chrome
+         (same storage key, same default: light when nothing is saved) and the chrome
          colours in src/lib/themeChrome.js. -->
     <script>
       (function () {
@@ -20,7 +20,7 @@
           if (seg === 'admin' || seg === 'brgy' || seg === 'organizer') {
             var u = JSON.parse(localStorage.getItem('user') || 'null');
             var t = localStorage.getItem('brgy-theme:' + (u && u.id ? u.id : 'anon'));
-            var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var dark = t === 'dark';   // no saved choice = light (Sep 2026)
             if (dark) document.documentElement.classList.add('dark');
             if (m) m.setAttribute('content', dark ? '#2e3134' : '#f7f8fa');
           } else if (seg !== 'login' && seg !== 'change-password') {

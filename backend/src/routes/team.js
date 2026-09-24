@@ -8,6 +8,7 @@ const Sport = require('../models/Sport');
 const Document = require('../models/Document');
 const Match = require('../models/Match');
 const Barangay = require('../models/Barangay');
+const { knockoutSizeOf, teamsAllowedFor } = require('../lib/sportRules');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
 const { prescreenTeam,  prescreenPlayer, norm, looseRegex } = require('../services/prescreen');
@@ -232,10 +233,11 @@ router.post('/', authenticate, authorize('barangay_admin'),
         const division = req.body.division || 'open';
     const format = req.body.format || sport.entryFormat || 'team';
 
-    // Mobile Legends allows two teams per barangay; every other sport is one team
-    // per barangay PER DIVISION (so a barangay can enter both u17 and u30).
-        // Configured per sport; Mobile Legends is the seeded exception at 2.
-    const maxTeams = sport.teamsPerBarangay ?? (sport.name === 'Mobile Legends' ? 2 : 1);
+    // One team per barangay PER DIVISION (so a barangay can enter both u15 and u30),
+    // except a round-robin sport (Mobile Legends), which follows the knockout size the
+    // Super Admin set in League Setup: Top 8 = 1 team, Top 16 = 2 (Sep 2026).
+    const maxTeams = teamsAllowedFor(sport);
+    const ko = knockoutSizeOf(sport);
     const existing = await Team.find({
       barangay: req.user.barangay,
       sport: sportId,
@@ -245,9 +247,11 @@ router.post('/', authenticate, authorize('barangay_admin'),
 
         if (existing.length >= maxTeams) {
       return res.status(409).json({
-        message: maxTeams === 1
-          ? `Your barangay already has a ${division} team for ${sport.name} this season.`
-          : `Your barangay already has the maximum of ${maxTeams} teams for ${sport.name} this season.`,
+        message: ko
+          ? `${sport.name} is a Top ${ko} knockout this season, which allows ${maxTeams} team${maxTeams === 1 ? '' : 's'} per barangay — you already have ${existing.length}.`
+          : maxTeams === 1
+            ? `Your barangay already has a ${division} team for ${sport.name} this season.`
+            : `Your barangay already has the maximum of ${maxTeams} teams for ${sport.name} this season.`,
       });
     }
 

@@ -18,19 +18,36 @@ const TONE_ICON = {
   sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
 };
 
+// The number never clips (Sep 2026 fix). On a ~360px phone the 2-column grid left the
+// text beside the icon ~74px, "893/1084" (no wrap point) needed ~100px, and the Card's
+// overflow-hidden cut the last digit. Now: below `sm` the icon sits ABOVE the text, so
+// the text gets the tile's full width; and the number's font-size is capped by its own
+// box (`@container` + cqi units) — normal 20/24px, shrinking only when a long value
+// like "1234/5678" wouldn't otherwise fit. 0.64em per character is a safe upper bound
+// for Inter semibold tabular digits (the slash is narrower).
+function fitFontSize(value) {
+  const len = Math.max(String(value ?? "").length, 1);
+  return `min(var(--stat-size), calc(100cqi / ${(len * 0.64).toFixed(2)}))`;
+}
+
 export function StatTile({ label, value, sub, Icon, tone, loading }) {
   return (
     <Card>
-      <CardContent className="flex items-center gap-3">
-        <div className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg", TONE_ICON[tone] || "bg-muted text-muted-foreground")}>
+      <CardContent className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className={cn("flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-lg", TONE_ICON[tone] || "bg-muted text-muted-foreground")}>
           <Icon className="size-5" />
         </div>
-        <div className="min-w-0">
+        <div className="@container w-full min-w-0 sm:flex-1">
           <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide leading-tight">{label}</p>
           {loading ? (
             <Skeleton className="mt-1 h-6 w-12" />
           ) : (
-            <p className="text-xl sm:text-2xl font-semibold leading-tight tabular-nums">{value}</p>
+            <p
+              className="[--stat-size:1.25rem] sm:[--stat-size:1.5rem] font-semibold leading-tight tabular-nums whitespace-nowrap"
+              style={{ fontSize: fitFontSize(value) }}
+            >
+              {value}
+            </p>
           )}
           {sub && <p className="text-muted-foreground text-xs leading-snug">{sub}</p>}
         </div>

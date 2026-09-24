@@ -3297,3 +3297,22 @@ its filename and status, making "should I delete this and re-upload" a guess.
   refuses a type change that would switch the draw once this season has a bracket.
   Checked without saving: a new esport validated as double-elim came out round-robin,
   Top 16, 2 teams; a physical sport stayed double-elim, 1 team.
+
+## 2026-09-24 — Session (cont.): dashboard stat tiles on phones, Discord "Ash" dark theme
+
+- **Dashboard stat numbers no longer get clipped on phones.** Cause: at 360px each
+  column of the 2-column grid is 158px; the card's padding leaves 126px, and the icon
+  (40px + 12px gap) left the text ~74px. "893/1084" at 20px semibold needs ~100px and
+  has no wrap point; the text column's `min-w-0` let it shrink below that, and the
+  Card's `overflow-hidden` cut the last digit (showing "893/108"). The sub-labels wrapped
+  to 3 lines for the same reason. Fix in the shared `StatTile`: below `sm` the icon
+  sits above the text, and the number's font-size is capped by its own box
+  (`@container` + `cqi`), so it stays 20/24px and only shrinks for a value too long to
+  fit. Checked by rendering a harness in headless Edge at 320 / 360 / 414 / 1024 /
+  1440px with values up to "12345/67890": no clipping, no horizontal scroll, sub-labels
+  at most 2 lines, desktop layout unchanged. Also fixes the Barangay Admin and
+  Organizer dashboards, which use the same tile.
+- **Dark mode is now Discord's "Ash" look**: page `#323339`, cards/header/sidebar
+  `#393a41`, hover `#43444b`, text `#dbdee1` / `#b5bac1`. The first ashy pass
+  (`#24272a` / `#2e3134`) still read as dark mode. Brand blue unchanged; address-bar
+  colour updated to `#393a41`.

@@ -3,7 +3,7 @@
 // dark app. Values are the header colours (`--card`) of each theme, converted from
 // the oklch tokens in index.css; update both together.
 export const LIGHT_CHROME = "#f7f8fa";
-export const DARK_CHROME = "#2e3134";
+export const DARK_CHROME = "#393a41";
 export const PUBLIC_CHROME = "#0A1220";   // the public site is dark-only
 
 export function setThemeColor(color) {

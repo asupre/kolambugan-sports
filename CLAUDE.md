@@ -781,6 +781,15 @@ so a bug in one route cannot expose the other.
   the scoring screen disables with `seasonStrip={false}`) and as a five-step tracker
   with role-specific wording in `SeasonStatus.jsx` — edit `GUIDE` there when a
   stage's meaning changes. `useSeason`/`SEASON_STAGES` are in `lib/season.js`.
+- **Dashboard stat tiles never clip their number (Sep 2026, `StatTile` in
+  `components/DashboardBits.jsx`, shared by all three dashboards).** On a ~360px
+  phone the 2-column grid left ~74px beside the icon; "893/1084" (no wrap point)
+  needed ~100px and the Card's `overflow-hidden` cut the last digit. Now below
+  `sm` the icon sits ABOVE the text (full tile width for the text), and the
+  number's font-size is `min(20/24px, 100cqi / (chars × 0.64))` inside an
+  `@container`, so it keeps its normal size and only shrinks for a value that
+  wouldn't fit. Rendered at 320/360/414/1024/1440 with values up to
+  "12345/67890": nothing clips, sub-labels at most 2 lines, desktop unchanged.
 - **Accounts page (Sep 2026)**: header with counts, "Add account" (a dialog) and
   "Provision all", search + filter chips (role, "Needs password change"), and rows that
   are a grid on desktop and a two-line card on a phone — no table that scrolls sideways.
@@ -1215,11 +1224,14 @@ so a bug in one route cannot expose the other.
   `document.documentElement`'s `dark` class (not a scoped wrapper div — Radix
   `Dialog`/`Select` portal to `document.body`, outside any local wrapper, so
   a div-scoped approach would leave modals/dropdowns stuck in light mode),
-  added on mount and always removed on unmount. **The dark theme is ASHY
-  grey, not near-black (Sep 2026)**: a slightly cool slate grey
-  (`oklch(L 0.008 255)`; page `#24272a`, cards/header/sidebar `#2e3134`,
-  muted/accent `0.37`). If `--card` changes, also update `DARK_CHROME` in
-  `lib/themeChrome.js` and the dark hex in `index.html`'s pre-React script.
+  added on mount and always removed on unmount. **The dark theme is Discord-style
+  "ASH", not near-black (Sep 2026, Super Admin's reference)**: page
+  `#323339`, raised surfaces (cards, header, sidebar, popovers) `#393a41`,
+  hover/muted `#43444b`, text `#dbdee1`, secondary text `#b5bac1`, borders
+  white 10%; brand blue `--primary` unchanged. (A first "ashy" pass at
+  `#24272a`/`#2e3134` still read as dark mode.) If `--card` changes, also
+  update `DARK_CHROME` in `lib/themeChrome.js` and the dark hex in
+  `index.html`'s pre-React script.
   **The light theme is deliberately soft (Sep 2026)** — a cool-gray page
   (`--background`), off-white cards (`--card`), never pure white, because the old
   white-on-white glared: change the tokens in `index.css`, not per-page colors, and put

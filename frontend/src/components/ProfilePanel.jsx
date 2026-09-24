@@ -241,7 +241,7 @@ function AvatarUpload({ userId, hasPhoto, onChanged }) {
         <label className={cn("group relative h-16 w-16 shrink-0 rounded-full overflow-hidden border bg-muted", busy ? "cursor-wait" : "cursor-pointer")}>
           {showPhoto ? (
             <img
-              src={`/api/auth/users/${userId}/photo?v=${v}`}
+              src={`/api/auth/users/${userId}/photo?rev=${v}`}
               alt=""
               decoding="async"
               className="h-full w-full object-cover"

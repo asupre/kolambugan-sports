@@ -246,7 +246,7 @@ function PlayerRow({ p, onClick }) {
       className="w-full flex items-center gap-3 py-2 border-b last:border-0 text-left hover:bg-accent/50 rounded-lg px-2 transition"
     >
       {p.photo ? (
-        <img src={`/api/teams/players/${p._id}/photo`} alt="" decoding="async"
+        <img src={`/api/teams/players/${p._id}/photo?f=${p.photo || ""}`} alt="" decoding="async"
           className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
       ) : (
         <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">
@@ -366,7 +366,7 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
           <div className={cn("grid grid-cols-1 sm:grid-cols-[13rem_1fr] gap-6", (p.flagReason || p.eligibilityStatus === "eligible") && "mt-5")}>
             <div className="sm:sticky sm:top-0 space-y-4 self-start">
               {p.photo ? (
-                <img src={`/api/teams/players/${p._id}/photo`} alt="" decoding="async"
+                <img src={`/api/teams/players/${p._id}/photo?f=${p.photo || ""}`} alt="" decoding="async"
                   className="w-full aspect-square rounded-xl object-cover bg-muted border" />
               ) : (
                 <div className="w-full aspect-square rounded-xl bg-muted border flex items-center justify-center text-muted-foreground text-sm text-center px-3">

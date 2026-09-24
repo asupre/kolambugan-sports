@@ -68,7 +68,7 @@ export default function Champions() {
         >
           <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
             <img
-              src={`/api/champions/${lightbox.id}/photo`}
+              src={`/api/champions/${lightbox.id}/photo?c=2`}
               alt=""
               className="w-full max-h-[80vh] object-contain rounded"
             />
@@ -105,7 +105,7 @@ function ChampionRow({ c, onOpenPhoto }) {
           title="View full size"
         >
           <img
-            src={`/api/champions/${c.id}/photo`}
+            src={`/api/champions/${c.id}/photo?c=2`}
             alt=""
             onError={() => setFailed(true)}
             className="w-full h-48 sm:h-52 object-cover rounded bg-[#1C2430] group-hover:opacity-90 transition"

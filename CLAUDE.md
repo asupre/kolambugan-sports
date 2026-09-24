@@ -2003,6 +2003,15 @@ repeat this pass before the next deploy.
   the type must ALSO go in `metadata`, and `sendFile` reads it back with a
   fallback. Without it, files DOWNLOAD instead of displaying. Files uploaded
   before this fix are permanently typeless; re-upload them.
+- **`sendFile()` caching (Sep 2026).** Default is `no-cache` + an `ETag` (the
+  GridFS file id; If-None-Match → 304). It used to be `public, max-age=86400`, and
+  because photo URLs don't change when the file does, a deleted/replaced profile
+  or player photo kept showing for a day, even after a refresh. Pass a number for
+  a short public cache (site images 60, logos 300) and `'private, no-store'` for
+  residency documents (they were `public` before, which lets a shared cache keep
+  them). Photo `<img>` URLs carry `?rev=` / `?f=<photo file id>` / `?c=2` so
+  browsers skip copies cached under the old rule. New file routes: pick a policy
+  on purpose, and never use `public` for anything private.
 - **Mongoose `findOneAndUpdate({ new: true })` is deprecated** — use
   `returnDocument: 'after'`. Fixed in `organizer.js`; `siteimage.js`'s
   `PATCH /:key/focal` still uses the old `{ new: true }` and needs the

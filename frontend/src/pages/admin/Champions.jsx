@@ -279,7 +279,7 @@ export default function Champions() {
                 {byYear[y].map((c) => (
                   <div key={c.id} className="flex items-center gap-3 rounded-lg border px-3 py-2">
                     {c.hasPhoto ? (
-                      <img src={`/api/champions/${c.id}/photo`} alt="" className="w-12 h-12 rounded object-cover bg-muted shrink-0" />
+                      <img src={`/api/champions/${c.id}/photo?c=2`} alt="" className="w-12 h-12 rounded object-cover bg-muted shrink-0" />
                     ) : (
                       <div className="w-12 h-12 rounded bg-muted flex items-center justify-center text-muted-foreground text-[10px] shrink-0">
                         No photo

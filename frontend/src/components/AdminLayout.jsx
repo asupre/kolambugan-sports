@@ -37,7 +37,7 @@ function HeaderAvatar({ user, v }) {
   }
   return (
     <img
-      src={`/api/auth/users/${user.id}/photo?v=${v}`}
+      src={`/api/auth/users/${user.id}/photo?rev=${v}`}
       alt=""
       decoding="async"
       className="h-8 w-8 rounded-full object-cover bg-muted"

@@ -3331,3 +3331,18 @@ its filename and status, making "should I delete this and re-upload" a guess.
   234-300ms), the same for Barangay Admin, Organizer and Super Admin (Super Admin was
   550-1000ms). Verified: backdrop tap closes, Escape closes, page doesn't scroll on a
   drag, focus lands in the panel. Other dialogs are unchanged (still modal).
+- **A deleted or replaced photo kept showing, even after a refresh.** Cause:
+  `sendFile()` served every GridFS file with `Cache-Control: public, max-age=86400`,
+  while the photo URLs never change when the file does (`/api/auth/users/:id/photo`,
+  `/api/teams/players/:id/photo`). After deleting a profile photo, a refresh loaded the
+  header avatar from the browser's day-long cache without asking the server. Fix:
+  `sendFile` now defaults to `no-cache` plus an `ETag` (the GridFS file id), so the
+  browser checks every time and an unchanged photo costs a tiny 304; a deleted one
+  returns 404 (initials), and a replaced one downloads fresh. Site images (60s) and logos
+  (300s) keep their short caches. The photo URLs got a new query parameter (`?rev=`,
+  `?f=<file id>`, `?c=2`) so browsers ignore copies saved under the old rule.
+  Checked with a throwaway server against the dev data: 200 + ETag, then 304 for the
+  same ETag, 200 for an old ETag.
+- **Residency documents were served `public, max-age=86400`.** "public" allows shared
+  caches (the hosting layer in front of the API) to keep a copy of an ID or birth
+  certificate. Both document routes now send `private, no-store`.

@@ -28,7 +28,9 @@ export const initials = (name = "") =>
 
 // ── Photo routes ────────────────────────────────────────────────────────────
 // TODO(Jerico): confirm this against the real GridFS serve route.
-export const playerPhotoUrl = (id) => `/api/teams/players/${id}/photo`;
+// `?c=2`: a new URL so browsers drop copies cached under the old day-long rule
+// (Sep 2026); the server now revalidates photos on every load (ETag + no-cache).
+export const playerPhotoUrl = (id) => `/api/teams/players/${id}/photo?c=2`;
 
 // Pending Hon. Reserva's decision on publishing minors' photos.
 // Flip to false and every public photo falls back to a monogram — no other edits.

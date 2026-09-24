@@ -1028,7 +1028,7 @@ router.get('/:id/players/:playerId/documents/:docId/file', authenticate, authori
     const doc = await Document.findOne({ _id: req.params.docId, player: req.params.playerId });
     if (!doc) return res.status(404).json({ message: 'Document not found.' });
 
-    await sendFile('documents', doc.file, res);
+    await sendFile('documents', doc.file, res, 'private, no-store');
   } catch (err) {
     console.error('Document file (barangay admin) error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -1041,7 +1041,7 @@ router.get('/documents/:docId/file', authenticate, authorize('super_admin'), asy
   try {
     const doc = await Document.findById(req.params.docId);
     if (!doc) return res.status(404).json({ message: 'Document not found.' });
-    await sendFile('documents', doc.file, res);
+    await sendFile('documents', doc.file, res, 'private, no-store');
   } catch (err) {
     console.error('Document fetch error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

@@ -648,7 +648,7 @@ function RosterEditor({ team, sports, onClose }) {
                         wrapping line underneath. Same markup at every width. */}
                     <div className="flex items-start gap-3">
                       {p.photo ? (
-                        <img src={`/api/teams/players/${p._id}/photo`} alt=""
+                        <img src={`/api/teams/players/${p._id}/photo?f=${p.photo}`} alt=""
                           className="h-10 w-10 rounded-full object-cover bg-muted shrink-0" />
                       ) : (
                         <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs shrink-0">

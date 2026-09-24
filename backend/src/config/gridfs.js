@@ -52,14 +52,29 @@ function putFile(bucketName, buffer, filename, contentType, metadata = {}) {
 }
 
 // Pipe a stored file out to an Express response.
-async function sendFile(bucketName, id, res, cacheSeconds = 86400) {
+//
+// `cache`: a number = `public, max-age=<n>` seconds (site images, logos); a string =
+// the Cache-Control value as-is. Default 'no-cache' (Sep 2026 fix): most of these
+// URLs NEVER change when the file does (/users/:id/photo, /players/:id/photo), so the
+// old `public, max-age=86400` let a browser keep showing a deleted or replaced photo
+// for a day, even after a refresh. 'no-cache' makes the browser check each time; the
+// ETag (the GridFS file id, which changes whenever the file is replaced) turns an
+// unchanged file into a tiny 304, so this costs one small request, not a download.
+// Residency documents pass 'private, no-store': they must never sit in a shared cache.
+async function sendFile(bucketName, id, res, cache = 'no-cache') {
   let _id;
   try { _id = new ObjectId(String(id)); } catch { return res.status(400).json({ message: 'Bad file id.' }); }
   const files = await bucket(bucketName).find({ _id }).toArray();
   if (!files.length) return res.status(404).json({ message: 'File not found.' });
   const type = files[0].contentType || files[0].metadata?.contentType || 'application/octet-stream';
+  const etag = `"${String(_id)}"`;
+  res.set('Cache-Control', typeof cache === 'number' ? `public, max-age=${cache}` : cache);
+  res.set('ETag', etag);
+  const ifNoneMatch = res.req && res.req.headers['if-none-match'];
+  if (ifNoneMatch && ifNoneMatch.split(',').map((s) => s.trim().replace(/^W\//, '')).includes(etag)) {
+    return res.status(304).end();
+  }
   res.set('Content-Type', type);
-    res.set('Cache-Control', `public, max-age=${cacheSeconds}`);
   bucket(bucketName).openDownloadStream(_id).pipe(res);
 }
 

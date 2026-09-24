@@ -112,6 +112,45 @@ async function siblingTeamRosterIndex(team) {
   return index;
 }
 
+// Boys and girls divisions don't mix (Super Admin rule, Sep 2026). There is no
+// gender field on Player, so the barangay's OWN rosters are the evidence: once
+// an athlete is on one of this barangay's BOYS teams this season (any sport),
+// they may only be added to other boys or open teams — never a girls team —
+// and vice versa. E.g. a Badminton Boys player can also play Volleyball Boys
+// or Billiards (open), but not Pickleball Girls. Age divisions (under15 /
+// under30) and open carry no gender and are never checked. Returns a Map of
+// playerKey() -> "Badminton Girls (Team name)" for every athlete on an
+// opposite-gender team, or an empty Map when this team isn't boys/girls.
+const OPPOSITE_GENDER = { boys: 'girls', girls: 'boys' };
+const GENDER_LABEL = { boys: 'Boys', girls: 'Girls' };
+async function genderConflictIndex(team) {
+  const opposite = OPPOSITE_GENDER[team.division];
+  if (!opposite) return new Map();
+  const teams = await Team.find({
+    barangay: team.barangay,
+    season: team.season,
+    division: opposite,
+    _id: { $ne: team._id },
+  }).populate('sport', 'name').select('teamName sport division').lean();
+  if (!teams.length) return new Map();
+
+  const labelById = new Map(teams.map((t) => [
+    String(t._id),
+    `${t.sport ? t.sport.name : 'another sport'} ${GENDER_LABEL[opposite]} (${t.teamName})`,
+  ]));
+  const links = await TeamPlayer.find({ team: { $in: teams.map((t) => t._id) } })
+    .populate('player', 'lastName firstName birthdate').lean();
+  const index = new Map();
+  for (const link of links) {
+    const p = link.player;
+    if (!p) continue;
+    index.set(playerKey(p.lastName, p.firstName, p.birthdate), labelById.get(String(link.team)));
+  }
+  return index;
+}
+const genderConflictMessage = (first, last, team, where) =>
+  `${String(first).trim()} ${String(last).trim()} is already on your ${where} roster, so they can't play in a ${GENDER_LABEL[team.division]} division. A player on a ${GENDER_LABEL[OPPOSITE_GENDER[team.division]]} team can only join other ${GENDER_LABEL[OPPOSITE_GENDER[team.division]]} or Open teams.`;
+
 // A player's address is deliberately just their team's barangay name and
 // nothing else (Sep 2026, Super Admin decision — the player plays for that
 // barangay, so it stands in as their address). An optional "Brgy."/"Barangay"
@@ -390,6 +429,11 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
         message: `${firstName.trim()} ${lastName.trim()} is already on ${dupTeamName}'s roster for this sport — the same player can't be on two of your barangay's teams in one sport.`,
       });
     }
+    const genderIndex = await genderConflictIndex(team);
+    const genderWhere = genderIndex.get(playerKey(lastName, firstName, birthdate));
+    if (genderWhere) {
+      return res.status(409).json({ message: genderConflictMessage(firstName, lastName, team, genderWhere) });
+    }
     const holder = await otherBarangayHolder(team, lastName, firstName, birthdate);
     if (holder) return res.status(409).json({ message: otherBarangayMessage(firstName, lastName, holder) });
 
@@ -459,6 +503,7 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
     // naming the same player get caught too, not just ones matched against
     // an already-saved sibling team.
     const dupIndex = await siblingTeamRosterIndex(team);
+    const genderIndex = await genderConflictIndex(team);
     // The address is always the team's barangay name (see checkAddress), so a
     // CSV's own address column is ignored — every imported player gets it.
     const importAddress = (await checkAddress(team, '')).name || undefined;
@@ -493,6 +538,11 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
       const dupTeamName = dupIndex.get(key2);
       if (dupTeamName) {
         skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on ${dupTeamName}'s roster for this sport.` });
+        continue;
+      }
+      const genderWhere = genderIndex.get(key2);
+      if (genderWhere) {
+        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on your ${genderWhere} roster — can't play in a ${GENDER_LABEL[team.division]} division.` });
         continue;
       }
       const holder = await otherBarangayHolder(team, rec.lastName, rec.firstName, d);
@@ -636,6 +686,10 @@ router.patch('/:id/players/:playerId', authenticate,
           message: `${player.firstName} ${player.lastName} is already on ${dupTeamName}'s roster for this sport — the same player can't be on two of your barangay's teams in one sport.`,
         });
       }
+      const genderWhere = (await genderConflictIndex(team)).get(playerKey(player.lastName, player.firstName, player.birthdate));
+      if (genderWhere) {
+        return res.status(409).json({ message: genderConflictMessage(player.firstName, player.lastName, team, genderWhere) });
+      }
       const holder = await otherBarangayHolder(team, player.lastName, player.firstName, player.birthdate);
       if (holder) return res.status(409).json({ message: otherBarangayMessage(player.firstName, player.lastName, holder) });
     }
@@ -754,6 +808,20 @@ router.post('/:id/submit', authenticate, authorize('barangay_admin'),
             message: `This is a ${DIVISION_AGE_LABEL[team.division]} team (${ageMin} and up). Under the minimum: ${underAge.map((p) => `${p.firstName} ${p.lastName} (${computeAge(p.birthdate)})`).join(', ')}.`,
           });
         }
+      }
+    }
+
+    // Backstop for the boys/girls rule (players added before it existed).
+    const genderIndex = await genderConflictIndex(team);
+    if (genderIndex.size) {
+      const links = await TeamPlayer.find({ team: team._id }).populate('player', 'firstName lastName birthdate');
+      const clash = links.map((l) => l.player).filter(Boolean)
+        .map((p) => ({ p, where: genderIndex.get(playerKey(p.lastName, p.firstName, p.birthdate)) }))
+        .filter((x) => x.where);
+      if (clash.length) {
+        return res.status(400).json({
+          message: `This is a ${GENDER_LABEL[team.division]} team, but these players are already on a ${GENDER_LABEL[OPPOSITE_GENDER[team.division]]} roster: ${clash.map((x) => `${x.p.firstName} ${x.p.lastName} (${x.where})`).join(', ')}. Remove them first.`,
+        });
       }
     }
 

@@ -317,7 +317,13 @@ export default function ProfilePanel({ open, onOpenChange }) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+      {/* Don't auto-focus the first field on open (Sep 2026). Without a profile
+          photo (most Barangay Admin / Organizer accounts) the first focusable
+          element is "Current password", so Radix focused it and a phone popped
+          its keyboard mid-slide — the viewport resize is what made opening the
+          panel feel laggy. Focus goes to the panel itself instead, which keeps
+          keyboard/screen-reader users inside it. */}
+      <SheetContent onOpenAutoFocus={(e) => { e.preventDefault(); e.currentTarget?.focus?.({ preventScroll: true }); }}>
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2"><UserRound className="size-4" /> Profile</SheetTitle>
           <SheetDescription>Manage your sign-in details.</SheetDescription>

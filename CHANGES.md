@@ -3223,3 +3223,45 @@ its filename and status, making "should I delete this and re-upload" a guess.
   on the status badge and both buttons (so they never compress). Not confirmed as the exact cause of
   the original report (which the Super Admin said wasn't actually happening), but a real defect
   regardless — worth fixing on its own.
+
+## 2026-09-24 — Session: boys/girls rosters, Review Queue divisions, ML team count, ashy dark mode
+
+- **Boys and girls divisions no longer mix (Super Admin rule).** Found by uploading a
+  Badminton Girls CSV into Badminton Boys: it was accepted and ready to submit. Player
+  has no gender field, so the barangay's own rosters are the evidence:
+  `genderConflictIndex()` in `routes/team.js` blocks add-player (409), CSV import (row
+  skipped + reported), "Correct this player" (409) and — as a backstop — submit, whenever
+  the athlete (name + birthdate, same identity as `playerKey()`) is already on one of
+  THIS barangay's opposite-gender teams this season, in ANY sport. A Badminton Boys player
+  can still join Volleyball Boys or an Open team (Billiards, Chess, Mobile Legends); Open
+  and the age divisions (under15/under30) are never checked. Limitation: a brand-new
+  player's gender is only known once they're on a boys or girls roster, so the first
+  roster they join is unchecked. Checked read-only on the dev data: no existing roster
+  already breaks the rule; a mock boys team in Mukas correctly saw all 12 of Mukas's
+  girls players, and an open team saw none.
+- **Review Queue shows each team's division.** A barangay's two Badminton teams (boys
+  + girls) looked identical; `GET /api/review/queue` now returns `division` for pending
+  and verified teams, shown as a badge beside the name (boys sky, girls pink, others grey).
+- **Team registration shows how many teams a sport allows.** Picking a sport shows
+  "1 team per barangay — already registered / not registered yet" or "Up to 2 teams per
+  barangay — N of 2 registered", and Create is disabled once the limit is reached. For
+  Mobile Legends it also explains that a Top 8 knockout takes one team per barangay, so a
+  second team only plays if the league picks Top 16. Considered and NOT done: tying the
+  ML team limit to a knockout size set in League Setup. The knockout size is picked at
+  bracket generation, after registration (an earlier League Setup version was removed),
+  and `POST /generate` already refuses Top 8 while a barangay has two verified teams.
+- **Profile panel lag on phones (Barangay Admin / Organizer).** Radix auto-focuses the
+  first focusable element when the Sheet opens. With no profile photo (most of these
+  accounts) that was the "Current password" field, so the phone keyboard opened during
+  the slide-in and the viewport resized mid-animation. Super Admin accounts with a photo
+  focused the "Remove" button instead, which is why they didn't lag. `ProfilePanel`
+  now prevents the auto-focus and focuses the panel itself.
+- **Dark mode is ashy grey instead of near-black.** `.dark` tokens in `index.css`
+  now use a slightly cool slate grey (page `#24272a`, cards/header `#2e3134`, muted
+  `oklch(0.37 …)`). `DARK_CHROME` (`lib/themeChrome.js`) and `index.html`'s pre-React
+  theme script were updated to match. Admin only; the Public Viewer is unaffected.
+- **Document verification status is colour-coded.** On the Barangay Admin's Document
+  Submission page, "pending" was a grey badge on a grey row. Each document row is now
+  tinted with a left border (amber = awaiting review, green = approved, red = rejected),
+  and the badge reads "Awaiting review" / "Approved" / "Rejected". The Review Queue's
+  document header uses the same badge colours.

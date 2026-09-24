@@ -871,6 +871,16 @@ export default function BrgyDashboard() {
   const divisions = selectedSport?.divisions?.length ? selectedSport.divisions : ["open"];
   const entryFormat = selectedSport?.entryFormat || "team";
   const limits = rosterLimitsFor(selectedSport);
+  // How many teams this barangay may enter for the picked sport + division —
+  // mirrors maxTeams in POST /api/teams (Mobile Legends is the seeded 2).
+  const activeDivision = division || divisions[0];
+  const maxTeams = selectedSport
+    ? selectedSport.teamsPerBarangay ?? (selectedSport.name === "Mobile Legends" ? 2 : 1)
+    : 1;
+  const registeredHere = selectedSport
+    ? teams.filter((t) => String(t.sport?._id || t.sport) === selectedSport._id && (t.division || "open") === activeDivision).length
+    : 0;
+  const slotsFull = !!selectedSport && registeredHere >= maxTeams;
 
   async function createTeam() {
     setBusy(true);
@@ -1004,13 +1014,37 @@ export default function BrgyDashboard() {
                 </p>
               )}
 
+              {selectedSport && (
+                <div
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-xs space-y-1",
+                    slotsFull
+                      ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                      : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                  )}
+                >
+                  <p className="font-medium">
+                    {maxTeams === 1
+                      ? `1 team per barangay${divisions.length > 1 ? ` in ${DIVISION_LABEL[activeDivision] || activeDivision}` : ""} — ${registeredHere ? "already registered" : "not registered yet"}.`
+                      : `Up to ${maxTeams} teams per barangay — ${registeredHere} of ${maxTeams} registered.`}
+                  </p>
+                  {maxTeams > 1 && (
+                    <p>
+                      One team is enough to join; the others are optional.
+                      {selectedSport.category === "esports" &&
+                        " If the league runs a Top 8 knockout, only ONE team per barangay can enter — a second team only plays when the league picks Top 16."}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label>Team name</Label>
                 <Input value={teamName} onChange={(e) => setTeamName(e.target.value)}
                   placeholder="e.g. Baybay Warriors" />
               </div>
 
-              <Button onClick={createTeam} disabled={busy || !sportId || !teamName.trim()}>
+              <Button onClick={createTeam} disabled={busy || !sportId || !teamName.trim() || slotsFull}>
                 {busy ? "Creating…" : "Create team"}
               </Button>
             </CardContent>

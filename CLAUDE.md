@@ -146,6 +146,24 @@ score tallying, no public visibility, records lost every season.
   links two records of the same person. Scoped to the current season; a player
   freed by a reject/delete/reopened team can be rostered elsewhere. Checked
   against the dev data: 181 players, none already on two barangays.
+- **Boys and girls divisions don't mix** (Super Admin rule, Sep 2026). Once an
+  athlete is on one of the barangay's BOYS teams this season (any sport), they
+  may join other boys or open teams only, never a girls team, and vice versa
+  (e.g. Badminton Boys → Volleyball Boys or Billiards/Chess/ML Open is fine;
+  Pickleball Girls is not). Player has NO gender field, so the barangay's own
+  rosters are the evidence: `genderConflictIndex()` in `routes/team.js` blocks
+  add (409), CSV import (row skipped + reported), "Correct this player" (409)
+  and submit (backstop). Identity = name + birthdate (`playerKey()`). Open and
+  the age divisions (under15/under30) are never checked. Limitation: the FIRST
+  boys/girls roster a new player joins can't be checked. Found by uploading a
+  Badminton Girls CSV into Badminton Boys, which used to be accepted.
+- **Team registration shows the per-sport team limit** (Sep 2026,
+  `BrgyDashboard.jsx`): "1 team per barangay — already registered" or "Up to 2
+  teams — N of 2 registered" (mirrors `maxTeams` in `POST /api/teams`), and
+  Create is disabled at the limit. For Mobile Legends it explains that Top 8
+  takes one team per barangay, so a 2nd team only plays under Top 16. The ML
+  limit is deliberately NOT tied to a League Setup knockout size, because
+  knockout size is picked at generate time (see Tournament format).
 - There is a **registration deadline**; teams cannot freely add players
   mid-tournament (exact deadline handling still open).
 
@@ -805,6 +823,13 @@ so a bug in one route cannot expose the other.
   revealing a recovery code) used to overflow with nothing to scroll it into
   view, which is exactly why a just-generated code went unseen; fixed once,
   applies to every `Sheet` use, not just this panel.
+- **Profile panel doesn't auto-focus a field (Sep 2026, the real mobile lag).**
+  Radix focuses the first focusable element when a Sheet opens. With no profile
+  photo (most Barangay Admin / Organizer accounts) that was "Current password",
+  so the phone keyboard popped open mid-slide and resized the viewport. With a
+  photo the "Remove" button got focus instead, which is why Super Admins didn't
+  see the lag. `onOpenAutoFocus` now prevents that and focuses the panel itself.
+  Any new Sheet/Dialog whose first control is a text input needs the same fix.
 - **Mobile open-lag fix (Sep 2026).** Opening the panel used to fire its `GET /api/auth/profile`
   fetch (which flips `AvatarUpload`'s `hasPhoto` and swaps in a new avatar image) at the exact
   instant the Sheet's ~200ms slide-in transition started — on lower-power phones that fetch/
@@ -970,7 +995,9 @@ so a bug in one route cannot expose the other.
   it — fixed by giving the button a constant `y: "-50%"` inside every
   Motion animation state instead of the Tailwind class.
 - **Review Queue — barangay picker + a real "Cleared" definition** (Sep
-  2026): `GET /api/review/queue` now also returns `barangays` (all 26,
+  2026): **each team row shows a division badge** (`division` on every
+  queue/verified team; boys sky, girls pink, added Sep 2026 because a
+  barangay's two Badminton teams looked identical). `GET /api/review/queue` now also returns `barangays` (all 26,
   not just ones with a pending team), `totalPending`, `verifiedTeams` and
   `seasonStatus`. **Verified teams are viewable at ANY season stage (Sep
   2026 correction)** — the "Verified teams" card used to only render once a
@@ -1158,7 +1185,12 @@ so a bug in one route cannot expose the other.
   `document.documentElement`'s `dark` class (not a scoped wrapper div — Radix
   `Dialog`/`Select` portal to `document.body`, outside any local wrapper, so
   a div-scoped approach would leave modals/dropdowns stuck in light mode),
-  added on mount and always removed on unmount. **The light theme is deliberately soft (Sep 2026)** — a cool-gray page
+  added on mount and always removed on unmount. **The dark theme is ASHY
+  grey, not near-black (Sep 2026)**: a slightly cool slate grey
+  (`oklch(L 0.008 255)`; page `#24272a`, cards/header/sidebar `#2e3134`,
+  muted/accent `0.37`). If `--card` changes, also update `DARK_CHROME` in
+  `lib/themeChrome.js` and the dark hex in `index.html`'s pre-React script.
+  **The light theme is deliberately soft (Sep 2026)** — a cool-gray page
   (`--background`), off-white cards (`--card`), never pure white, because the old
   white-on-white glared: change the tokens in `index.css`, not per-page colors, and put
   chrome (header, sidebar) on the card tone. Preference persists in
@@ -1650,7 +1682,12 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   doc-type picker, upload, shows verify status). **Delete a wrongly-uploaded
   document** (Sep 2026): `DELETE /api/teams/:id/players/:playerId/documents/:docId`
   (barangay_admin, own team) + a trash-icon button on each `pending` document
-  row. Blocked once the SK Federation has already ruled on it (`approved`/
+  row. **Each document row is colour-coded by verify status (Sep 2026)**:
+  a tinted row with a left border plus a badge (`VERIFY_ROW`/`VERIFY_BADGE`/
+  `VERIFY_LABEL` in `Documents.jsx`): amber "Awaiting review", green
+  "Approved", red "Rejected". Pending used to be a grey badge on a grey row.
+  The Review Queue's document header uses the same colours. Delete is
+  blocked once the SK Federation has already ruled on it (`approved`/
   `rejected` — the verdict is on record; ask the Super Admin to reopen the
   team) or once the team itself is verified and locked.
   **View a document (Sep 2026)**: an "eye" button on EVERY document row (not

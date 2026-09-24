@@ -176,6 +176,22 @@ const DOC_LABEL = {
   parental_consent: "Parental Consent",
 };
 
+// Which division a team entered — without it, a barangay's two Badminton
+// teams (boys + girls) looked identical in the queue (Sep 2026).
+const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under15: "Under 15", under30: "Under 30" };
+const DIVISION_BADGE = {
+  boys: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+  girls: "bg-pink-500/15 text-pink-700 dark:text-pink-300",
+};
+function DivisionBadge({ division }) {
+  if (!division || !DIVISION_LABEL[division]) return null;
+  return (
+    <Badge variant="secondary" className={cn("whitespace-nowrap", DIVISION_BADGE[division])}>
+      {DIVISION_LABEL[division]}
+    </Badge>
+  );
+}
+
 const STATUS_BADGE = {
   eligible: "bg-green-500/15 text-green-600 dark:text-green-400",
   flagged: "bg-red-500/15 text-red-600 dark:text-red-400",
@@ -200,10 +216,10 @@ function DocumentView({ doc, large }) {
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-xs font-medium text-muted-foreground">{DOC_LABEL[doc.docType] || doc.docType}</span>
         <Badge className={
-          doc.verifyStatus === "approved" ? "bg-green-500/15 text-green-600 dark:text-green-400"
-          : doc.verifyStatus === "rejected" ? "bg-red-500/15 text-red-600 dark:text-red-400"
-          : "bg-muted text-muted-foreground"
-        }>{doc.verifyStatus}</Badge>
+          doc.verifyStatus === "approved" ? "border border-green-500/40 bg-green-500/20 text-green-700 dark:text-green-300"
+          : doc.verifyStatus === "rejected" ? "border border-red-500/40 bg-red-500/20 text-red-700 dark:text-red-300"
+          : "border border-amber-500/40 bg-amber-500/20 text-amber-700 dark:text-amber-300"
+        }>{doc.verifyStatus === "pending" ? "Awaiting review" : doc.verifyStatus === "approved" ? "Approved" : doc.verifyStatus === "rejected" ? "Rejected" : doc.verifyStatus}</Badge>
       </div>
       <DocumentFrame fetchUrl={`/api/teams/documents/${doc._id}/file`} large={large} />
     </div>
@@ -639,7 +655,10 @@ export default function ReviewQueue() {
                     className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 hover:bg-accent/50 transition text-left"
                   >
                     <div>
-                      <p className="font-semibold">{t.teamName}</p>
+                      <p className="font-semibold flex items-center gap-2 flex-wrap">
+                        {t.teamName}
+                        <DivisionBadge division={t.division} />
+                      </p>
                       <p className="text-muted-foreground text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -712,6 +731,7 @@ export default function ReviewQueue() {
                       >
                         <p className="font-semibold flex items-center gap-2 flex-wrap">
                           {t.teamName}
+                          <DivisionBadge division={t.division} />
                           <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>Verified</Badge>
                         </p>
                         <p className="text-muted-foreground text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>

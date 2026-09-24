@@ -38,11 +38,21 @@ const ELIGIBILITY_BORDER = {
   needs_document: "border-l-amber-500",
 };
 
+// Verification status of an uploaded document, colour-coded (Sep 2026) —
+// "pending" used to be a grey badge on a grey row, readable in neither theme.
+// Amber = waiting for the SK Federation, green = approved, red = rejected; the
+// whole row picks up the same tint (VERIFY_ROW) so it reads at a glance.
 const VERIFY_BADGE = {
-  approved: "bg-green-500/15 text-green-600 dark:text-green-400",
-  rejected: "bg-red-500/15 text-red-600 dark:text-red-400",
-  pending: "bg-muted text-muted-foreground",
+  approved: "border border-green-500/40 bg-green-500/20 text-green-700 dark:text-green-300",
+  rejected: "border border-red-500/40 bg-red-500/20 text-red-700 dark:text-red-300",
+  pending: "border border-amber-500/40 bg-amber-500/20 text-amber-700 dark:text-amber-300",
 };
+const VERIFY_ROW = {
+  approved: "bg-green-500/10 border-l-green-500",
+  rejected: "bg-red-500/10 border-l-red-500",
+  pending: "bg-amber-500/10 border-l-amber-500",
+};
+const VERIFY_LABEL = { approved: "Approved", rejected: "Rejected", pending: "Awaiting review" };
 
 // Same treatment as the Super Admin's Review Queue — a colored, bordered
 // callout instead of plain muted text, so the reason a document is needed
@@ -78,7 +88,7 @@ function DocumentPreviewDialog({ p, doc, onClose }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 flex-wrap">
             {DOC_TYPES.find((t) => t.value === doc.docType)?.label || doc.docType}
-            <Badge className={VERIFY_BADGE[doc.verifyStatus]}>{doc.verifyStatus}</Badge>
+            <Badge className={VERIFY_BADGE[doc.verifyStatus]}>{VERIFY_LABEL[doc.verifyStatus] || doc.verifyStatus}</Badge>
           </DialogTitle>
         </DialogHeader>
         <DocumentFrame
@@ -242,7 +252,7 @@ export default function Documents() {
                   {p.documents.length > 0 && (
                     <div className="space-y-1">
                       {p.documents.map((d) => (
-                        <div key={d._id} className="flex items-center gap-2 rounded-md bg-muted px-2 py-1.5 text-xs">
+                        <div key={d._id} className={cn("flex items-center gap-2 rounded-md border-l-4 px-2 py-1.5 text-xs", VERIFY_ROW[d.verifyStatus] || "bg-muted")}>
                           {/* min-w-0 + truncate: Card clips overflow, so without this a long
                               label (e.g. "Parental Consent (15 and under)") on a narrow phone
                               pushed the row wider than the screen and the buttons below were
@@ -251,7 +261,7 @@ export default function Documents() {
                             {DOC_TYPES.find((t) => t.value === d.docType)?.label || d.docType}
                           </span>
                           <Badge className={cn(VERIFY_BADGE[d.verifyStatus], "shrink-0")}>
-                            {d.verifyStatus}
+                            {VERIFY_LABEL[d.verifyStatus] || d.verifyStatus}
                           </Badge>
                           <Button
                             size="icon-sm"

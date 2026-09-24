@@ -3286,3 +3286,14 @@ its filename and status, making "should I delete this and re-upload" a guess.
   device's dark setting, so every newly created account opened in dark mode on a
   dark-mode phone/PC. `getStoredTheme()` (`lib/theme.js`) and the pre-React script in
   `index.html` now both default to light; a saved choice still wins.
+- **The knockout size / team limit applies to every esport, not only Mobile Legends.**
+  Esports are always round-robin now: a `pre('validate')` hook on the Sport model forces
+  `round_robin` for `category: 'esports'`, so a newly added esport (e.g. Call of Duty
+  Mobile) or a game switched to the esports type gets the Top 8 / Top 16 choice and the
+  matching team limit automatically. `isRoundRobinSport()` (round-robin OR esports) is
+  used by `knockoutSizeOf()`, bracket generation and the knockout draw, so an esport
+  stored as double-elim before the hook still works. League Setup: the draw format is
+  locked to round-robin for a new esport; the API refuses double-elim for an esport and
+  refuses a type change that would switch the draw once this season has a bracket.
+  Checked without saving: a new esport validated as double-elim came out round-robin,
+  Top 16, 2 teams; a physical sport stayed double-elim, 1 team.

@@ -445,6 +445,18 @@ TWO formats, both ending in a single-elimination knockout.
   `teamsAllowedFor()` in `lib/sportRules.js` — unset = Top 16, the old default).
   Applies to any `round_robin` sport; every double-elim sport is 1 team per
   division. Why: Barangay Admins need to know how many teams to register.
+  - **Applies to EVERY esport, not just ML (Sep 2026).** Esports are always
+    round-robin: a `pre('validate')` hook on the Sport model forces
+    `tournamentFormat: 'round_robin'` whenever `category === 'esports'` (a new
+    esport, or a game switched to the esports type). `isRoundRobinSport()` in
+    `lib/sportRules.js` (round-robin format OR esports) is what
+    `knockoutSizeOf()`, `/generate` and the knockout draw check, so an esport
+    saved as double-elim before the hook still behaves right. `PATCH
+    /api/sports/:id` refuses a non-round-robin format for an esport (400) and a
+    type change that would switch the draw once this season has a bracket (409).
+    League Setup shows the knockout choice whenever the server sends a
+    `knockoutSize` (null = double-elim), and "Add a game" locks the draw format
+    to round-robin for esports.
   - Set on the game's Registration section in League Setup, saved through
     `PATCH /api/sports/:id/config` (`knockoutSize`, validated there — it was
     removed from the generic `PATCH /api/sports/:id` list). Switching to Top 8

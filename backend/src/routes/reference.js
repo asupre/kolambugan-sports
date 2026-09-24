@@ -10,7 +10,7 @@ const { putFile, sendFile, deleteFile } = require('../config/gridfs');
 const Tournament = require('../models/Tournament');
 const User = require('../models/User');
 const { rescreenSeason } = require('../services/prescreen');
-const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, knockoutSizeOf, teamsAllowedFor } = require('../lib/sportRules');
+const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, teamsAllowedFor } = require('../lib/sportRules');
 
 // League Setup needs to know a sport's BUILT-IN scoring mode: which fields matter (point
 // buttons, periods, stats…) depends on it, and a blank "Scoring" means "use the default".
@@ -108,8 +108,8 @@ router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async
     // new one-team limit), and nothing changes once this season's bracket exists.
     if (req.body.knockoutSize !== undefined && req.body.knockoutSize !== null) {
       const ko = Number(req.body.knockoutSize);
-      if (sport.tournamentFormat !== 'round_robin') {
-        return res.status(400).json({ message: `${sport.name} isn't a round-robin game — its knockout is always a Top 8.` });
+      if (!isRoundRobinSport(sport)) {
+        return res.status(400).json({ message: `${sport.name} isn't an esport or round-robin game — its knockout is always a Top 8.` });
       }
       if (!KNOCKOUT_SIZES.includes(ko)) {
         return res.status(400).json({ message: 'Knockout size must be Top 8 or Top 16.' });
@@ -328,7 +328,8 @@ router.post('/sports', authenticate, authorize('super_admin'), async (req, res) 
       return res.status(409).json({ message: `"${name}" already exists.` });
     }
     const category = ['esports', 'board'].includes(req.body.category) ? req.body.category : 'physical';
-    const tournamentFormat = req.body.tournamentFormat === 'round_robin'
+    // Every esport is round-robin (the Sport model enforces it too).
+    const tournamentFormat = category === 'esports' || req.body.tournamentFormat === 'round_robin'
       ? 'round_robin' : 'double_elimination';
 
     const scoring = scoringFromBody(req.body);
@@ -360,6 +361,17 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
     if (req.body.category) {
       if (!['physical', 'esports', 'board'].includes(req.body.category)) {
         return res.status(400).json({ message: 'Type must be sports, esports or a board game.' });
+      }
+      // Switching to esports also switches the draw to round-robin (Sport model hook).
+      // That can't happen under a bracket this season has already generated.
+      const willBeRoundRobin = req.body.category === 'esports' || sport.tournamentFormat === 'round_robin';
+      if (willBeRoundRobin !== isRoundRobinSport(sport)) {
+        const season = await getCurrentSeason();
+        if (season && await Tournament.exists({ sport: sport._id, season: season._id })) {
+          return res.status(409).json({
+            message: `${sport.name} already has a bracket this season, and changing its type would change its draw format. Delete the tournament first.`,
+          });
+        }
       }
       sport.category = req.body.category;
     }
@@ -393,7 +405,12 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
         return res.status(400).json({ message: 'scoreSheet must be a list.' });
       }
     }
-    if (req.body.tournamentFormat) sport.tournamentFormat = req.body.tournamentFormat;
+    if (req.body.tournamentFormat) {
+      if (sport.category === 'esports' && req.body.tournamentFormat !== 'round_robin') {
+        return res.status(400).json({ message: 'Esports always use round-robin groups and a Top 8 / Top 16 knockout.' });
+      }
+      sport.tournamentFormat = req.body.tournamentFormat;
+    }
 
     const scoring = scoringFromBody(req.body);
     if (scoring.error) return res.status(400).json({ message: scoring.error });

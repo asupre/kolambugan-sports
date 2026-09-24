@@ -98,4 +98,12 @@ const sportSchema = new mongoose.Schema(
   }
 );
 
+// Every esport runs the round-robin draw (Sep 2026, Super Admin): 8 groups, then a
+// Top 8 / Top 16 knockout whose size also sets how many teams a barangay may enter.
+// Enforced here so creating an esport or switching a game's type to esports can't
+// leave it on double-elimination.
+sportSchema.pre('validate', function () {
+  if (this.category === 'esports') this.tournamentFormat = 'round_robin';
+});
+
 module.exports = mongoose.model('Sport', sportSchema);

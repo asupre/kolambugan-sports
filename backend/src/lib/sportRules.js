@@ -150,8 +150,14 @@ function rulesFor(sport) {
 // Top 8 = one team per barangay, Top 16 = up to two. Unset = Top 16, the old default.
 // Double-elimination sports always end in a Top 8 and aren't configured here (null).
 const KNOCKOUT_SIZES = [8, 16];
+// Round-robin draw: every esport (always — see the hook on the Sport model), plus any
+// other game the Super Admin set to round-robin. Also true for an esport saved before
+// that hook existed, so reads don't depend on the stored format being up to date.
+function isRoundRobinSport(sport) {
+  return sport?.tournamentFormat === 'round_robin' || sport?.category === 'esports';
+}
 function knockoutSizeOf(sport) {
-  if (sport?.tournamentFormat !== 'round_robin') return null;
+  if (!isRoundRobinSport(sport)) return null;
   return KNOCKOUT_SIZES.includes(sport.knockoutSize) ? sport.knockoutSize : 16;
 }
 
@@ -166,5 +172,5 @@ function teamsAllowedFor(sport) {
 module.exports = {
   SCORING_MODE, PERIOD_LABEL, PERIOD_OPTIONS, POINT_VALUES, STAT_CATALOG, SHEET_BY_CATEGORY,
   DEFAULT_SHEET, LEGACY_STAT_COLUMNS, rolesFor, sheetOptionsFor, rulesFor,
-  KNOCKOUT_SIZES, knockoutSizeOf, teamsAllowedFor,
+  KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, teamsAllowedFor,
 };

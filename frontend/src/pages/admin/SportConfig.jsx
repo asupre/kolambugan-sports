@@ -90,7 +90,7 @@ function RulesByType() {
     ["Sports", "Basketball, volleyball, badminton, pickleball…",
       "Scored by team while the game runs (basketball +1 / +2 / +3, the others +1), in quarters or sets — the higher total wins. Nothing is credited to a player live. After the match the organizer fills in the score sheet for each player."],
     ["Esports", "Mobile Legends, Call of Duty Mobile…",
-      "Played as a best-of series; the organizer taps who won each game. After the match the score sheet asks for the role each player played (Carry, Support…) and, if you tick them, kills, deaths and assists."],
+      "Round-robin groups, then a Top 8 or Top 16 knockout you pick under Registration (Top 8 = 1 team per barangay, Top 16 = up to 2). Played as a best-of series; the organizer taps who won each game. After the match the score sheet asks for the role each player played (Carry, Support…) and, if you tick them, kills, deaths and assists."],
     ["Board games", "Chess…",
       "One player per side, played as a best-of series; the organizer taps who won each game. There is no player form unless you tick a column on its score sheet."],
   ];
@@ -115,9 +115,10 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
   const savedDivisions = sport.divisions?.length ? sport.divisions : ["open"];
   const [divisions, setDivisions] = useState(savedDivisions);
   const [format, setFormat] = useState(sport.entryFormat || "team");
-  // Round-robin games (Mobile Legends) pick their knockout here, BEFORE registration:
-  // it decides how many teams each barangay may enter (Top 8 = 1, Top 16 = 2).
-  const isRoundRobin = sport.tournamentFormat === "round_robin";
+  // Every esport (and any round-robin game) picks its knockout here, BEFORE registration:
+  // it decides how many teams each barangay may enter (Top 8 = 1, Top 16 = 2). The server
+  // sends knockoutSize only for those games (null for double-elimination).
+  const isRoundRobin = sport.knockoutSize != null;
   const savedKo = sport.knockoutSize || 16;
   const [koSize, setKoSize] = useState(savedKo);
   useEffect(() => { setKoSize(sport.knockoutSize || 16); }, [sport.knockoutSize]);
@@ -482,7 +483,9 @@ function AddSport({ onAdded, onCancel, onError }) {
           </div>
           <div className="space-y-1.5">
             <Label>Draw format</Label>
-            <Select value={tournamentFormat} onValueChange={setTournamentFormat}>
+            {/* Esports are always round-robin + a Top 8 / Top 16 knockout. */}
+            <Select value={category === "esports" ? "round_robin" : tournamentFormat}
+              onValueChange={setTournamentFormat} disabled={category === "esports"}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="double_elimination">Double-elimination groups</SelectItem>

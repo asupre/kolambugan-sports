@@ -4,7 +4,7 @@ const Match = require('../models/Match');
 const Team = require('../models/Team');
 const Sport = require('../models/Sport');
 const Barangay = require('../models/Barangay');
-const { knockoutSizeOf } = require('../lib/sportRules');
+const { knockoutSizeOf, isRoundRobinSport } = require('../lib/sportRules');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 const { parseManila } = require('../config/time');
@@ -236,7 +236,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
 
             // Format now comes from the sport's own setting rather than its name, so a
     // new sport can use either draw.
-    const isRoundRobin = sport.tournamentFormat === 'round_robin';
+    const isRoundRobin = isRoundRobinSport(sport);   // every esport, plus any sport set to round-robin
 
     // ---- PHYSICAL SPORTS: 4 groups, double-elimination within each group ----
     if (!isRoundRobin) {
@@ -738,7 +738,7 @@ function shuffle(arr) {
 // Physical sports = double-elimination.
 router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, res) => {
   try {
-        const tournament = await Tournament.findById(req.params.id).populate('sport', 'name tournamentFormat');
+        const tournament = await Tournament.findById(req.params.id).populate('sport', 'name tournamentFormat category');
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
 
     const existing = await Match.findOne({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } });
@@ -756,7 +756,7 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
 
         // By format, not by name — a new esport with a round-robin draw needs the
     // same single-elimination knockout that Mobile Legends gets.
-    const isML = tournament.sport?.tournamentFormat === 'round_robin';
+    const isML = isRoundRobinSport(tournament.sport);
 
     const shuffle = (arr) => {
       const a = [...arr];

@@ -862,13 +862,28 @@ so a bug in one route cannot expose the other.
   revealing a recovery code) used to overflow with nothing to scroll it into
   view, which is exactly why a just-generated code went unseen; fixed once,
   applies to every `Sheet` use, not just this panel.
-- **Profile panel doesn't auto-focus a field (Sep 2026, the real mobile lag).**
-  Radix focuses the first focusable element when a Sheet opens. With no profile
-  photo (most Barangay Admin / Organizer accounts) that was "Current password",
-  so the phone keyboard popped open mid-slide and resized the viewport. With a
-  photo the "Remove" button got focus instead, which is why Super Admins didn't
-  see the lag. `onOpenAutoFocus` now prevents that and focuses the panel itself.
-  Any new Sheet/Dialog whose first control is a text input needs the same fix.
+- **Profile panel slide lag — MEASURED and fixed (Sep 2026, took three passes).**
+  Measured on a production build with a mock API, headless Edge at 390px and 6x
+  CPU throttle, recording long tasks + frame gaps while tapping Profile (scripts
+  were in the session scratchpad; recreate the same way if it regresses). Three
+  causes, all main-thread work on the frame the slide starts:
+  1. **Auto-focus.** Radix focuses inside the Sheet on mount; any `focus()` forced
+     a synchronous layout (~185ms). With no photo the target was "Current
+     password", which also popped the phone keyboard. `onOpenAutoFocus` now
+     cancels it and focuses the panel itself 260ms later (after the slide).
+  2. **Modal side effects.** A modal Radix dialog locks scroll, aria-hides the
+     page and sets `pointer-events: none` on `<body>` right after mount; each
+     forces a whole-page style recalc (~150-190ms follow-up task). The profile
+     Sheet is now `modal={false}` with `SheetContent lightBackdrop` (a plain
+     backdrop wrapped in `SheetPrimitive.Close`, so a tap closes it; `touch-none`),
+     and the Sheet body has `overscroll-contain`, so a drag on the panel doesn't
+     scroll the page. Escape still closes it. Verified: backdrop tap closes, page
+     doesn't scroll on drag, focus lands inside.
+  3. (earlier) the profile fetch is deferred 220ms, see the next bullet.
+  Result: blocking at open ~250ms → ~60ms (single task), worst frame gap
+  234-300ms → 83-100ms, same for all three roles (Super Admin was 550-1000ms).
+  `lightBackdrop` is opt-in, and every other Dialog/Sheet is still modal. If
+  another dialog feels laggy on phones, it's likely the same modal cost.
 - **Mobile open-lag fix (Sep 2026).** Opening the panel used to fire its `GET /api/auth/profile`
   fetch (which flips `AvatarUpload`'s `hasPhoto` and swaps in a new avatar image) at the exact
   instant the Sheet's ~200ms slide-in transition started — on lower-power phones that fetch/

@@ -3316,3 +3316,18 @@ its filename and status, making "should I delete this and re-upload" a guess.
   `#393a41`, hover `#43444b`, text `#dbdee1` / `#b5bac1`. The first ashy pass
   (`#24272a` / `#2e3134`) still read as dark mode. Brand blue unchanged; address-bar
   colour updated to `#393a41`.
+- **Profile panel slide lag, measured and fixed properly.** The earlier fix (no
+  auto-focus on "Current password") only removed the keyboard popup; it still felt
+  laggy. Measured on a production build with a mock API in headless Edge (390px, 6x
+  CPU throttle), recording long tasks and frame gaps while tapping Profile: opening
+  blocked the main thread ~95ms (panel mount + Radix focusing the panel, a forced
+  layout of ~185ms per open before that) and then another ~150-190ms (Radix's MODAL
+  setup: scroll lock, aria-hiding the page, `pointer-events: none` on `<body>`, each a
+  whole-page style recalc), so the slide skipped its first frames. Fix: the profile
+  Sheet is now non-modal with a plain backdrop that closes on tap (`lightBackdrop` on
+  `SheetContent`), the Sheet body has `overscroll-contain` so dragging the panel
+  doesn't scroll the page, and focus moves into the panel after the slide finishes.
+  Result: ~60ms blocking at open (from ~250ms), worst frame gap 83-100ms (from
+  234-300ms), the same for Barangay Admin, Organizer and Super Admin (Super Admin was
+  550-1000ms). Verified: backdrop tap closes, Escape closes, page doesn't scroll on a
+  drag, focus lands in the panel. Other dialogs are unchanged (still modal).

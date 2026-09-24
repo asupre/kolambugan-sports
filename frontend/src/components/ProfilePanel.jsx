@@ -316,14 +316,31 @@ export default function ProfilePanel({ open, onOpenChange }) {
   }, [open]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      {/* Don't auto-focus the first field on open (Sep 2026). Without a profile
-          photo (most Barangay Admin / Organizer accounts) the first focusable
-          element is "Current password", so Radix focused it and a phone popped
-          its keyboard mid-slide — the viewport resize is what made opening the
-          panel feel laggy. Focus goes to the panel itself instead, which keeps
-          keyboard/screen-reader users inside it. */}
-      <SheetContent onOpenAutoFocus={(e) => { e.preventDefault(); e.currentTarget?.focus?.({ preventScroll: true }); }}>
+    // NON-MODAL on purpose (Sep 2026, measured on a phone-sized screen at 6x CPU
+    // throttle in headless Edge). A modal Radix dialog, right as it opens, locks page
+    // scroll, aria-hides the page and sets `pointer-events: none` on <body>; each
+    // forces a whole-page style recalc, which blocked the main thread ~150-190ms
+    // straight after mount, so the slide skipped its first frames ("laggy"). Non-modal
+    // + the plain `lightBackdrop` (tap closes; touch-none) + `overscroll-contain` on
+    // the panel body give the same feel: open-time blocking ~250ms -> ~60ms, worst
+    // frame gap 234-300ms -> 83-100ms, for all three roles.
+    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
+      {/* No focus at the moment the panel opens (Sep 2026, measured). Radix
+          focuses something inside on mount, and ANY focus() there forces a full
+          synchronous layout on the very frame the slide starts: ~185ms at 6x CPU
+          throttle. Radix's default target was also "Current password" for
+          accounts without a photo, which popped the phone keyboard mid-slide.
+          So: cancel it, and focus the panel itself once the 200ms slide is done
+          (keyboard / screen-reader users still land inside it). */}
+      <SheetContent lightBackdrop aria-modal="true"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          const panel = e.currentTarget;
+          setTimeout(() => {
+            if (panel?.isConnected && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+          }, 260);
+        }}
+      >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2"><UserRound className="size-4" /> Profile</SheetTitle>
           <SheetDescription>Manage your sign-in details.</SheetDescription>

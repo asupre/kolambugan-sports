@@ -50,11 +50,27 @@ function SheetContent({
   className,
   children,
   showCloseButton = true,
+  lightBackdrop = false,
   ...props
 }) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {lightBackdrop ? (
+        // A plain backdrop for a NON-MODAL sheet (see ProfilePanel): Radix only renders
+        // its Overlay for modal dialogs. Tapping it closes the sheet (a Close, so it
+        // doesn't depend on Radix's outside-click detection, which on touch waits for a
+        // synthesized click), and touch-none stops a drag on it from scrolling the page.
+        <SheetPrimitive.Close asChild>
+          <div
+            data-slot="sheet-overlay"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="fixed inset-0 z-50 touch-none bg-black/20 animate-in fade-in-0 duration-200"
+          />
+        </SheetPrimitive.Close>
+      ) : (
+        <SheetOverlay />
+      )}
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
@@ -67,7 +83,7 @@ function SheetContent({
             itself, not to this scrolling body (a taller-than-viewport panel, e.g.
             after revealing a recovery code, used to push content below the fold
             with no way to scroll to it). */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 flex flex-col gap-4">
           {children}
         </div>
         {showCloseButton && (

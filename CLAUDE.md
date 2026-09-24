@@ -1289,11 +1289,11 @@ so a bug in one route cannot expose the other.
   added on mount and always removed on unmount. **The dark theme is Discord-style
   "ASH", not near-black (Sep 2026, Super Admin's reference)**: page
   `#323339`, raised surfaces (cards, header, sidebar, popovers) `#393a41`,
-  hover/muted `#43444b`, text `#dbdee1`, secondary text `#b5bac1`, borders
+  hover/muted `#43444b`, text `#f2f3f5`, secondary text `#c7ccd3`, borders
   white 10%; brand blue `--primary` unchanged. (A first "ashy" pass at
   `#24272a`/`#2e3134` still read as dark mode.) If `--card` changes, also
   update `DARK_CHROME` in `lib/themeChrome.js` and the dark hex in
-  `index.html`'s pre-React script.
+  `index.html`'s pre-React script. **Text brightened (Sep 24 2026)**: the first `#dbdee1`/`#b5bac1` text read as blurry/ashy on the grey; now `#f2f3f5` / `#c7ccd3` (hover text white), plus grayscale font smoothing under `.dark` — surfaces unchanged.
   **The light theme is deliberately soft (Sep 2026)** — a cool-gray page
   (`--background`), off-white cards (`--card`), never pure white, because the old
   white-on-white glared: change the tokens in `index.css`, not per-page colors, and put

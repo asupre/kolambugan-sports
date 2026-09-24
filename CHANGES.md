@@ -3392,3 +3392,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
   under "Waiting for the barangay to resubmit"; My Teams shows "Player rejected: fix and
   resubmit", and the roster editor explains it. Gate tested with 9 cases (allowed only
   for a rejected, not-yet-resubmitted, current-season team during verification).
+- **Dark mode text made clearer (Sep 24 2026).** Admin dark-mode text read as blurry /
+  ashy against the grey "Ash" surfaces. Only the text tokens changed in `index.css`
+  (`.dark`): main text `#dbdee1` → `#f2f3f5`, secondary text `#b5bac1` → `#c7ccd3`,
+  hover text → white; plus grayscale font smoothing under `.dark` (crisper light-on-dark
+  text on macOS). Backgrounds, borders and the brand blue are unchanged; the Public
+  Viewer is unaffected.

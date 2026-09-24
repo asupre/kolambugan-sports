@@ -118,25 +118,26 @@
 /* Dark mode = Discord-style "ASH" (Sep 2026, Super Admin: "ash colour, not dark
    mode, like Discord's Ash theme"). Mid-grey with a faint cool tint, not black:
    page #323339, raised surfaces (cards, header, sidebar, popovers) #393a41,
-   hover/muted #43444b, text #dbdee1, secondary text #b5bac1. The brand blue
+   hover/muted #43444b, text #f2f3f5, secondary text #c7ccd3 (brightened Sep 2026 — the
+   first values read as blurry/ashy). The brand blue
    (--primary) is unchanged. If you change --card, also update DARK_CHROME in
    lib/themeChrome.js and the dark hex in index.html's pre-React script. */
 .dark {
   color-scheme: dark;
   --background: #323339;
-  --foreground: #dbdee1;
+  --foreground: #f2f3f5;
   --card: #393a41;
-  --card-foreground: #dbdee1;
+  --card-foreground: #f2f3f5;
   --popover: #393a41;
-  --popover-foreground: #dbdee1;
+  --popover-foreground: #f2f3f5;
   --primary: oklch(0.62 0.24 258);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: #43444b;
-  --secondary-foreground: #dbdee1;
+  --secondary-foreground: #f2f3f5;
   --muted: #43444b;
-  --muted-foreground: #b5bac1;
+  --muted-foreground: #c7ccd3;
   --accent: #43444b;
-  --accent-foreground: #f2f3f5;
+  --accent-foreground: #ffffff;
   --destructive: oklch(0.704 0.191 22.216);
   --border: rgb(255 255 255 / 10%);
   --input: rgb(255 255 255 / 14%);
@@ -147,11 +148,11 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --sidebar: #393a41;
-  --sidebar-foreground: #dbdee1;
+  --sidebar-foreground: #f2f3f5;
   --sidebar-primary: oklch(0.62 0.24 258);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: #43444b;
-  --sidebar-accent-foreground: #f2f3f5;
+  --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgb(255 255 255 / 10%);
   --sidebar-ring: oklch(0.62 0.24 258);
 }
@@ -163,6 +164,12 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', system-ui, sans-serif;
+  }
+  /* Light text on a dark surface looks soft/blurry with subpixel smoothing
+     (macOS especially) — grayscale antialiasing keeps it crisp. */
+  .dark body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 

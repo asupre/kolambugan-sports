@@ -537,7 +537,11 @@ function canonicalPlayerKey(h) {
   if (['middlename', 'middle', 'mname', 'mi'].includes(k)) return 'middleName';
   if (['lastname', 'last', 'surname', 'familyname', 'lname'].includes(k)) return 'lastName';
   if (['birthdate', 'birthday', 'dob', 'dateofbirth'].includes(k)) return 'birthdate';
-  if (['address', 'addr', 'homeaddress'].includes(k)) return 'address';
+  if (['address', 'addr', 'homeaddress', 'completeaddress', 'residenceaddress', 'residence'].includes(k)) return 'address';
+  // A separate barangay column — never stored (the address is always the team's
+  // barangay), but read as evidence by the cross-barangay check on import (Sep 2026:
+  // a roster whose barangay sat under "Barangay" slipped through the address check).
+  if (['barangay', 'brgy', 'homebarangay', 'barangayname', 'barangayofresidence', 'brgyname'].includes(k)) return 'barangay';
   if (['jerseynumber', 'jersey', 'jerseyno', 'number', 'no', 'jerseynum'].includes(k)) return 'jerseyNumber';
   return null;
 }
@@ -628,7 +632,7 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
       }
       const crossReason = await crossBarangayBlock(team, teamBrgy,
         { firstName: rec.firstName, middleName: rec.middleName, lastName: rec.lastName, birthdate: d },
-        { address: rec.address, barangays: allBarangays });
+        { address: [rec.address, rec.barangay].filter(Boolean).join(', '), barangays: allBarangays });
       if (crossReason) {
         skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName}: ${crossReason}.` });
         continue;

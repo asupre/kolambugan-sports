@@ -3374,3 +3374,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
   allowed on Inudaran) and through the real import route on a throwaway team that
   was deleted afterwards. Gap: a minor with no address given has no home-barangay
   record anywhere.
+- **Follow-up: the import also reads a "Barangay" column.** The cross-barangay check only
+  looked at a column headed "Address"; a roster with the barangay under "Barangay" /
+  "Brgy" / "Home Barangay" slipped through. Tested through the real import route on a
+  throwaway team (deleted afterwards): "Inudaran" and "Brgy. Inudaran" rows skipped,
+  "Tabigue" added. Players ALREADY imported before the fix stay on the roster; the
+  check only stops new entries.

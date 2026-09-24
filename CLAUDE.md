@@ -211,7 +211,8 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   residency was only screened on submit, and never for minors. `crossBarangayBlock()`
   in `routes/team.js`, for an UNCHECKED team's barangay only, refuses on add
   (409), CSV import (row skipped + reason) and "Correct this player" (409) when
-  (1) the CSV row's address names a different barangay (`barangayNamedIn()`:
+  (1) the CSV row's address OR barangay column ("Barangay", "Brgy", "Home Barangay"…,
+  read as evidence only, never stored) names a different barangay (`barangayNamedIn()`:
   accent/punctuation-tolerant, "Sto."/"Sta." = Santo/Santa, longest name wins so
   "Small Banisilon" isn't read as "Banisilon"), or (2) an adult's
   `decidePlayer()` result is `cross_barangay` (on the list under another

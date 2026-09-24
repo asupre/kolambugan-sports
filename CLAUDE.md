@@ -824,6 +824,13 @@ so a bug in one route cannot expose the other.
 - Passwords are **randomly generated per account** — never a predictable
   pattern. Usernames may be the barangay/sport name (usernames are not secrets).
 - **Force password change on first login** (`mustChangePassword`).
+- **Every password field has a show/hide eye button (Sep 2026)**:
+  `components/PasswordInput.jsx` (`PasswordInput`, same look as the login
+  page's own eye button; the eye is out of the tab order) plus
+  `PasswordMatchHint`, a live "Passwords match" / "Passwords don't match
+  yet" line under each confirm field. Used on the first-login Change
+  Password page, the profile panel (change password + recovery code) and
+  forgot-password. Use `PasswordInput` for any new password field.
 - **Delete is guarded**: refuses if the account has entered any match result
   (would orphan the `enteredBy` audit trail) and refuses to delete the last
   super admin.

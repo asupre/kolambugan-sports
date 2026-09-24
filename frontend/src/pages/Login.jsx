@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
+import { PasswordInput, PasswordMatchHint } from "../components/PasswordInput";
 import { Label } from "../components/ui/label";
 
 // Super Admin password reset via a saved recovery code — see
@@ -93,13 +94,14 @@ function ForgotPasswordDialog({ open, onOpenChange }) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="fp-new">New password</Label>
-              <Input id="fp-new" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+              <PasswordInput id="fp-new" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="At least 8 characters" autoComplete="new-password" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="fp-confirm">Confirm new password</Label>
-              <Input id="fp-confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
+              <PasswordInput id="fp-confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)}
                 autoComplete="new-password" />
+              <PasswordMatchHint password={newPassword} confirm={confirm} />
             </div>
 
             {error && (

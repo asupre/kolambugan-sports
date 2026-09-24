@@ -13,7 +13,7 @@ import {
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { PasswordInput, PasswordMatchHint } from "./PasswordInput";
 import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { cn } from "../lib/utils";
@@ -73,19 +73,20 @@ function ChangePasswordSection() {
       <h3 className="text-sm font-medium">Change password</h3>
       <div className="space-y-1.5">
         <Label htmlFor="pp-current">Current password</Label>
-        <Input id="pp-current" type="password" value={currentPassword}
+        <PasswordInput id="pp-current" value={currentPassword}
           onChange={(e) => { setCurrentPassword(e.target.value); setOk(false); }} autoComplete="current-password" />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="pp-new">New password</Label>
-        <Input id="pp-new" type="password" value={newPassword}
+        <PasswordInput id="pp-new" value={newPassword}
           onChange={(e) => { setNewPassword(e.target.value); setOk(false); }}
           placeholder="At least 8 characters" autoComplete="new-password" />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="pp-confirm">Confirm new password</Label>
-        <Input id="pp-confirm" type="password" value={confirm}
+        <PasswordInput id="pp-confirm" value={confirm}
           onChange={(e) => { setConfirm(e.target.value); setOk(false); }} autoComplete="new-password" />
+        <PasswordMatchHint password={newPassword} confirm={confirm} />
       </div>
       {error && (
         <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
@@ -175,7 +176,7 @@ function RecoverySection({ profile, onGenerated }) {
       </p>
       <div className="space-y-1.5">
         <Label htmlFor="pp-recovery-pw">Current password</Label>
-        <Input id="pp-recovery-pw" type="password" value={currentPassword}
+        <PasswordInput id="pp-recovery-pw" value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" />
       </div>
       {error && (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import InstructionModal from "../components/InstructionModal";
+import { PasswordInput, PasswordMatchHint } from "../components/PasswordInput";
 
 export default function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -77,38 +78,36 @@ export default function ChangePassword() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-slate-700 text-sm font-medium mb-1.5">Current password</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Your temporary password"
-                className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                className="h-auto rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition md:text-sm"
                 autoComplete="current-password"
               />
             </div>
 
             <div>
               <label className="block text-slate-700 text-sm font-medium mb-1.5">New password</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="At least 8 characters"
-                className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                className="h-auto rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition md:text-sm"
                 autoComplete="new-password"
               />
             </div>
 
             <div>
               <label className="block text-slate-700 text-sm font-medium mb-1.5">Confirm new password</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Re-enter your new password"
-                className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                className="h-auto rounded-lg border border-slate-300 bg-white text-slate-900 px-3 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition md:text-sm"
                 autoComplete="new-password"
               />
+              <div className="mt-1.5"><PasswordMatchHint password={newPassword} confirm={confirm} /></div>
             </div>
 
             {error && (

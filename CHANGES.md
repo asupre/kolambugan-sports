@@ -3346,3 +3346,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - **Residency documents were served `public, max-age=86400`.** "public" allows shared
   caches (the hosting layer in front of the API) to keep a copy of an ID or birth
   certificate. Both document routes now send `private, no-store`.
+- **Show/hide (eye) button on every password field, plus a "passwords match" hint.**
+  New accounts must change their temporary password on first login, and people couldn't
+  see what they'd typed. New shared `components/PasswordInput.jsx` (the login page's
+  eye button, made reusable) is used on the first-login Change Password page, the
+  profile panel (change password, recovery code) and forgot-password. A live
+  "Passwords match" / "Passwords don't match yet" line sits under each confirm field.
+  Checked at 390px: tapping the eye shows the text, and the hint turns red, then green.

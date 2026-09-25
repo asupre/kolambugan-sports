@@ -9,13 +9,13 @@ import Reveal from "../../components/Reveal";
 
 function Step({ n, title, children }) {
   return (
-    <div className="flex gap-4 px-5 py-4 border-b border-[#1C2430] last:border-0">
+    <div className="flex gap-4 px-4 sm:px-5 py-4 border-b border-[#1C2430] last:border-0">
       <div className="w-7 h-7 rounded-full bg-[#1C2430] text-[#F5A524] text-[13px] font-semibold flex items-center justify-center shrink-0">
         {n}
       </div>
       <div className="min-w-0">
-        <h3 className="text-slate-100 text-[15px] font-medium mb-1">{title}</h3>
-        <p className="text-slate-400 text-[13px] leading-relaxed">{children}</p>
+        <h3 className="text-slate-100 text-[16px] font-semibold mb-1">{title}</h3>
+        <p className="text-slate-400 text-[15px] leading-relaxed">{children}</p>
       </div>
     </div>
   );
@@ -34,8 +34,8 @@ export default function About() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-2xl font-semibold tracking-tight mb-1">About</h1>
-      <p className="text-slate-500 text-sm mb-6">
+      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-1">About</h1>
+      <p className="text-slate-400 text-[15px] mb-6">
         The Inter-Barangay Sports League and how this site works
       </p>
 
@@ -104,10 +104,10 @@ export default function About() {
             ["Champions", "/champions", "Past winners by year and sport."],
           ].map(([label, to, desc]) => (
             <div key={to} className="flex gap-3">
-              <Link to={to} className="text-[#F5A524] text-[13px] font-medium w-20 shrink-0 hover:underline">
+              <Link to={to} className="text-[#F5A524] text-[15px] font-medium w-24 shrink-0 hover:underline">
                 {label}
               </Link>
-              <span className="text-slate-500 text-[13px]">{desc}</span>
+              <span className="text-slate-400 text-[15px]">{desc}</span>
             </div>
           ))}
         </div>
@@ -117,22 +117,22 @@ export default function About() {
       {/* SAMPLE COPY — replace before deployment. */}
       <Reveal delay={0.05}>
       <Panel title="Organised by">
-        <div className="px-5 py-4 space-y-3">
+        <div className="px-4 sm:px-5 py-4 space-y-3">
           <div>
-            <h3 className="text-slate-100 text-[14px] font-medium">Sangguniang Kabataan Federation of Kolambugan</h3>
-            <p className="text-slate-500 text-[13px] mt-0.5">
+            <h3 className="text-slate-100 text-[16px] font-medium">Sangguniang Kabataan Federation of Kolambugan</h3>
+            <p className="text-slate-400 text-[15px] mt-0.5">
               Runs the league, verifies residency, and manages the season.
             </p>
           </div>
           <div>
-            <h3 className="text-slate-100 text-[14px] font-medium">Local Youth Development Office</h3>
-            <p className="text-slate-500 text-[13px] mt-0.5">
+            <h3 className="text-slate-100 text-[16px] font-medium">Local Youth Development Office</h3>
+            <p className="text-slate-400 text-[15px] mt-0.5">
               Supports the league and provides the municipal resident records used
               for verification.
             </p>
           </div>
           <div className="pt-3 border-t border-[#1C2430]">
-            <p className="text-slate-500 text-[13px] leading-relaxed">
+            <p className="text-slate-500 text-[15px] leading-relaxed">
               This system was developed as an undergraduate thesis at the Lanao
               School of Science and Technology, Inc.
             </p>

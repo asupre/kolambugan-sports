@@ -143,7 +143,7 @@ export default function PublicLayout() {
                 weight, the nav sits back. Each link gets its own animated
                 underline (grows in from the left on hover, eased) instead of
                 an instant color/border flip. Active state starts fully grown. */}
-            <nav className="order-last hidden basis-full gap-6 text-[13px] font-medium sm:flex lg:order-none lg:mx-auto lg:basis-auto">
+            <nav className="order-last hidden basis-full gap-6 text-[15px] font-medium sm:flex lg:order-none lg:mx-auto lg:basis-auto">
               {NAV.map((n) => (
                 <NavLink key={n.to} to={n.to} end={n.end} className="group relative py-3.5 whitespace-nowrap">
                   {({ isActive }) => (
@@ -168,12 +168,12 @@ export default function PublicLayout() {
 
             <div className="ml-auto flex items-center gap-2 shrink-0">
               {liveNow > 0 && (
-                <span className="flex items-center gap-1.5 bg-red-500/15 text-red-400 text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap">
+                <span className="flex items-center gap-1.5 bg-red-500/15 text-red-400 text-[12px] font-semibold px-2 py-1 rounded whitespace-nowrap">
                   <LiveDot /> {liveNow} LIVE
                 </span>
               )}
               {meta?.season?.name && (
-                <span className="text-[#F5A524] text-[10px] sm:text-xs font-bold tracking-wide bg-[#F5A524]/15 sm:bg-transparent sm:border sm:border-[#F5A524]/40 px-2 py-1 sm:px-4 sm:py-2 rounded sm:rounded-full truncate max-w-[96px] sm:max-w-[220px]">
+                <span className="text-[#F5A524] text-[10px] sm:text-[13px] font-bold tracking-wide bg-[#F5A524]/15 sm:bg-transparent sm:border sm:border-[#F5A524]/40 px-2 py-1 sm:px-4 sm:py-2 rounded sm:rounded-full truncate max-w-[120px] sm:max-w-[220px]">
                   {meta.season.name.toUpperCase()}
                 </span>
               )}
@@ -185,9 +185,9 @@ export default function PublicLayout() {
                     <nav className="flex sm:hidden [&>a]:flex-1 [&>a]:min-w-0">
             {NAV.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} className={linkClass}>
-                <span className="flex flex-col items-center gap-1 py-2 w-full">
-                  <Icon name={n.icon} className="w-[22px] h-[22px]" />
-                  <span className="text-[9px] leading-none truncate max-w-full">{n.short || n.label}</span>
+                <span className="flex flex-col items-center gap-1 pt-2 pb-2.5 w-full">
+                  <Icon name={n.icon} className="w-6 h-6" />
+                  <span className="text-[10px] font-medium tracking-tight leading-none truncate max-w-full">{n.short || n.label}</span>
                 </span>
               </NavLink>
             ))}
@@ -209,34 +209,34 @@ export default function PublicLayout() {
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-10 sm:py-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-6">
             <div className="text-center sm:text-left">
-              <h3 className="text-slate-100 text-sm sm:text-xs font-semibold mb-3">The League</h3>
-              <p className="text-slate-400 sm:text-slate-500 text-[13px] sm:text-[11px] leading-relaxed">
+              <h3 className="text-slate-100 text-[15px] sm:text-sm font-semibold mb-3">The League</h3>
+              <p className="text-slate-400 text-[14px] sm:text-[13px] leading-relaxed">
                 {meta?.counts?.barangays || 26} barangays · {meta?.counts?.sports || 7} sports<br />
                 {meta?.season?.name || "Current"} season<br />
                 Municipality of Kolambugan
               </p>
             </div>
             <div className="text-center sm:text-left">
-              <h3 className="text-slate-100 text-sm sm:text-xs font-semibold mb-3">Explore</h3>
+              <h3 className="text-slate-100 text-[15px] sm:text-sm font-semibold mb-3">Explore</h3>
               <div className="inline-grid grid-cols-2 sm:flex sm:flex-col gap-x-6 gap-y-2 sm:gap-1.5 text-left">
                 {NAV.filter((n) => !n.end).map((n) => (
-                  <Link key={n.to} to={n.to} className="text-slate-400 sm:text-slate-500 text-[13px] sm:text-[11px] hover:text-slate-300">{n.label}</Link>
+                  <Link key={n.to} to={n.to} className="text-slate-400 text-[14px] sm:text-[13px] hover:text-slate-300">{n.label}</Link>
                 ))}
               </div>
             </div>
             <div className="text-center sm:text-left">
-              <h3 className="text-slate-100 text-sm sm:text-xs font-semibold mb-3">Organised by</h3>
-              <p className="text-slate-400 sm:text-slate-500 text-[13px] sm:text-[11px] leading-relaxed">
+              <h3 className="text-slate-100 text-[15px] sm:text-sm font-semibold mb-3">Organised by</h3>
+              <p className="text-slate-400 text-[14px] sm:text-[13px] leading-relaxed">
                 SK Federation of Kolambugan<br />
                 Local Youth Development Office<br />
-                <span className="text-slate-500 sm:text-slate-600">
+                <span className="text-slate-500">
                   Developed as an undergraduate thesis,<br />
                   Lanao School of Science and Technology
                 </span>
               </p>
             </div>
           </div>
-          <div className="border-t border-slate-500/10 pt-4 text-center text-slate-500 sm:text-slate-600 text-[11px] sm:text-[10px]">
+          <div className="border-t border-slate-500/10 pt-4 text-center text-slate-500 text-[12px]">
             © {new Date().getFullYear()} Inter-Barangay Sports League Management System
           </div>
         </div>

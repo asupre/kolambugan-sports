@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Panel, PanelSkeleton, Crest, DIVISION_LABEL } from "../../components/PublicUI";
+import { Panel, PanelSkeleton, Crest, TabRow, DIVISION_LABEL } from "../../components/PublicUI";
 import Reveal from "../../components/Reveal";
 
 // Reads /api/public/bracket — the same call the Brackets page makes, so the
@@ -48,23 +48,13 @@ export default function Standings() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-2xl font-semibold tracking-tight mb-4">Standings</h1>
+      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-4">Standings</h1>
 
-      <div className="flex gap-4 overflow-x-auto border-b border-[#1C2430] mb-6">
-        {tournaments.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTid(t.id)}
-            className={`px-3 py-2 text-[13px] whitespace-nowrap border-b-2 transition ${
-              tid === t.id
-                ? "text-[#F5A524] border-[#F5A524]"
-                : "text-slate-400 border-transparent hover:text-slate-200"
-            }`}
-          >
-            {t.sport} {DIVISION_LABEL[t.division] || t.division}
-          </button>
-        ))}
-      </div>
+      <TabRow
+        items={tournaments.map((t) => ({ value: t.id, label: `${t.sport} ${DIVISION_LABEL[t.division] || t.division}` }))}
+        value={tid}
+        onChange={setTid}
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -75,7 +65,7 @@ export default function Standings() {
         <Panel empty="No group matches drawn yet." />
       ) : (
         <>
-          <p className="text-slate-500 text-[12px] mb-4">
+          <p className="text-slate-400 text-[15px] leading-relaxed mb-4">
             {isRoundRobin
               ? advance === 1
                 ? "The winner of each group advances to the knockout round."
@@ -105,11 +95,11 @@ export default function Standings() {
               return (
                 <Reveal key={g} delay={(gi % 2) * 0.08}>
                 <Panel title={`Group ${g}`}>
-                  <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-600 text-[10px] font-medium tracking-wider">
+                  <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-500 text-[12px] font-medium tracking-wider">
                     <span className="w-6">#</span>
                     <span className="flex-1">TEAM</span>
-                    <span className="w-9 text-center">W</span>
-                    <span className="w-9 text-center">L</span>
+                    <span className="w-10 text-center">W</span>
+                    <span className="w-10 text-center">L</span>
                   </div>
                                     {ordered.map((r, i) => {
                                         const seed = seedOf(r.teamId);
@@ -123,24 +113,24 @@ export default function Standings() {
                                                     marked ? "bg-[#F5A524]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : ""
                         }`}
                       >
-                        <span className={`w-6 text-[13px] tabular-nums ${marked ? "text-[#F5A524]" : "text-slate-600"}`}>
+                        <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#F5A524]" : "text-slate-600"}`}>
                           {seed ?? i + 1}
                         </span>
                         <div className="flex-1 min-w-0 flex items-center gap-2.5">
-                                                    <Crest name={r.teamName} barangayId={r.barangayId} size={24} />
-                          <span className={`text-[14px] truncate ${marked ? "text-slate-100" : "text-slate-400"}`}>
+                                                    <Crest name={r.teamName} barangayId={r.barangayId} size={28} />
+                          <span className={`text-[16px] truncate ${marked ? "text-slate-100" : "text-slate-400"}`}>
                             {r.teamName}
                           </span>
                                                     {isContested && (
-                            <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 uppercase tracking-wide">
+                            <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 uppercase tracking-wide">
                               Playoff
                             </span>
                           )}
                         </div>
-                        <span className="w-9 text-center text-[14px] font-medium text-slate-200 tabular-nums">
+                        <span className="w-10 text-center text-[16px] font-semibold text-slate-100 tabular-nums">
                           {r.wins}
                         </span>
-                        <span className="w-9 text-center text-[14px] text-slate-500 tabular-nums">
+                        <span className="w-10 text-center text-[16px] text-slate-500 tabular-nums">
                           {r.losses}
                         </span>
                       </div>
@@ -156,7 +146,7 @@ export default function Standings() {
           </div>
 
           {current && (
-            <p className="text-slate-600 text-[11px] mt-2">
+            <p className="text-slate-500 text-[13px] mt-2">
               {current.sport} · {DIVISION_LABEL[current.division] || current.division}
             </p>
           )}

@@ -3398,3 +3398,29 @@ its filename and status, making "should I delete this and re-upload" a guess.
   hover text → white; plus grayscale font smoothing under `.dark` (crisper light-on-dark
   text on macOS). Backgrounds, borders and the brand blue are unchanged; the Public
   Viewer is unaffected.
+- **Public Viewer: upcoming games, bigger text, phone fixes (Sep 25 2026).**
+  - *Why no upcoming games showed:* on the dev database the current season is still in
+    `registration_open` with no tournaments, so there are no matches at all. There was also
+    a real gap: Home only ever listed TODAY's games, so tomorrow's schedule never appeared
+    there. `GET /api/public/overview` now also returns `upcoming` (the next 8 dated,
+    not-yet-started games after today, soonest first, empty bracket slots excluded), and
+    Home shows them as "Coming up", grouped by date. When there are no live, today or
+    upcoming games, Home says what stage the season is at instead of showing nothing.
+  - *Matches page:* "Scheduled" became "Upcoming" (today onwards only). A game dated in the
+    past that was never started moved to a separate "Waiting for a result" panel; it used
+    to sit in date order among the upcoming ones. With no games at all, the page explains why.
+  - *Phone bug:* the one-line "Team A vs Team B" fixture row cut both names to a few letters
+    on a phone ("Ku… vs Ri…"). The new shared `FixtureRow` (`PublicUI.jsx`) follows the PBA
+    pattern the design section already described: time + venue on the left, the two teams
+    stacked on the right. Used for Today, Coming up, Upcoming, Fixtures and Waiting.
+    `ScoreStrip` moved into `PublicUI.jsx` too, shared by Home and Matches (Home's own
+    `MiniScore` is gone).
+  - *Bigger text across all public pages:* body and team names 15-16px (were 13-14px), small
+    labels at least 12-13px (some were 9-11px), panel titles 17px, page titles 28px, scores
+    24px, crests 28-30px. Tab rows (sports on Matches / Teams / Players, competitions on
+    Standings / Brackets) are one shared `TabRow` at 15px, with an edge fade on phones.
+  - *Other phone fixes:* Brackets' "Third place" row was cut off at the right edge (it now
+    stacks); a panel's count wraps under the title instead of truncating it (Players showed
+    "Poblacion W…"); Team detail tells you to swipe the roster table for stats; the phone
+    icon-nav labels and the season pill no longer truncate.
+  - Checked by rendering against a mock API at 360 / 390 / 1440px (headless Edge).

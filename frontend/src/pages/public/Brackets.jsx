@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import { Crest, Panel, PanelSkeleton, LiveDot, DIVISION_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, PanelSkeleton, LiveDot, TabRow, DIVISION_LABEL } from "../../components/PublicUI";
 import { useDragScroll } from "../../hooks/useDragScroll";
 import Reveal from "../../components/Reveal";
 
@@ -18,13 +18,13 @@ function MatchCard({ m, innerRef }) {
   const bWin = done && m.winner && String(m.winner) === String(m.teamB?.id);
 
     const Side = ({ team, score, won }) => (
-    <div className="flex items-center gap-2 px-3 py-2">
-      <Crest name={team?.name} barangayId={team?.barangayId} size={20} />
-      <span className={`flex-1 min-w-0 truncate text-[13px] ${won ? "text-slate-100 font-medium" : done ? "text-slate-500" : "text-slate-300"}`}>
+    <div className="flex items-center gap-2.5 px-3 py-2.5">
+      <Crest name={team?.name} barangayId={team?.barangayId} size={24} />
+      <span className={`flex-1 min-w-0 truncate text-[15px] ${won ? "text-slate-100 font-medium" : done ? "text-slate-500" : "text-slate-300"}`}>
         {team?.name || "TBD"}
       </span>
       {(done || live) && (
-        <span className={`text-[13px] font-semibold tabular-nums w-6 text-right ${won ? "text-[#F5A524]" : "text-slate-500"}`}>
+        <span className={`text-[15px] font-bold tabular-nums w-7 text-right ${won ? "text-[#F5A524]" : "text-slate-500"}`}>
           {score}
         </span>
       )}
@@ -34,7 +34,7 @@ function MatchCard({ m, innerRef }) {
   return (
     <div
       ref={innerRef}
-      className={`rounded border bg-[#0F141C] w-52 shrink-0 overflow-hidden ${
+      className={`rounded border bg-[#0F141C] w-60 shrink-0 overflow-hidden ${
         live ? "border-red-500/40" : "border-[#1C2430]"
       }`}
     >
@@ -42,7 +42,7 @@ function MatchCard({ m, innerRef }) {
       <div className="border-t border-[#1C2430]" />
       <Side team={m.teamB} score={m.scoreB} won={bWin} />
       {live && (
-        <div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/10 text-red-400 text-[10px] font-semibold">
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/10 text-red-400 text-[12px] font-semibold">
           <LiveDot /> LIVE
         </div>
       )}
@@ -62,23 +62,23 @@ function WinnerCard({ match, label, sublabel, bothQualify }) {
     : null;
  
   return (
-    <div className={`w-52 shrink-0 rounded border px-3 py-2.5 ${
+    <div className={`w-60 shrink-0 rounded border px-3 py-3 ${
       done ? "border-[#F5A524]/40 bg-[#F5A524]/[0.06]" : "border-dashed border-[#1C2430] bg-[#0F141C]"
     }`}>
-      <p className={`text-[10px] uppercase tracking-wide ${done ? "text-[#F5A524]" : "text-slate-600"}`}>
+      <p className={`text-[12px] font-semibold uppercase tracking-wide ${done ? "text-[#F5A524]" : "text-slate-600"}`}>
         {label}
       </p>
-      <p className={`text-[14px] mt-0.5 truncate ${done ? "text-slate-100 font-medium" : "text-slate-600"}`}>
+      <p className={`text-[16px] mt-0.5 truncate ${done ? "text-slate-100 font-medium" : "text-slate-600"}`}>
         {winner?.name || "TBD"}
       </p>
       {/* A 2-team group plays one match that decides both qualifiers, so naming
           only the winner would leave the runner-up unexplained. */}
       {bothQualify && (
-        <p className={`text-[13px] truncate ${done ? "text-slate-300" : "text-slate-600"}`}>
+        <p className={`text-[15px] truncate ${done ? "text-slate-300" : "text-slate-600"}`}>
           {loser?.name || "TBD"}
         </p>
       )}
-      {sublabel && <p className="text-[11px] text-slate-500 mt-1">{sublabel}</p>}
+      {sublabel && <p className="text-[13px] text-slate-400 mt-1">{sublabel}</p>}
     </div>
   );
 }
@@ -130,7 +130,7 @@ function BracketSection({ title, matches, labelFor, winner }) {
 
   return (
     <div className="mb-6">
-      {title && <h3 className="text-slate-400 text-[12px] font-semibold uppercase tracking-wide mb-3">{title}</h3>}
+      {title && <h3 className="text-slate-300 text-[14px] font-semibold uppercase tracking-wide mb-3">{title}</h3>}
       <div ref={dragRef} className="overflow-x-auto pb-2 cursor-grab">
         <div ref={stageRef} className="relative flex gap-10 min-w-min">
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
@@ -138,7 +138,7 @@ function BracketSection({ title, matches, labelFor, winner }) {
           </svg>
           {rounds.map((r, i) => (
             <div key={r} className="relative z-10 flex flex-col">
-              <p className="text-slate-600 text-[11px] font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
+              <p className="text-slate-400 text-[13px] font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
               <div className="flex-1 flex flex-col justify-around gap-3">
                 {matches.filter((m) => m.round === r).map((m) => (
                   <MatchCard key={m.id} m={m} innerRef={(el) => (boxRefs.current[m.id] = el)} />
@@ -150,7 +150,7 @@ function BracketSection({ title, matches, labelFor, winner }) {
 
           {winner && (
             <div className="relative z-10 flex flex-col">
-              <p className="text-slate-600 text-[11px] font-medium mb-2">&nbsp;</p>
+              <p className="text-slate-400 text-[13px] font-medium mb-2">&nbsp;</p>
               <div className="flex-1 flex flex-col justify-around">
                 <WinnerCard {...winner} />
               </div>
@@ -178,11 +178,11 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
 
   return (
     <div>
-      <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-600 text-[10px] font-medium tracking-wider">
+      <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-500 text-[12px] font-medium tracking-wider">
         <span className="w-6">#</span>
         <span className="flex-1">TEAM</span>
-        <span className="w-9 text-center">W</span>
-        <span className="w-9 text-center">L</span>
+        <span className="w-10 text-center">W</span>
+        <span className="w-10 text-center">L</span>
       </div>
       {ordered.map((r, i) => {
                 const isThrough = clear.has(r.teamId);
@@ -192,44 +192,44 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
         const marked = isThrough || provisional;
         return (
           <div key={r.teamId}
-            className={`flex items-center px-4 py-2.5 border-b border-[#1C2430] ${
+            className={`flex items-center px-4 py-3 border-b border-[#1C2430] ${
               isThrough ? "bg-[#F5A524]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : provisional ? "bg-[#F5A524]/[0.03]" : ""
             }`}>
-            <span className={`w-6 text-[13px] tabular-nums ${marked ? "text-[#F5A524]" : "text-slate-600"}`}>
+            <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#F5A524]" : "text-slate-600"}`}>
               {i + 1}
             </span>
             <div className="flex-1 min-w-0 flex items-center gap-2.5">
-                            <Crest name={r.teamName} barangayId={r.barangayId} size={22} />
-              <span className={`text-[14px] truncate ${marked ? "text-slate-100" : "text-slate-400"}`}>
+                            <Crest name={r.teamName} barangayId={r.barangayId} size={28} />
+              <span className={`text-[16px] truncate ${marked ? "text-slate-100" : "text-slate-400"}`}>
                 {r.teamName}
               </span>
                         {isContested && (
-                <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 uppercase tracking-wide">
+                <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 uppercase tracking-wide">
                   Playoff
                 </span>
               )}
             </div>
-            <span className="w-9 text-center text-[14px] font-medium text-slate-200 tabular-nums">{r.wins}</span>
-            <span className="w-9 text-center text-[14px] text-slate-500 tabular-nums">{r.losses}</span>
+            <span className="w-10 text-center text-[16px] font-semibold text-slate-100 tabular-nums">{r.wins}</span>
+            <span className="w-10 text-center text-[16px] text-slate-500 tabular-nums">{r.losses}</span>
           </div>
         );
       })}
 
       <div className="px-4 py-2 bg-[#141A24] border-b border-[#1C2430]">
-        <span className="text-slate-500 text-[11px] font-medium">Fixtures</span>
+        <span className="text-slate-300 text-[14px] font-semibold">Fixtures</span>
       </div>
       {matches.map((m) => {
         const done = m.status === "completed";
         const aWin = done && String(m.winner) === String(m.teamA?.id);
         return (
-          <div key={m.id} className="flex items-center gap-3 px-4 py-2 border-b border-[#1C2430] last:border-0">
-            <span className={`flex-1 min-w-0 truncate text-right text-[13px] ${aWin ? "text-slate-100" : "text-slate-400"}`}>
+          <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#1C2430] last:border-0">
+            <span className={`flex-1 min-w-0 truncate text-right text-[15px] ${aWin ? "text-slate-100" : "text-slate-400"}`}>
               {m.teamA?.name || "TBD"}
             </span>
-            <span className="shrink-0 text-[13px] tabular-nums text-slate-500 w-14 text-center">
+            <span className="shrink-0 text-[15px] font-semibold tabular-nums text-slate-400 w-14 text-center">
               {done ? `${m.scoreA}–${m.scoreB}` : m.status === "ongoing" ? "LIVE" : "vs"}
             </span>
-            <span className={`flex-1 min-w-0 truncate text-[13px] ${done && !aWin ? "text-slate-100" : "text-slate-400"}`}>
+            <span className={`flex-1 min-w-0 truncate text-[15px] ${done && !aWin ? "text-slate-100" : "text-slate-400"}`}>
               {m.teamB?.name || "TBD"}
             </span>
           </div>
@@ -285,18 +285,13 @@ export default function Brackets() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-2xl font-semibold tracking-tight mb-4">Brackets</h1>
+      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-4">Brackets</h1>
 
-      <div className="flex gap-4 overflow-x-auto border-b border-[#1C2430] mb-6">
-        {tournaments.map((t) => (
-          <button key={t.id} onClick={() => setTid(t.id)}
-            className={`px-3 py-2 text-[13px] whitespace-nowrap border-b-2 transition ${
-              tid === t.id ? "text-[#F5A524] border-[#F5A524]" : "text-slate-400 border-transparent hover:text-slate-200"
-            }`}>
-            {t.sport} {DIVISION_LABEL[t.division] || t.division}
-          </button>
-        ))}
-      </div>
+      <TabRow
+        items={tournaments.map((t) => ({ value: t.id, label: `${t.sport} ${DIVISION_LABEL[t.division] || t.division}` }))}
+        value={tid}
+        onChange={setTid}
+      />
 
       {loading ? (
         <PanelSkeleton rows={6} />
@@ -307,7 +302,7 @@ export default function Brackets() {
           {knockoutMain.length > 0 ? (
             <Reveal>
             <Panel title="Knockout">
-              <div className="px-5 py-5">
+              <div className="px-4 sm:px-5 py-5">
                                 <BracketSection matches={knockoutMain} labelFor={knockoutLabel}
                   winner={{
                     match: finalOf(knockoutMain),
@@ -316,10 +311,10 @@ export default function Brackets() {
                   }} />
                                 {knockoutThird && (
                   <div>
-                    <h3 className="text-slate-400 text-[12px] font-semibold uppercase tracking-wide mb-3">
+                    <h3 className="text-slate-300 text-[14px] font-semibold uppercase tracking-wide mb-3">
                       Third place
                     </h3>
-                    <div className="flex items-center gap-10">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-10">
                       <MatchCard m={knockoutThird} innerRef={() => {}} />
                       <WinnerCard match={knockoutThird} label="Third place" sublabel={null} />
                     </div>
@@ -330,7 +325,7 @@ export default function Brackets() {
             </Reveal>
           ) : (
             <Panel>
-              <p className="px-5 py-4 text-slate-500 text-sm">
+              <p className="px-4 sm:px-5 py-5 text-slate-400 text-[15px] leading-relaxed">
                 The knockout bracket is drawn once every group has finished and the
                 qualifiers are confirmed.
               </p>
@@ -356,7 +351,7 @@ export default function Brackets() {
                     qual={data?.qualification?.[g]}
                   />
                 ) : (
-                                    <div className="px-5 py-5">
+                                    <div className="px-4 sm:px-5 py-5">
                     <BracketSection title="Winners" matches={winners} labelFor={(r) => `Round ${r}`}
                       winner={winners.length > 0 ? {
                         match: finalOf(winners),

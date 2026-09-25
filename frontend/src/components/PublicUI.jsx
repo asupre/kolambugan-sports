@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { hasTime } from "../lib/dashboardFormat";
 
 export const DIVISION_LABEL = {
   open: "Open",
@@ -118,16 +119,121 @@ export function Panel({ title, count, children, empty, actions }) {
   return (
     <section className="rounded-lg border border-[#1C2430] bg-[#0F141C] mb-5 overflow-hidden">
       {title && (
-        <div className="px-5 py-3.5 border-b border-[#1C2430] flex items-center justify-between gap-2.5">
-          <div className="flex items-baseline gap-2.5 min-w-0">
-            <h2 className="text-slate-100 text-[15px] font-semibold truncate">{title}</h2>
-            {count != null && <span className="text-slate-500 text-xs shrink-0">{count}</span>}
+        <div className="px-4 sm:px-5 py-3.5 border-b border-[#1C2430] flex items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 min-w-0">
+            <h2 className="text-slate-100 text-[17px] font-semibold truncate max-w-full">{title}</h2>
+            {count != null && <span className="text-slate-500 text-[13px]">{count}</span>}
           </div>
           {actions && <div className="flex items-center gap-1.5 shrink-0">{actions}</div>}
         </div>
       )}
-      {children || <p className="px-5 py-5 text-slate-500 text-sm">{empty}</p>}
+      {children || <p className="px-4 sm:px-5 py-5 text-slate-400 text-[15px] leading-relaxed">{empty}</p>}
     </section>
+  );
+}
+
+// ── Match rows ──────────────────────────────────────────────────────────────
+// Pinned to Manila: league dates are Philippine dates whatever the device says.
+export const matchDateLabel = (d) =>
+  new Date(d).toLocaleDateString(undefined, {
+    timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric",
+  });
+
+// A time is shown only when one was actually chosen — a date-only schedule is
+// stored as midnight and must not render as a made-up "12:00 AM".
+export const matchTime = (d) =>
+  d && hasTime(d)
+    ? new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" })
+    : null;
+
+export const matchContext = (m, { sport = true } = {}) =>
+  [sport ? m.sport : null, DIVISION_LABEL[m.division] || m.division, m.group ? `Grp ${m.group}` : null]
+    .filter(Boolean).join(" · ");
+
+// Quarters in basketball, sets in the rally sports.
+const PERIOD_PREFIX = { Basketball: "Q", Volleyball: "S", Badminton: "S", Pickleball: "S" };
+
+function TeamLine({ team, size = 28, className = "text-slate-100" }) {
+  return (
+    <div className="flex items-center gap-2.5 min-w-0 py-1">
+      <Crest name={team?.name} barangayId={team?.barangayId} size={size} />
+      <span className={`text-[16px] truncate ${className}`}>{team?.name || "TBD"}</span>
+    </div>
+  );
+}
+
+// A fixture (no score yet), PBA-style: when + where on the LEFT, the two teams
+// STACKED on the right. The old one-line "A vs B" squeezed each name to a few
+// letters on a phone ("Ku… vs Ri…"); stacked, each name gets the full width.
+export function FixtureRow({ m, when, where, context }) {
+  return (
+    <div className="flex gap-3 px-4 py-3 border-b border-[#1C2430] last:border-0">
+      <div className="w-[4.5rem] sm:w-24 shrink-0 pt-0.5">
+        <div className="text-slate-100 text-[15px] font-semibold tabular-nums leading-tight">{when || "TBD"}</div>
+        {where && <div className="text-slate-500 text-[13px] leading-snug mt-1 line-clamp-2 break-words">{where}</div>}
+      </div>
+      <div className="flex-1 min-w-0 border-l border-[#1C2430] pl-3">
+        {context && <div className="text-slate-500 text-[13px] truncate mb-0.5">{context}</div>}
+        <TeamLine team={m.teamA} />
+        <TeamLine team={m.teamB} />
+      </div>
+    </div>
+  );
+}
+
+// Scoreboard strip — live and finished matches, where the score is the point.
+// The leading team stays bright and the trailing one dims.
+function ScoreLine({ team, score, leading }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <TeamLine team={team} size={30} className={leading ? "text-slate-100" : "text-slate-400"} />
+      <span className={`text-2xl font-bold tabular-nums ${leading ? "text-slate-50" : "text-slate-500"}`}>
+        {score}
+      </span>
+    </div>
+  );
+}
+
+export function ScoreStrip({ m, showTime = true }) {
+  const live = m.status === "ongoing";
+  const aLeads = m.scoreA >= m.scoreB;
+  const place = [matchContext(m), m.venue].filter(Boolean).join(" · ");
+  return (
+    <div className="px-4 py-3.5 border-b border-[#1C2430] last:border-0">
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <span className="text-slate-500 text-[13px] leading-snug line-clamp-2">{place}</span>
+        {live ? (
+          <span className="flex items-center gap-1.5 text-red-400 text-[13px] font-semibold shrink-0">
+            <LiveDot />
+            {m.totalPeriods > 1
+              ? `LIVE · ${PERIOD_PREFIX[m.sport] || "P"}${Math.min(m.periodsPlayed + 1, m.totalPeriods)}`
+              : "LIVE"}
+          </span>
+        ) : (
+          <span className="text-slate-500 text-[13px] shrink-0">
+            {m.status === "forfeited" ? "Forfeit" : "Final"}
+            {showTime && m.schedule ? ` · ${matchDateLabel(m.schedule)}` : ""}
+          </span>
+        )}
+      </div>
+      <ScoreLine team={m.teamA} score={m.scoreA} leading={aLeads} />
+      <ScoreLine team={m.teamB} score={m.scoreB} leading={!aLeads || m.scoreA === m.scoreB} />
+      {m.periods?.length > 1 && (
+        <div className="text-slate-500 text-[13px] mt-1.5 tabular-nums">
+          {m.periods.map((p) => `${p.a}-${p.b}`).join("  ·  ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Date header bar inside a schedule panel.
+export function DateBar({ children, count }) {
+  return (
+    <div className="px-4 py-2.5 bg-[#141A24] border-b border-[#1C2430] flex items-baseline gap-2">
+      <span className="text-slate-100 text-[14px] font-semibold">{children}</span>
+      {count != null && <span className="text-slate-500 text-[13px]">{count}</span>}
+    </div>
   );
 }
 
@@ -153,29 +259,42 @@ export function CarouselArrow({ dir, onClick, disabled }) {
 // Players, where combining sports would rank badminton rallies against
 // basketball field goals.
 export function SportTabs({ sports, value, onChange, allLabel = "All sports" }) {
-  const Tab = ({ v, label }) => (
-    <button
-      onClick={() => onChange(v)}
-      className={`px-3 py-2 text-[13px] whitespace-nowrap border-b-2 transition ${
-        value === v
-          ? "text-[#F5A524] border-[#F5A524]"
-          : "text-slate-400 border-transparent hover:text-slate-200"
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const items = [
+    ...(allLabel ? [{ value: "", label: allLabel }] : []),
+    ...sports.map((s) => ({ value: s, label: s })),
+  ];
+  return <TabRow items={items} value={value} onChange={onChange} />;
+}
+
+// Underlined tab row — sports on Matches/Teams/Players, competitions on
+// Standings/Brackets. Swipes sideways on a phone; the right edge fades so it's
+// obvious there are more tabs off-screen.
+export function TabRow({ items, value, onChange }) {
   return (
-    <div className="flex gap-4 overflow-x-auto border-b border-[#1C2430] mb-6">
-      {allLabel && <Tab v="" label={allLabel} />}
-      {sports.map((s) => <Tab key={s} v={s} label={s} />)}
+    <div className="relative mb-6 border-b border-[#1C2430]">
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden scrollbar-none -mb-px pr-6">
+        {items.map((it) => (
+          <button
+            key={it.value}
+            onClick={() => onChange(it.value)}
+            className={`px-3 py-2.5 text-[15px] font-medium whitespace-nowrap border-b-2 transition ${
+              value === it.value
+                ? "text-[#F5A524] border-[#F5A524]"
+                : "text-slate-400 border-transparent hover:text-slate-200"
+            }`}
+          >
+            {it.label}
+          </button>
+        ))}
+      </div>
+      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0A1220] to-transparent sm:hidden" />
     </div>
   );
 }
 
 export function Tag({ children }) {
   return (
-    <span className="px-2 py-0.5 rounded bg-[#1C2430] text-slate-400 text-[11px] font-medium whitespace-nowrap">
+    <span className="px-2.5 py-1 rounded bg-[#1C2430] text-slate-300 text-[13px] font-medium whitespace-nowrap">
       {children}
     </span>
   );

@@ -12,19 +12,19 @@ import { useDragScroll } from "../../hooks/useDragScroll";
 // horizontally instead of wrapping.
 function TeamCard({ t }) {
   return (
-    <RevealItem className="w-40 sm:w-44 shrink-0 snap-start">
+    <RevealItem className="w-44 sm:w-48 shrink-0 snap-start">
       <Link
         to={`/teams/${t.id}`}
         className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-[#1C2430] hover:border-[#F5A524]/50 transition"
       >
         <Crest name={t.barangay || t.name} barangayId={t.barangayId} variant="cover" />
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3 pt-12 pb-3">
-          <div className="text-white text-[15px] font-bold leading-tight truncate">{t.name}</div>
-          <div className="text-slate-300 text-[11px] truncate mt-0.5">
+          <div className="text-white text-[17px] font-bold leading-tight truncate">{t.name}</div>
+          <div className="text-slate-300 text-[13px] truncate mt-0.5">
             {t.barangay ? `Brgy. ${t.barangay}` : "—"}
           </div>
           {t.format && (
-            <span className="inline-block mt-1.5 rounded-full border border-[#F5A524]/40 bg-black/30 px-2 py-0.5 text-[10px] font-medium text-[#F5A524]">
+            <span className="inline-block mt-1.5 rounded-full border border-[#F5A524]/40 bg-black/30 px-2.5 py-0.5 text-[12px] font-medium text-[#F5A524]">
               {FORMAT_LABEL[t.format] || t.format}
             </span>
           )}
@@ -81,7 +81,7 @@ function TeamGroupPanel({ sportName, division, list }) {
         // overflow-y-hidden: with only overflow-x set, CSS turns overflow-y into
         // "auto" too, so the reveal's 24px downward offset (more than the 20px of
         // bottom padding) made a vertical scrollbar appear inside the section.
-        className="overflow-x-auto overflow-y-hidden cursor-grab snap-x snap-mandatory px-5 py-5"
+        className="overflow-x-auto overflow-y-hidden cursor-grab snap-x snap-mandatory scroll-px-4 sm:scroll-px-5 px-4 sm:px-5 py-5"
       >
         <RevealGroup className="flex gap-3">
           {list.map((t) => <TeamCard key={t.id} t={t} />)}
@@ -130,8 +130,8 @@ export default function Teams() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-2xl font-semibold tracking-tight mb-1">Teams</h1>
-      <p className="text-slate-500 text-sm mb-4">
+      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-1">Teams</h1>
+      <p className="text-slate-400 text-[15px] mb-4">
         {loading
           ? "\u00A0"
           : needle

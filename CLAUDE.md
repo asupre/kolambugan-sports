@@ -976,7 +976,14 @@ so a bug in one route cannot expose the other.
   LEADING team stays bright, the trailing team dims — that contrast alone shows
   who is winning. No decoration needed.
 - **Schedule** follows PBA's fixture list: a date header bar, then per match the
-  time + venue on the LEFT and the two teams stacked with crest slots.
+  time + venue on the LEFT and the two teams stacked with crest slots. This is
+  the shared `FixtureRow` + `DateBar` in `PublicUI.jsx` (Sep 2026; before that
+  Matches/Home used a one-line "A vs B" row that cut names to "Ku…" on a phone).
+  Finished/live games use the shared `ScoreStrip`. Don't write per-page copies.
+- **Public text sizes (Sep 2026, "it's kinda small"):** body/team names 15-16px,
+  no label under 12px except the phone icon-nav captions (10px, 8 across 360px),
+  panel titles 17px, page titles 28px, scores 24px. Tab rows are the shared
+  `TabRow` (15px). Keep new public UI at or above these.
 - `Crest` component renders a monogram tile, falling back to the barangay's
   uploaded `logo` where one exists (built) — a cached `/api/barangays` lookup
   tells it which barangays have one, so crests don't fire 150 404s per page.
@@ -1000,7 +1007,7 @@ so a bug in one route cannot expose the other.
   everywhere; key list items by stable id (`t.id`/`p.id`; the API's field is
   `id`, not `_id`), never index; NEVER wrap live score strips, the LIVE NOW
   tile, or in-progress match cards. Wrapped: Home (two static stat tiles,
-  Today, About-league, Kolambugan, Recent results), Standings (each group
+  Today, Coming up, About-league, Kolambugan, Recent results), Standings (each group
   table), Brackets (each PANEL — Knockout + groups — not the round columns:
   the SVG wires are measured from box positions, so the boxes must move
   together with the stage), Teams + Players (card grids, staggered), About
@@ -1893,8 +1900,9 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   "(N/M dated)", per-round bulk apply, per-match date field.
 
 **Public API (routes/public.js — unauthenticated, read-only)**
-- `/overview` (season, live, today, recent, counts — one call for the landing
-  page), `/matches?sport=&status=`, `/tournaments`, `/teams?sport=`,
+- `/overview` (season, live, today, **upcoming** — next 8 dated games after
+  today, added Sep 2026 because Home showed nothing past today — recent, counts;
+  one call for the landing page), `/matches?sport=&status=`, `/tournaments`, `/teams?sport=`,
   `/teams/:id` (public lineup + season stats), `/leaders?sport=&limit=`.
 - Player shapes deliberately omit birthdate, address, documents; they return
   `age` and `hasPhoto`.

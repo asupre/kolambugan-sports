@@ -13,7 +13,7 @@ const Barangay = require('../models/Barangay');
 const { getCurrentSeason } = require('../middleware/season');
 const SiteImage = require('../models/SiteImage');
 const { sendFile } = require('../config/gridfs');
-const { isManilaToday } = require('../config/time');
+const { isManilaToday, manilaDay } = require('../config/time');
 
 const router = express.Router();
 
@@ -72,7 +72,7 @@ async function teamGamesMap(tournamentIds) {
 router.get('/overview', async (req, res) => {
   try {
     const { season, byId, ids } = await seasonTournaments();
-    if (!season) return res.json({ season: null, live: [], today: [], recent: [] });
+    if (!season) return res.json({ season: null, live: [], today: [], upcoming: [], recent: [] });
 
     const matches = await Match.find({ tournament: { $in: ids } })
             .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
@@ -83,13 +83,23 @@ router.get('/overview', async (req, res) => {
       return publicMatch(m, t.sport, t.division);
     });
 
-    
+    // A fixture needs at least one real team — an empty bracket slot isn't a game.
+    const fixtures = shaped.filter((m) => m.status === 'scheduled' && m.schedule && (m.teamA || m.teamB));
+    const todayKey = manilaDay(new Date());
 
     res.json({
       season: { name: season.name, status: season.status },
       live: shaped.filter((m) => m.status === 'ongoing'),
-            today: shaped.filter((m) => m.status === 'scheduled' && isManilaToday(m.schedule)),
-            recent: shaped.filter((m) => ['completed', 'forfeited'].includes(m.status)).slice(0, 10),
+      today: fixtures
+        .filter((m) => isManilaToday(m.schedule))
+        .sort((a, b) => new Date(a.schedule) - new Date(b.schedule)),
+      // The next dated games after today, soonest first. Home used to show only
+      // "today", so the rest of the schedule never appeared there at all.
+      upcoming: fixtures
+        .filter((m) => manilaDay(m.schedule) > todayKey)
+        .sort((a, b) => new Date(a.schedule) - new Date(b.schedule))
+        .slice(0, 8),
+      recent: shaped.filter((m) => ['completed', 'forfeited'].includes(m.status)).slice(0, 10),
       counts: {
         barangays: await Barangay.countDocuments(),
         sports: await Sport.countDocuments(),

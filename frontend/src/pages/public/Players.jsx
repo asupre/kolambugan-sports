@@ -14,7 +14,7 @@ function PhotoTile({ player }) {
   const name = `${player.firstName || ""} ${player.lastName || ""}`.trim();
   const show = SHOW_PLAYER_PHOTOS && player.hasPhoto && !failed;
   return (
-    <div className="w-16 h-16 rounded-full overflow-hidden bg-[#1C2430] flex items-center justify-center shrink-0">
+    <div className="w-20 h-20 rounded-full overflow-hidden bg-[#1C2430] flex items-center justify-center shrink-0">
       {show ? (
         <img
           src={playerPhotoUrl(player.id)}
@@ -23,7 +23,7 @@ function PhotoTile({ player }) {
           className="w-full h-full object-cover"
         />
       ) : (
-        <span className="text-slate-400 text-sm font-semibold">{initials(name) || "—"}</span>
+        <span className="text-slate-400 text-base font-semibold">{initials(name) || "—"}</span>
       )}
     </div>
   );
@@ -35,14 +35,14 @@ function PlayerCard({ p }) {
     <div className="flex h-full flex-col items-center text-center px-3 py-4">
       <PhotoTile player={p} />
       <div className="mt-2.5 flex items-baseline gap-1.5 max-w-full">
-        <span className="text-[#F5A524] text-[15px] font-bold tabular-nums shrink-0">
+        <span className="text-[#F5A524] text-[17px] font-bold tabular-nums shrink-0">
           {p.jerseyNumber ?? "—"}
         </span>
-        <span className="text-slate-100 text-[13px] font-medium truncate">{p.lastName}</span>
+        <span className="text-slate-100 text-[15px] font-semibold truncate">{p.lastName}</span>
       </div>
-      <div className="text-slate-500 text-[11px] truncate max-w-full">{p.firstName}</div>
+      <div className="text-slate-400 text-[13px] truncate max-w-full">{p.firstName}</div>
       {p.stats?.points > 0 && (
-        <div className="text-slate-600 text-[10px] mt-1 tabular-nums">
+        <div className="text-slate-500 text-[12px] mt-1 tabular-nums">
           {p.stats.points} PTS · {p.stats.games} GP
         </div>
       )}
@@ -109,7 +109,7 @@ export default function Players() {
   const ViewTab = ({ v, label }) => (
     <button
       onClick={() => setView(v)}
-      className={`px-3 py-1.5 rounded text-[13px] transition ${
+      className={`px-3 py-2 rounded text-[14px] font-medium transition ${
         view === v ? "bg-[#1C2430] text-slate-100" : "text-slate-500 hover:text-slate-300"
       }`}
     >
@@ -123,13 +123,13 @@ export default function Players() {
   return (
     <>
       <div className="flex items-end justify-between gap-4 mb-1">
-        <h1 className="text-slate-100 text-2xl font-semibold tracking-tight">Players</h1>
+        <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight">Players</h1>
         <div className="flex gap-1 shrink-0">
           <ViewTab v="all" label="All players" />
           <ViewTab v="leaders" label="Top scorers" />
         </div>
       </div>
-      <p className="text-slate-500 text-sm mb-4">
+      <p className="text-slate-400 text-[15px] mb-4">
         {loading ? "\u00A0"
           : view === "all"
             ? `${total} ${total === 1 ? "player" : "players"} across ${teams.length} ${teams.length === 1 ? "team" : "teams"}`
@@ -162,8 +162,8 @@ export default function Players() {
                     {t.players.map((p) => <PlayerCard key={p.id} p={p} />)}
                   </RevealGroup>
                   </div>
-                  <div className="px-5 py-3 border-t border-[#1C2430]">
-                    <Link to={`/teams/${t.id}`} className="text-[#F5A524] text-[12px] hover:underline">
+                  <div className="px-4 sm:px-5 py-3.5 border-t border-[#1C2430]">
+                    <Link to={`/teams/${t.id}`} className="text-[#F5A524] text-[14px] font-medium hover:underline">
                       Team page →
                     </Link>
                   </div>
@@ -180,18 +180,18 @@ export default function Players() {
                         {visibleLeaders.map((p) => {
               const ppg = p.games > 0 ? (p.points / p.games).toFixed(1) : "—";
               return (
-                <div key={p.id} className="flex items-center gap-4 px-5 py-3.5 border-b border-[#1C2430] last:border-0">
-                  <span className={`w-6 text-[15px] font-semibold tabular-nums ${podium(p.rank)}`}>{p.rank}</span>
-                  <PlayerAvatar player={p} size={36} />
+                <div key={p.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 border-b border-[#1C2430] last:border-0">
+                  <span className={`w-6 text-[17px] font-semibold tabular-nums ${podium(p.rank)}`}>{p.rank}</span>
+                  <PlayerAvatar player={p} size={40} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-slate-100 text-[15px] font-medium truncate">
+                    <div className="text-slate-100 text-[16px] font-medium truncate">
                       {p.firstName} {p.lastName}
                     </div>
-                    <div className="text-slate-500 text-[12px] truncate">{p.team || "—"}</div>
+                    <div className="text-slate-400 text-[13px] truncate">{p.team || "—"}</div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-slate-100 text-xl font-semibold tabular-nums leading-none">{p.points}</div>
-                    <div className="text-slate-600 text-[11px] mt-1 tabular-nums">{p.games} GP · {ppg} PPG</div>
+                    <div className="text-slate-100 text-2xl font-bold tabular-nums leading-none">{p.points}</div>
+                    <div className="text-slate-500 text-[12px] mt-1 tabular-nums">{p.games} GP · {ppg} PPG</div>
                   </div>
                 </div>
               );

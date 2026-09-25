@@ -208,6 +208,13 @@
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: var(--muted-foreground);
   }
+  /* Swipeable tab rows on the public site: still scrolls, no bar. */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Indeterminate progress sweep for LoadingScreen's bar under the message. */

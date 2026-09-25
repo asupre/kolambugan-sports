@@ -68,19 +68,19 @@ export default function TeamDetail() {
   });
 
   const Th = ({ children, right }) => (
-    <th className={`px-3 py-2.5 text-slate-500 text-[11px] font-medium uppercase tracking-wide ${right ? "text-right" : "text-left"}`}>
+    <th className={`px-3 py-3 text-slate-500 text-[12px] font-medium uppercase tracking-wide ${right ? "text-right" : "text-left"}`}>
       {children}
     </th>
   );
   const Td = ({ children, right, dim }) => (
-    <td className={`px-3 py-3 text-[14px] tabular-nums ${right ? "text-right" : ""} ${dim ? "text-slate-500" : "text-slate-200"}`}>
+    <td className={`px-3 py-3 text-[15px] tabular-nums ${right ? "text-right" : ""} ${dim ? "text-slate-500" : "text-slate-200"}`}>
       {children}
     </td>
   );
 
   return (
     <>
-      <Link to="/teams" className="text-slate-500 text-[13px] hover:text-slate-300 transition">
+      <Link to="/teams" className="inline-block py-1 text-slate-400 text-[15px] hover:text-slate-200 transition">
         ← Teams
       </Link>
 
@@ -88,7 +88,7 @@ export default function TeamDetail() {
                 <Crest name={team.barangay || team.name} barangayId={team.barangayId} size={56} />
         <div className="min-w-0">
           <h1 className="text-slate-100 text-2xl font-semibold tracking-tight truncate">{team.name}</h1>
-          <div className="text-slate-500 text-sm truncate">
+          <div className="text-slate-400 text-[15px] truncate">
             {team.barangay ? `Barangay ${team.barangay}` : "—"}
           </div>
         </div>
@@ -105,8 +105,12 @@ export default function TeamDetail() {
         count={`${roster.length} ${roster.length === 1 ? "player" : "players"}`}
         empty="No players listed."
       >
+        {roster.length > 0 && statsTracked && (
+          // On a phone the stat columns sit off to the right of the table.
+          <p className="sm:hidden px-4 pt-3 text-slate-500 text-[13px]">Swipe the table sideways for stats →</p>
+        )}
         {roster.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full">
               <thead className="border-b border-[#1C2430]">
                 <tr>
@@ -127,8 +131,8 @@ export default function TeamDetail() {
                       <Td dim>{p.jerseyNumber ?? "—"}</Td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <PlayerAvatar player={p} size={32} />
-                          <span className="text-slate-100 text-[14px] truncate">
+                          <PlayerAvatar player={p} size={36} />
+                          <span className="text-slate-100 text-[15px] leading-snug min-w-[8rem]">
                             {p.lastName}{p.firstName ? `, ${p.firstName}` : ""}
                           </span>
                         </div>

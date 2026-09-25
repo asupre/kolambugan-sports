@@ -36,8 +36,8 @@ export default function Champions() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-2xl font-semibold tracking-tight mb-1">Champions</h1>
-      <p className="text-slate-500 text-sm mb-4">
+      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-1">Champions</h1>
+      <p className="text-slate-400 text-[15px] mb-4">
         {loading ? "\u00A0" : "Past winners of the Inter-Barangay Sports League"}
       </p>
 
@@ -97,7 +97,7 @@ function ChampionRow({ c, onOpenPhoto }) {
   const showPhoto = c.hasPhoto && !failed;
 
   return (
-    <div className="flex flex-col sm:flex-row gap-5 p-5 border-b border-[#1C2430] last:border-0">
+    <div className="flex flex-col sm:flex-row gap-5 p-4 sm:p-5 border-b border-[#1C2430] last:border-0">
       {showPhoto ? (
         <button
           onClick={onOpenPhoto}
@@ -119,10 +119,10 @@ function ChampionRow({ c, onOpenPhoto }) {
 
       <div className="min-w-0 flex-1 flex flex-col justify-center">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[#F5A524] text-[12px] font-semibold uppercase tracking-wide">
+          <span className="text-[#F5A524] text-[13px] font-semibold uppercase tracking-wide">
             {c.sport}
           </span>
-          {c.division && <span className="text-slate-600 text-[12px]">{c.division}</span>}
+          {c.division && <span className="text-slate-500 text-[13px]">{c.division}</span>}
         </div>
 
         <h3 className="text-slate-50 text-2xl font-semibold tracking-tight leading-tight">
@@ -135,20 +135,20 @@ function ChampionRow({ c, onOpenPhoto }) {
         <dl className="mt-4 flex flex-wrap gap-x-10 gap-y-3">
           {c.mvp && (
             <div>
-              <dt className="text-slate-600 text-[10px] uppercase tracking-wider mb-0.5">Most valuable player</dt>
-              <dd className="text-slate-100 text-[15px] font-medium">{c.mvp}</dd>
+              <dt className="text-slate-500 text-[12px] uppercase tracking-wider mb-0.5">Most valuable player</dt>
+              <dd className="text-slate-100 text-[16px] font-medium">{c.mvp}</dd>
             </div>
           )}
           {c.prize && (
             <div>
-              <dt className="text-slate-600 text-[10px] uppercase tracking-wider mb-0.5">Prize</dt>
-              <dd className="text-slate-100 text-[15px] font-medium">{c.prize}</dd>
+              <dt className="text-slate-500 text-[12px] uppercase tracking-wider mb-0.5">Prize</dt>
+              <dd className="text-slate-100 text-[16px] font-medium">{c.prize}</dd>
             </div>
           )}
         </dl>
 
         {c.notes && (
-          <p className="text-slate-500 text-[13px] mt-4 leading-relaxed">{c.notes}</p>
+          <p className="text-slate-400 text-[15px] mt-4 leading-relaxed">{c.notes}</p>
         )}
       </div>
     </div>

@@ -3424,3 +3424,7 @@ its filename and status, making "should I delete this and re-upload" a guess.
     "Poblacion W…"); Team detail tells you to swipe the roster table for stats; the phone
     icon-nav labels and the season pill no longer truncate.
   - Checked by rendering against a mock API at 360 / 390 / 1440px (headless Edge).
+- **Follow-up: header navs restored to their original look (Sep 25 2026).** At the Super
+  Admin's request, the desktop nav links (13px) and the phone icon bar (22px icons, 9px
+  captions) are back exactly as they were before the text-size pass. Only the navs were
+  reverted: the LIVE badge, season pill, footer and all page content keep the larger sizes.

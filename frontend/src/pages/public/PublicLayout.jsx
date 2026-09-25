@@ -143,7 +143,7 @@ export default function PublicLayout() {
                 weight, the nav sits back. Each link gets its own animated
                 underline (grows in from the left on hover, eased) instead of
                 an instant color/border flip. Active state starts fully grown. */}
-            <nav className="order-last hidden basis-full gap-6 text-[15px] font-medium sm:flex lg:order-none lg:mx-auto lg:basis-auto">
+            <nav className="order-last hidden basis-full gap-6 text-[13px] font-medium sm:flex lg:order-none lg:mx-auto lg:basis-auto">
               {NAV.map((n) => (
                 <NavLink key={n.to} to={n.to} end={n.end} className="group relative py-3.5 whitespace-nowrap">
                   {({ isActive }) => (
@@ -185,9 +185,9 @@ export default function PublicLayout() {
                     <nav className="flex sm:hidden [&>a]:flex-1 [&>a]:min-w-0">
             {NAV.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} className={linkClass}>
-                <span className="flex flex-col items-center gap-1 pt-2 pb-2.5 w-full">
-                  <Icon name={n.icon} className="w-6 h-6" />
-                  <span className="text-[10px] font-medium tracking-tight leading-none truncate max-w-full">{n.short || n.label}</span>
+                <span className="flex flex-col items-center gap-1 py-2 w-full">
+                  <Icon name={n.icon} className="w-[22px] h-[22px]" />
+                  <span className="text-[9px] leading-none truncate max-w-full">{n.short || n.label}</span>
                 </span>
               </NavLink>
             ))}

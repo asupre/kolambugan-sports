@@ -981,9 +981,12 @@ so a bug in one route cannot expose the other.
   Matches/Home used a one-line "A vs B" row that cut names to "Ku…" on a phone).
   Finished/live games use the shared `ScoreStrip`. Don't write per-page copies.
 - **Public text sizes (Sep 2026, "it's kinda small"):** body/team names 15-16px,
-  no label under 12px except the phone icon-nav captions (10px, 8 across 360px),
-  panel titles 17px, page titles 28px, scores 24px. Tab rows are the shared
-  `TabRow` (15px). Keep new public UI at or above these.
+  no label under 12px, panel titles 17px, page titles 28px, scores 24px. Tab rows
+  are the shared `TabRow` (15px). Keep new public UI at or above these.
+  **Exception: the header navs keep their ORIGINAL sizes** (desktop links 13px;
+  phone icon bar 22px icons, 9px captions, which truncate slightly at 360px). They
+  were enlarged in the same pass and the Super Admin asked for them back as they
+  were. Don't resize them again without asking.
 - `Crest` component renders a monogram tile, falling back to the barangay's
   uploaded `logo` where one exists (built) — a cached `/api/barangays` lookup
   tells it which barangays have one, so crests don't fire 150 404s per page.

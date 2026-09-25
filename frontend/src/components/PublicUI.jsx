@@ -73,11 +73,21 @@ export function Crest({ name, barangayId, size = 40, variant = "icon" }) {
     return () => { alive = false; };
   }, [barangayId]);
 
+  // Poster cards: while we don't yet know whether there's a logo, show the
+  // blank tile rather than the monogram, so a card doesn't flash initials and
+  // then swap to the photo a moment later.
+  if (cover && has === null) {
+    return <div className="absolute inset-0 bg-[#1C2430]" />;
+  }
   if (has && !failed) {
     return (
       <img
         src={barangayLogoUrl(barangayId)}
         alt=""
+        // Decode off the main thread; poster cards scrolled off to the side of
+        // a row only load when they come near the viewport.
+        decoding="async"
+        loading={cover ? "lazy" : undefined}
         onError={() => setFailed(true)}
         className={cover ? "absolute inset-0 h-full w-full object-cover bg-[#1C2430]" : "rounded object-cover bg-[#1C2430] shrink-0"}
         style={cover ? undefined : { width: size, height: size }}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { Crest, Panel, CarouselArrow, TileGridSkeleton, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
-import { RevealGroup, RevealItem } from "../../components/Reveal";
+import Reveal from "../../components/Reveal";
 import { useDragScroll } from "../../hooks/useDragScroll";
 
 // One big, grabbable box per team, poster-card style: the crest fills the
@@ -12,7 +12,7 @@ import { useDragScroll } from "../../hooks/useDragScroll";
 // horizontally instead of wrapping.
 function TeamCard({ t }) {
   return (
-    <RevealItem className="w-44 sm:w-48 shrink-0 snap-start">
+    <div className="w-44 sm:w-48 shrink-0 snap-start">
       <Link
         to={`/teams/${t.id}`}
         className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-[#1C2430] hover:border-[#F5A524]/50 transition"
@@ -30,7 +30,7 @@ function TeamCard({ t }) {
           )}
         </div>
       </Link>
-    </RevealItem>
+    </div>
   );
 }
 
@@ -83,9 +83,13 @@ function TeamGroupPanel({ sportName, division, list }) {
         // bottom padding) made a vertical scrollbar appear inside the section.
         className="overflow-x-auto overflow-y-hidden cursor-grab snap-x snap-mandatory scroll-px-4 sm:scroll-px-5 px-4 sm:px-5 py-5"
       >
-        <RevealGroup className="flex gap-3">
+        {/* The whole row reveals as ONE layer. It used to stagger every card
+            separately; with 20+ cards that was 20+ elements animating on the
+            main thread while their crest images decoded, which stuttered on
+            phones. */}
+        <Reveal className="flex gap-3">
           {list.map((t) => <TeamCard key={t.id} t={t} />)}
-        </RevealGroup>
+        </Reveal>
       </div>
     </Panel>
   );

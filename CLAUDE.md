@@ -1013,7 +1013,7 @@ so a bug in one route cannot expose the other.
   Today, Coming up, About-league, Kolambugan, Recent results), Standings (each group
   table), Brackets (each PANEL — Knockout + groups — not the round columns:
   the SVG wires are measured from box positions, so the boxes must move
-  together with the stage), Teams + Players (card grids, staggered), About
+  together with the stage), Teams (each row as ONE block; per-card stagger lagged, Sep 2026), Players (card grid, staggered), About
   (every section). NOT wrapped: the hero, Home's LIVE NOW tile + "Live now"
   panel, Matches, Champions, TeamDetail, Players' "Top scorers" list.
   Card grids use per-card borders (`border-r border-b` inside an
@@ -1091,7 +1091,11 @@ so a bug in one route cannot expose the other.
   name/barangay/format overlaid at the bottom on a dark gradient scrim
   (`from-black/95 via-black/60 to-transparent`) so the bold white name
   stays legible over any photo. `variant="cover"` is used ONLY here —
-  every other `Crest` call site is untouched.
+  every other `Crest` call site is untouched. **Performance (Sep 25 2026, "laggy"
+  when the cards pop up):** each row reveals as ONE `Reveal` (never per-card
+  `RevealItem`s: 20+ cards animating while their crests decode stuttered), and
+  cover crests use `decoding="async"` + `loading="lazy"` with a blank tile (not the
+  monogram) while the logo check is pending.
 - **Public search bar — Motion + compact width** (Sep 2026,
   `SearchInput` in `PublicUI.jsx`, used by Teams and Players): the clear
   (✕) button now fades/scales in via `AnimatePresence`/`motion.button`

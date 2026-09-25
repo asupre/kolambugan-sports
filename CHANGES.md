@@ -3428,3 +3428,12 @@ its filename and status, making "should I delete this and re-upload" a guess.
   Admin's request, the desktop nav links (13px) and the phone icon bar (22px icons, 9px
   captions) are back exactly as they were before the text-size pass. Only the navs were
   reverted: the LIVE badge, season pill, footer and all page content keep the larger sizes.
+- **Teams page lag fixed (Sep 25 2026).** Reported: the team cards on the public Teams
+  page were laggy when they popped up. Each card revealed on its own, staggered, so a row of
+  20+ cards had 20+ elements animating on the main thread while every crest image loaded
+  and decoded at the same moment. Now each sport/division row reveals as ONE block
+  (`Reveal` instead of `RevealGroup`/`RevealItem` in `Teams.jsx`). Poster-card crests
+  (`Crest variant="cover"`) decode off the main thread (`decoding="async"`), load lazily
+  (cards off to the side of a row wait until they're near), and show a blank tile, not the
+  monogram, while the logo check is still pending, so a card no longer flashes initials and
+  then swaps to the photo. Checked with a production build only, not measured on a phone.

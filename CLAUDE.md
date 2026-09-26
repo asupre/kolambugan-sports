@@ -806,7 +806,8 @@ so a bug in one route cannot expose the other.
   "Delete with its history" (`POST /api/sports/:id/purge`, body `{confirm: <exact name>}`):
   erases the sport's teams, roster links, players on no other sport's team (+ documents,
   photos), tournaments, matches, PlayerMatchStats, organizer account(s), then the sport.
-  Champions untouched (free text). Refused while a match of it is `ongoing`. Irreversible.
+  Champions untouched (free text). Refused while a CURRENT-season match of it is `ongoing`
+  (a past-season match stuck `ongoing` is abandoned and ignored). Irreversible.
 - **Everything a role works in is CURRENT-SEASON scoped** (`getCurrentSeason()`), and a new
   season must look empty to every role. `GET /api/organizer/matches` was missing it until
   Sep 2026 (showed last season's matches after a new season). Any new list of teams /

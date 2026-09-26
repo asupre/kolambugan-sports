@@ -483,7 +483,7 @@ router.delete('/sports/:id', authenticate, authorize('super_admin'), async (req,
 async function sportHistory(sport) {
   const [teams, tournaments, organizers] = await Promise.all([
     Team.find({ sport: sport._id }).select('_id season').lean(),
-    Tournament.find({ sport: sport._id }).select('_id').lean(),
+    Tournament.find({ sport: sport._id }).select('_id season').lean(),
     User.find({ assignedSport: sport._id }).select('_id username role').lean(),
   ]);
   const teamIds = teams.map((t) => t._id);
@@ -494,10 +494,15 @@ async function sportHistory(sport) {
   const shared = await TeamPlayer.distinct('player', { player: { $in: linkedIds }, team: { $nin: teamIds } });
   const sharedSet = new Set(shared.map(String));
   const playerIds = linkedIds.filter((id) => !sharedSet.has(id));
-  const [matches, live, current] = await Promise.all([
+  const current = await getCurrentSeason();
+  // Only a CURRENT-season match counts as "being scored". One left 'ongoing' in a past
+  // season was abandoned, and no screen lists it anymore, so it can't be ended or cancelled.
+  const currentTIds = current
+    ? tournaments.filter((t) => String(t.season) === String(current._id)).map((t) => t._id)
+    : [];
+  const [matches, live] = await Promise.all([
     Match.find({ tournament: { $in: tIds } }).select('_id').lean(),
-    Match.countDocuments({ tournament: { $in: tIds }, status: 'ongoing' }),
-    getCurrentSeason(),
+    Match.countDocuments({ tournament: { $in: currentTIds }, status: 'ongoing' }),
   ]);
   return {
     teamIds, tIds, playerIds,

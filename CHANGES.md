@@ -3494,6 +3494,7 @@ its filename and status, making "should I delete this and re-upload" a guess.
   every team of the sport (all seasons), roster links, players on no other sport's
   team (with their documents + photos), tournaments, matches, player stats, the
   sport's organizer account(s), then the sport. Champions (free text) are kept.
-  Refused while one of its matches is being scored. `GET /api/sports/:id/history`,
+  Refused while one of its CURRENT-season matches is being scored (a match left
+  `ongoing` in a past season is abandoned and does not block). `GET /api/sports/:id/history`,
   `POST /api/sports/:id/purge` (`routes/reference.js`). Wanted to drop Badminton after a
   season had already been played.

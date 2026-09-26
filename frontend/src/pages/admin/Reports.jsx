@@ -178,7 +178,14 @@ export default function Reports() {
           .no-print { display: none !important; }
           .screen-only { display: none !important; }
           .print-only { display: block !important; }
-          .print-block { break-inside: avoid; page-break-inside: avoid; }
+          /* A whole table must NOT be "avoid break": one taller than what's left of
+             the page got pushed to the next, leaving page 1 blank under the title.
+             Tables break between rows; the heading stays with the first rows and
+             the column header repeats on each page. */
+          .print-block { display: block !important; break-inside: auto; overflow: visible !important; }
+          .print-block [data-slot="card-header"] { break-after: avoid; page-break-after: avoid; }
+          .print-block thead { display: table-header-group; }
+          .print-block tr { break-inside: avoid; page-break-inside: avoid; }
           .print-plain { border: none !important; box-shadow: none !important; padding: 0 !important; }
         }
       `}</style>

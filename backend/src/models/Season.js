@@ -32,6 +32,13 @@ const seasonSchema = new mongoose.Schema(
     closedAt: {
       type: Date,
     },
+    // Set once "Clean up this season" has removed the season's residency
+    // documents and reference list (and optionally player photos) to free
+    // storage. Results, rosters, stats and champions are kept.
+    cleanedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,          // auto-adds createdAt and updatedAt fields

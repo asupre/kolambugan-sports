@@ -258,10 +258,10 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   if (loggingOut) return <LoadingScreen message="Signing out…" />;
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex print:block print:min-h-0">
       <aside
         className={cn(
-          "fixed z-30 inset-y-0 left-0 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-[transform,width] duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen",
+          "print:hidden fixed z-30 inset-y-0 left-0 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-[transform,width] duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen",
           open ? "translate-x-0" : "-translate-x-full",
           rail ? "w-64 lg:w-16" : "w-64"
         )}
@@ -328,13 +328,13 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         <div onClick={() => setOpen(false)} className="fixed inset-0 bg-black/30 z-20 lg:hidden" />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 print:block">
         {/* Sticky so the menu/profile/theme controls stay reachable without scrolling back
             up — the page (not `main`) is what actually scrolls in this layout, so without
             this the header just scrolled away like any other content. z-10 keeps it under
             the mobile sidebar (z-30) and its backdrop (z-20), so opening the menu still
             covers it instead of leaving header buttons tappable underneath. */}
-        <header className="sticky top-0 z-10 h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
+        <header className="print:hidden sticky top-0 z-10 h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-3">
             <button onClick={() => setOpen(true)} className="lg:hidden text-foreground" aria-label="Open menu">
               <PanelLeftOpen className="size-5" />
@@ -365,13 +365,13 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         </header>
 
         {showSeason && seasonStrip && season && (
-          <div className="sm:hidden flex items-center gap-2 border-b bg-card px-4 py-2 text-xs text-muted-foreground">
+          <div className="print:hidden sm:hidden flex items-center gap-2 border-b bg-card px-4 py-2 text-xs text-muted-foreground">
             <SeasonBadge status={season.status} />
             <span className="truncate">{season.name}</span>
           </div>
         )}
 
-        <main className="flex-1 p-4 lg:p-6 bg-background">{children}</main>
+        <main className="flex-1 p-4 lg:p-6 bg-background print:p-0">{children}</main>
       </div>
 
       {showHelp && (

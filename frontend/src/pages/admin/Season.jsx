@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarClock, CircleCheck, Info, Plus, Settings2, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleCheck, Info, Plus, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
@@ -196,6 +196,103 @@ function SportSetupSummary() {
   );
 }
 
+const fmtMB = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
+
+// Frees storage from a finished season: its residency documents and reference
+// list, and (only if ticked) its player photos. Results, rosters, stats and
+// champions stay. Irreversible, so the dialog shows exactly what goes first.
+function CleanupDialog({ season, onClose, onDone }) {
+  const [preview, setPreview] = useState(null);
+  const [withPhotos, setWithPhotos] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    if (!season) return;
+    setPreview(null); setWithPhotos(false); setError(""); setResult(null);
+    api(`/api/seasons/${season._id}/cleanup`).then(setPreview).catch((e) => setError(e.message));
+  }, [season]);
+
+  async function run() {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api(`/api/seasons/${season._id}/cleanup`, {
+        method: "POST",
+        body: JSON.stringify({ photos: withPhotos }),
+      });
+      setResult(r);
+      onDone();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const freed = preview ? preview.documents.bytes + (withPhotos ? preview.photos.bytes : 0) : 0;
+
+  return (
+    <Dialog open={!!season} onOpenChange={(o) => !o && !busy && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Clean up {season?.name}?</DialogTitle>
+          <DialogDescription>Frees database storage. This can't be undone.</DialogDescription>
+        </DialogHeader>
+
+        {result ? (
+          <p className="text-sm">
+            Done. Removed {result.documents} document{result.documents === 1 ? "" : "s"}
+            {result.photos ? `, ${result.photos} photo${result.photos === 1 ? "" : "s"}` : ""} and{" "}
+            {result.referenceList.toLocaleString()} reference list rows. About {fmtMB(result.bytesFreed)} of files freed.
+          </p>
+        ) : !preview ? (
+          error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-32 w-full" />
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Removed</p>
+              <ul className="list-disc space-y-1.5 pl-5 text-sm">
+                <li>{preview.documents.count} residency document{preview.documents.count === 1 ? "" : "s"} ({fmtMB(preview.documents.bytes)})</li>
+                <li>{preview.referenceList.count.toLocaleString()} reference list rows</li>
+              </ul>
+            </div>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-[var(--primary)]"
+                checked={withPhotos}
+                onChange={(e) => setWithPhotos(e.target.checked)}
+                disabled={!preview.photos.count}
+              />
+              <span>
+                Also remove {preview.photos.count} player photo{preview.photos.count === 1 ? "" : "s"} ({fmtMB(preview.photos.bytes)})
+                <span className="block text-xs text-muted-foreground">That season's public rosters will show initials instead.</span>
+              </span>
+            </label>
+            <div>
+              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Kept</p>
+              <p className="text-sm">Teams, rosters, match results, standings, player stats and champions.</p>
+            </div>
+            {preview.blockedReason && <p className="text-sm text-amber-700 dark:text-amber-400">{preview.blockedReason}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>{result ? "Close" : "Cancel"}</Button>
+          {!result && (
+            <Button variant="destructive" onClick={run} disabled={busy || !preview || !!preview.blockedReason}>
+              {busy ? "Cleaning up…" : `Clean up (${fmtMB(freed)})`}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Season() {
   const navigate = useNavigate();
   const [season, setSeason] = useState(null);
@@ -206,6 +303,7 @@ export default function Season() {
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [cleanupSeason, setCleanupSeason] = useState(null);
 
   async function load() {
     try {
@@ -381,6 +479,15 @@ export default function Season() {
                         {h.teams} team{h.teams === 1 ? "" : "s"} · {h.verifiedTeams} verified
                       </p>
                       <SeasonBadge status={h.status} className="self-start sm:self-auto" />
+                      {h.cleanedAt ? (
+                        <span className="text-xs text-muted-foreground sm:w-28 sm:text-right">Cleaned up {fmtDate(h.cleanedAt)}</span>
+                      ) : h.status === "completed" && String(h._id) !== String(season._id) ? (
+                        <Button size="sm" variant="outline" className="self-start sm:w-28 sm:self-auto" onClick={() => setCleanupSeason(h)}>
+                          <Trash2 /> Clean up
+                        </Button>
+                      ) : (
+                        <span className="hidden sm:block sm:w-28" />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -401,6 +508,7 @@ export default function Season() {
       />
       <CreateSeasonModal open={createOpen} onClose={() => setCreateOpen(false)}
         onCreate={createSeason} busy={busy} error={error} />
+      <CleanupDialog season={cleanupSeason} onClose={() => setCleanupSeason(null)} onDone={load} />
     </AdminLayout>
   );
 }

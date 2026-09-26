@@ -793,6 +793,17 @@ so a bug in one route cannot expose the other.
 
 ## Accounts & authentication (BUILT)
 
+- **Season clean-up (Sep 2026, storage on the 512 MB free Atlas tier)**: Season history
+  shows "Clean up" on a COMPLETED season that is no longer the current one (`GET`/`POST
+  /api/seasons/:id/cleanup`, sets `Season.cleanedAt`). Removes that season's residency
+  documents (GridFS + records) and reference list; player photos only if ticked. Keeps
+  teams, rosters, results, stats, champions. Irreversible. Files are what fill the quota
+  (dev: 24 documents = 12 MB; all non-file data < 1 MB), so this is the lever — not
+  deleting seasons, which still has no route (and would orphan data, see GOTCHAS).
+- **Printing admin pages**: `AdminLayout` hides its sidebar/header/season strip under
+  `print:`. Never put `break-inside: avoid` on a whole table/card that can be taller than
+  a page — it moves to the next page and leaves a blank one (the Reports page-1 bug).
+  Avoid breaks on rows instead.
 - **Season page (Sep 2026, reworked)**: header + stepper, a **"Ready to move on?"**
   checklist for the specific next step (`lib/seasonReadiness.js`, fed by the dashboard
   payload), an advance dialog listing "what changes" + unfinished items with "Move on

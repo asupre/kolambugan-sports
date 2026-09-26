@@ -3463,3 +3463,22 @@ its filename and status, making "should I delete this and re-upload" a guess.
     listener (React's `onWheel` is passive, so the page could scroll behind it).
   - *Privacy:* the recovery-code screenshot showed a real code; it was painted over before
     committing, since `public/` is served to anyone.
+
+## 2026-09-26 — Season clean-up (storage) + Reports print fix
+
+- **Clean up a past season** (Season page → Season history → "Clean up"). Frees
+  database storage on the 512 MB free Atlas tier, where almost all the space is
+  uploaded files. Removes that season's residency documents (files + records) and
+  its reference list; player photos only if ticked. Keeps teams, rosters, results,
+  stats and champions. Only for a COMPLETED season that is no longer the current
+  one; irreversible, so the dialog shows counts and MB first. `GET`/`POST
+  /api/seasons/:id/cleanup`, `Season.cleanedAt`. There is still no "delete a
+  season" — deleting one directly in the DB orphans its teams/tournaments.
+  Thesis angle: residency documents aren't kept past the season that needed
+  them (data minimization, Data Privacy Act).
+- **Reports print/PDF: page 1 was blank.** Each sport's table was
+  `break-inside: avoid`, so a table taller than what was left of page 1 moved
+  whole to page 2, leaving only the admin header + title. Tables now break
+  between rows (column header repeats, heading stays with the first rows), and
+  the admin sidebar/header/season strip are hidden when printing (`print:` in
+  `AdminLayout`). Verified by printing to PDF in headless Edge, before and after.

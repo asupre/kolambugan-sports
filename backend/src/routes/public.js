@@ -14,6 +14,7 @@ const { getCurrentSeason } = require('../middleware/season');
 const SiteImage = require('../models/SiteImage');
 const { sendFile } = require('../config/gridfs');
 const { isManilaToday, manilaDay } = require('../config/time');
+const { rulesFor, LEGACY_STAT_COLUMNS } = require('../lib/sportRules');
 
 const router = express.Router();
 
@@ -179,8 +180,13 @@ router.get('/teams', async (req, res) => {
 router.get('/teams/:id', async (req, res) => {
   try {
     const team = await Team.findById(req.params.id)
-      .populate('barangay', 'name').populate('sport', 'name');
+      .populate('barangay', 'name').populate('sport', 'name category scoreSheet customStats');
     if (!team) return res.status(404).json({ message: 'Team not found.' });
+
+    // Only the columns the Super Admin put on this sport's after-match score sheet
+    // (League Setup) — e.g. chess set to "points" must not show a Fouls column.
+    const sheet = team.sport ? rulesFor(team.sport).sheet : [];
+    const statColumns = LEGACY_STAT_COLUMNS.filter((k) => sheet.includes(k));
 
     const links = await TeamPlayer.find({ team: team._id }).populate('player');
     const players = links.map((l) => l.player).filter(Boolean);
@@ -210,6 +216,7 @@ router.get('/teams/:id', async (req, res) => {
         id: team._id, name: team.teamName, barangay: team.barangay?.name,
         barangayId: team.barangay?._id ? String(team.barangay._id) : null,
         sport: team.sport?.name, division: team.division, format: team.format,
+        statColumns,
       },
       players: players.map((p) => ({
         id: p._id,

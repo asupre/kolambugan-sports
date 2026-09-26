@@ -49,13 +49,12 @@ export default function TeamDetail() {
 
   const { team, players = [] } = data;
 
-  // Volleyball is side-scored, and billiards and chess are win/loss only —
-  // no PlayerMatchStats rows exist, so the stat columns would be a wall of
-  // zeroes. Show them only when the sport actually records them.
-      const statsTracked = players.some((p) => (p.stats?.points || 0) > 0 || (p.stats?.fouls || 0) > 0);
-  // Rebounds and assists are basketball-only, so the columns appear only when
-  // the sport actually records them.
-  const boxScore = players.some((p) => (p.stats?.rebounds || 0) > 0 || (p.stats?.assists || 0) > 0);
+  // Stat columns follow the sport's after-match score sheet (League Setup): chess
+  // set to "points" shows points only, never fouls. The whole stat block stays
+  // hidden until something has actually been recorded, so it isn't a wall of zeroes.
+  const cols = team.statColumns || [];
+  const has = (k) => cols.includes(k);
+  const statsTracked = players.some((p) => cols.some((k) => (p.stats?.[k] || 0) > 0));
 
   const roster = [...players].sort((a, b) => {
     const an = Number(a.jerseyNumber), bn = Number(b.jerseyNumber);
@@ -117,9 +116,11 @@ export default function TeamDetail() {
                   <Th>#</Th>
                   <Th>Player</Th>
                   <Th right>Age</Th>
-                                    {statsTracked && <><Th right>GP</Th><Th right>PTS</Th><Th right>PPG</Th>
-                    {boxScore && <><Th right>REB</Th><Th right>AST</Th></>}
-                    <Th right>Fouls</Th></>}
+                  {statsTracked && <><Th right>GP</Th>
+                    {has("points") && <><Th right>PTS</Th><Th right>PPG</Th></>}
+                    {has("rebounds") && <Th right>REB</Th>}
+                    {has("assists") && <Th right>AST</Th>}
+                    {has("fouls") && <Th right>Fouls</Th>}</>}
                 </tr>
               </thead>
               <tbody>
@@ -141,15 +142,10 @@ export default function TeamDetail() {
                       {statsTracked && (
                         <>
                           <Td right dim>{s.games}</Td>
-                          <Td right>{s.points}</Td>
-                                                    <Td right dim>{ppg}</Td>
-                          {boxScore && (
-                            <>
-                              <Td right dim>{s.rebounds || 0}</Td>
-                              <Td right dim>{s.assists || 0}</Td>
-                            </>
-                          )}
-                          <Td right dim>{s.fouls}</Td>
+                          {has("points") && <><Td right>{s.points}</Td><Td right dim>{ppg}</Td></>}
+                          {has("rebounds") && <Td right dim>{s.rebounds || 0}</Td>}
+                          {has("assists") && <Td right dim>{s.assists || 0}</Td>}
+                          {has("fouls") && <Td right dim>{s.fouls || 0}</Td>}
                         </>
                       )}
                     </tr>

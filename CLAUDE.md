@@ -625,6 +625,10 @@ drawn.
   are real `PlayerMatchStats` columns (the public pages sum only those four); every other column
   goes under `PlayerMatchStats.extra` (not shown publicly yet). A new catalog column = one
   `STAT_CATALOG` entry plus its `SHEET_BY_CATEGORY` type(s); no schema change.
+  **The public Team page shows only the sheet's columns** (Sep 2026 fix: it used to always
+  add Fouls, so chess/badminton set to Points showed an all-zero Fouls column). `GET
+  /api/public/teams/:id` returns `team.statColumns` (the sheet ∩ the four public columns);
+  `TeamDetail.jsx` renders from that. Don't hardcode stat columns on public pages.
 - **Sport TYPE (Sep 2026):** `Sport.category` ∈ physical (a sport) / esports / **board** (a board
   game), set per sport in League Setup. Decides the live scoring default (sport = points; esports
   and board = games won) and which sheet columns are on offer. Existing Chess / Billiards stay

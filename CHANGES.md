@@ -3437,3 +3437,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   (cards off to the side of a row wait until they're near), and show a blank tile, not the
   monogram, while the logo check is still pending, so a card no longer flashes initials and
   then swaps to the photo. Checked with a production build only, not measured on a phone.
+- **Public team stats follow the score sheet (Sep 26 2026).** Reported: chess and badminton,
+  whose score sheet in League Setup is Points only, showed a Fouls column on the public Team
+  page. The page (`TeamDetail.jsx`) never read the sheet: it always added Fouls once any
+  player had points, and Rebounds/Assists whenever one was non-zero. `GET
+  /api/public/teams/:id` now returns `team.statColumns`: the sport's sheet
+  (`rulesFor().sheet`) limited to the four public columns (points / assists / rebounds /
+  fouls). The table shows only those. Removing a column from a sheet hides numbers already
+  recorded in it on this page; nothing is deleted.

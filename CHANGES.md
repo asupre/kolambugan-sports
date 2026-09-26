@@ -3445,3 +3445,21 @@ its filename and status, making "should I delete this and re-upload" a guess.
   (`rulesFor().sheet`) limited to the four public columns (points / assists / rebounds /
   fouls). The table shows only those. Removing a column from a sheet hides numbers already
   recorded in it on this page; nothing is deleted.
+- **Guide screenshots added, several per step, zoomable; the guide no longer jumps
+  (Sep 26 2026).** The team's screenshots (36 PNGs) are now in the first-login guide ("?"
+  in the admin header), moved to `frontend/public/instructions/<role>/`. Each step lists its
+  own screenshots with a caption in `instructionContent.js`, so a step can show several at
+  once: one large plus a thumbnail strip of all of them. Clicking the large one opens the
+  zoom view, which can step through them. New steps for the pages that had screenshots but
+  no step: Super Admin "Champions, Reports & Site Images" and "Your profile & recovery
+  code"; Barangay Admin "Follow your matches". Organizer "Fill in the player stats" has no
+  screenshot yet and shows its icon.
+  - *The jump:* the modal sized itself to each step and is centred, so every Next moved
+    it. It now has a fixed height; measured the same position and size on every step at
+    1366x768 and 390x844 (headless Edge against a throwaway test page).
+  - *Zoom:* the shared `Lightbox` (also used by the Review Queue and Document Submission)
+    now zooms toward the cursor / pinch point instead of the centre, handles trackpad
+    pinch, keeps the image from being dragged off screen, and uses a real non-passive wheel
+    listener (React's `onWheel` is passive, so the page could scroll behind it).
+  - *Privacy:* the recovery-code screenshot showed a real code; it was painted over before
+    committing, since `public/` is served to anyone.

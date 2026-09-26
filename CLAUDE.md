@@ -1979,8 +1979,10 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   and `components/menus.js` (`superAdminMenu`, `organizerMenu`, `brgyMenu` —
   previously copy-pasted into every page).
 - **First-login instruction modal** (`components/InstructionModal.jsx` +
-  `lib/instructionContent.js`) — role-specific step-through content (7 steps
-  for Super Admin, 4 for Barangay Admin, 5 for Organizer — the last two are
+  `lib/instructionContent.js`) — role-specific step-through content (9 steps
+  for Super Admin — incl. "Champions, Reports & Site Images" and "Your profile &
+  recovery code"; 5 for Barangay Admin — incl. "Follow your matches"; 5 for
+  Organizer — the last two are
   "End the match" and "Fill in the player stats") shown automatically once, right after a forced password
   change (`ChangePassword.jsx`) — `mustChangePassword` only ever fires once
   per account, so this needed no new backend field to key off. Also
@@ -1989,15 +1991,31 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   refresher. **Wide two-pane layout with screenshots again (Sep 2026)** —
   the earlier "text + icon only, no screenshots" decision (dropped because
   every UI pass makes them stale) was reversed at the Super Admin's request:
-  the modal is now `sm:max-w-5xl`, explanation on the LEFT (title,
-  description, shadcn `Separator`s, and a clickable numbered step list) and
-  the step's screenshot on the RIGHT, click to enlarge (nested `Dialog`
-  lightbox in `StepShot`). Images live in `frontend/public/instructions/`
-  named `<role>-<step>.png` (`super-admin-1.png`, `barangay-admin-3.png`,
-  `organizer-5.png`… — see that folder's README.md); `instructionContent.js`
-  derives each step's `image` path from its position. A missing/failed image
-  falls back to the step's icon, so nothing breaks before the files exist.
+  explanation on the LEFT (title, description, numbered step list — the list is
+  hidden on phones) and the step's screenshots on the RIGHT. **Real screenshots
+  landed + multi-picture steps (Sep 26 2026):** each step lists its own `shots`
+  (`[file, caption]`, any number, in order) in `instructionContent.js`; files
+  live in `frontend/public/instructions/{super-admin,barangay-admin,organizer}/`
+  (see that folder's README.md — nothing is picked up by filename anymore).
+  `StepShots` shows one large + a thumbnail strip of all of them; clicking the
+  large one opens the shared zoomable `Lightbox` (`components/DocumentViewer.jsx`)
+  in gallery mode (`onPrev`/`onNext`/`caption`/`position`). A step with no shots
+  shows its icon (Organizer "Fill in the player stats" has none yet).
+  **The modal has a FIXED height** (`h-[92dvh] md:h-[min(92dvh,760px)]`, `sm:max-w-6xl`)
+  — it used to size to each step, and being centred it jumped on every Next.
+  Measured: identical top/height across all steps at 1366x768 and 390x844. All
+  of a role's screenshots are preloaded on open. **`public/` is served
+  publicly** — the recovery-code screenshot had its real code painted over;
+  never ship a password, code, document or real resident's data in a capture.
   Re-capture the affected screenshots after any UI pass on those pages.
+- **Shared `Lightbox` zoom rewritten (Sep 26 2026)**: zoom is anchored to the
+  cursor / pinch midpoint (the point under your finger stays put), wheel uses a
+  non-passive native listener (React's `onWheel` is passive, so its
+  `preventDefault` never worked) with trackpad-pinch (ctrlKey) followed 1:1,
+  pan is clamped so the image can't be dragged off screen, and the live
+  transform is written to the `<img>` via a ref — React state only holds the %
+  label. Gallery mode adds arrows, ←/→ keys and a sideways swipe when not zoomed.
+  Same API for the Review Queue / Documents pages (`src`, `onClose`).
 
 ## IN PROGRESS / NEXT (priority order)
 

@@ -1,28 +1,37 @@
-# Instruction modal screenshots
+# Instruction guide screenshots
 
-Drop PNGs here, named `<role>-<step number>-<n>.png` — step number = the
-step's position in `src/lib/instructionContent.js` (starting at 1), and `n`
-is which screenshot within that step (also starting at 1). Most steps only
-need one: `super-admin-2-1.png`. A step that needs to walk through more than
-one screen (e.g. "Start a season" showing the empty state, then the create
-dialog, then the result) can have `-2`, `-3`, etc. too — the modal shows them
-as a small gallery (arrows + dots) the user can step through.
+The first-login guide (the "?" button in the admin header) shows these on the
+right-hand side of each step: one large, plus a thumbnail strip of every
+screenshot for that step. Clicking the large one opens a zoomable view
+(wheel / pinch / double-click / +/-), which can also step through them.
 
-**`n` must be CONTIGUOUS, starting at 1** — the modal probes `-1`, `-2`, `-3`…
-in order and stops at the first one that's missing, so `-1.png` + `-3.png`
-with no `-2.png` would only ever show the first image. If a step only needs
-one screenshot, just add `-1.png`.
+Files live in one folder per role:
 
-**Super Admin** (7): `super-admin-1-1.png` … `super-admin-7-1.png` (+ `-2`, `-3`… as needed)
-1 Welcome (dashboard) · 2 Season · 3 Reference List · 4 Review Queue ·
-5 League Setup · 6 Tournaments · 7 Accounts
+- `super-admin/`
+- `barangay-admin/`
+- `organizer/`
 
-**Barangay Admin** (4): `barangay-admin-1-1.png` … `barangay-admin-4-1.png`
-1 Welcome · 2 Team Registration · 3 Document Submission · 4 Submit & track
+They are NOT picked up by name automatically. Each step in
+`src/lib/instructionContent.js` lists its own screenshots, in order, with a
+caption:
 
-**Organizer** (5): `organizer-1-1.png` … `organizer-5-1.png`
-1 Welcome · 2 Match list · 3 Start & score · 4 End the match · 5 Player stats form
+```js
+shots: [
+  ["create-season.png", "No season yet: tap Create Season"],
+  ["create-season-modal.png", "Name the season"],
+],
+```
 
-A step with no files at all just shows its icon instead. Use a wide
-(16:9-ish) capture; users can click a screenshot to enlarge it (and, with
-multiple, step through them in the enlarged view too).
+To add or replace a screenshot: drop the PNG in the role's folder (lower-case,
+no spaces) and add or edit its line in that step. A step with no `shots` shows
+its icon instead.
+
+Guidelines:
+
+- Capture at about 1366x768. Wide captures fill the viewer best; small crops
+  (one card, one dialog) are fine too.
+- Everything here is served PUBLICLY. Never capture a real password, a
+  recovery code, a residency document, or a real resident's personal data.
+  Blank it out first (the recovery-code screenshot has its code replaced with
+  XXXX).
+- Re-capture the affected screenshots after a UI pass on those pages.

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Minus, Plus, RotateCcw, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent } from "./ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
 import { cn } from "../lib/utils";
 
@@ -13,166 +13,180 @@ import { cn } from "../lib/utils";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
+const clampScale = (s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+const EASE = "transform 200ms cubic-bezier(0.2, 0.7, 0.3, 1)";
 
-// A residency document is often a phone photo of an ID/certificate — "fit to
-// screen" isn't enough to read small print. Real zoom: mouse wheel, +/-
-// buttons, double-click, drag-to-pan, and two-finger pinch on touch.
+// A zoomable full-screen image. Used for residency documents (a phone photo of an
+// ID — "fit to screen" isn't enough to read small print) and for the instruction
+// guide's screenshots. Mouse wheel / trackpad pinch, +/- buttons, double-click,
+// drag-to-pan, and two-finger pinch on touch. Zoom is anchored to the pointer (or
+// the pinch midpoint), so the spot under your finger stays put.
 //
-// Perf note (Sep 2026): during an active drag/pinch this does NOT call
-// setState on every move — a touchmove can fire 60-120x/sec, and each one
-// used to be a full React re-render, which is what read as laggy. `paint()`
-// instead writes straight to the image's DOM style via a ref, and the
-// gesture's own ref tracks the live value; React state (`scale`/`pos`) is
-// only committed once, when the finger/mouse lifts (`commit()`).
-export function Lightbox({ src, onClose }) {
+// Optional gallery mode: pass `onPrev` / `onNext` (plus `position`, e.g. "2 / 5",
+// and a `caption`) for arrow buttons, the left/right keys and, when not zoomed in,
+// a sideways swipe. Changing `src` resets the zoom.
+//
+// Perf (Sep 2026): the live zoom/pan lives in a ref and is written straight to the
+// image's style (`apply()`), never through React state on every wheel tick or
+// touchmove, which is what used to read as laggy. React state only holds the zoom
+// level for the % label and the buttons.
+export function Lightbox({ src, alt = "", caption, position, onClose, onPrev, onNext }) {
   const [scale, setScale] = useState(1);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [gesturing, setGesturing] = useState(false); // true for the transition's OFF duration only
+  const view = useRef({ s: 1, x: 0, y: 0 });
+  const boxRef = useRef(null);
   const imgRef = useRef(null);
-  const dragRef = useRef(null); // mouse pan: { startX, startY, origX, origY, x, y }
-  const touchDragRef = useRef(null); // one-finger touch pan: same shape
-  const pinchRef = useRef(null); // { startDist, startScale, startMidX, startMidY, origX, origY, scale, x, y }
+  const drag = useRef(null); // mouse or one-finger pan / swipe
+  const pinch = useRef(null);
+  const wheelRef = useRef(null);
 
-  function clampScale(s) {
-    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+  function apply(s, x, y, animate) {
+    s = clampScale(s);
+    const box = boxRef.current;
+    if (s === MIN_SCALE || !box) { x = 0; y = 0; }
+    else {
+      // Keep the image on screen: pan at most as far as the zoom overflows the box.
+      const mx = (box.clientWidth * (s - 1)) / 2;
+      const my = (box.clientHeight * (s - 1)) / 2;
+      x = Math.max(-mx, Math.min(mx, x));
+      y = Math.max(-my, Math.min(my, y));
+    }
+    view.current = { s, x, y };
+    const img = imgRef.current;
+    if (img) {
+      img.style.transition = animate ? EASE : "none";
+      img.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${s})`;
+    }
+    return s;
+  }
+  const set = (s, x, y, animate = true) => setScale(apply(s, x, y, animate));
+
+  // A point relative to the box's centre (the transform origin).
+  function local(clientX, clientY) {
+    const r = boxRef.current.getBoundingClientRect();
+    return { px: clientX - r.left - r.width / 2, py: clientY - r.top - r.height / 2 };
+  }
+  // Zoom to `next`, keeping the content under (px, py) where it is.
+  function zoomAt(next, px = 0, py = 0, animate = true) {
+    const { s, x, y } = view.current;
+    const n = clampScale(next);
+    set(n, px - (n * (px - x)) / s, py - (n * (py - y)) / s, animate);
   }
 
-  function paint(nextScale, x, y) {
-    if (imgRef.current) imgRef.current.style.transform = `translate(${x}px, ${y}px) scale(${nextScale})`;
+  // New image: back to fit-to-screen.
+  useEffect(() => { set(1, 0, 0, false); }, [src]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The wheel needs a non-passive listener so it can stop the page scrolling.
+  function attachBox(node) {
+    if (boxRef.current && wheelRef.current) boxRef.current.removeEventListener("wheel", wheelRef.current);
+    boxRef.current = node;
+    if (!node) return;
+    wheelRef.current = (e) => {
+      e.preventDefault();
+      // ctrlKey = a trackpad pinch: small, frequent deltas, followed 1:1 with no easing.
+      const smooth = e.ctrlKey || Math.abs(e.deltaY) < 40;
+      const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0025));
+      const { px, py } = local(e.clientX, e.clientY);
+      zoomAt(view.current.s * factor, px, py, !smooth);
+    };
+    node.addEventListener("wheel", wheelRef.current, { passive: false });
   }
 
-  function commit(nextScale, x, y) {
-    const clamped = clampScale(nextScale);
-    const finalX = clamped === MIN_SCALE ? 0 : x;
-    const finalY = clamped === MIN_SCALE ? 0 : y;
-    setScale(clamped);
-    setPos({ x: finalX, y: finalY });
-    paint(clamped, finalX, finalY);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "ArrowLeft" && onPrev) onPrev();
+      else if (e.key === "ArrowRight" && onNext) onNext();
+      else if (e.key === "+" || e.key === "=") zoomAt(view.current.s * 1.5);
+      else if (e.key === "-") zoomAt(view.current.s / 1.5);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  function handleDoubleClick(e) {
+    if (view.current.s > MIN_SCALE) return set(1, 0, 0);
+    const { px, py } = local(e.clientX, e.clientY);
+    zoomAt(2.5, px, py);
   }
 
-  function zoomTo(next) {
-    commit(next, pos.x, pos.y);
-  }
-
-  function handleWheel(e) {
-    e.preventDefault();
-    zoomTo(scale + (e.deltaY < 0 ? 0.4 : -0.4));
-  }
-
-  function handleDoubleClick() {
-    zoomTo(scale > MIN_SCALE ? MIN_SCALE : 2.5);
-  }
-
-  // Mouse-only drag-to-pan — touch gets its own handlers below so a
-  // single-finger pan and a two-finger pinch don't fight over the same state.
+  // Mouse drag-to-pan (touch has its own handlers so a pan and a pinch don't
+  // fight over the same state).
   function handlePointerDown(e) {
-    if (e.pointerType === "touch") return;
-    if (scale <= MIN_SCALE) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y, x: pos.x, y: pos.y };
-    setGesturing(true);
+    if (e.pointerType === "touch" || view.current.s <= MIN_SCALE) return;
+    const { x, y } = view.current;
+    drag.current = { startX: e.clientX, startY: e.clientY, origX: x, origY: y };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
-
   function handlePointerMove(e) {
-    if (e.pointerType === "touch") return;
-    if (!dragRef.current) return;
-    const d = dragRef.current;
-    d.x = d.origX + (e.clientX - d.startX);
-    d.y = d.origY + (e.clientY - d.startY);
-    paint(scale, d.x, d.y);
+    const d = drag.current;
+    if (e.pointerType === "touch" || !d) return;
+    apply(view.current.s, d.origX + e.clientX - d.startX, d.origY + e.clientY - d.startY, false);
   }
-
   function handlePointerUp(e) {
-    if (e.pointerType === "touch") return;
-    if (dragRef.current) {
-      commit(scale, dragRef.current.x, dragRef.current.y);
-      dragRef.current = null;
-      setGesturing(false);
-    }
+    if (e.pointerType !== "touch") drag.current = null;
   }
 
-  function touchDist(touches) {
-    const [a, b] = touches;
-    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-  }
+  const dist = ([a, b]) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  const mid = ([a, b]) => local((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
 
-  function touchMid(touches) {
-    const [a, b] = touches;
-    return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
-  }
-
-  // Real two-finger pinch-to-zoom, plus a one-finger touch drag once zoomed in
-  // — the +/- buttons stay as a fallback, but a residency doc is usually a
-  // phone photo of an ID, and pinching to read it is the natural gesture.
-  // `touch-none` (below) tells the browser not to handle these itself, so no
-  // page-zoom/scroll fights the gesture and preventDefault isn't needed here.
   function handleTouchStart(e) {
+    const { s, x, y } = view.current;
     if (e.touches.length === 2) {
-      const mid = touchMid(e.touches);
-      pinchRef.current = {
-        startDist: touchDist(e.touches),
-        startScale: scale,
-        startMidX: mid.x,
-        startMidY: mid.y,
-        origX: pos.x,
-        origY: pos.y,
-        scale, x: pos.x, y: pos.y,
-      };
-      touchDragRef.current = null;
-      setGesturing(true);
-    } else if (e.touches.length === 1 && scale > MIN_SCALE) {
+      const m = mid(e.touches);
+      // The content point under the pinch midpoint, in unscaled coordinates.
+      pinch.current = { d0: dist(e.touches), s0: s, qx: (m.px - x) / s, qy: (m.py - y) / s };
+      drag.current = null;
+    } else if (e.touches.length === 1) {
       const t = e.touches[0];
-      touchDragRef.current = { startX: t.clientX, startY: t.clientY, origX: pos.x, origY: pos.y, x: pos.x, y: pos.y };
-      setGesturing(true);
+      drag.current = { startX: t.clientX, startY: t.clientY, origX: x, origY: y, swipe: s <= MIN_SCALE };
     }
   }
-
   function handleTouchMove(e) {
-    if (e.touches.length === 2 && pinchRef.current) {
-      const p = pinchRef.current;
-      const mid = touchMid(e.touches);
-      p.scale = clampScale(p.startScale * (touchDist(e.touches) / p.startDist));
-      p.x = p.origX + (mid.x - p.startMidX);
-      p.y = p.origY + (mid.y - p.startMidY);
-      paint(p.scale, p.x, p.y);
-    } else if (e.touches.length === 1 && touchDragRef.current) {
+    if (e.touches.length === 2 && pinch.current) {
+      const p = pinch.current;
+      const m = mid(e.touches);
+      const s = clampScale(p.s0 * (dist(e.touches) / p.d0));
+      apply(s, m.px - s * p.qx, m.py - s * p.qy, false);
+    } else if (e.touches.length === 1 && drag.current && !drag.current.swipe) {
       const t = e.touches[0];
-      const d = touchDragRef.current;
-      d.x = d.origX + (t.clientX - d.startX);
-      d.y = d.origY + (t.clientY - d.startY);
-      paint(scale, d.x, d.y);
+      const d = drag.current;
+      apply(view.current.s, d.origX + t.clientX - d.startX, d.origY + t.clientY - d.startY, false);
+    }
+  }
+  function handleTouchEnd(e) {
+    if (pinch.current && e.touches.length < 2) {
+      pinch.current = null;
+      set(view.current.s, view.current.x, view.current.y);
+      if (e.touches.length === 1) {
+        // One finger lifted off a pinch; the other keeps panning from here.
+        const t = e.touches[0];
+        drag.current = { startX: t.clientX, startY: t.clientY, origX: view.current.x, origY: view.current.y };
+      }
+      return;
+    }
+    const d = drag.current;
+    if (e.touches.length === 0 && d) {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - d.startX;
+      if (d.swipe && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(t.clientY - d.startY)) {
+        if (dx < 0 && onNext) onNext();
+        if (dx > 0 && onPrev) onPrev();
+      }
+      drag.current = null;
     }
   }
 
-  function handleTouchEnd(e) {
-    if (e.touches.length < 2 && pinchRef.current) {
-      // Read the pinch's own live values, not `pos`/`scale` React state —
-      // commit() below only SCHEDULES that state update, it isn't applied
-      // synchronously, so `pos` here would still be last render's value.
-      const { scale: endScale, x: endX, y: endY } = pinchRef.current;
-      commit(endScale, endX, endY);
-      pinchRef.current = null;
-      if (e.touches.length === 1) {
-        // one finger lifted off a pinch, the other keeps panning from where
-        // the pinch left off
-        const t = e.touches[0];
-        touchDragRef.current = { startX: t.clientX, startY: t.clientY, origX: endX, origY: endY, x: endX, y: endY };
-        return; // still gesturing — don't clear it below
-      }
-    }
-    if (e.touches.length === 0) {
-      if (touchDragRef.current) commit(scale, touchDragRef.current.x, touchDragRef.current.y);
-      touchDragRef.current = null;
-      setGesturing(false);
-    }
-  }
+  const white = "text-white hover:bg-white/10 hover:text-white";
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-[90vw] p-2 bg-black/90 border-0">
+      <DialogContent showCloseButton={false} aria-describedby={undefined} className="sm:max-w-[90vw] p-2 bg-black/90 border-0"
+        // Focus the image, not the first button (a focus ring on the Previous arrow).
+        onOpenAutoFocus={(e) => { e.preventDefault(); boxRef.current?.focus(); }}>
+        <DialogTitle className="sr-only">{caption || alt || "Image"}</DialogTitle>
         <div
-          className={cn("h-[85vh] w-full overflow-hidden rounded touch-none", scale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in")}
-          onWheel={handleWheel}
+          ref={attachBox}
+          tabIndex={-1}
+          className={cn("h-[85vh] w-full overflow-hidden rounded touch-none outline-none", scale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in")}
           onDoubleClick={handleDoubleClick}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -186,33 +200,53 @@ export function Lightbox({ src, onClose }) {
           <img
             ref={imgRef}
             src={src}
-            alt=""
+            alt={alt}
             draggable={false}
             decoding="async"
-            className="h-full w-full object-contain select-none"
-            style={{
-              transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
-              transition: gesturing ? "none" : "transform 0.15s ease-out",
-            }}
+            className="h-full w-full object-contain select-none will-change-transform"
           />
         </div>
+
+        {(caption || position) && (
+          <div className="pointer-events-none absolute top-3 left-3 right-14 flex">
+            <span className="rounded-md bg-black/70 px-2.5 py-1 text-xs font-medium text-white">
+              {position && <span className="tabular-nums text-white/70">{position}</span>}
+              {position && caption && " · "}
+              {caption}
+            </span>
+          </div>
+        )}
+
+        {onPrev && (
+          <Button type="button" variant="ghost" size="icon" aria-label="Previous image" onClick={onPrev}
+            className={cn("absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60", white)}>
+            <ChevronLeft />
+          </Button>
+        )}
+        {onNext && (
+          <Button type="button" variant="ghost" size="icon" aria-label="Next image" onClick={onNext}
+            className={cn("absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60", white)}>
+            <ChevronRight />
+          </Button>
+        )}
+
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1.5">
-          <Button type="button" variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white"
-            onClick={() => zoomTo(scale - 0.5)} disabled={scale <= MIN_SCALE}>
+          <Button type="button" variant="ghost" size="icon-sm" className={white} aria-label="Zoom out"
+            onClick={() => zoomAt(view.current.s / 1.5)} disabled={scale <= MIN_SCALE}>
             <Minus />
           </Button>
           <span className="w-12 text-center text-xs text-white tabular-nums">{Math.round(scale * 100)}%</span>
-          <Button type="button" variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white"
-            onClick={() => zoomTo(scale + 0.5)} disabled={scale >= MAX_SCALE}>
+          <Button type="button" variant="ghost" size="icon-sm" className={white} aria-label="Zoom in"
+            onClick={() => zoomAt(view.current.s * 1.5)} disabled={scale >= MAX_SCALE}>
             <Plus />
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white"
-            onClick={() => zoomTo(1)} disabled={scale === MIN_SCALE}>
+          <Button type="button" variant="ghost" size="icon-sm" className={white} aria-label="Reset zoom"
+            onClick={() => set(1, 0, 0)} disabled={scale === MIN_SCALE}>
             <RotateCcw />
           </Button>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={onClose}
-          className="absolute top-3 right-3 text-white hover:bg-white/10 hover:text-white">
+        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close"
+          className={cn("absolute top-3 right-3", white)}>
           <X />
         </Button>
       </DialogContent>

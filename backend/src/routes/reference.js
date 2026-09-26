@@ -9,6 +9,11 @@ const multer = require('multer');
 const { putFile, sendFile, deleteFile } = require('../config/gridfs');
 const Tournament = require('../models/Tournament');
 const User = require('../models/User');
+const TeamPlayer = require('../models/TeamPlayer');
+const Player = require('../models/Player');
+const Document = require('../models/Document');
+const Match = require('../models/Match');
+const PlayerMatchStats = require('../models/PlayerMatchStats');
 const { rescreenSeason } = require('../services/prescreen');
 const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, teamsAllowedFor } = require('../lib/sportRules');
 
@@ -462,6 +467,116 @@ router.delete('/sports/:id', authenticate, authorize('super_admin'), async (req,
     res.json({ message: `${sport.name} removed.` });
   } catch (err) {
     console.error('Delete sport error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// ── Delete a sport WITH its history (Super Admin decision, Sep 2026) ──────
+// The plain DELETE above refuses while anything references the sport, in any
+// season. This is the deliberate "erase it all" path: every team of the sport
+// (all seasons) with its roster links, players who are on no other team (plus
+// their documents and photos), every tournament with its matches and player
+// stats, the sport's organizer account(s), then the sport. Champions are free
+// text and are NOT touched. Irreversible — the client must send the sport's
+// exact name as `confirm`.
+
+async function sportHistory(sport) {
+  const [teams, tournaments, organizers] = await Promise.all([
+    Team.find({ sport: sport._id }).select('_id season').lean(),
+    Tournament.find({ sport: sport._id }).select('_id').lean(),
+    User.find({ assignedSport: sport._id }).select('_id username role').lean(),
+  ]);
+  const teamIds = teams.map((t) => t._id);
+  const tIds = tournaments.map((t) => t._id);
+  const links = await TeamPlayer.find({ team: { $in: teamIds } }).select('player').lean();
+  const linkedIds = [...new Set(links.map((l) => String(l.player)))];
+  // A player also on a team of ANOTHER sport keeps their record (and files).
+  const shared = await TeamPlayer.distinct('player', { player: { $in: linkedIds }, team: { $nin: teamIds } });
+  const sharedSet = new Set(shared.map(String));
+  const playerIds = linkedIds.filter((id) => !sharedSet.has(id));
+  const [matches, live, current] = await Promise.all([
+    Match.find({ tournament: { $in: tIds } }).select('_id').lean(),
+    Match.countDocuments({ tournament: { $in: tIds }, status: 'ongoing' }),
+    getCurrentSeason(),
+  ]);
+  return {
+    teamIds, tIds, playerIds,
+    matchIds: matches.map((m) => m._id),
+    organizers,
+    live,
+    currentSeasonTeams: current ? teams.filter((t) => String(t.season) === String(current._id)).length : 0,
+  };
+}
+
+// GET /api/sports/:id/history — what deleting it with its history would erase.
+router.get('/sports/:id/history', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const sport = await Sport.findById(req.params.id);
+    if (!sport) return res.status(404).json({ message: 'Sport not found.' });
+    const h = await sportHistory(sport);
+    res.json({
+      teams: h.teamIds.length,
+      currentSeasonTeams: h.currentSeasonTeams,
+      players: h.playerIds.length,
+      tournaments: h.tIds.length,
+      matches: h.matchIds.length,
+      liveMatches: h.live,
+      organizers: h.organizers.map((u) => u.username),
+    });
+  } catch (err) {
+    console.error('Sport history error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/sports/:id/purge — body { confirm: "<exact sport name>" }.
+router.post('/sports/:id/purge', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const sport = await Sport.findById(req.params.id);
+    if (!sport) return res.status(404).json({ message: 'Sport not found.' });
+    if (String(req.body.confirm || '').trim() !== sport.name) {
+      return res.status(400).json({ message: `Type "${sport.name}" exactly to confirm.` });
+    }
+    const h = await sportHistory(sport);
+    if (h.live) {
+      return res.status(409).json({ message: `${sport.name} has ${h.live} match(es) being scored right now. End or cancel them first.` });
+    }
+
+    // Matches and their stats, then tournaments.
+    await PlayerMatchStats.deleteMany({ match: { $in: h.matchIds } });
+    await Match.deleteMany({ tournament: { $in: h.tIds } });
+    await Tournament.deleteMany({ _id: { $in: h.tIds } });
+
+    // Players only on this sport's teams: their documents, photos, then the record.
+    const docs = await Document.find({ player: { $in: h.playerIds } }).select('file').lean();
+    const photos = await Player.find({ _id: { $in: h.playerIds }, photo: { $ne: null } }).select('photo').lean();
+    for (let i = 0; i < docs.length; i += 10) {
+      await Promise.all(docs.slice(i, i + 10).map((d) => deleteFile('documents', d.file)));
+    }
+    for (let i = 0; i < photos.length; i += 10) {
+      await Promise.all(photos.slice(i, i + 10).map((p) => deleteFile('photos', p.photo)));
+    }
+    await Document.deleteMany({ player: { $in: h.playerIds } });
+    await Player.deleteMany({ _id: { $in: h.playerIds } });
+    await TeamPlayer.deleteMany({ team: { $in: h.teamIds } });
+    await Team.deleteMany({ _id: { $in: h.teamIds } });
+
+    // Organizer account(s) for this sport, then the sport itself.
+    const orgs = await User.find({ assignedSport: sport._id, role: 'organizer' }).select('photo').lean();
+    for (const u of orgs) if (u.photo) await deleteFile('photos', u.photo);
+    await User.deleteMany({ assignedSport: sport._id, role: 'organizer' });
+    await Sport.deleteOne({ _id: sport._id });
+
+    res.json({
+      message: `${sport.name} and all its history were deleted.`,
+      teams: h.teamIds.length,
+      players: h.playerIds.length,
+      tournaments: h.tIds.length,
+      matches: h.matchIds.length,
+      organizers: h.organizers.length,
+    });
+  } catch (err) {
+    console.error('Purge sport error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

@@ -3487,3 +3487,13 @@ its filename and status, making "should I delete this and re-upload" a guess.
   created the organizer still saw old scheduled/completed matches. Now scoped to the
   current season (the organizer dashboard already was). Known gap: an old match can
   still be opened/scored by its direct URL; it's no longer listed anywhere.
+- **Delete a game WITH its history** (League Setup → Remove game; Super Admin decision).
+  The plain delete still refuses while a sport has teams / tournaments / an organizer
+  in ANY season (it would orphan them). Now, when it has any, Remove opens a dialog
+  listing everything that will be erased and requires typing the sport's name:
+  every team of the sport (all seasons), roster links, players on no other sport's
+  team (with their documents + photos), tournaments, matches, player stats, the
+  sport's organizer account(s), then the sport. Champions (free text) are kept.
+  Refused while one of its matches is being scored. `GET /api/sports/:id/history`,
+  `POST /api/sports/:id/purge` (`routes/reference.js`). Wanted to drop Badminton after a
+  season had already been played.

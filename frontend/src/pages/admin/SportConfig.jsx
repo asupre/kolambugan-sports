@@ -11,6 +11,14 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Checkbox } from "../../components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import {
@@ -236,8 +244,17 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
     finally { setBusy(false); }
   }
 
+  // A sport with nothing attached is removed after a plain confirm. One with teams,
+  // tournaments or an organizer (in ANY season) opens the "delete with its history" dialog.
+  const [history, setHistory] = useState(null);
   async function remove() {
-    if (!(await confirm(`Remove ${sport.name}? This only works if nothing references it.`, { danger: true, confirmLabel: "Remove" }))) return;
+    setBusy(true);
+    let h;
+    try { h = await api(`/api/sports/${sport._id}/history`); }
+    catch (e) { onError(e.message); setBusy(false); return; }
+    setBusy(false);
+    if (h.teams || h.tournaments || h.organizers.length) { setHistory(h); return; }
+    if (!(await confirm(`Remove ${sport.name}?`, { danger: true, confirmLabel: "Remove" }))) return;
     setBusy(true);
     try {
       await api(`/api/sports/${sport._id}`, { method: "DELETE" });
@@ -426,7 +443,70 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
           </div>
         </div>
       </CardContent>
+      <PurgeSportDialog sport={sport} history={history} onClose={() => setHistory(null)}
+        onDone={() => { setHistory(null); onRemoved(sport._id); }} />
     </Card>
+  );
+}
+
+// "Delete with its history": lists what will be erased (every season) and needs the
+// sport's name typed, because nothing here can be brought back.
+function PurgeSportDialog({ sport, history, onClose, onDone }) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { setTyped(""); setError(""); }, [history]);
+
+  async function run() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/sports/${sport._id}/purge`, {
+        method: "POST", body: JSON.stringify({ confirm: typed.trim() }), timeoutMs: 120000,
+      });
+      onDone();
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  const h = history;
+  return (
+    <Dialog open={!!h} onOpenChange={(o) => !o && !busy && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Delete {sport.name} and all its history?</DialogTitle>
+          <DialogDescription>This erases it from every season, not just this one. It can't be undone.</DialogDescription>
+        </DialogHeader>
+        {h && (
+          <div className="space-y-4">
+            <ul className="list-disc space-y-1.5 pl-5 text-sm">
+              <li>{h.teams} team{h.teams === 1 ? "" : "s"}{h.currentSeasonTeams ? ` (${h.currentSeasonTeams} in the current season)` : ""}</li>
+              <li>{h.players} player record{h.players === 1 ? "" : "s"} with their documents and photos</li>
+              <li>{h.tournaments} tournament{h.tournaments === 1 ? "" : "s"} and {h.matches} match{h.matches === 1 ? "" : "es"} with player stats</li>
+              {h.organizers.length > 0 && <li>Organizer account: {h.organizers.join(", ")}</li>}
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              Players who also play another sport keep their record. The Champions archive isn't touched.
+            </p>
+            {h.liveMatches > 0 && (
+              <p className="text-sm text-destructive">{h.liveMatches} match(es) are being scored right now. End or cancel them first.</p>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="purge-confirm">Type <span className="font-semibold">{sport.name}</span> to confirm</Label>
+              <Input id="purge-confirm" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="destructive" onClick={run}
+            disabled={busy || !h || h.liveMatches > 0 || typed.trim() !== sport.name}>
+            {busy ? "Deleting…" : "Delete everything"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

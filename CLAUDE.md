@@ -800,6 +800,13 @@ so a bug in one route cannot expose the other.
   teams, rosters, results, stats, champions. Irreversible. Files are what fill the quota
   (dev: 24 documents = 12 MB; all non-file data < 1 MB), so this is the lever — not
   deleting seasons, which still has no route (and would orphan data, see GOTCHAS).
+- **Deleting a game (Sep 2026)**: `DELETE /api/sports/:id` still refuses while any
+  team / tournament / organizer references it in ANY season. League Setup's "Remove game"
+  checks `GET /api/sports/:id/history` first and, if anything is attached, offers
+  "Delete with its history" (`POST /api/sports/:id/purge`, body `{confirm: <exact name>}`):
+  erases the sport's teams, roster links, players on no other sport's team (+ documents,
+  photos), tournaments, matches, PlayerMatchStats, organizer account(s), then the sport.
+  Champions untouched (free text). Refused while a match of it is `ongoing`. Irreversible.
 - **Everything a role works in is CURRENT-SEASON scoped** (`getCurrentSeason()`), and a new
   season must look empty to every role. `GET /api/organizer/matches` was missing it until
   Sep 2026 (showed last season's matches after a new season). Any new list of teams /

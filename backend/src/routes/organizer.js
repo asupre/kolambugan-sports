@@ -8,6 +8,7 @@ const PlayerMatchStats = require('../models/PlayerMatchStats');
 const Sport = require('../models/Sport');
 const { authenticate, authorize } = require('../middleware/auth');
 const { isManilaToday } = require('../config/time');
+const { getCurrentSeason } = require('../middleware/season');
 
 const router = express.Router();
 router.use(authenticate, authorize('organizer', 'super_admin'));
@@ -37,7 +38,11 @@ router.get('/matches', async (req, res) => {
     if (!sportId) return res.status(400).json({ message: 'No sport assigned.' });
 
     const sport = await Sport.findById(sportId);
-        const tournaments = await Tournament.find({ sport: sportId }).select('_id division');
+    // Current season only — without this, a new season still listed last season's
+    // matches (scheduled and completed) on the organizer's screen.
+    const season = await getCurrentSeason();
+    if (!season) return res.json({ sport: sport?.name, scoringMode: rulesFor(sport).scoringMode, matches: [] });
+    const tournaments = await Tournament.find({ sport: sportId, season: season._id }).select('_id division');
     const tIds = tournaments.map((t) => t._id);
     const divisionByTournament = {};
     tournaments.forEach((t) => { divisionByTournament[String(t._id)] = t.division || 'open'; });

@@ -800,6 +800,11 @@ so a bug in one route cannot expose the other.
   teams, rosters, results, stats, champions. Irreversible. Files are what fill the quota
   (dev: 24 documents = 12 MB; all non-file data < 1 MB), so this is the lever — not
   deleting seasons, which still has no route (and would orphan data, see GOTCHAS).
+- **Everything a role works in is CURRENT-SEASON scoped** (`getCurrentSeason()`), and a new
+  season must look empty to every role. `GET /api/organizer/matches` was missing it until
+  Sep 2026 (showed last season's matches after a new season). Any new list of teams /
+  tournaments / matches needs a `season` filter; only `/api/tournaments/by-sport` and
+  `/api/teams?sportId=` span seasons, on purpose (orphan clean-up).
 - **Printing admin pages**: `AdminLayout` hides its sidebar/header/season strip under
   `print:`. Never put `break-inside: avoid` on a whole table/card that can be taller than
   a page — it moves to the next page and leaves a blank one (the Reports page-1 bug).

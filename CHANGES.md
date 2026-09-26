@@ -3482,3 +3482,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
   between rows (column header repeats, heading stays with the first rows), and
   the admin sidebar/header/season strip are hidden when printing (`print:` in
   `AdminLayout`). Verified by printing to PDF in headless Edge, before and after.
+- **Organizer match list showed last season's matches.** `GET /api/organizer/matches`
+  loaded every tournament for the sport from ALL seasons, so after a new season was
+  created the organizer still saw old scheduled/completed matches. Now scoped to the
+  current season (the organizer dashboard already was). Known gap: an old match can
+  still be opened/scored by its direct URL; it's no longer listed anywhere.

@@ -3498,3 +3498,18 @@ its filename and status, making "should I delete this and re-upload" a guess.
   `ongoing` in a past season is abandoned and does not block). `GET /api/sports/:id/history`,
   `POST /api/sports/:id/purge` (`routes/reference.js`). Wanted to drop Badminton after a
   season had already been played.
+- **Games-won sports pick their series length at start** (Chess, Billiards, Mobile Legends —
+  any sport scored by games won). Like a sport picks its sets, the organizer now picks
+  "best of 1 / 3 / 5" before starting (the sport's `periodOptions`, default [1, 3, 5]; period
+  name defaults to "game"). It used to start every such match as one "period" with no series
+  length at all. Each "X won a game" tap records one game with its winner; taps stop and End
+  match unlocks once a side has won the majority (best of 3 = first to 2, best of 5 = first
+  to 3); Undo removes the game; `end-period` is refused for them. The bracket's own `bestOf`
+  is still overwritten at start, same as for point sports. Point-scored sports unchanged.
+  `routes/organizer.js`, `lib/sportRules.js`, `OrganizerScoring.jsx`.
+- **League Setup: "Series lengths" for games-won sports.** The Scoring section of Chess /
+  Billiards / Mobile Legends (and "Add a game" for an esport or board game) now has one field,
+  the best-of choices the organizer may pick at start (default 1, 3, 5). Saved as
+  `periodOptions`. The server refuses even lengths for these sports (400: "A best-of series
+  needs an odd number of games") — a best of 2 or 4 has no guaranteed majority.
+  `routes/reference.js` (`evenSeries`), `SportConfig.jsx`.

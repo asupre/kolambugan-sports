@@ -282,6 +282,11 @@ router.patch('/barangays/:id/cross', authenticate, authorize('super_admin'), asy
 // only accepts 1, 2, 3, 4, 5 or 7 periods, and a bad point value would let a score be recorded that
 // the buttons can never produce. An empty list / blank name means "use the built-in default".
 const ALLOWED_PERIODS = [1, 2, 3, 4, 5, 7];
+// For a games-won sport (chess, billiards, esports) the period counts are best-of series lengths,
+// which must be odd so one side always wins a majority (best of 2 could end 1-1).
+const evenSeries = (sport) => rulesFor(sport).scoringMode === 'final'
+  && (sport.periodOptions || []).some((n) => n % 2 === 0);
+const SERIES_MSG = 'A best-of series needs an odd number of games: 1, 3, 5 or 7.';
 function scoringFromBody(body) {
   const out = {};
   if (body.pointValues !== undefined) {
@@ -340,6 +345,7 @@ router.post('/sports', authenticate, authorize('super_admin'), async (req, res) 
     const scoring = scoringFromBody(req.body);
     if (scoring.error) return res.status(400).json({ message: scoring.error });
 
+    if (evenSeries({ name, category, ...scoring.values })) return res.status(400).json({ message: SERIES_MSG });
     const sport = await Sport.create({ name, category, tournamentFormat, ...scoring.values });
     res.status(201).json({
       message: `${name} added. Provision accounts to create its organizer login.`,
@@ -436,6 +442,7 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
       if (Array.isArray(req.body[k])) sport[k] = req.body[k];
     });
 
+    if (evenSeries(sport)) return res.status(400).json({ message: SERIES_MSG });
     await sport.save();
     res.json({ message: `${sport.name} updated.`, sport: withDefaults(sport) });
   } catch (err) {

@@ -378,7 +378,13 @@ function ScoringView({ matchId, onBack }) {
   const forfeited = m.status === "forfeited";
   const tied = (m.liveScoreA || 0) === (m.liveScoreB || 0);
   const allPeriodsDone = (m.games?.length || 0) >= (m.bestOf || 1) && !tied;
-  const canEnd = finalMode ? !tied : allPeriodsDone;
+  // Games-won sports play a series of m.bestOf games (picked at start, like a sport's sets) and
+  // end as soon as one side has won the majority of it.
+  const seriesLength = m.bestOf || 1;
+  const winsNeeded = Math.floor(seriesLength / 2) + 1;
+  const seriesOver = Math.max(m.liveScoreA || 0, m.liveScoreB || 0) >= winsNeeded;
+  const seriesText = seriesLength === 1 ? "One game" : `Best of ${seriesLength} · first to ${winsNeeded}`;
+  const canEnd = finalMode ? seriesOver : allPeriodsDone;
   const periodOpts = data.periodOptions || [1, 3, 5, 7];
   const periods = periodsChoice ?? (periodOpts.includes(3) ? 3 : periodOpts[0]);
   const pointValues = data.pointValues || [1];
@@ -388,8 +394,7 @@ function ScoringView({ matchId, onBack }) {
   // Sports with a post-match form: a box score (points…) and/or roles for esports.
   const hasStatsForm = (data.statFields?.length || 0) > 0 || (data.roles?.length || 0) > 0;
 
-  async function openEnd() {
-    if (finalMode && (m.games?.length || 0) < (m.bestOf || 1)) await call("end-period");
+  function openEnd() {
     setEnding(true);
   }
 
@@ -401,7 +406,9 @@ function ScoringView({ matchId, onBack }) {
             <Badge className={TONE_BADGE[desc.tone] || TONE_BADGE.accent}>{desc.group}</Badge>
           )}
           <span className="text-[11px] text-muted-foreground ml-auto">
-            {live && !finalMode
+            {live && finalMode
+              ? seriesText
+              : live
               ? `${(data.periodLabel || "period").replace(/^./, (c) => c.toUpperCase())} ${Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of ${m.bestOf || 1}`
               : forfeited ? "Forfeit" : finished ? "Final" : "Not started"}
           </span>
@@ -479,11 +486,11 @@ function ScoringView({ matchId, onBack }) {
                 <span className="text-2xl font-semibold leading-none">{m.liveScoreA} – {m.liveScoreB}</span>
                 <span className="max-w-[28%] truncate text-xs text-muted-foreground">{m.teamB?.teamName}</span>
               </div>
-              {!finalMode && (
-                <p className="text-center text-[11px] text-muted-foreground">
-                  {periodWord.replace(/^./, (c) => c.toUpperCase())} {Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of {m.bestOf || 1}
-                </p>
-              )}
+              <p className="text-center text-[11px] text-muted-foreground">
+                {finalMode
+                  ? seriesText
+                  : `${periodWord.replace(/^./, (c) => c.toUpperCase())} ${Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of ${m.bestOf || 1}`}
+              </p>
             </div>
             <button onClick={() => call("undo")} disabled={busy || !m.lastAction?.label}
               className="flex h-9 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent disabled:opacity-40">
@@ -530,7 +537,9 @@ function ScoringView({ matchId, onBack }) {
           <AlertDescription className="text-foreground">
             <span className="font-medium">Match started.</span>{" "}
             {finalMode
-              ? "Tap the winner of each game as it finishes."
+              ? seriesLength === 1
+                ? "Tap the winner when the game finishes."
+                : `Tap the winner of each game as it finishes — first to ${winsNeeded} wins the match.`
               : `${periodWord.replace(/^./, (c) => c.toUpperCase())} 1 of ${m.bestOf || 1}. Tap the team that scored; Undo is at the top.`}
           </AlertDescription>
         </Alert>
@@ -550,15 +559,16 @@ function ScoringView({ matchId, onBack }) {
 
       {!live && !finished && !forfeited && (
         <Card className="p-4 mb-4 gap-0">
-          {finalMode ? (
-            <p className="text-muted-foreground text-sm mb-3">
-              Record the winner of each game as it finishes. The team with more games won takes the match.
-            </p>
-          ) : (
-            <>
-              <p className="text-sm font-medium mb-1">How many {periodWord}s?</p>
+          <>
+              <p className="text-sm font-medium mb-1">
+                {finalMode ? `Best of how many ${periodWord}s?` : `How many ${periodWord}s?`}
+              </p>
               <p className="text-muted-foreground text-xs mb-3">
-                All of them are played, and the winner is the higher total score.
+                {finalMode
+                  ? periods === 1
+                    ? `One ${periodWord} decides the match.`
+                    : `The first to win ${Math.floor(periods / 2) + 1} takes the match.`
+                  : "All of them are played, and the winner is the higher total score."}
               </p>
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {periodOpts.map((n) => (
@@ -571,13 +581,14 @@ function ScoringView({ matchId, onBack }) {
                   </button>
                 ))}
               </div>
-            </>
-          )}
+          </>
 
-          <button onClick={() => call("start", { periods: finalMode ? 1 : periods })} disabled={busy}
+          <button onClick={() => call("start", { periods })} disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
             <Play className="size-4 fill-current" />
-            {busy ? "Starting…" : finalMode ? "Start match" : `Start match · ${periods} ${periodWord}${periods === 1 ? "" : "s"}`}
+            {busy ? "Starting…"
+              : finalMode ? (periods === 1 ? `Start match · 1 ${periodWord}` : `Start match · best of ${periods}`)
+              : `Start match · ${periods} ${periodWord}${periods === 1 ? "" : "s"}`}
           </button>
 
           {!forfeiting ? (
@@ -620,16 +631,24 @@ function ScoringView({ matchId, onBack }) {
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 min-w-0">
           {live && (finalMode ? (
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => call("score", { side: "A", points: 1 })} disabled={busy}
-                className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
-                {m.teamA?.teamName} won a game
-              </button>
-              <button onClick={() => call("score", { side: "B", points: 1 })} disabled={busy}
-                className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
-                {m.teamB?.teamName} won a game
-              </button>
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => call("score", { side: "A", points: 1 })} disabled={busy || seriesOver}
+                  className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
+                  {m.teamA?.teamName} won a game
+                </button>
+                <button onClick={() => call("score", { side: "B", points: 1 })} disabled={busy || seriesOver}
+                  className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
+                  {m.teamB?.teamName} won a game
+                </button>
+              </div>
+              {seriesOver && (
+                <p className="text-green-600 dark:text-green-400 text-sm text-center mt-3">
+                  {(m.liveScoreA || 0) > (m.liveScoreB || 0) ? m.teamA?.teamName : m.teamB?.teamName} wins
+                  the series {m.liveScoreA || 0}–{m.liveScoreB || 0}. End the match to finish.
+                </p>
+              )}
+            </>
           ) : (
             // Team scoring: one card per team, with a big button per point value. Nothing here
             // is credited to a player — that is the post-match form's job.

@@ -590,6 +590,14 @@ drawn.
 
 **Per-match best_of:** 1/3/5/7, default 1. Matches hold a `games[]` array +
 `seriesWinner`. ML knockouts use BO3/BO5.
+**Games-won sports (Chess, Billiards, esports) pick a SERIES length at start (Sep 2026):** the
+organizer chooses best of 1 / 3 / 5 (`periodOptions`, default [1,3,5], label "game" — see
+`rulesFor()`), stored in `bestOf` like a sport's period count. Each "X won a game" tap is one
+`games[]` entry; the match ends once a side wins `floor(bestOf/2)+1` (`winsNeeded()` in
+`routes/organizer.js`); `end-period` is refused. The bracket's generated `bestOf` is overwritten
+at start (Super Admin chose organizer-picked over bracket-fixed).
+The choices are editable in League Setup → Scoring → **Series lengths** (odd numbers only — the
+server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.js`).
 
 **LIVE SCORING & PERIODS (BUILT Aug 2026):**
 - The ORGANIZER scores matches, not the Super Admin. A match runs

@@ -133,11 +133,16 @@ function rulesFor(sport) {
   const statLabels = { ...STAT_CATALOG };
   customs.forEach((c) => { statLabels[c.key] = { label: c.label, short: shortOf(c.label), custom: true }; });
 
+  const scoringMode = SCORING_MODE[name] || (gamesWon ? 'final' : 'points');
+  // A games-won sport's "periods" are the games of a series (best of 1 / 3 / 5), picked at start.
+  const seriesDefault = scoringMode === 'final';
+
   return {
-    scoringMode: SCORING_MODE[name] || (gamesWon ? 'final' : 'points'),
+    scoringMode,
     pointValues: sport?.pointValues?.length ? sport.pointValues : (POINT_VALUES[name] || [1]),
-    periodLabel: sport?.periodLabel || PERIOD_LABEL[name] || 'period',
-    periodOptions: sport?.periodOptions?.length ? sport.periodOptions : (PERIOD_OPTIONS[name] || [1, 3, 5, 7]),
+    periodLabel: sport?.periodLabel || PERIOD_LABEL[name] || (seriesDefault ? 'game' : 'period'),
+    periodOptions: sport?.periodOptions?.length ? sport.periodOptions
+      : (PERIOD_OPTIONS[name] || (seriesDefault ? [1, 3, 5] : [1, 3, 5, 7])),
     sheet,
     statFields: sheet.filter((k) => k !== 'role'),
     roles: sheet.includes('role') ? rolesFor(sport) : [],

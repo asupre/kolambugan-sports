@@ -14,6 +14,12 @@ const router = express.Router();
 router.use(authenticate, authorize('organizer', 'super_admin'));
 const { PERIOD_LABEL, LEGACY_STAT_COLUMNS, rulesFor } = require('../lib/sportRules');
 
+// Games-won sports (chess, billiards, esports — scoringMode 'final') play a SERIES: the organizer
+// picks its length at start (stored in bestOf, like a sport's period count), and it ends as soon
+// as one side has won a majority of it — best of 3 = first to 2, best of 5 = first to 3.
+const isGamesWon = (sport) => rulesFor(sport).scoringMode === 'final';
+const winsNeeded = (bestOf) => Math.floor((bestOf || 1) / 2) + 1;
+
 
 // Load a match and confirm this organizer owns its sport.
 async function loadOwnedMatch(req, res) {
@@ -166,6 +172,40 @@ router.post('/matches/:matchId/score', async (req, res) => {
     if (!ctx) return;
     const { match } = ctx;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before scoring.' });
+
+    // Games-won series: each tap is one game won, recorded straight into games[] (there are
+    // no periods to bank), and scoring stops once a side has won the majority of the series.
+    if (isGamesWon(ctx.sport)) {
+      const { side } = req.body;
+      if (!['A', 'B'].includes(side)) return res.status(400).json({ message: 'side must be "A" or "B".' });
+      if (Number(req.body.points) !== 1) {
+        return res.status(400).json({ message: 'Record one game at a time; use Undo to take one back.' });
+      }
+      const a = match.liveScoreA || 0;
+      const b = match.liveScoreB || 0;
+      if (Math.max(a, b) >= winsNeeded(match.bestOf)) {
+        return res.status(409).json({
+          message: `The series is decided (${a}–${b}, best of ${match.bestOf || 1}). End the match to finish.`,
+        });
+      }
+      const teamId = side === 'A' ? match.teamA : match.teamB;
+      const team = await Team.findById(teamId).select('teamName');
+      const gameNumber = match.games.length + 1;
+      match.games.push({
+        gameNumber,
+        scoreA: side === 'A' ? 1 : 0,
+        scoreB: side === 'B' ? 1 : 0,
+        winner: teamId,
+      });
+      if (side === 'A') match.liveScoreA = a + 1; else match.liveScoreB = b + 1;
+      match.lastAction = {
+        type: 'game', side, player: null, amount: 1,
+        label: `${team?.teamName || (side === 'A' ? 'team A' : 'team B')} won game ${gameNumber}`,
+      };
+      await match.save();
+      return res.json({ message: 'Game recorded.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
+    }
+
     // Once every period has been banked, the match is done scoring — the only
     // remaining action is ending it. Otherwise stray points would land in the
     // running total with no period to belong to, and the periods would stop
@@ -215,10 +255,12 @@ router.post('/matches/:matchId/undo', async (req, res) => {
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'The match is not running.' });
 
     const last = match.lastAction;
-    if (!last || last.type !== 'points') return res.status(400).json({ message: 'Nothing to undo.' });
+    if (!last || !['points', 'game'].includes(last.type)) return res.status(400).json({ message: 'Nothing to undo.' });
 
     const field = last.side === 'A' ? 'liveScoreA' : 'liveScoreB';
     match[field] = Math.max(0, (match[field] || 0) - last.amount);
+    // A games-won tap also wrote a games[] entry — take that back too.
+    if (last.type === 'game' && match.games.length) match.games.pop();
     match.lastAction = { type: null, side: null, player: null, amount: 0, label: '' };
     await match.save();
 
@@ -322,14 +364,22 @@ router.post('/matches/:matchId/end', async (req, res) => {
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before ending it.' });
 
     const total = match.bestOf || 1;
-    if (match.games.length < total) {
+    const a = match.liveScoreA || 0;
+    const b = match.liveScoreB || 0;
+    const gamesWon = isGamesWon(ctx.sport);
+    if (gamesWon) {
+      const need = winsNeeded(total);
+      if (Math.max(a, b) < need) {
+        return res.status(409).json({
+          message: `Best of ${total}: a side needs ${need} game win${need === 1 ? '' : 's'} to take the match — it's ${a}–${b}.`,
+        });
+      }
+    } else if (match.games.length < total) {
       return res.status(409).json({
         message: `All ${total} ${PERIOD_LABEL[ctx.sportName] || 'period'}(s) must be recorded first — ${match.games.length} done.`,
       });
     }
 
-    const a = match.liveScoreA || 0;
-    const b = match.liveScoreB || 0;
     if (a === b) return res.status(400).json({ message: 'A match cannot end in a tie — the score must separate the teams.' });
 
     const winner = a > b ? match.teamA : match.teamB;
@@ -346,7 +396,8 @@ router.post('/matches/:matchId/end', async (req, res) => {
     }
 
         // games[] already holds each period's snapshot; stamp the overall winner on the last one.
-    if (match.games.length) match.games[match.games.length - 1].winner = winner;
+    // (A games-won series already recorded each game's own winner.)
+    if (!gamesWon && match.games.length) match.games[match.games.length - 1].winner = winner;
     match.seriesWinner = winner;
     match.status = 'completed';
     match.enteredBy = req.user.id;
@@ -400,6 +451,9 @@ router.post('/matches/:matchId/end-period', async (req, res) => {
     if (!ctx) return;
     const { match, sportName } = ctx;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
+    if (isGamesWon(ctx.sport)) {
+      return res.status(409).json({ message: 'Each game is recorded when you tap its winner. End the match once a side has won the series.' });
+    }
 
         const played = match.games.length;
     const total = match.bestOf || 1;

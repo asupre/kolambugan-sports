@@ -150,7 +150,10 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
   const effForm = rulesToForm(sport.rules);
   const [rulesForm, setRulesForm] = useState(effForm);
   useEffect(() => { setRulesForm(rulesToForm(sport.rules)); }, [JSON.stringify(effForm)]);
-  const rulesDirty = !gamesWon && JSON.stringify(rulesForm) !== JSON.stringify(effForm);
+  // A games-won sport only has one rule to set: which best-of lengths the organizer may pick.
+  const rulesDirty = gamesWon
+    ? rulesForm.periodOptions !== effForm.periodOptions
+    : JSON.stringify(rulesForm) !== JSON.stringify(effForm);
   const hasSavedRules = !!(sport.pointValues?.length || sport.periodLabel || sport.periodOptions?.length);
 
   const configDirty =
@@ -193,9 +196,11 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
       const body = {};
       if (sheetDirty) body.scoreSheet = sheet;
       if (rulesDirty) {
-        body.pointValues = parseNums(rulesForm.pointValues);
-        body.periodLabel = rulesForm.periodLabel;
         body.periodOptions = parseNums(rulesForm.periodOptions);
+        if (!gamesWon) {
+          body.pointValues = parseNums(rulesForm.pointValues);
+          body.periodLabel = rulesForm.periodLabel;
+        }
       }
       if (Object.keys(body).length) {
         const d = await api(`/api/sports/${sport._id}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -363,10 +368,21 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
             </p>
 
             {gamesWon ? (
-              <p className="mt-4 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-                Scored by <span className="font-medium text-foreground">games won</span>: the organizer taps who won
-                each game, as a best-of series. There are no points or periods to set for this game.
-              </p>
+              <>
+                <p className="mt-4 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  Scored by <span className="font-medium text-foreground">games won</span>: the organizer taps who won
+                  each game, as a best-of series, and the match ends once a side has won the majority.
+                </p>
+                <div className="mt-3 space-y-1.5 sm:w-56">
+                  <Label>Series lengths</Label>
+                  <Input value={rulesForm.periodOptions} onChange={setRule("periodOptions")} placeholder="1, 3, 5" />
+                  <p className="text-[11px] text-muted-foreground">Best-of choices at match start: 1, 3, 5 or 7</p>
+                </div>
+                {hasSavedRules && (
+                  <button onClick={resetRules} disabled={busy}
+                    className="mt-2 text-xs text-muted-foreground hover:text-foreground">Use the default (1, 3, 5)</button>
+                )}
+              </>
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -515,7 +531,7 @@ function AddSport({ onAdded, onCancel, onError }) {
   const [category, setCategory] = useState("physical");
   const [tournamentFormat, setTournamentFormat] = useState("double_elimination");
   // Scoring rules for a new sport that scores by points. Sensible starting values so it works at once.
-  const [rules, setRules] = useState({ pointValues: "1", periodLabel: "", periodOptions: "1, 3, 5" });
+  const [rules, setRules] = useState({ pointValues: "1", periodLabel: "", periodOptions: "1, 3, 5", seriesOptions: "1, 3, 5" });
   const [busy, setBusy] = useState(false);
 
   async function add() {
@@ -530,7 +546,9 @@ function AddSport({ onAdded, onCancel, onError }) {
             pointValues: parseNums(rules.pointValues),
             periodLabel: rules.periodLabel,
             periodOptions: parseNums(rules.periodOptions),
-          } : {}),
+          } : {
+            periodOptions: parseNums(rules.seriesOptions),
+          }),
         }),
       });
       onAdded(d.sport, d.message);
@@ -593,9 +611,13 @@ function AddSport({ onAdded, onCancel, onError }) {
             </div>
           </Section>
         ) : (
-          <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-            Scored by <span className="font-medium text-foreground">games won</span> — the organizer taps who won each game. Nothing to set.
-          </p>
+          <Section title="Scoring rules" hint="Scored by games won: the organizer taps who won each game, as a best-of series.">
+            <div className="space-y-1.5 sm:w-56">
+              <Label>Series lengths</Label>
+              <Input value={rules.seriesOptions} onChange={(e) => setRules({ ...rules, seriesOptions: e.target.value })} placeholder="1, 3, 5" />
+              <p className="text-[11px] text-muted-foreground">Best-of choices at match start: 1, 3, 5 or 7</p>
+            </div>
+          </Section>
         )}
 
         <p className="text-xs text-muted-foreground">

@@ -600,7 +600,7 @@ export default function ReviewQueue() {
                   <InfoHint summary="Pick a barangay to review just its teams.">
                     <p><span className="text-red-600 dark:text-red-400 font-medium">Red</span> = still needs a verdict.</p>
                     <p><span className="text-green-600 dark:text-green-400 font-medium">Green</span> = cleared (a verified team in every sport/division this season).</p>
-                    <p><span className="font-medium text-foreground">Gray x/N</span> = partway there with nothing currently pending.</p>
+                    <p><span className="font-medium text-foreground">Gray</span> = partway there with nothing currently pending.</p>
                   </InfoHint>
                 </CardDescription>
               </CardHeader>

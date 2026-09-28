@@ -26,6 +26,7 @@ import {
 } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import { hasTime } from "../../lib/dashboardFormat";
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
@@ -85,20 +86,12 @@ function describeMatch(m, all = []) {
   };
 }
 
-// A schedule picked as a DATE only has no time of day, and must not show one. Those are
-// stored as midnight MANILA time (parseManila) — or, in older data, midnight UTC — and
-// either would otherwise render as "12:00 AM" / "8:00 AM", a time nobody set. (This only
-// recognised the UTC case, so every date-only match showed "12:00 AM".)
-const timeOf = (d) => {
-  if (!d) return null;
-  const x = new Date(d);
-  if (x.getUTCHours() === 0 && x.getUTCMinutes() === 0) return null;
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(x);
-  const h = +parts.find((p) => p.type === "hour").value % 24;
-  const min = +parts.find((p) => p.type === "minute").value;
-  if (h === 0 && min === 0) return null;
-  return x.toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
-};
+// A schedule picked as a DATE only has no time of day, and must not show one — see
+// hasTime() (the one shared rule; this used to keep its own copy).
+const timeOf = (d) =>
+  d && hasTime(d)
+    ? new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" })
+    : null;
 
 const dateOf = (d) =>
   d ? new Date(d).toLocaleDateString(undefined, {

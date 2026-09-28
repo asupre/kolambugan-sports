@@ -690,10 +690,12 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   of them. A match with NO date is always startable (which also keeps the
   September evaluation usable).
 - **A date picked without a time is "no time set"** — stored as midnight MANILA
-  (`parseManila`) or, in older data, midnight UTC. `hasTime()` in `lib/dashboardFormat.js`
-  treats BOTH as no time; the time helpers only knew midnight UTC, so every date-only match
-  (public Matches, Barangay Matches, Organizer) showed a made-up "12:00 AM". Use `hasTime`,
-  don't re-derive it.
+  (`parseManila`). `hasTime()` in `lib/dashboardFormat.js` treats ONLY midnight Manila as no
+  time. **Never treat midnight UTC as "no time"** (fixed Sep 28 2026): it used to, for older
+  date-only data, but midnight UTC IS 8:00 AM Manila — so every game really set for 8:00 AM
+  showed as TBD on the public site while the admin showed 8:00 AM. (A date-only match left over
+  from before `parseManila` now shows "8:00 AM"; re-saving its date fixes it.) Use `hasTime`,
+  don't re-derive it — `OrganizerScoring.jsx`'s `timeOf()` had its own copy of the bad rule.
 - Day comparisons run in Asia/Manila time via `config/time.js` (fixed —
   Render's server-local time is UTC, 8h behind Kolambugan).
 

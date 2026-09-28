@@ -10,14 +10,11 @@ const manilaHM = (iso) => {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone: PH, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(iso));
   return { h: +parts.find((p) => p.type === "hour").value % 24, m: +parts.find((p) => p.type === "minute").value };
 };
-// A date picked without a time is stored as midnight Manila; showing "12:00 AM"
-// for those would be wrong, so a time is only shown when one was actually set.
-// Two conventions exist: midnight MANILA (what parseManila stores now) and midnight UTC
-// (older data). Both mean "no time set"; checking only one made every date-only match show a
-// made-up "12:00 AM" / "8:00 AM".
+// A date picked without a time is stored as midnight MANILA (parseManila), and must
+// not show a made-up "12:00 AM" — so a time is only shown when it isn't midnight Manila.
+// Do NOT also treat midnight UTC as "no time": midnight UTC IS 8:00 AM in Manila, so
+// every game really set for 8:00 AM showed as TBD on the public site (Sep 28 2026).
 export const hasTime = (iso) => {
-  const x = new Date(iso);
-  if (x.getUTCHours() === 0 && x.getUTCMinutes() === 0) return false;
   const { h, m } = manilaHM(iso);
   return h !== 0 || m !== 0;
 };

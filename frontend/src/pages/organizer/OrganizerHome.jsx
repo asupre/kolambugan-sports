@@ -17,8 +17,8 @@ import { cn } from "../../lib/utils";
 
 const STAGE_LABEL = { group_stage: "Group stage", elimination: "Knockout", completed: "Completed" };
 
-const roundLabel = (m) => (m.group ? `Group ${m.group}` : m.bracket === "ko_final" || m.bracket === "final" ? "Final"
-  : m.bracket === "ko_third" || m.bracket === "third" ? "3rd place" : m.round ? `Round ${m.round}` : "");
+// "Group A · Round 2" / "Semifinals" — the round name comes from the API (lib/roundLabels.js).
+const roundLabel = (m) => [m.group ? `Group ${m.group}` : null, m.roundLabel].filter(Boolean).join(" · ");
 
 function Side({ team, score, showScore, winner }) {
   return (

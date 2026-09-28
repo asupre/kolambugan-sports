@@ -696,6 +696,14 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   showed as TBD on the public site while the admin showed 8:00 AM. (A date-only match left over
   from before `parseManila` now shows "8:00 AM"; re-saving its date fixes it.) Use `hasTime`,
   don't re-derive it — `OrganizerScoring.jsx`'s `timeOf()` had its own copy of the bad rule.
+- **Round labels on every match list (Sep 28 2026)**: `roundLabels(matches)` in
+  `backend/src/lib/roundLabels.js` returns `roundLabel` ("Round 2", "Winners Round 1" / "Losers
+  Round 1" — numbered within that group's bracket, "Round of 16" / "Quarterfinals" / "Semifinals" /
+  "Final" by games in the knockout round, "3rd place", "Playoff" / "Playoff decider"). Added to
+  `publicMatch()` (/overview, /matches, /bracket) and `/api/stats/organizer-dashboard`; it needs
+  the whole tournament's matches, so compute it over the full list, never per match. Shown via
+  `matchContext()` (public), Barangay Matches and Organizer home. `FixtureRow`'s context line
+  wraps to 2 lines (was truncated — the round, last on the line, got cut on a phone).
 - Day comparisons run in Asia/Manila time via `config/time.js` (fixed —
   Render's server-local time is UTC, 8h behind Kolambugan).
 

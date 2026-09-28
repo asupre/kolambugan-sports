@@ -127,7 +127,7 @@ export default function Matches() {
                       items={list}
                       noun="fixtures"
                       render={(m) => (
-                        <FixtureRow key={m.id} m={m} when={m.round ? `Round ${m.round}` : "TBD"}
+                        <FixtureRow key={m.id} m={m} when={m.roundLabel || (m.round ? `Round ${m.round}` : "TBD")}
                           where={m.group ? `Group ${m.group}` : null} />
                       )}
                     />

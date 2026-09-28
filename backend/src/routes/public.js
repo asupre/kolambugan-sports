@@ -15,17 +15,21 @@ const SiteImage = require('../models/SiteImage');
 const { sendFile } = require('../config/gridfs');
 const { isManilaToday, manilaDay } = require('../config/time');
 const { rulesFor, LEGACY_STAT_COLUMNS } = require('../lib/sportRules');
+const { roundLabels } = require('../lib/roundLabels');
 
 const router = express.Router();
 
 // Shape a match for public display — teams, score, status, schedule, context.
-function publicMatch(m, sportName, division) {
+// roundLabel comes from roundLabels() over the whole season's matches (a knockout round
+// is named by how many games are in it), so callers pass the map in.
+function publicMatch(m, sportName, division, labels) {
   return {
     id: m._id,
     sport: sportName,
     division,
     bracket: m.bracket,
     round: m.round,
+    roundLabel: (labels && labels.get(String(m._id))) || '',
     group: m.group,
         // barangayId lets the public pages show the barangay crest instead of a
     // monogram — the team name alone isn't enough to find the logo.
@@ -79,9 +83,10 @@ router.get('/overview', async (req, res) => {
             .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .sort({ updatedAt: -1 });
 
+    const labels = roundLabels(matches);
     const shaped = matches.map((m) => {
       const t = byId[String(m.tournament)] || {};
-      return publicMatch(m, t.sport, t.division);
+      return publicMatch(m, t.sport, t.division, labels);
     });
 
     // A fixture needs at least one real team — an empty bracket slot isn't a game.
@@ -121,9 +126,10 @@ router.get('/matches', async (req, res) => {
             .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .sort({ schedule: 1, round: 1 });
 
+    const labels = roundLabels(matches);
     let shaped = matches.map((m) => {
       const t = byId[String(m.tournament)] || {};
-      return publicMatch(m, t.sport, t.division);
+      return publicMatch(m, t.sport, t.division, labels);
     });
     if (req.query.sport) shaped = shaped.filter((m) => m.sport === req.query.sport);
     if (req.query.status) shaped = shaped.filter((m) => m.status === req.query.status);
@@ -513,8 +519,9 @@ router.get('/bracket', async (req, res) => {
             .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .sort({ _id: 1 });
 
+    const labels = roundLabels(matches);
        const shaped = matches.map((m) => ({
-      ...publicMatch(m, t.sport, t.division),
+      ...publicMatch(m, t.sport, t.division, labels),
       isTiebreaker: !!m.isTiebreaker,
       // The tree: a match's feeders are the matches pointing at it.
       nextMatchWin: m.nextMatchWin ? String(m.nextMatchWin) : null,

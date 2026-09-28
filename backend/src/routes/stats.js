@@ -13,6 +13,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { isManilaToday, manilaDay } = require('../config/time');
 const { getCurrentSeason } = require('../middleware/season');
 const { norm } = require('../services/prescreen');
+const { roundLabels } = require('../lib/roundLabels');
 
 const router = express.Router();
 
@@ -361,6 +362,7 @@ router.get('/organizer-dashboard', authenticate, authorize('organizer', 'super_a
       .populate(withBarangay('teamA'))
       .populate(withBarangay('teamB'))
       .lean();
+    const labels = roundLabels(matches);
 
     const teamShape = (t) => (t ? { id: t._id, name: t.teamName, barangay: t.barangay && t.barangay.name } : null);
     const shape = (m) => ({
@@ -371,6 +373,7 @@ router.get('/organizer-dashboard', authenticate, authorize('organizer', 'super_a
       division: divisionByTournament.get(String(m.tournament)) || 'open',
       bracket: m.bracket,
       round: m.round,
+      roundLabel: labels.get(String(m._id)) || '',
       group: m.group || null,
       teamA: teamShape(m.teamA),
       teamB: teamShape(m.teamB),

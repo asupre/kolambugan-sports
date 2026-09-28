@@ -156,8 +156,10 @@ export const matchTime = (d) =>
     ? new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" })
     : null;
 
+// "Basketball · U15 · Grp A · Round 1" — roundLabel comes from the API (lib/roundLabels.js):
+// "Round 2", "Winners Round 1", "Semifinals", "Final", "Playoff"…
 export const matchContext = (m, { sport = true } = {}) =>
-  [sport ? m.sport : null, DIVISION_LABEL[m.division] || m.division, m.group ? `Grp ${m.group}` : null]
+  [sport ? m.sport : null, DIVISION_LABEL[m.division] || m.division, m.group ? `Grp ${m.group}` : null, m.roundLabel]
     .filter(Boolean).join(" · ");
 
 // Quarters in basketball, sets in the rally sports.
@@ -183,7 +185,7 @@ export function FixtureRow({ m, when, where, context }) {
         {where && <div className="text-slate-500 text-[13px] leading-snug mt-1 line-clamp-2 break-words">{where}</div>}
       </div>
       <div className="flex-1 min-w-0 border-l border-[#1C2430] pl-3">
-        {context && <div className="text-slate-500 text-[13px] truncate mb-0.5">{context}</div>}
+        {context && <div className="text-slate-500 text-[13px] leading-snug line-clamp-2 mb-0.5">{context}</div>}
         <TeamLine team={m.teamA} />
         <TeamLine team={m.teamB} />
       </div>

@@ -45,7 +45,7 @@ const timeOf = (d) =>
     : null;
 
 const context = (m) =>
-  [m.sport, DIVISION_LABEL[m.division] || m.division, m.group ? `Group ${m.group}` : null]
+  [m.sport, DIVISION_LABEL[m.division] || m.division, m.group ? `Group ${m.group}` : null, m.roundLabel]
     .filter(Boolean).join(" · ");
 
 function MatchRow({ m, myTeamIds }) {

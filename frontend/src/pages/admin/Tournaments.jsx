@@ -327,7 +327,7 @@ function ScheduleSection({ tournamentId }) {
                     </span>
                   </button>
                   {open && (
-                    <div className="flex items-end gap-2 flex-wrap">
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:flex-wrap">
                       <div className="space-y-1">
                         <Label className="text-[11px] font-normal text-muted-foreground">Date &amp; time</Label>
                         <DateTimePicker value={b.schedule || ""}
@@ -337,13 +337,13 @@ function ScheduleSection({ tournamentId }) {
                         <Label className="text-[11px] font-normal text-muted-foreground">Venue</Label>
                         <Input type="text" placeholder="Covered court" value={b.venue || ""}
                           onChange={(e) => setBulk({ ...bulk, [key]: { ...b, venue: e.target.value } })}
-                          className="w-44" />
+                          className="w-full sm:w-44" />
                       </div>
                       {groups.length > 0 && (
                         <div className="space-y-1">
                           <Label className="text-[11px] font-normal text-muted-foreground">Group</Label>
                           <Select value={b.group || "all"} onValueChange={(v) => setBulk({ ...bulk, [key]: { ...b, group: v === "all" ? "" : v } })}>
-                            <SelectTrigger className="w-32">
+                            <SelectTrigger className="w-full sm:w-32">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -353,7 +353,7 @@ function ScheduleSection({ tournamentId }) {
                           </Select>
                         </div>
                       )}
-                      <Button size="sm" onClick={() => applyRound(key)} disabled={busy}>
+                      <Button size="sm" onClick={() => applyRound(key)} disabled={busy} className="w-full sm:w-auto">
                         Apply to round
                       </Button>
                     </div>
@@ -369,7 +369,7 @@ function ScheduleSection({ tournamentId }) {
                             <span className="text-muted-foreground text-xs w-16 shrink-0">
                               {m.group ? `Grp ${m.group}` : m.bracket}
                             </span>
-                            <span className="flex-1 min-w-[12rem] truncate text-sm">
+                            <span className="flex-1 min-w-0 sm:min-w-[12rem] truncate text-sm">
                               {m.teamA?.teamName || "TBD"}
                               <span className="text-muted-foreground"> vs </span>
                               {m.teamB?.teamName || "TBD"}
@@ -380,17 +380,17 @@ function ScheduleSection({ tournamentId }) {
                                 {m.status === "forfeited" ? "forfeited" : "played"}
                               </span>
                             ) : (
-                              <>
+                              <div className="flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2">
                                 <DateTimePicker value={valueOf(m, "schedule")}
                                   onChange={(v) => edit(m._id, "schedule", v)}
-                                  className="shrink-0 w-auto" />
+                                  className="sm:shrink-0" />
                                 <Input type="text" placeholder="Venue" value={valueOf(m, "venue")}
                                   onChange={(e) => edit(m._id, "venue", e.target.value)}
-                                  className="text-xs w-36 shrink-0" />
+                                  className="text-xs flex-1 min-w-0 sm:flex-none sm:w-36" />
                                 <Button size="sm" onClick={() => saveOne(m)} disabled={busy || !isDirty(m)} className="shrink-0">
                                   Save
                                 </Button>
-                              </>
+                              </div>
                             )}
                           </div>
                         </div>

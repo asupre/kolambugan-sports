@@ -89,6 +89,35 @@ function formatTime(t) {
 // Date AND time in one popup: pick a day (the popup stays open), then tap a
 // time slot. It used to close on the day and leave a tiny native time box
 // beside it, which was fiddly to type into and started on the current month.
+// Off-slot times (e.g. 6:05) go through ExactTime below the slots.
+
+// Exact time (e.g. 6:05) for anything that isn't on a half-hour slot: native
+// selects, so a phone shows its own scroll wheel instead of a tiny text box.
+function ExactTime({ time, disabled, onChange }) {
+  const [h24, m] = (time || "08:00").split(":").map(Number);
+  const hour = h24 % 12 || 12;
+  const pm = h24 >= 12;
+  const set = (hr, min, isPm) => onChange(pad((hr % 12) + (isPm ? 12 : 0)) + ":" + pad(min));
+  const sel = "h-8 rounded-md border border-input bg-background px-1.5 text-sm disabled:opacity-50";
+  return (
+    <div className="flex items-center gap-1">
+      <select aria-label="Hour" className={sel} disabled={disabled} value={hour}
+        onChange={(e) => set(Number(e.target.value), m, pm)}>
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+      </select>
+      <span className="text-muted-foreground">:</span>
+      <select aria-label="Minute" className={sel} disabled={disabled} value={m}
+        onChange={(e) => set(hour, Number(e.target.value), pm)}>
+        {Array.from({ length: 60 }, (_, i) => i).map((n) => <option key={n} value={n}>{pad(n)}</option>)}
+      </select>
+      <select aria-label="AM or PM" className={sel} disabled={disabled} value={pm ? "PM" : "AM"}
+        onChange={(e) => set(hour, m, e.target.value === "PM")}>
+        <option>AM</option><option>PM</option>
+      </select>
+    </div>
+  );
+}
+
 export function DateTimePicker({ value, onChange, placeholder = "Pick date & time", className, disabled }) {
   const [open, setOpen] = useState(false);
   const { date, time } = splitDateTime(value);
@@ -108,13 +137,17 @@ export function DateTimePicker({ value, onChange, placeholder = "Pick date & tim
           type="button"
           variant="outline"
           disabled={disabled}
-          className={cn("justify-start font-normal min-w-[13rem]", !date && "text-muted-foreground", className)}
+          className={cn("justify-start font-normal w-full sm:w-auto sm:min-w-[13rem]", !date && "text-muted-foreground", className)}
         >
           <CalendarIcon className="size-4 shrink-0" />
           <span className="truncate">{label}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className="w-auto max-w-[calc(100vw-1rem)] gap-0 p-0 max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain scrollbar-thin"
+        align="start"
+        collisionPadding={8}
+      >
         <div className="flex flex-col sm:flex-row">
           <Calendar
             mode="single"
@@ -138,13 +171,17 @@ export function DateTimePicker({ value, onChange, placeholder = "Pick date & tim
                   variant={t === time ? "default" : "ghost"}
                   disabled={!date}
                   onClick={() => { onChange(joinDateTime(date, t)); setOpen(false); }}
-                  className="h-8 justify-center text-xs font-normal"
+                  className="h-9 sm:h-8 justify-center text-xs font-normal"
                 >
                   {formatTime(t)}
                 </Button>
               ))}
             </div>
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
+          <span className="text-xs text-muted-foreground">Exact time</span>
+          <ExactTime time={time} disabled={!date} onChange={(t) => onChange(joinDateTime(date, t))} />
         </div>
         <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
           <Button type="button" size="sm" variant="ghost" onClick={() => onChange(joinDateTime(new Date(), time))}>

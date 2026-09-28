@@ -1423,7 +1423,10 @@ so a bug in one route cannot expose the other.
   **`DateTimePicker` is ONE popup (Sep 28 2026, "hard to input")**: calendar
   (month/year dropdowns, opens on the chosen date) + a column of one-tap time
   slots every 30 min, 6:00 AM–10:00 PM (a saved off-slot time is added to the
-  list), plus Today / No time / Clear / Done. Picking a day keeps it open;
+  list), an "Exact time" hour/minute/AM-PM row (native selects, any minute,
+  e.g. 6:05), plus Today / No time / Clear / Done. On a phone the trigger is
+  full width, the popup scrolls inside itself, and the Schedule rows stack.
+  Picking a day keeps it open;
   picking a time closes it. "No time" = `T00:00`, same as before (`hasTime`).
 - **Dashboard analytics** (Sep 2026): `GET /api/stats/dashboard` also
   returns `sports`, `accounts: { barangayAdmins, organizers }`, and

@@ -1142,6 +1142,16 @@ so a bug in one route cannot expose the other.
   `RevealItem`s: 20+ cards animating while their crests decode stuttered), and
   cover crests use `decoding="async"` + `loading="lazy"` with a blank tile (not the
   monogram) while the logo check is pending.
+- **Champions pages (Sep 29 2026)**: public `/champions` is a card grid per year
+  (16:9 photo, gold Anton year heading) + a "Most titles" panel (all sports, sticky at
+  `lg`); photos open the shared zoomable `Lightbox` in gallery mode across every photo on
+  screen. Super Admin Champions: stat tiles, search + sport chips, card grid per year,
+  add/edit in a Dialog (photo preview is the upload control), photo → `Lightbox`.
+  Card photos use `relative aspect-video` + an `absolute inset-0` img — a plain img
+  inside an aspect box grows it to the image's own ratio.
+- **Public brackets are compact below `sm`** (Sep 29 2026, `Brackets.jsx`): match /
+  winner cards 168px (`w-42`, was 240px), 13px names, 18px crests, 20px column gap.
+  Desktop unchanged; wires are measured, so nothing else needed changing.
 - **Public search bar — Motion + compact width** (Sep 2026,
   `SearchInput` in `PublicUI.jsx`, used by Teams and Players): the clear
   (✕) button now fades/scales in via `AnimatePresence`/`motion.button`

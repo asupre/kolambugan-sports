@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { Crest, Panel, PanelSkeleton, LiveDot, TabRow, DIVISION_LABEL } from "../../components/PublicUI";
 import { useDragScroll } from "../../hooks/useDragScroll";
+import { useMediaQuery } from "../../lib/useMediaQuery";
 import Reveal from "../../components/Reveal";
 
 
@@ -11,20 +12,25 @@ import Reveal from "../../components/Reveal";
 const isGroupStage = (m) => !!m.group;
 const isThird = (m) => (m.bracket || "").includes("third");
 
+// Phones get a compact tree (Sep 2026): the desktop 240px cards made a Top 8
+// about three screens wide on a phone. Below `sm` cards are 168px with smaller
+// type and crests, and the columns sit closer. Wires are re-measured, so no
+// layout math changes.
 function MatchCard({ m, innerRef }) {
+  const compact = !useMediaQuery("(min-width: 640px)");
   const done = m.status === "completed";
   const live = m.status === "ongoing";
   const aWin = done && m.winner && String(m.winner) === String(m.teamA?.id);
   const bWin = done && m.winner && String(m.winner) === String(m.teamB?.id);
 
     const Side = ({ team, score, won }) => (
-    <div className="flex items-center gap-2.5 px-3 py-2.5">
-      <Crest name={team?.name} barangayId={team?.barangayId} size={24} />
-      <span className={`flex-1 min-w-0 truncate text-[15px] ${won ? "text-slate-100 font-medium" : done ? "text-slate-500" : "text-slate-300"}`}>
+    <div className="flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 sm:py-2.5">
+      <Crest name={team?.name} barangayId={team?.barangayId} size={compact ? 18 : 24} />
+      <span className={`flex-1 min-w-0 truncate text-[13px] sm:text-[15px] ${won ? "text-slate-100 font-medium" : done ? "text-slate-500" : "text-slate-300"}`}>
         {team?.name || "TBD"}
       </span>
       {(done || live) && (
-        <span className={`text-[15px] font-bold tabular-nums w-7 text-right ${won ? "text-[#F5A524]" : "text-slate-500"}`}>
+        <span className={`text-[13px] sm:text-[15px] font-bold tabular-nums w-6 sm:w-7 text-right ${won ? "text-[#F5A524]" : "text-slate-500"}`}>
           {score}
         </span>
       )}
@@ -34,7 +40,7 @@ function MatchCard({ m, innerRef }) {
   return (
     <div
       ref={innerRef}
-      className={`rounded border bg-[#0F141C] w-60 shrink-0 overflow-hidden ${
+      className={`rounded border bg-[#0F141C] w-42 sm:w-60 shrink-0 overflow-hidden ${
         live ? "border-red-500/40" : "border-[#1C2430]"
       }`}
     >
@@ -42,7 +48,7 @@ function MatchCard({ m, innerRef }) {
       <div className="border-t border-[#1C2430]" />
       <Side team={m.teamB} score={m.scoreB} won={bWin} />
       {live && (
-        <div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/10 text-red-400 text-[12px] font-semibold">
+        <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 bg-red-500/10 text-red-400 text-[12px] font-semibold">
           <LiveDot /> LIVE
         </div>
       )}
@@ -62,23 +68,23 @@ function WinnerCard({ match, label, sublabel, bothQualify }) {
     : null;
  
   return (
-    <div className={`w-60 shrink-0 rounded border px-3 py-3 ${
+    <div className={`w-42 sm:w-60 shrink-0 rounded border px-2.5 sm:px-3 py-2 sm:py-3 ${
       done ? "border-[#F5A524]/40 bg-[#F5A524]/[0.06]" : "border-dashed border-[#1C2430] bg-[#0F141C]"
     }`}>
       <p className={`text-[12px] font-semibold uppercase tracking-wide ${done ? "text-[#F5A524]" : "text-slate-600"}`}>
         {label}
       </p>
-      <p className={`text-[16px] mt-0.5 truncate ${done ? "text-slate-100 font-medium" : "text-slate-600"}`}>
+      <p className={`text-[14px] sm:text-[16px] mt-0.5 truncate ${done ? "text-slate-100 font-medium" : "text-slate-600"}`}>
         {winner?.name || "TBD"}
       </p>
       {/* A 2-team group plays one match that decides both qualifiers, so naming
           only the winner would leave the runner-up unexplained. */}
       {bothQualify && (
-        <p className={`text-[15px] truncate ${done ? "text-slate-300" : "text-slate-600"}`}>
+        <p className={`text-[13px] sm:text-[15px] truncate ${done ? "text-slate-300" : "text-slate-600"}`}>
           {loser?.name || "TBD"}
         </p>
       )}
-      {sublabel && <p className="text-[13px] text-slate-400 mt-1">{sublabel}</p>}
+      {sublabel && <p className="text-[12px] sm:text-[13px] text-slate-400 mt-1">{sublabel}</p>}
     </div>
   );
 }
@@ -132,14 +138,14 @@ function BracketSection({ title, matches, labelFor, winner }) {
     <div className="mb-6">
       {title && <h3 className="text-slate-300 text-[14px] font-semibold uppercase tracking-wide mb-3">{title}</h3>}
       <div ref={dragRef} className="overflow-x-auto pb-2 cursor-grab">
-        <div ref={stageRef} className="relative flex gap-10 min-w-min">
+        <div ref={stageRef} className="relative flex gap-5 sm:gap-10 min-w-min">
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
             {wires.map((d, i) => <path key={i} d={d} stroke="#1C2430" strokeWidth="2" fill="none" />)}
           </svg>
           {rounds.map((r, i) => (
             <div key={r} className="relative z-10 flex flex-col">
-              <p className="text-slate-400 text-[13px] font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
-              <div className="flex-1 flex flex-col justify-around gap-3">
+              <p className="text-slate-400 text-[12px] sm:text-[13px] font-medium mb-2 whitespace-nowrap">{labelFor(r, i, rounds.length)}</p>
+              <div className="flex-1 flex flex-col justify-around gap-2 sm:gap-3">
                 {matches.filter((m) => m.round === r).map((m) => (
                   <MatchCard key={m.id} m={m} innerRef={(el) => (boxRefs.current[m.id] = el)} />
                 ))}

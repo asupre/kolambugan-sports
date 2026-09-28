@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useLayoutEffect } from "react";
+import { memo, useCallback, useEffect, useState, useRef, useLayoutEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, RotateCcw, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
@@ -176,11 +176,64 @@ function MatchesView({ tournamentId }) {
   );
 }
 
+// datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time. toISOString() would
+// convert to UTC and shift the clock by 8 hours.
+function asInput(d) {
+  if (!d) return "";
+  const x = new Date(d);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
+}
+
+// One match's date / venue / Save. Its unsaved values live HERE, not in the
+// section: kept in the section, every keystroke re-rendered every row and its
+// date picker (measured 160-450ms per letter on a 150-match Mobile Legends
+// group stage, 4x CPU throttle). memo() also keeps the rows still while the
+// round's bulk fields above them are typed in.
+const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave }) {
+  const savedSchedule = asInput(m.schedule);
+  const savedVenue = m.venue || "";
+  const [schedule, setSchedule] = useState(savedSchedule);
+  const [venue, setVenue] = useState(savedVenue);
+  const done = m.status === "completed" || m.status === "forfeited";
+  const dirty = schedule !== savedSchedule || venue !== savedVenue;
+
+  return (
+    <div className={cn("px-4 py-2.5", done && "bg-muted/30")}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-muted-foreground text-xs w-16 shrink-0">
+          {m.group ? `Grp ${m.group}` : m.bracket}
+        </span>
+        <span className="flex-1 min-w-0 sm:min-w-[12rem] truncate text-sm">
+          {m.teamA?.teamName || "TBD"}
+          <span className="text-muted-foreground"> vs </span>
+          {m.teamB?.teamName || "TBD"}
+        </span>
+
+        {done ? (
+          <span className="text-muted-foreground text-xs">
+            {m.status === "forfeited" ? "forfeited" : "played"}
+          </span>
+        ) : (
+          <div className="flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2">
+            <DateTimePicker value={schedule} onChange={setSchedule} className="sm:shrink-0" />
+            <Input type="text" placeholder="Venue" value={venue}
+              onChange={(e) => setVenue(e.target.value)}
+              className="text-xs flex-1 min-w-0 sm:flex-none sm:w-36" />
+            <Button size="sm" onClick={() => onSave(m, schedule, venue)} disabled={busy || !dirty} className="shrink-0">
+              Save
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 function ScheduleSection({ tournamentId }) {
   const showError = useErrorDialog();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [edits, setEdits] = useState({});     // matchId -> { schedule, venue }
   const [bulk, setBulk] = useState({});       // round -> { schedule, venue, group }
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -191,7 +244,6 @@ function ScheduleSection({ tournamentId }) {
     try {
       const data = await api(`/api/tournaments/${tournamentId}/matches`);
       setMatches(data.matches || []);
-      setEdits({});
     } catch (e) {
       showError(e.message);
     } finally {
@@ -201,47 +253,24 @@ function ScheduleSection({ tournamentId }) {
 
   useEffect(() => { load(); }, [tournamentId]);
 
-  // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time. toISOString() would
-  // convert to UTC and shift the clock by 8 hours.
-  const asInput = (d) => {
-    if (!d) return "";
-    const x = new Date(d);
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
-  };
-
-  const valueOf = (m, field) =>
-    edits[m._id]?.[field] !== undefined
-      ? edits[m._id][field]
-      : field === "schedule" ? asInput(m.schedule) : (m.venue || "");
-
-  const isDirty = (m) => {
-    const e = edits[m._id];
-    if (!e) return false;
-    return (e.schedule !== undefined && e.schedule !== asInput(m.schedule))
-      || (e.venue !== undefined && e.venue !== (m.venue || ""));
-  };
-
-  function edit(matchId, field, value) {
-    setEdits((prev) => ({ ...prev, [matchId]: { ...prev[matchId], [field]: value } }));
-  }
-
   // Saved explicitly rather than on every keystroke — typing a venue would
-  // otherwise fire a request per character.
-  async function saveOne(m) {
+  // otherwise fire a request per character. The row owns its unsaved values
+  // (see ScheduleRow) and hands them over here.
+  async function saveOne(m, schedule, venue) {
     setBusy(true);
     try {
       await api(`/api/tournaments/matches/${m._id}/schedule`, {
         method: "PATCH",
-        body: JSON.stringify({
-          schedule: valueOf(m, "schedule") || null,
-          venue: valueOf(m, "venue"),
-        }),
+        body: JSON.stringify({ schedule: schedule || null, venue }),
       });
       await load();
     } catch (e) { showError(e.message); }
     finally { setBusy(false); }
   }
+  // Stable across renders, so the memoised rows don't all re-render.
+  const saveRef = useRef(saveOne);
+  useLayoutEffect(() => { saveRef.current = saveOne; });
+  const onSave = useCallback((...args) => saveRef.current(...args), []);
 
   // Keyed by section, not round number: group round 1 and knockout round 1 are
   // different sections that happen to share a number.
@@ -361,41 +390,12 @@ function ScheduleSection({ tournamentId }) {
                 </div>
                 {open && (
                   <div className="divide-y">
-                    {inRound.map((m) => {
-                      const done = m.status === "completed" || m.status === "forfeited";
-                      return (
-                        <div key={m._id} className={cn("px-4 py-2.5", done && "bg-muted/30")}>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-muted-foreground text-xs w-16 shrink-0">
-                              {m.group ? `Grp ${m.group}` : m.bracket}
-                            </span>
-                            <span className="flex-1 min-w-0 sm:min-w-[12rem] truncate text-sm">
-                              {m.teamA?.teamName || "TBD"}
-                              <span className="text-muted-foreground"> vs </span>
-                              {m.teamB?.teamName || "TBD"}
-                            </span>
-
-                            {done ? (
-                              <span className="text-muted-foreground text-xs">
-                                {m.status === "forfeited" ? "forfeited" : "played"}
-                              </span>
-                            ) : (
-                              <div className="flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2">
-                                <DateTimePicker value={valueOf(m, "schedule")}
-                                  onChange={(v) => edit(m._id, "schedule", v)}
-                                  className="sm:shrink-0" />
-                                <Input type="text" placeholder="Venue" value={valueOf(m, "venue")}
-                                  onChange={(e) => edit(m._id, "venue", e.target.value)}
-                                  className="text-xs flex-1 min-w-0 sm:flex-none sm:w-36" />
-                                <Button size="sm" onClick={() => saveOne(m)} disabled={busy || !isDirty(m)} className="shrink-0">
-                                  Save
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {inRound.map((m) => (
+                      // Keyed on the saved values too: after a save reloads the list,
+                      // a changed row remounts and starts from the new values.
+                      <ScheduleRow key={`${m._id}|${m.schedule || ""}|${m.venue || ""}`}
+                        m={m} busy={busy} onSave={onSave} />
+                    ))}
                   </div>
                 )}
               </Card>

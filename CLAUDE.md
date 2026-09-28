@@ -1428,6 +1428,11 @@ so a bug in one route cannot expose the other.
   full width, the popup scrolls inside itself, and the Schedule rows stack.
   Picking a day keeps it open;
   picking a time closes it. "No time" = `T00:00`, same as before (`hasTime`).
+  **Schedule rows keep their own unsaved values** (`ScheduleRow`, memo) in
+  `Tournaments.jsx` (Sep 28 2026, "laggy"): kept in the section, every keystroke
+  re-rendered all rows + pickers — measured 160-450ms per letter on a 150-match ML
+  group stage at 4x CPU throttle, now ~60ms. Opening the picker (~550ms throttled)
+  is react-day-picker + Radix positioning, the same as the old calendar-only picker.
 - **Dashboard analytics** (Sep 2026): `GET /api/stats/dashboard` also
   returns `sports`, `accounts: { barangayAdmins, organizers }`, and
   `todayMatches` (today's matches in Manila time, each carrying both teams'

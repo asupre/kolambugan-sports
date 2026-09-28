@@ -475,7 +475,7 @@ function ScoringView({ matchId, onBack }) {
       {/* Phones: the scoreboard panel is BELOW the scoring buttons, so mid-game the running
           score and Undo were out of sight. This slim bar sticks to the top while live. */}
       {live && (
-        <div className="sticky top-0 z-20 -mx-4 mb-3 border-b bg-background/95 px-4 py-2 backdrop-blur lg:hidden">
+        <div className="sticky top-16 z-(--z-sticky) -mx-4 mb-3 border-b bg-background/95 px-4 py-2 backdrop-blur lg:hidden">
           <div className="flex items-center gap-3">
             <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-red-600 dark:text-red-400">
               <Circle className="size-2 fill-current" /> LIVE

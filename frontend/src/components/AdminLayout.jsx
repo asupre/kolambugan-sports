@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { HelpCircle, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { api } from "../api";
@@ -12,6 +12,8 @@ import { useSeason } from "../lib/season";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { DARK_CHROME, LIGHT_CHROME, setThemeColor } from "../lib/themeChrome";
 import { cn } from "../lib/utils";
+
+const NAV_SCROLL_KEY = "admin-nav-scroll";
 
 // menu can be flat ([{label, path, icon}, ...]) or grouped
 // ([{header, items: [...]}, ...]) — grouped renders each header as a plain
@@ -173,6 +175,18 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       active ? "bg-primary/10 text-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
     );
 
+  // Every admin page mounts its own AdminLayout, so the sidebar used to start back at
+  // the top on each navigation — pick "Reports" low in the list and the new page
+  // opened with Reports scrolled out of sight below the fold. Keep the scroll position
+  // across pages, then make sure the current item is in view.
+  const navRef = useRef(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    try { nav.scrollTop = Number(sessionStorage.getItem(NAV_SCROLL_KEY)) || 0; } catch { /* storage blocked */ }
+    nav.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+  }, [location.pathname, sports.length]);
+
   function renderItem(item) {
     const active = location.pathname === item.path;
 
@@ -209,6 +223,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
                   <button
                     key={s._id}
                     onClick={() => go(path)}
+                    aria-current={location.pathname === path ? "page" : undefined}
                     className={cn(
                       "w-full text-left px-3 py-1.5 rounded-lg text-[13px] transition",
                       location.pathname === path
@@ -232,6 +247,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       <button
         key={item.path}
         onClick={() => go(item.path)}
+        aria-current={active ? "page" : undefined}
         className={itemClass(active)}
         title={rail ? (showBadge ? `${item.label} (${reviewPending} pending)` : item.label) : undefined}
       >
@@ -261,7 +277,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
     <div className="min-h-screen bg-background flex print:block print:min-h-0">
       <aside
         className={cn(
-          "print:hidden fixed z-30 inset-y-0 left-0 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-[transform,width] duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen",
+          "print:hidden fixed z-(--z-sidebar) inset-y-0 left-0 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-[transform,width] duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-dvh",
           open ? "translate-x-0" : "-translate-x-full",
           rail ? "w-64 lg:w-16" : "w-64"
         )}
@@ -291,7 +307,11 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
           </button>
         </div>
 
-        <nav className={cn("py-3 space-y-1 flex-1 overflow-y-auto scrollbar-thin", rail ? "lg:px-2 px-3" : "px-3")}>
+        <nav
+          ref={navRef}
+          onScroll={(e) => { try { sessionStorage.setItem(NAV_SCROLL_KEY, String(e.currentTarget.scrollTop)); } catch { /* storage blocked */ } }}
+          className={cn("py-3 space-y-1 flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin scroll-shadow-y [--scroll-shadow-bg:var(--sidebar)]", rail ? "lg:px-2 px-3" : "px-3")}
+        >
           {grouped
             ? menu.map((group) => (
                 <div key={group.header} className="pb-1">
@@ -325,16 +345,15 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       </aside>
 
       {open && (
-        <div onClick={() => setOpen(false)} className="fixed inset-0 bg-black/30 z-20 lg:hidden" />
+        <div onClick={() => setOpen(false)} className="fixed inset-0 bg-black/30 z-(--z-sidebar-backdrop) lg:hidden" />
       )}
 
       <div className="flex-1 flex flex-col min-w-0 print:block">
         {/* Sticky so the menu/profile/theme controls stay reachable without scrolling back
             up — the page (not `main`) is what actually scrolls in this layout, so without
-            this the header just scrolled away like any other content. z-10 keeps it under
-            the mobile sidebar (z-30) and its backdrop (z-20), so opening the menu still
-            covers it instead of leaving header buttons tappable underneath. */}
-        <header className="print:hidden sticky top-0 z-10 h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
+            this the header just scrolled away like any other content. --z-header keeps it
+            under the phone menu and its backdrop, and above page content (see <main>). */}
+        <header className="print:hidden sticky top-0 z-(--z-header) h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-3">
             <button onClick={() => setOpen(true)} className="lg:hidden text-foreground" aria-label="Open menu">
               <PanelLeftOpen className="size-5" />
@@ -371,7 +390,10 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
           </div>
         )}
 
-        <main className="flex-1 p-4 lg:p-6 bg-background print:p-0">{children}</main>
+        {/* `isolate` = its own stacking context: whatever z-index a page uses inside (the
+            Season stepper's circles, bracket columns) stays BELOW the sticky header instead
+            of tying with it and painting on top because it comes later in the DOM. */}
+        <main className="isolate flex-1 p-4 lg:p-6 bg-background print:p-0">{children}</main>
       </div>
 
       {showHelp && (

@@ -1471,11 +1471,24 @@ so a bug in one route cannot expose the other.
   first sport) instead of expanding inline. The mobile header's own
   open-sidebar button uses the same `PanelLeftOpen` icon (not a `☰` hamburger
   character) for one consistent icon language.
-- **Sticky header (Sep 2026):** `AdminLayout`'s `<header>` is `sticky top-0 z-10` — this layout
+- **Sticky header (Sep 2026):** `AdminLayout`'s `<header>` is `sticky top-0` — this layout
   scrolls the whole page (not a constrained `main`), so an unpositioned header just scrolled away
   with everything else, losing access to the menu toggle / help / theme toggle / profile avatar
-  without scrolling back up (mobile and desktop both had the gap). `z-10` sits under the mobile
-  sidebar drawer (`z-30`) and its backdrop (`z-20`), so the open phone menu still covers it.
+  without scrolling back up (mobile and desktop both had the gap).
+  **z-index scale (Sep 28 2026)** — CSS variables in `index.css`, used as `z-(--z-header)`:
+  `--z-sticky` 10 (sticky bits inside a page) < `--z-header` 20 < `--z-sidebar-backdrop` 30 <
+  `--z-sidebar` 40 < `--z-overlay` 50 (Dialog, Sheet, Popover, Select — they portal to `<body>`)
+  < `--z-toast` 60 < `--z-loading` 100. **`<main>` is `isolate`** (its own stacking context): the
+  Season stepper's `relative z-10` circles tied with the old `z-10` header and, being later in the
+  DOM, painted over it on scroll. Now nothing inside a page can rise above the header, whatever
+  z-index it uses. The organizer's live score bar is therefore `sticky top-16` (just under the
+  header; at `top-0 z-20` it used to cover the header). **Sidebar nav** keeps its scroll position
+  across pages (`sessionStorage` `admin-nav-scroll` — every page mounts its own `AdminLayout`, so
+  it used to jump back to the top and hide a low item like Reports), scrolls the current item
+  (`aria-current="page"`) into view, has scroll shadows (`.scroll-shadow-y`), and is `lg:h-dvh`.
+  Verified by rendering (mock API, headless Edge): no content over the header on Season /
+  Dashboard / Review Queue / League Setup / Tournaments, light + dark, 1280x380 and 390x700; a
+  popover forced over the header paints on top.
 - **Dark/light toggle mobile perf (Sep 2026):** the circular-reveal View Transition was already
   skipped on touch, but the toggle still felt laggy on a phone — the REAL cause: flipping the `dark`
   class recomputes every CSS-variable color at once, and hundreds of elements carry their own

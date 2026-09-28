@@ -76,6 +76,23 @@
   font isn't applied, since this file is global and Public/Organizer's look
   is decided and out of scope here.
 */
+/* z-index scale for the admin UI — use these (`z-(--z-header)`), not raw numbers.
+   Page content lives in AdminLayout's <main>, which is `isolate`: a stacking context
+   of its own, so NO z-index inside a page can ever climb above the header (the Season
+   stepper's `relative z-10` circles used to scroll over it). --z-sticky is for sticky
+   bits INSIDE a page and only competes with other page content. Everything that must
+   sit above the header (dialogs, sheets, popovers, select menus) portals to <body> and
+   uses --z-overlay. */
+:root {
+  --z-sticky: 10;           /* sticky bars/table heads inside a page (under <main>'s isolate) */
+  --z-header: 20;           /* AdminLayout's sticky top header */
+  --z-sidebar-backdrop: 30; /* phone menu's dimmed backdrop — covers the header */
+  --z-sidebar: 40;          /* the sidebar / phone menu drawer */
+  --z-overlay: 50;          /* dialogs, sheets, popovers, select + dropdown menus */
+  --z-toast: 60;            /* reserved for toasts/notifications above an open dialog */
+  --z-loading: 100;         /* full-screen LoadingScreen, above everything */
+}
+
 :root {
   /* Tell the browser which scheme the page is in, so its OWN UI — scrollbars, date
      pickers, <select> popups, the on-screen keyboard, autofill — matches. Without
@@ -207,6 +224,17 @@
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: var(--muted-foreground);
+  }
+  /* Scroll shadows: a soft edge shows at the top/bottom only while there's more to
+     scroll that way (the "local" covers scroll with the content and hide the shadow
+     at each end). Set --scroll-shadow-bg to the panel's own background. */
+  .scroll-shadow-y {
+    --scroll-shadow-bg: var(--background);
+    background:
+      linear-gradient(var(--scroll-shadow-bg) 30%, transparent) top / 100% 28px no-repeat local,
+      linear-gradient(transparent, var(--scroll-shadow-bg) 70%) bottom / 100% 28px no-repeat local,
+      linear-gradient(color-mix(in oklab, var(--foreground) 10%, transparent), transparent) top / 100% 12px no-repeat scroll,
+      linear-gradient(transparent, color-mix(in oklab, var(--foreground) 10%, transparent)) bottom / 100% 12px no-repeat scroll;
   }
   /* Swipeable tab rows on the public site: still scrolls, no bar. */
   .scrollbar-none {

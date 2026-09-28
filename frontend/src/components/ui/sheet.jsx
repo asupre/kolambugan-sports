@@ -36,7 +36,7 @@ function SheetOverlay({
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/20 duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-(--z-overlay) bg-black/20 duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -65,7 +65,7 @@ function SheetContent({
             data-slot="sheet-overlay"
             aria-hidden="true"
             tabIndex={-1}
-            className="fixed inset-0 z-50 touch-none bg-black/20 animate-in fade-in-0 duration-200"
+            className="fixed inset-0 z-(--z-overlay) touch-none bg-black/20 animate-in fade-in-0 duration-200"
           />
         </SheetPrimitive.Close>
       ) : (
@@ -74,7 +74,7 @@ function SheetContent({
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-sm flex-col border-l bg-popover text-sm text-popover-foreground shadow-lg outline-none duration-200 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right",
+          "fixed inset-y-0 right-0 z-(--z-overlay) flex h-full w-full max-w-sm flex-col border-l bg-popover text-sm text-popover-foreground shadow-lg outline-none duration-200 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right",
           className
         )}
         {...props}

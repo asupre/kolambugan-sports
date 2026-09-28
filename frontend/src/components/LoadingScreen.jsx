@@ -4,7 +4,7 @@
 // respects dark mode automatically when shown from inside AdminLayout.
 export default function LoadingScreen({ message = "Loading…" }) {
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-background">
+    <div className="fixed inset-0 z-(--z-loading) flex flex-col items-center justify-center gap-6 bg-background">
       <div className="relative flex items-center justify-center">
         <span className="absolute size-32 rounded-full bg-primary/15 animate-ping [animation-duration:1.8s]" />
         <span className="absolute size-24 rounded-full bg-primary/10" />

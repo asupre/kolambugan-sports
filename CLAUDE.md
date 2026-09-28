@@ -1420,6 +1420,11 @@ so a bug in one route cannot expose the other.
   + year select instead of prev/next-only navigation — birthdates can be
   decades back, scheduling dates aren't) and `disableFuture` (blocks
   anything after today). Both are turned on for the birthdate fields only.
+  **`DateTimePicker` is ONE popup (Sep 28 2026, "hard to input")**: calendar
+  (month/year dropdowns, opens on the chosen date) + a column of one-tap time
+  slots every 30 min, 6:00 AM–10:00 PM (a saved off-slot time is added to the
+  list), plus Today / No time / Clear / Done. Picking a day keeps it open;
+  picking a time closes it. "No time" = `T00:00`, same as before (`hasTime`).
 - **Dashboard analytics** (Sep 2026): `GET /api/stats/dashboard` also
   returns `sports`, `accounts: { barangayAdmins, organizers }`, and
   `todayMatches` (today's matches in Manila time, each carrying both teams'

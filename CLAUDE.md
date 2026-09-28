@@ -1420,14 +1420,12 @@ so a bug in one route cannot expose the other.
   + year select instead of prev/next-only navigation — birthdates can be
   decades back, scheduling dates aren't) and `disableFuture` (blocks
   anything after today). Both are turned on for the birthdate fields only.
-  **`DateTimePicker` is ONE popup (Sep 28 2026, "hard to input")**: calendar
-  (month/year dropdowns, opens on the chosen date) + a column of one-tap time
-  slots every 30 min, 6:00 AM–10:00 PM (a saved off-slot time is added to the
-  list), an "Exact time" hour/minute/AM-PM row (native selects, any minute,
-  e.g. 6:05), plus Today / No time / Clear / Done. On a phone the trigger is
-  full width, the popup scrolls inside itself, and the Schedule rows stack.
-  Picking a day keeps it open;
-  picking a time closes it. "No time" = `T00:00`, same as before (`hasTime`).
+  **`DateTimePicker` (Sep 28 2026, "hard to input")**: calendar (month/year
+  dropdowns, opens on the chosen date) + ONE time control, hour / minute / AM-PM
+  native selects (`TimeSelect`, "--" until set; the Super Admin dropped the
+  half-hour slot buttons) + Today / No time / Clear / Done. A Popover on desktop;
+  below 640px a centred Dialog with 40px day cells and 16px selects (iOS zooms
+  under 16px). "No time" = `T00:00`, same as before (`hasTime`).
   **Schedule rows keep their own unsaved values** (`ScheduleRow`, memo) in
   `Tournaments.jsx` (Sep 28 2026, "laggy"): kept in the section, every keystroke
   re-rendered all rows + pickers — measured 160-450ms per letter on a 150-match ML

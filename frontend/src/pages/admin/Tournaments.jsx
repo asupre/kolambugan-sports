@@ -637,7 +637,7 @@ function MatchBox({ m, innerRef, onRevert }) {
 
 // The last match of a bracket has nothing to its right, so the tree just stops
 // and nobody can see what winning it earned. This card says so.
-function WinnerCard({ match, label, sublabel, bothQualify, runnerUp }) {
+function WinnerCard({ match, label, sublabel, bothQualify }) {
   const done = match && ["completed", "forfeited"].includes(match.status) && match.seriesWinner;
   const winnerId = done ? String(match.seriesWinner._id || match.seriesWinner) : null;
   const sides = [match?.teamA, match?.teamB];
@@ -662,15 +662,24 @@ function WinnerCard({ match, label, sublabel, bothQualify, runnerUp }) {
         </p>
       )}
       {sublabel && <p className="text-[11px] text-muted-foreground mt-1">{sublabel}</p>}
-      {/* The final's loser finishes 2nd — the tree ends at the champion, so say it here. */}
-      {runnerUp && (
-        <div className="mt-2 pt-2 border-t">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">2nd place</p>
-          <p className={cn("text-sm mt-0.5 truncate", done ? "font-medium" : "text-muted-foreground")}>
-            {loser?.teamName || "TBD"}
-          </p>
-        </div>
-      )}
+    </div>
+  );
+}
+
+// The Grand Final's loser finishes 2nd. Its own box, hung under the final.
+function SecondPlaceCard({ match }) {
+  const done = match && ["completed", "forfeited"].includes(match.status) && match.seriesWinner;
+  const winnerId = done ? String(match.seriesWinner._id || match.seriesWinner) : null;
+  const loser = done ? [match.teamA, match.teamB].find((t) => t && String(t._id) !== winnerId) : null;
+  return (
+    <div className={cn(
+      "w-56 shrink-0 rounded-lg border px-3 py-2.5",
+      done ? "border-slate-400/50 bg-slate-500/5" : "border-dashed bg-card"
+    )}>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">2nd place</p>
+      <p className={cn("text-sm mt-0.5 truncate", done ? "font-medium" : "text-muted-foreground")}>
+        {loser?.teamName || "TBD"}
+      </p>
     </div>
   );
 }
@@ -688,7 +697,7 @@ function finalOf(matches) {
 // <div> boxes throughout — every coordinate here comes from a live
 // getBoundingClientRect() measurement, not a hardcoded layout assumption, so
 // restyling spacing/colors is safe as long as MatchBox keeps forwarding its ref.
-function BracketTree({ title, matches, labelFor, onRevert, winner }) {
+function BracketTree({ title, matches, labelFor, onRevert, winner, runnerUp }) {
   const stageRef = useRef(null);
   const dragRef = useDragScroll();
   const boxRefs = useRef({});
@@ -721,12 +730,13 @@ function BracketTree({ title, matches, labelFor, onRevert, winner }) {
   }, [matches]);
 
   if (matches.length === 0) return null;
+  const grandFinal = runnerUp ? finalOf(matches) : null;
 
   return (
     <div className="mb-6">
       {title && <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">{title}</p>}
       <div ref={dragRef} className="overflow-x-auto scrollbar-thin pb-4 cursor-grab">
-        <div ref={stageRef} className="relative flex gap-10 min-w-min">
+        <div ref={stageRef} className={cn("relative flex gap-10 min-w-min", grandFinal && rounds.length < 3 && "pb-24")}>
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
             {wires.map((d, i) => <path key={i} d={d} className="stroke-border" strokeWidth="2" fill="none" />)}
           </svg>
@@ -734,10 +744,21 @@ function BracketTree({ title, matches, labelFor, onRevert, winner }) {
             <div key={r} className="relative z-10 flex flex-col">
               <p className="text-muted-foreground text-xs font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
               <div className="flex-1 flex flex-col justify-around gap-3">
-                {matches.filter((m) => m.round === r).map((m) => (
-                  <MatchBox key={m._id} m={m} onRevert={onRevert}
-                    innerRef={(el) => (boxRefs.current[m._id] = el)} />
-                ))}
+                {matches.filter((m) => m.round === r).map((m) =>
+                  grandFinal && m._id === grandFinal._id ? (
+                    // Absolutely placed so the final keeps its centred spot and the wires don't move.
+                    <div key={m._id} className="relative">
+                      <MatchBox m={m} onRevert={onRevert}
+                        innerRef={(el) => (boxRefs.current[m._id] = el)} />
+                      <div className="absolute left-0 top-full mt-3">
+                        <SecondPlaceCard match={m} />
+                      </div>
+                    </div>
+                  ) : (
+                    <MatchBox key={m._id} m={m} onRevert={onRevert}
+                      innerRef={(el) => (boxRefs.current[m._id] = el)} />
+                  )
+                )}
               </div>
             </div>
           ))}
@@ -816,7 +837,7 @@ function BracketView({ tournamentId }) {
         <div className="mb-8">
           <h3 className="font-semibold mb-3">Knockout</h3>
           <BracketTree matches={koMain} labelFor={koLabel} onRevert={revert}
-            winner={{ match: finalOf(koMain), label: "Champion", sublabel: null, runnerUp: true }} />
+            winner={{ match: finalOf(koMain), label: "Champion", sublabel: null }} runnerUp />
           {koThird && (
             <div>
               <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>

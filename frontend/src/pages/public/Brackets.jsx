@@ -64,7 +64,7 @@ function MatchCard({ m, innerRef }) {
 
 // The last match of a bracket has nothing to its right, so the tree just stops
 // and a viewer has to work out what winning it earned. This card says so.
-function WinnerCard({ match, label, sublabel, bothQualify, runnerUp }) {
+function WinnerCard({ match, label, sublabel, bothQualify }) {
   const done = match && (match.status === "completed" || match.status === "forfeited") && match.winner;
   const winner = done
     ? [match.teamA, match.teamB].find((t) => t && String(t.id) === String(match.winner))
@@ -91,17 +91,26 @@ function WinnerCard({ match, label, sublabel, bothQualify, runnerUp }) {
         </p>
       )}
       {sublabel && <p className="text-[12px] sm:text-[13px] text-slate-400 mt-1">{sublabel}</p>}
-      {/* The final's loser finishes 2nd — the tree ends at the champion, so say it here. */}
-      {runnerUp && (
-        <div className="mt-2 pt-2 border-t border-[#1C2430]">
-          <p className={`text-[12px] font-semibold uppercase tracking-wide ${done ? "text-slate-300" : "text-slate-600"}`}>
-            2nd place
-          </p>
-          <p className={`text-[13px] sm:text-[15px] mt-0.5 truncate ${done ? "text-slate-200" : "text-slate-600"}`}>
-            {loser?.name || "TBD"}
-          </p>
-        </div>
-      )}
+    </div>
+  );
+}
+
+// The Grand Final's loser finishes 2nd. Its own box, hung under the final.
+function SecondPlaceCard({ match }) {
+  const done = match && ["completed", "forfeited"].includes(match.status) && match.winner;
+  const loser = done
+    ? [match.teamA, match.teamB].find((t) => t && String(t.id) !== String(match.winner))
+    : null;
+  return (
+    <div className={`w-42 sm:w-60 shrink-0 rounded border px-2.5 sm:px-3 py-2 sm:py-3 ${
+      done ? "border-slate-400/40 bg-slate-400/[0.06]" : "border-dashed border-[#1C2430] bg-[#0F141C]"
+    }`}>
+      <p className={`text-[12px] font-semibold uppercase tracking-wide ${done ? "text-slate-300" : "text-slate-600"}`}>
+        2nd place
+      </p>
+      <p className={`text-[14px] sm:text-[16px] mt-0.5 truncate ${done ? "text-slate-100 font-medium" : "text-slate-600"}`}>
+        {loser?.name || "TBD"}
+      </p>
     </div>
   );
 }
@@ -117,7 +126,7 @@ function finalOf(matches) {
 // its winner feeds. Wires are measured from the DOM because column heights are
 // decided by flex, not by us. Pointers to matches outside this section (a
 // winners-bracket loser dropping into losers) resolve to nothing and are skipped.
-function BracketSection({ title, matches, labelFor, winner }) {
+function BracketSection({ title, matches, labelFor, winner, runnerUp }) {
   const stageRef = useRef(null);
   const dragRef = useDragScroll();
   const boxRefs = useRef({});
@@ -150,12 +159,13 @@ function BracketSection({ title, matches, labelFor, winner }) {
   }, [matches]);
 
   if (matches.length === 0) return null;
+  const grandFinal = runnerUp ? finalOf(matches) : null;
 
   return (
     <div className="mb-6">
       {title && <h3 className="text-slate-300 text-[14px] font-semibold uppercase tracking-wide mb-3">{title}</h3>}
       <div ref={dragRef} className="overflow-x-auto pb-2 cursor-grab">
-        <div ref={stageRef} className="relative flex gap-5 sm:gap-10 min-w-min">
+        <div ref={stageRef} className={`relative flex gap-5 sm:gap-10 min-w-min ${grandFinal && rounds.length < 3 ? "pb-24 sm:pb-28" : ""}`}>
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
             {wires.map((d, i) => <path key={i} d={d} stroke="#1C2430" strokeWidth="2" fill="none" />)}
           </svg>
@@ -163,9 +173,19 @@ function BracketSection({ title, matches, labelFor, winner }) {
             <div key={r} className="relative z-10 flex flex-col">
               <p className="text-slate-400 text-[12px] sm:text-[13px] font-medium mb-2 whitespace-nowrap">{labelFor(r, i, rounds.length)}</p>
               <div className="flex-1 flex flex-col justify-around gap-2 sm:gap-3">
-                {matches.filter((m) => m.round === r).map((m) => (
-                  <MatchCard key={m.id} m={m} innerRef={(el) => (boxRefs.current[m.id] = el)} />
-                ))}
+                {matches.filter((m) => m.round === r).map((m) =>
+                  grandFinal && m.id === grandFinal.id ? (
+                    // Absolutely placed so the final keeps its centred spot and the wires don't move.
+                    <div key={m.id} className="relative">
+                      <MatchCard m={m} innerRef={(el) => (boxRefs.current[m.id] = el)} />
+                      <div className="absolute left-0 top-full mt-3">
+                        <SecondPlaceCard match={m} />
+                      </div>
+                    </div>
+                  ) : (
+                    <MatchCard key={m.id} m={m} innerRef={(el) => (boxRefs.current[m.id] = el)} />
+                  )
+                )}
               </div>
             </div>
           ))}
@@ -331,8 +351,8 @@ export default function Brackets() {
                     match: finalOf(knockoutMain),
                     label: "Champion",
                     sublabel: null,
-                    runnerUp: true,
-                  }} />
+                  }}
+                  runnerUp />
                                 {knockoutThird && (
                   <div>
                     <h3 className="text-slate-300 text-[14px] font-semibold uppercase tracking-wide mb-3">

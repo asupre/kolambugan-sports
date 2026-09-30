@@ -419,6 +419,39 @@ function groupStandings(matches, includeTiebreakers = false) {
   return out;
 }
 
+// W/L in the knockout (every match with no group: Top 8/16, final, 3rd place).
+// The group tables above only hold group matches, so without this a team's
+// knockout wins — a forfeit win included — appeared nowhere on Standings.
+// Sorted by finish (champion, 2nd, 3rd, 4th), then record.
+function knockoutStandings(matches) {
+  const rows = {};
+  const finish = {};
+  matches.forEach((m) => {
+    if (m.group) return;
+    [m.teamA, m.teamB].forEach((t) => {
+      if (!t) return;
+      const k = String(t.id);
+      rows[k] = rows[k] || { teamId: k, teamName: t.name, barangayId: t.barangayId || null, wins: 0, losses: 0, played: 0, forfeitWins: 0, place: null };
+    });
+    if (!['completed', 'forfeited'].includes(m.status) || !m.winner || !m.teamA || !m.teamB) return;
+    const w = String(m.winner);
+    const l = String(m.teamA.id) === w ? String(m.teamB.id) : String(m.teamA.id);
+    rows[w].wins += 1; rows[w].played += 1;
+    rows[l].losses += 1; rows[l].played += 1;
+    if (m.status === 'forfeited') rows[w].forfeitWins += 1;
+    if (m.bracket === 'ko_final' || m.bracket === 'final') { finish[w] = 1; finish[l] = 2; }
+    if (m.bracket === 'ko_third' || m.bracket === 'third') { finish[w] = 3; finish[l] = 4; }
+  });
+  Object.entries(finish).forEach(([k, p]) => { if (rows[k]) rows[k].place = p; });
+  return Object.values(rows).sort(
+    (a, b) =>
+      (a.place || 99) - (b.place || 99) ||
+      b.wins - a.wins ||
+      a.losses - b.losses ||
+      a.teamName.localeCompare(b.teamName)
+  );
+}
+
 // Who has actually qualified from a ROUND-ROBIN group, and who is still
 // contesting the last spot. Position in the table isn't enough: teams level on
 // the cutoff line are tied, and a tie is settled by a playoff, not by
@@ -533,6 +566,7 @@ router.get('/bracket', async (req, res) => {
                           qualification: groupQualification(shaped, tdoc?.advancePerGroup || 2),
       matches: shaped,
       standings: groupStandings(shaped, true),
+      knockout: knockoutStandings(shaped),
       qualifiers: groupQualifiers(shaped),
     });
   } catch (err) {

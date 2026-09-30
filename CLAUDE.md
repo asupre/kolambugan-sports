@@ -2181,7 +2181,12 @@ repeat this pass before the next deploy.
   checks tested only `'completed'` — so a group with a forfeit never counted as finished and
   `/de-bracket` refused the Top 8, and brackets hid the 1–0. Use `isFinished()` in
   `routes/tournament.js`; on the frontend `["completed", "forfeited"].includes(m.status)`.
-  Brackets (admin + public) tag the no-show team "Forfeited" beside its 0. Public Standings' provisional highlight (before a group's
+  Brackets (admin + public) tag the no-show team "Forfeited" beside its 0.
+  **Public Standings has a Knockout table** (Sep 30 2026, `knockoutStandings()` in
+  `routes/public.js`, returned as `knockout` on `/api/public/bracket`): group tables only
+  count group matches, so knockout wins, forfeits included, used to show up nowhere (a
+  pickleball champion that won the final by forfeit still read 3-1). It lists place
+  (1st-4th from the final / 3rd-place match), W/L, and "N win(s) by forfeit". Public Standings' provisional highlight (before a group's
   qualifiers are decided) now only marks teams with at least one win.
 - **Public `TabRow` (sport/division tabs) is scrollable by mouse** (Sep 30 2026): it used
   `scrollbar-none`, so on a PC tabs past the edge (e.g. Chess, Mobile Legends on Brackets)

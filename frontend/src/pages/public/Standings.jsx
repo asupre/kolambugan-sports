@@ -3,6 +3,8 @@ import { api } from "../../api";
 import { Panel, PanelSkeleton, Crest, TabRow, DIVISION_LABEL } from "../../components/PublicUI";
 import Reveal from "../../components/Reveal";
 
+const PLACE = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th" };
+
 // Reads /api/public/bracket — the same call the Brackets page makes, so the
 // table and the bracket can never disagree about who won what.
 export default function Standings() {
@@ -37,6 +39,7 @@ export default function Standings() {
   }, [tid]);
 
   const standings = data?.standings || {};
+  const knockout = data?.knockout || [];
   const qualifiers = data?.qualifiers || {};
     const qualification = data?.qualification || {};
   const groups = Object.keys(standings).sort();
@@ -72,6 +75,37 @@ export default function Standings() {
                 : `The top ${advance} of each group advance to the knockout round.`
               : "Two teams advance from each group — the winner of the upper bracket and the winner of the lower bracket. Highlighted once decided."}
           </p>
+
+          {knockout.length > 0 && (
+            <Reveal>
+              <Panel title="Knockout">
+                <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-500 text-[12px] font-medium tracking-wider">
+                  <span className="w-12">#</span>
+                  <span className="flex-1">TEAM</span>
+                  <span className="w-10 text-center">W</span>
+                  <span className="w-10 text-center">L</span>
+                </div>
+                {knockout.map((r, i) => (
+                  <div key={r.teamId} className={`flex items-center px-4 py-3 border-b border-[#1C2430] last:border-0 ${r.place === 1 ? "bg-[#F5A524]/[0.06]" : ""}`}>
+                    <span className={`w-12 text-[13px] tabular-nums ${r.place === 1 ? "text-[#F5A524] font-semibold" : "text-slate-500"}`}>
+                      {r.place ? PLACE[r.place] : i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0 flex items-center gap-2.5">
+                      <Crest name={r.teamName} barangayId={r.barangayId} size={28} />
+                      <span className={`text-[16px] truncate ${r.place === 1 ? "text-slate-100" : "text-slate-300"}`}>{r.teamName}</span>
+                      {r.forfeitWins > 0 && (
+                        <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 uppercase tracking-wide">
+                          {r.forfeitWins === 1 ? "1 win by forfeit" : `${r.forfeitWins} wins by forfeit`}
+                        </span>
+                      )}
+                    </div>
+                    <span className="w-10 text-center text-[16px] font-semibold text-slate-100 tabular-nums">{r.wins}</span>
+                    <span className="w-10 text-center text-[16px] text-slate-500 tabular-nums">{r.losses}</span>
+                  </div>
+                ))}
+              </Panel>
+            </Reveal>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {groups.map((g, gi) => {

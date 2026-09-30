@@ -50,7 +50,7 @@ const context = (m) =>
 
 function MatchRow({ m, myTeamIds }) {
   const mine = (t) => t && myTeamIds.has(String(t.id));
-  const done = m.status === "completed";
+  const done = ["completed", "forfeited"].includes(m.status);
   const live = m.status === "ongoing";
   const won = done && m.winner && myTeamIds.has(String(m.winner));
 

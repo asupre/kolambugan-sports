@@ -18,7 +18,7 @@ const isThird = (m) => (m.bracket || "").includes("third");
 // layout math changes.
 function MatchCard({ m, innerRef }) {
   const compact = !useMediaQuery("(min-width: 640px)");
-  const done = m.status === "completed";
+  const done = ["completed", "forfeited"].includes(m.status);
   const live = m.status === "ongoing";
   const aWin = done && m.winner && String(m.winner) === String(m.teamA?.id);
   const bWin = done && m.winner && String(m.winner) === String(m.teamB?.id);
@@ -29,6 +29,12 @@ function MatchCard({ m, innerRef }) {
       <span className={`flex-1 min-w-0 truncate text-[13px] sm:text-[15px] ${won ? "text-slate-100 font-medium" : done ? "text-slate-500" : "text-slate-300"}`}>
         {team?.name || "TBD"}
       </span>
+      {/* A forfeit is recorded 1–0; the tag on the no-show team says why. */}
+      {m.status === "forfeited" && !won && (
+        <span className="shrink-0 rounded px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide bg-red-500/15 text-red-400">
+          Forfeited
+        </span>
+      )}
       {(done || live) && (
         <span className={`text-[13px] sm:text-[15px] font-bold tabular-nums w-6 sm:w-7 text-right ${won ? "text-[#F5A524]" : "text-slate-500"}`}>
           {score}
@@ -225,7 +231,7 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
         <span className="text-slate-300 text-[14px] font-semibold">Fixtures</span>
       </div>
       {matches.map((m) => {
-        const done = m.status === "completed";
+        const done = ["completed", "forfeited"].includes(m.status);
         const aWin = done && String(m.winner) === String(m.teamA?.id);
         return (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#1C2430] last:border-0">

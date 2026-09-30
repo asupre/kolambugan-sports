@@ -2176,6 +2176,13 @@ repeat this pass before the next deploy.
   `returnDocument: 'after'`. Fixed in `organizer.js`; `siteimage.js`'s
   `PATCH /:key/focal` still uses the old `{ new: true }` and needs the
   same fix.
+- **A match with a result is `completed` OR `forfeited`** (fixed Sep 30 2026). A forfeit
+  records 1–0, sets `seriesWinner` and advances the bracket like a played game, but many
+  checks tested only `'completed'` — so a group with a forfeit never counted as finished and
+  `/de-bracket` refused the Top 8, and brackets hid the 1–0. Use `isFinished()` in
+  `routes/tournament.js`; on the frontend `["completed", "forfeited"].includes(m.status)`.
+  Brackets (admin + public) tag the no-show team "Forfeited" beside its 0. Public Standings' provisional highlight (before a group's
+  qualifiers are decided) now only marks teams with at least one win.
 - **Don't read `games[0]` as the final score.** It is only period 1. The final
   score is `liveScoreA`/`liveScoreB` (they survive completion). Admin-entered
   results still write into `games[0]`, so displays need to handle both.

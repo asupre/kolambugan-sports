@@ -29,7 +29,7 @@ function rankTeams(matches) {
 
   matches.forEach((m) => {
     const a = see(m.teamA), b = see(m.teamB);
-    if (m.status !== "completed" || !m.winner) return;
+    if (!["completed", "forfeited"].includes(m.status) || !m.winner) return;
     [a, b].forEach((row) => {
       if (!row) return;
       row.played += 1;
@@ -47,7 +47,7 @@ function championOf(matches) {
   // The final is the knockout match with no group and no onward pointer.
   const final = matches.find(
     (m) => !m.group && !(m.bracket || "").includes("third") &&
-      !m.nextMatchWin && m.status === "completed" && m.winner
+      !m.nextMatchWin && ["completed", "forfeited"].includes(m.status) && m.winner
   );
   if (!final) return null;
   const side = [final.teamA, final.teamB].find((t) => t && String(t.id) === String(final.winner));
@@ -138,7 +138,7 @@ export default function Reports() {
               ...t,
               rows: rankTeams(matches),
               champion: championOf(matches),
-              played: matches.filter((m) => m.status === "completed").length,
+              played: matches.filter((m) => ["completed", "forfeited"].includes(m.status)).length,
               total: matches.length,
             };
           })

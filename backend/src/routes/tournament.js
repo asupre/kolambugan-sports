@@ -12,6 +12,11 @@ const PlayerMatchStats = require('../models/PlayerMatchStats');
 
 const router = express.Router();
 
+// A match has a result once it's played OR forfeited — a forfeit sets the
+// winner and advances the bracket exactly like a played match, so every
+// "is this group/round done?" check must count it.
+const isFinished = (m) => m.status === 'completed' || m.status === 'forfeited';
+
 // Circle-method scheduling: returns rounds, each round = array of [teamA, teamB] pairs,
 // so every team plays once per round.
 function roundRobinRounds(ids) {
@@ -384,7 +389,7 @@ router.post('/matches/:matchId/result', authenticate, authorize('super_admin', '
   try {
     const match = await Match.findById(req.params.matchId);
     if (!match) return res.status(404).json({ message: 'Match not found.' });
-    if (match.status === 'completed') return res.status(409).json({ message: 'This match already has a result.' });
+    if (isFinished(match)) return res.status(409).json({ message: 'This match already has a result.' });
     if (!match.teamA || !match.teamB) return res.status(400).json({ message: 'This match is missing a team (an earlier match may not be finished yet).' });
 
     if (req.user.role === 'organizer') {
@@ -511,7 +516,7 @@ router.get('/:id/standings', async (req, res) => {
       [...gids].forEach((id) => { stats[id] = { teamId: id, teamName: nameById[id] || '?', played: 0, wins: 0, losses: 0, gameWinDiff: 0, points: 0 }; });
 
       gMatches.forEach((m) => {
-        if (m.status !== 'completed' || !m.seriesWinner) return;
+        if (!isFinished(m) || !m.seriesWinner) return;
         const a = String(m.teamA), b = String(m.teamB), w = String(m.seriesWinner), l = w === a ? b : a;
         stats[a].played++; stats[b].played++; stats[w].wins++; stats[l].losses++; stats[w].points += 3;
         let ga = 0, gb = 0;
@@ -561,7 +566,7 @@ function rankGroup(gMatches, nameById) {
   [...gids].forEach((id) => { stats[id] = { teamId: id, teamName: nameById[id] || '?', played: 0, wins: 0, losses: 0, gameWinDiff: 0, points: 0 }; });
 
   gMatches.forEach((m) => {
-    if (m.status !== 'completed' || !m.seriesWinner) return;
+    if (!isFinished(m) || !m.seriesWinner) return;
     const a = String(m.teamA), b = String(m.teamB), w = String(m.seriesWinner), l = w === a ? b : a;
     stats[a].played++; stats[b].played++; stats[w].wins++; stats[l].losses++; stats[w].points += 3;
     let ga = 0, gb = 0;
@@ -580,7 +585,7 @@ function rankGroup(gMatches, nameById) {
 // Are all of a group's round-robin (non-tiebreaker) matches finished?
 function groupGamesComplete(gMatches) {
   const rr = gMatches.filter((m) => !m.isTiebreaker);
-  return rr.length > 0 && rr.every((m) => m.status === 'completed');
+  return rr.length > 0 && rr.every((m) => isFinished(m));
 }
 
 // GET /api/tournaments/:id/qualification — per group: who's qualified, and any tie at the cutoff.
@@ -612,7 +617,7 @@ router.get('/:id/qualification', async (req, res) => {
       const table = rankGroup(gMatches.filter((m) => !m.isTiebreaker), nameById);
 
       const tb = gMatches.filter((m) => m.isTiebreaker);
-      const tbResolved = tb.length > 0 && tb.every((m) => m.status === 'completed');
+      const tbResolved = tb.length > 0 && tb.every((m) => isFinished(m));
 
       let qualified = [];
       let contestedNames = [];   // teams fighting in the tiebreaker (for display)
@@ -858,7 +863,7 @@ router.get('/:id/de-qualification', async (req, res) => {
     let allComplete = Object.keys(byGroup).length > 0;
 
     for (const [g, gm] of Object.entries(byGroup)) {
-      const complete = gm.every((m) => m.status === 'completed');
+      const complete = gm.every((m) => isFinished(m));
       if (!complete) allComplete = false;
 
       // Upper final = the 'winners' match with no nextMatchWin. Lower final = the
@@ -872,7 +877,7 @@ router.get('/:id/de-qualification', async (req, res) => {
       }
       if (lowerFinal && lowerFinal.seriesWinner) {
         qualifiers.push({ seed: 2, teamId: String(lowerFinal.seriesWinner._id), teamName: lowerFinal.seriesWinner.teamName });
-      } else if (!lowerFinal && upperFinal && upperFinal.status === 'completed') {
+      } else if (!lowerFinal && upperFinal && isFinished(upperFinal)) {
         // 2-team group: the single decider's loser is the #2 qualifier.
         const loserId = String(upperFinal.seriesWinner._id) === String(upperFinal.teamA?._id)
           ? upperFinal.teamB : upperFinal.teamA;
@@ -914,12 +919,12 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
     const q = {}; // e.g. q['A1'] = teamId
     let ready = true;
     for (const [g, gm] of Object.entries(byGroup)) {
-      if (!gm.every((m) => m.status === 'completed')) { ready = false; break; }
+      if (!gm.every((m) => isFinished(m))) { ready = false; break; }
       const upperFinal = gm.find((m) => m.bracket === 'winners' && !m.nextMatchWin);
       const lowerFinal = gm.find((m) => m.bracket === 'losers' && !m.nextMatchWin);
       if (upperFinal && upperFinal.seriesWinner) q[`${g}1`] = String(upperFinal.seriesWinner);
       if (lowerFinal && lowerFinal.seriesWinner) q[`${g}2`] = String(lowerFinal.seriesWinner);
-      else if (!lowerFinal && upperFinal && upperFinal.status === 'completed') {
+      else if (!lowerFinal && upperFinal && isFinished(upperFinal)) {
         q[`${g}2`] = String(upperFinal.seriesWinner) === String(upperFinal.teamA) ? String(upperFinal.teamB) : String(upperFinal.teamA);
       }
     }

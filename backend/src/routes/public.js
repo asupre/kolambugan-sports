@@ -430,7 +430,7 @@ function groupQualification(matches, advance) {
   Object.entries(standings).forEach(([g, table]) => {
     const gm = matches.filter((m) => m.group === g);
     const rr = gm.filter((m) => !m.isTiebreaker && m.bracket === 'group');
-    const complete = rr.length > 0 && rr.every((m) => m.status === 'completed');
+    const complete = rr.length > 0 && rr.every((m) => ['completed', 'forfeited'].includes(m.status));
 
     if (!complete || table.length <= advance) {
       out[g] = { complete, clear: [], contested: [] };
@@ -452,7 +452,7 @@ function groupQualification(matches, advance) {
     }
 
     const tb = gm.filter((m) => m.isTiebreaker);
-    const resolved = tb.length > 0 && tb.every((m) => m.status === 'completed');
+    const resolved = tb.length > 0 && tb.every((m) => ['completed', 'forfeited'].includes(m.status));
 
     if (resolved) {
       const final = tb.reduce((hi, m) => (!hi || m.round > hi.round ? m : hi), null);
@@ -488,7 +488,7 @@ function groupQualifiers(matches) {
       const list = inG.filter((m) => m.bracket === bracket);
       if (list.length === 0) return null;
       const last = Math.max(...list.map((m) => m.round || 0));
-      const final = list.find((m) => (m.round || 0) === last && m.status === 'completed' && m.winner);
+      const final = list.find((m) => (m.round || 0) === last && ['completed', 'forfeited'].includes(m.status) && m.winner);
       return final ? String(final.winner) : null;
     };
     const seeds = [];

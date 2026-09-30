@@ -105,7 +105,7 @@ export default function Standings() {
                                         const seed = seedOf(r.teamId);
                     const isThrough = clear.has(r.teamId);
                     const isContested = contested.has(r.teamId);
-                    const marked = seed != null || isThrough || (provisional && i < (isRoundRobin ? advance : 2));
+                    const marked = seed != null || isThrough || (provisional && r.wins > 0 && i < (isRoundRobin ? advance : 2));
                     return (
                       <div
                         key={r.teamId}

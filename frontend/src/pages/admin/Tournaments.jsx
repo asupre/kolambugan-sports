@@ -130,7 +130,7 @@ function MatchesView({ tournamentId }) {
   const playoff = matches.filter((m) => m.isTiebreaker);
 
   const Row = ({ m }) => {
-    const done = m.status === "completed";
+    const done = ["completed", "forfeited"].includes(m.status);
     const aWin = done && String(m.seriesWinner) === String(m.teamA?._id || m.teamA);
     return (
       <div className="flex items-center gap-2 flex-wrap rounded-lg border px-3 py-2 text-sm">
@@ -161,7 +161,7 @@ function MatchesView({ tournamentId }) {
       <div className="flex items-baseline gap-2 mb-2">
         <h3 className="font-medium text-sm">Group matches</h3>
         <span className="text-muted-foreground text-xs">
-          scored by the organizer — {group.filter((m) => m.status === "completed").length}/{group.length} played
+          scored by the organizer — {group.filter((m) => ["completed", "forfeited"].includes(m.status)).length}/{group.length} played
         </span>
       </div>
       <div className="space-y-2">{group.map((m) => <Row key={m._id} m={m} />)}</div>
@@ -340,7 +340,7 @@ function ScheduleSection({ tournamentId }) {
 
             // A round where everything has been played is history — collapse it so
             // it doesn't bury the rounds still needing dates.
-            const played = inRound.filter((m) => m.status === "completed").length;
+            const played = inRound.filter((m) => ["completed", "forfeited"].includes(m.status)).length;
             const allPlayed = played === inRound.length;
             const open = openRounds[key] ?? !allPlayed;
             return (
@@ -586,7 +586,7 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
 // measures this exact DOM node with getBoundingClientRect() to draw the SVG
 // connector wires, and Card doesn't forward refs.
 function MatchBox({ m, innerRef, onRevert }) {
-  const done = m.status === "completed";
+  const done = ["completed", "forfeited"].includes(m.status);
   const live = m.status === "ongoing";
   const winnerId = String(m.seriesWinner?._id || m.seriesWinner || "");
   const aId = String(m.teamA?._id || m.teamA || "");
@@ -598,11 +598,18 @@ function MatchBox({ m, innerRef, onRevert }) {
   const aScore = m.liveScoreA || total("scoreA");
   const bScore = m.liveScoreB || total("scoreB");
 
+  // A forfeit is recorded 1–0; the tag on the no-show team says why.
+  const forfeit = m.status === "forfeited";
   const Side = ({ name, score, won }) => (
     <div className={cn("flex items-center gap-2 px-3 py-2", won && "bg-green-500/10")}>
       <span className={cn("flex-1 min-w-0 truncate", won ? "font-semibold" : "text-muted-foreground")}>
         {name || "TBD"}
       </span>
+      {forfeit && !won && (
+        <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-red-500/15 text-red-600 dark:text-red-400">
+          Forfeited
+        </span>
+      )}
       {(done || live) && <span className="font-medium w-6 text-center tabular-nums">{score}</span>}
     </div>
   );
@@ -1222,7 +1229,7 @@ export default function Tournaments() {
     let completedCount = 0;
     try {
       const d = await api(`/api/tournaments/${currentTournament._id}/matches`);
-      completedCount = (d.matches || []).filter((m) => m.status === "completed").length;
+      completedCount = (d.matches || []).filter((m) => ["completed", "forfeited"].includes(m.status)).length;
     } catch { /* best-effort — fall back to the generic message below */ }
 
     const ok = await confirm(

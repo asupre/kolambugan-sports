@@ -118,7 +118,7 @@ router.post('/matches/:matchId/start', async (req, res) => {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
     const { match, sportName } = ctx;
-    if (match.status === 'completed') return res.status(409).json({ message: 'This match is already finished.' });
+    if (match.status === 'completed' || match.status === 'forfeited') return res.status(409).json({ message: 'This match is already finished.' });
     if (!match.teamA || !match.teamB) return res.status(400).json({ message: 'This match is still waiting for a team.' });
 
 
@@ -360,7 +360,7 @@ router.post('/matches/:matchId/end', async (req, res) => {
     if (!ctx) return;
     const { match } = ctx;
 
-        if (match.status === 'completed') return res.status(409).json({ message: 'This match already has a result.' });
+        if (match.status === 'completed' || match.status === 'forfeited') return res.status(409).json({ message: 'This match already has a result.' });
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before ending it.' });
 
     const total = match.bestOf || 1;
@@ -502,7 +502,7 @@ router.post('/matches/:matchId/cancel', async (req, res) => {
     if (!ctx) return;
     const { match } = ctx;
 
-    if (match.status === 'completed') {
+    if (match.status === 'completed' || match.status === 'forfeited') {
       return res.status(409).json({ message: 'This match is already finished and cannot be cancelled.' });
     }
     if (match.status !== 'ongoing') {

@@ -64,7 +64,7 @@ function MatchCard({ m, innerRef }) {
 
 // The last match of a bracket has nothing to its right, so the tree just stops
 // and a viewer has to work out what winning it earned. This card says so.
-function WinnerCard({ match, label, sublabel, bothQualify }) {
+function WinnerCard({ match, label, sublabel, bothQualify, runnerUp }) {
   const done = match && (match.status === "completed" || match.status === "forfeited") && match.winner;
   const winner = done
     ? [match.teamA, match.teamB].find((t) => t && String(t.id) === String(match.winner))
@@ -91,6 +91,17 @@ function WinnerCard({ match, label, sublabel, bothQualify }) {
         </p>
       )}
       {sublabel && <p className="text-[12px] sm:text-[13px] text-slate-400 mt-1">{sublabel}</p>}
+      {/* The final's loser finishes 2nd — the tree ends at the champion, so say it here. */}
+      {runnerUp && (
+        <div className="mt-2 pt-2 border-t border-[#1C2430]">
+          <p className={`text-[12px] font-semibold uppercase tracking-wide ${done ? "text-slate-300" : "text-slate-600"}`}>
+            2nd place
+          </p>
+          <p className={`text-[13px] sm:text-[15px] mt-0.5 truncate ${done ? "text-slate-200" : "text-slate-600"}`}>
+            {loser?.name || "TBD"}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -320,6 +331,7 @@ export default function Brackets() {
                     match: finalOf(knockoutMain),
                     label: "Champion",
                     sublabel: null,
+                    runnerUp: true,
                   }} />
                                 {knockoutThird && (
                   <div>

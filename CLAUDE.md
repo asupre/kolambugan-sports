@@ -2190,6 +2190,8 @@ repeat this pass before the next deploy.
 - **Organizer match list has a GROUP filter** (Sep 30 2026, `OrganizerScoring.jsx`): chips
   "All groups / Group A… / Knockout" under the division chips, built from the matches in the
   selected division (a group missing from the new division falls back to "All groups").
+- **Champion card shows 2nd place** (Sep 30 2026): `WinnerCard`'s `runnerUp` prop (admin
+  `Tournaments.jsx` + public `Brackets.jsx`, knockout Champion only) names the final's loser.
 - **Don't read `games[0]` as the final score.** It is only period 1. The final
   score is `liveScoreA`/`liveScoreB` (they survive completion). Admin-entered
   results still write into `games[0]`, so displays need to handle both.

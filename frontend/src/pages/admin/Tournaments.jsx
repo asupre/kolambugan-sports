@@ -637,7 +637,7 @@ function MatchBox({ m, innerRef, onRevert }) {
 
 // The last match of a bracket has nothing to its right, so the tree just stops
 // and nobody can see what winning it earned. This card says so.
-function WinnerCard({ match, label, sublabel, bothQualify }) {
+function WinnerCard({ match, label, sublabel, bothQualify, runnerUp }) {
   const done = match && ["completed", "forfeited"].includes(match.status) && match.seriesWinner;
   const winnerId = done ? String(match.seriesWinner._id || match.seriesWinner) : null;
   const sides = [match?.teamA, match?.teamB];
@@ -662,6 +662,15 @@ function WinnerCard({ match, label, sublabel, bothQualify }) {
         </p>
       )}
       {sublabel && <p className="text-[11px] text-muted-foreground mt-1">{sublabel}</p>}
+      {/* The final's loser finishes 2nd — the tree ends at the champion, so say it here. */}
+      {runnerUp && (
+        <div className="mt-2 pt-2 border-t">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">2nd place</p>
+          <p className={cn("text-sm mt-0.5 truncate", done ? "font-medium" : "text-muted-foreground")}>
+            {loser?.teamName || "TBD"}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -807,7 +816,7 @@ function BracketView({ tournamentId }) {
         <div className="mb-8">
           <h3 className="font-semibold mb-3">Knockout</h3>
           <BracketTree matches={koMain} labelFor={koLabel} onRevert={revert}
-            winner={{ match: finalOf(koMain), label: "Champion", sublabel: null }} />
+            winner={{ match: finalOf(koMain), label: "Champion", sublabel: null, runnerUp: true }} />
           {koThird && (
             <div>
               <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>

@@ -731,6 +731,7 @@ export default function OrganizerScoring() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState("play");          // "play" | "done" — the list got long fast
   const [division, setDivision] = useState("all"); // basketball runs U15 and U30 side by side
+  const [group, setGroup] = useState("all");       // "all" | "A".."H" | "ko" (knockout — no group)
 
   async function load() {
     try {
@@ -756,7 +757,14 @@ export default function OrganizerScoring() {
   // division must not change whether a match reads as "Semifinal" or "Round of 8".
   const allMatches = feed?.matches || [];
   const divisions = [...new Set(allMatches.map((m) => m.division || "open"))];
-  const matches = division === "all" ? allMatches : allMatches.filter((m) => (m.division || "open") === division);
+  const inDivision = division === "all" ? allMatches : allMatches.filter((m) => (m.division || "open") === division);
+  // Groups offered follow the division picked, so Boys' groups don't list Girls' ones.
+  const groupKey = (m) => m.group || "ko";
+  const groups = [...new Set(inDivision.map(groupKey))].sort((a, b) =>
+    a === "ko" ? 1 : b === "ko" ? -1 : a.localeCompare(b));
+  // A group picked under another division may not exist here — fall back to all.
+  const activeGroup = groups.includes(group) ? group : "all";
+  const matches = activeGroup === "all" ? inDivision : inDivision.filter((m) => groupKey(m) === activeGroup);
   const manilaDay = (d) =>
     new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
@@ -905,6 +913,20 @@ export default function OrganizerScoring() {
                   division === dv ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent"
                 )}>
                 {dv === "all" ? "All divisions" : (DIVISION_LABEL[dv] || dv)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {groups.length > 1 && (
+          <div className="-mt-3 flex gap-1.5 overflow-x-auto scrollbar-thin pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+            {["all", ...groups].map((g) => (
+              <button key={g} onClick={() => setGroup(g)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition",
+                  activeGroup === g ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent"
+                )}>
+                {g === "all" ? "All groups" : g === "ko" ? "Knockout" : `Group ${g}`}
               </button>
             ))}
           </div>

@@ -2187,6 +2187,9 @@ repeat this pass before the next deploy.
   `scrollbar-none`, so on a PC tabs past the edge (e.g. Chess, Mobile Legends on Brackets)
   were unreachable. Now a thin `.scrollbar-public` bar, ‹ › arrows while it overflows (sm+),
   wheel scrolls it sideways, the selected tab scrolls into view, edge fades only when needed.
+- **Organizer match list has a GROUP filter** (Sep 30 2026, `OrganizerScoring.jsx`): chips
+  "All groups / Group A… / Knockout" under the division chips, built from the matches in the
+  selected division (a group missing from the new division falls back to "All groups").
 - **Don't read `games[0]` as the final score.** It is only period 1. The final
   score is `liveScoreA`/`liveScoreB` (they survive completion). Admin-entered
   results still write into `games[0]`, so displays need to handle both.

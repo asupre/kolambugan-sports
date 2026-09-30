@@ -2193,6 +2193,10 @@ repeat this pass before the next deploy.
 - **2nd place box under the Grand Final** (Sep 30 2026): `BracketTree`/`BracketSection`'s `runnerUp` prop (admin
   `Tournaments.jsx` + public `Brackets.jsx`, knockout only) hangs a `SecondPlaceCard` (the final's loser)
   absolutely under the final match, so the final stays centred and the wires don't move.
+- **Champion prize = amount only, ₱ added automatically** (Sep 30 2026, `lib/peso.js`): the
+  admin form has a fixed ₱ prefix, number keypad, live commas; saves `formatPrize()` ("₱15,000").
+  Both Champions pages display through `formatPrize`, so older values with no ₱ get one and
+  older free text ("₱15,000 + trophy", "Trophy only") is kept as-is. Still a String field.
 - **Don't read `games[0]` as the final score.** It is only period 1. The final
   score is `liveScoreA`/`liveScoreB` (they survive completion). Admin-entered
   results still write into `games[0]`, so displays need to handle both.

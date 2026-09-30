@@ -23,6 +23,7 @@ import {
 } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import { formatAmountInput, formatPrize, prizeAmount } from "../../lib/peso";
 
 const BLANK = {
   year: "", sport: "", division: "", barangay: "",
@@ -320,7 +321,7 @@ function ChampionCard({ c, onView, onEdit, onDelete }) {
         {(c.mvp || c.prize) && (
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-sm">
             {c.mvp && (<><dt className="text-muted-foreground">MVP</dt><dd className="truncate">{c.mvp}</dd></>)}
-            {c.prize && (<><dt className="text-muted-foreground">Prize</dt><dd className="truncate">{c.prize}</dd></>)}
+            {c.prize && (<><dt className="text-muted-foreground">Prize</dt><dd className="truncate">{formatPrize(c.prize)}</dd></>)}
           </dl>
         )}
         {c.notes && <p className="line-clamp-2 text-xs text-muted-foreground">{c.notes}</p>}
@@ -343,7 +344,7 @@ function ChampionDialog({ champion, sports, barangays, onClose, onSaved }) {
   const [form, setForm] = useState(() => champion ? {
     year: String(champion.year), sport: champion.sport, division: champion.division || "",
     barangay: champion.barangay, teamName: champion.teamName || "", mvp: champion.mvp || "",
-    prize: champion.prize || "", notes: champion.notes || "",
+    prize: prizeAmount(champion.prize), notes: champion.notes || "",
   } : BLANK);
   const [otherSport, setOtherSport] = useState(() => !!champion && !sports.some((s) => s.name === champion.sport));
   const [otherBarangay, setOtherBarangay] = useState(() => !!champion && !barangays.some((b) => b.name === champion.barangay));
@@ -377,7 +378,8 @@ function ChampionDialog({ champion, sports, barangays, onClose, onSaved }) {
     try {
       const token = localStorage.getItem("token");
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      // The form holds only the amount; the ₱ is added here.
+      Object.entries(form).forEach(([k, v]) => fd.append(k, k === "prize" ? formatPrize(v) : v));
       if (photo) fd.append("photo", photo);
 
       const res = await fetch(champion ? `/api/champions/${champion.id}` : "/api/champions", {
@@ -512,8 +514,13 @@ function ChampionDialog({ champion, sports, barangays, onClose, onSaved }) {
             </div>
 
             <div className="sm:col-span-2 space-y-1.5">
-              <Label>Prize</Label>
-              <Input value={form.prize} onChange={set("prize")} placeholder="₱15,000 + trophy" />
+              <Label htmlFor="champion-prize">Prize amount</Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₱</span>
+                <Input id="champion-prize" className="pl-7" inputMode="decimal" value={form.prize}
+                  onChange={(e) => setForm({ ...form, prize: formatAmountInput(e.target.value) })}
+                  placeholder="15,000" />
+              </div>
             </div>
 
             <div className="sm:col-span-2 space-y-1.5">

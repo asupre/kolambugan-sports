@@ -3,6 +3,7 @@ import { api } from "../../api";
 import { Panel, PhotoRowSkeleton, Crest, SportTabs } from "../../components/PublicUI";
 import { Lightbox } from "../../components/DocumentViewer";
 import Reveal from "../../components/Reveal";
+import { formatPrize } from "../../lib/peso";
 
 const photoUrl = (c) => `/api/champions/${c.id}/photo?c=2`;
 const titleOf = (c) => c.teamName || `Barangay ${c.barangay}`;
@@ -180,7 +181,7 @@ function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError }) {
             {c.prize && (
               <div className="min-w-0">
                 <dt className="text-slate-500 text-[12px] uppercase tracking-wider">Prize</dt>
-                <dd className="text-slate-100 text-[15px] font-medium truncate">{c.prize}</dd>
+                <dd className="text-slate-100 text-[15px] font-medium truncate">{formatPrize(c.prize)}</dd>
               </div>
             )}
           </dl>

@@ -236,6 +236,26 @@
       linear-gradient(color-mix(in oklab, var(--foreground) 10%, transparent), transparent) top / 100% 12px no-repeat scroll,
       linear-gradient(transparent, color-mix(in oklab, var(--foreground) 10%, transparent)) bottom / 100% 12px no-repeat scroll;
   }
+  /* Public (always-dark) tab rows: a thin, visible bar so a mouse user can
+     reach tabs past the edge. Explicit colours — the public site doesn't use
+     the admin theme tokens. */
+  .scrollbar-public {
+    scrollbar-width: thin;
+    scrollbar-color: #2A3441 transparent;
+  }
+  .scrollbar-public::-webkit-scrollbar {
+    height: 6px;
+  }
+  .scrollbar-public::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-public::-webkit-scrollbar-thumb {
+    background-color: #2A3441;
+    border-radius: 9999px;
+  }
+  .scrollbar-public::-webkit-scrollbar-thumb:hover {
+    background-color: #F5A524;
+  }
   /* Swipeable tab rows on the public site: still scrolls, no bar. */
   .scrollbar-none {
     scrollbar-width: none;

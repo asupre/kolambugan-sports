@@ -2183,6 +2183,10 @@ repeat this pass before the next deploy.
   `routes/tournament.js`; on the frontend `["completed", "forfeited"].includes(m.status)`.
   Brackets (admin + public) tag the no-show team "Forfeited" beside its 0. Public Standings' provisional highlight (before a group's
   qualifiers are decided) now only marks teams with at least one win.
+- **Public `TabRow` (sport/division tabs) is scrollable by mouse** (Sep 30 2026): it used
+  `scrollbar-none`, so on a PC tabs past the edge (e.g. Chess, Mobile Legends on Brackets)
+  were unreachable. Now a thin `.scrollbar-public` bar, ‹ › arrows while it overflows (sm+),
+  wheel scrolls it sideways, the selected tab scrolls into view, edge fades only when needed.
 - **Don't read `games[0]` as the final score.** It is only period 1. The final
   score is `liveScoreA`/`liveScoreB` (they survive completion). Admin-entered
   results still write into `games[0]`, so displays need to handle both.

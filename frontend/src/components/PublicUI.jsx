@@ -6,7 +6,7 @@
 // Crest is the SINGLE SWAP POINT for barangay logos. When the logo serve
 // route exists, change it here and every public page picks it up at once.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { hasTime } from "../lib/dashboardFormat";
 
@@ -281,25 +281,98 @@ export function SportTabs({ sports, value, onChange, allLabel = "All sports" }) 
 // Underlined tab row — sports on Matches/Teams/Players, competitions on
 // Standings/Brackets. Swipes sideways on a phone; the right edge fades so it's
 // obvious there are more tabs off-screen.
+// A row that doesn't fit used to scroll with NO scrollbar — fine by swipe on a
+// phone, but on a PC the tabs past the edge were unreachable. Now: a visible
+// thin scrollbar, ‹ › arrows while it overflows, the mouse wheel scrolls it
+// sideways, and the selected tab is scrolled into view.
 export function TabRow({ items, value, onChange }) {
+  const ref = useRef(null);
+  const [edge, setEdge] = useState({ left: false, right: false });
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setEdge({
+      left: el.scrollLeft > 2,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    // A vertical wheel over the row scrolls it sideways — only while there is
+    // room to move that way, so the page still scrolls once the row hits an end.
+    const onWheel = (e) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) return;
+      if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => { ro.disconnect(); el.removeEventListener("wheel", onWheel); };
+  }, [measure, items.length]);
+
+  // Keep the selected tab visible (e.g. the first load picks one off-screen).
+  useEffect(() => {
+    const el = ref.current;
+    const active = el?.querySelector('[aria-selected="true"]');
+    if (!active) return;
+    const l = active.offsetLeft, r = l + active.offsetWidth;
+    if (l < el.scrollLeft || r > el.scrollLeft + el.clientWidth) {
+      el.scrollTo({ left: l - 24, behavior: "smooth" });
+    }
+  }, [value, items.length]);
+
+  const page = (dir) => {
+    const el = ref.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: "smooth" });
+  };
+  const overflow = edge.left || edge.right;
+
   return (
-    <div className="relative mb-6 border-b border-[#1C2430]">
-      <div className="flex gap-1 overflow-x-auto overflow-y-hidden scrollbar-none -mb-px pr-6">
-        {items.map((it) => (
-          <button
-            key={it.value}
-            onClick={() => onChange(it.value)}
-            className={`px-3 py-2.5 text-[15px] font-medium whitespace-nowrap border-b-2 transition ${
-              value === it.value
-                ? "text-[#F5A524] border-[#F5A524]"
-                : "text-slate-400 border-transparent hover:text-slate-200"
-            }`}
-          >
-            {it.label}
-          </button>
-        ))}
+    <div className="mb-6 border-b border-[#1C2430] flex items-end gap-2">
+      <div className="relative flex-1 min-w-0">
+        <div
+          ref={ref}
+          onScroll={measure}
+          role="tablist"
+          className="flex gap-1 overflow-x-auto overflow-y-hidden scrollbar-public -mb-px"
+        >
+          {items.map((it) => (
+            <button
+              key={it.value}
+              role="tab"
+              aria-selected={value === it.value}
+              onClick={() => onChange(it.value)}
+              className={`shrink-0 px-3 py-2.5 text-[15px] font-medium whitespace-nowrap border-b-2 transition ${
+                value === it.value
+                  ? "text-[#F5A524] border-[#F5A524]"
+                  : "text-slate-400 border-transparent hover:text-slate-200"
+              }`}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+        {edge.left && (
+          <div className="pointer-events-none absolute left-0 top-0 bottom-2 w-8 bg-gradient-to-r from-[#0A1220] to-transparent" />
+        )}
+        {edge.right && (
+          <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-[#0A1220] to-transparent" />
+        )}
       </div>
-      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0A1220] to-transparent sm:hidden" />
+      {overflow && (
+        <div className="hidden sm:flex shrink-0 items-center gap-1.5 pb-2.5">
+          <CarouselArrow dir="prev" onClick={() => page(-1)} disabled={!edge.left} />
+          <CarouselArrow dir="next" onClick={() => page(1)} disabled={!edge.right} />
+        </div>
+      )}
     </div>
   );
 }

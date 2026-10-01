@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Panel, PanelSkeleton, Crest, TabRow, DIVISION_LABEL } from "../../components/PublicUI";
+import { Panel, PanelSkeleton, Crest, TabRow, GlassBackdrop, DIVISION_LABEL } from "../../components/PublicUI";
 import Reveal from "../../components/Reveal";
 
 const PLACE = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th" };
@@ -55,8 +55,11 @@ export default function Standings() {
   // from the tournament, not a constant — a hardcoded 2 was wrong for a Top 8 knockout.
   const advance = data?.tournament?.advancePerGroup || 2;
 
+  // Glassmorphism trial (Oct 2026): glows fixed behind the page, frosted panels.
   return (
     <>
+      <GlassBackdrop />
+      <div className="relative z-10">
       <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-4">Standings</h1>
 
       <TabRow
@@ -71,7 +74,7 @@ export default function Standings() {
           <PanelSkeleton rows={5} />
         </div>
       ) : groups.length === 0 ? (
-        <Panel empty="No group matches drawn yet." />
+        <Panel glass empty="No group matches drawn yet." />
       ) : (
         <>
           <p className="text-slate-400 text-[15px] leading-relaxed mb-4">
@@ -84,15 +87,15 @@ export default function Standings() {
 
           {knockout.length > 0 && (
             <Reveal>
-              <Panel title="Knockout">
-                <div className="flex px-4 py-2.5 border-b border-[#22344F] text-slate-500 text-[12px] font-medium tracking-wider">
+              <Panel glass title="Knockout">
+                <div className="flex px-4 py-2.5 border-b border-white/[0.07] text-slate-500 text-[12px] font-medium tracking-wider">
                   <span className="w-16">#</span>
                   <span className="flex-1">TEAM</span>
                   <span className="w-10 text-center">W</span>
                   <span className="w-10 text-center">L</span>
                 </div>
                 {knockout.map((r, i) => (
-                  <div key={r.teamId} className={`flex items-center px-4 py-3 border-b border-[#22344F] last:border-0 ${MEDAL[r.place]?.row || ""}`}>
+                  <div key={r.teamId} className={`flex items-center px-4 py-3 border-b border-white/[0.07] last:border-0 ${MEDAL[r.place]?.row || ""}`}>
                     <span className={`w-16 flex items-center gap-1.5 text-[13px] tabular-nums ${MEDAL[r.place] ? `${MEDAL[r.place].text} font-semibold` : "text-slate-500"}`}>
                       {MEDAL[r.place] && (
                         <img src={MEDAL[r.place].icon} alt="" aria-hidden="true" loading="lazy" decoding="async" className="size-6 object-contain" />
@@ -147,8 +150,8 @@ export default function Standings() {
 
               return (
                 <Reveal key={g} delay={(gi % 2) * 0.08}>
-                <Panel title={`Group ${g}`}>
-                  <div className="flex px-4 py-2.5 border-b border-[#22344F] text-slate-500 text-[12px] font-medium tracking-wider">
+                <Panel glass title={`Group ${g}`}>
+                  <div className="flex px-4 py-2.5 border-b border-white/[0.07] text-slate-500 text-[12px] font-medium tracking-wider">
                     <span className="w-6">#</span>
                     <span className="flex-1">TEAM</span>
                     <span className="w-10 text-center">W</span>
@@ -162,7 +165,7 @@ export default function Standings() {
                     return (
                       <div
                         key={r.teamId}
-                        className={`flex items-center px-4 py-3 border-b border-[#22344F] last:border-0 ${
+                        className={`flex items-center px-4 py-3 border-b border-white/[0.07] last:border-0 ${
                                                     marked ? "bg-[#FACC15]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : ""
                         }`}
                       >
@@ -205,6 +208,7 @@ export default function Standings() {
           )}
         </>
       )}
+      </div>
     </>
   );
 }

@@ -125,11 +125,16 @@ export function PlayerAvatar({ player, size = 40 }) {
   );
 }
 
-export function Panel({ title, count, children, empty, actions }) {
+// glass: frosted-glass look (Standings trial, Oct 2026) — translucent fill, backdrop
+// blur, hairline white border and a top highlight. Needs something colourful
+// behind it (see GlassBackdrop) or it just reads as a darker panel.
+export function Panel({ title, count, children, empty, actions, glass = false }) {
   return (
-    <section className="rounded-lg border border-[#22344F] bg-[#122036] mb-5 overflow-hidden">
+    <section className={glass
+      ? "relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden"
+      : "rounded-lg border border-[#22344F] bg-[#122036] mb-5 overflow-hidden"}>
       {title && (
-        <div className="px-4 sm:px-5 py-3.5 border-b border-[#22344F] flex items-center justify-between gap-2.5">
+        <div className={`px-4 sm:px-5 py-3.5 border-b ${glass ? "border-white/[0.08] bg-white/[0.03]" : "border-[#22344F]"} flex items-center justify-between gap-2.5`}>
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 min-w-0">
             <h2 className="text-slate-100 text-[17px] font-semibold truncate max-w-full">{title}</h2>
             {count != null && <span className="text-slate-500 text-[13px]">{count}</span>}
@@ -139,6 +144,18 @@ export function Panel({ title, count, children, empty, actions }) {
       )}
       {children || <p className="px-4 sm:px-5 py-5 text-slate-400 text-[15px] leading-relaxed">{empty}</p>}
     </section>
+  );
+}
+
+// Soft coloured glows fixed behind a page, for glass panels to blur. Purely
+// decorative; pointer-events off. Content above it needs `relative z-10`.
+export function GlassBackdrop() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <div className="absolute -top-24 -left-24 size-[28rem] rounded-full bg-[#2563EB]/35 blur-[110px]" />
+      <div className="absolute top-1/3 -right-32 size-[30rem] rounded-full bg-[#FACC15]/20 blur-[120px]" />
+      <div className="absolute -bottom-32 left-1/4 size-[26rem] rounded-full bg-[#0EA5E9]/25 blur-[110px]" />
+    </div>
   );
 }
 

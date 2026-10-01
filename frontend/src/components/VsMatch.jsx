@@ -117,6 +117,12 @@ export function VsMatchRow({ m, showDate = true }) {
             <span className="text-[#FACC15]">{showDate && date ? date : "VS"}</span>
           )}
         </div>
+        {/* Venue under the VS (Super Admin request, Oct 2026). */}
+        {m.venue && (
+          <div className="mt-1 max-w-[84px] sm:max-w-[150px] text-[10px] sm:text-[12px] leading-snug text-slate-400 line-clamp-2 break-words">
+            {m.venue}
+          </div>
+        )}
       </div>
 
       <Side team={m.teamB} side="right" tone={tone(bWon, aWon)} info={stageOf(m)} />

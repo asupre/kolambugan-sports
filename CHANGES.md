@@ -3557,3 +3557,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
   per row like the sample picture instead of a 3-column card grid. One shared component,
   `components/VsMatch.jsx`, now draws every match list on Matches and on Home (Live now, Today,
   Coming up, Recent results). On phones the crest sits above its banner so names fit.
+- **Venue under the VS** (Oct 1 2026). Each VS match row (Matches and Home) now shows the venue
+  in small text under the time / VS.
+- **Standings: glassmorphism** (Oct 1 2026, Super Admin trial, kept). Frosted translucent panels
+  (blur, hairline white border, soft shadow) over fixed blue / yellow / sky glows. Opt-in `glass`
+  prop on the shared `Panel` plus a `GlassBackdrop`; only the Standings page uses them.

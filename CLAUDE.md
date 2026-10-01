@@ -1027,6 +1027,15 @@ so a bug in one route cannot expose the other.
   side-by-side version broke names mid-word. The same-day clean-card grid and the purple banners
   were both replaced. Home no longer uses `FixtureRow` / `ScoreStrip` (still exported, unused by
   Home/Matches).
+- **VS rows show the VENUE under the time / VS** (Oct 1 2026, Super Admin request): small grey
+  text in the centre column of `VsMatchRow`, 2 lines max (84px wide on phones, 150px desktop).
+- **Standings is GLASSMORPHISM** (Oct 1 2026, Super Admin tried it and kept it): `Panel` has an
+  opt-in `glass` prop (translucent `bg-white/[0.05]`, `backdrop-blur-xl`, `border-white/[0.12]`,
+  `rounded-2xl`, inset top highlight + soft shadow) and `GlassBackdrop` (PublicUI.jsx) paints three
+  FIXED blurred glows (blue, yellow, sky) behind the page — glass needs colour behind it. Standings
+  wraps its content in `relative z-10` above the backdrop; its row dividers are `border-white/[0.07]`.
+  Only Standings uses it. Caution: `backdrop-filter` is costly on phone GPUs (the admin dialog
+  blur was removed for exactly that) — if Standings feels laggy on a phone, drop the blur first.
 - **Screenshotting public pages with scroll reveals**: plain `msedge --screenshot` leaves every
   `Reveal` at opacity 0. Drive Edge over CDP (Node's global `WebSocket`), scroll the page, inject
   `[style*=opacity]{opacity:1!important;transform:none!important}`, then

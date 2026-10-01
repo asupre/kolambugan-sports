@@ -2203,6 +2203,17 @@ repeat this pass before the next deploy.
   match is decided), and beside 1st/2nd/3rd in the public Standings knockout table (`MEDAL`).
   The Third place card is BRONZE (`#CD7F32` border/tint, `#E0975A` text on dark, `#A0522D` on
   light) via `WinnerCard`'s `tone="bronze"`; the Champion stays gold (public) / green (admin).
+- **Public Matches page redesigned** (Oct 1 2026, "should be presentable and easy to understand",
+  `Matches.jsx`): Live / Upcoming / Results TABS with counts (opens on Live when a game is on;
+  `?tab=results` etc. opens one directly), then each DAY ("Today · Fri, Oct 2") → each COMPETITION
+  ("Billiards · Open · 12 games · Gym Kolambugan", the venue said once when shared) → a GRID of
+  match cards (1 / 2 / 3 columns at phone / md / xl), six per competition with "Show all". A card:
+  time in gold (or "Time TBA") + "Group A · Winners Round 2", then the two teams. An empty slot
+  reads "Awaiting opponent" (dashed crest), not "TBD". Results: winner bold + "WON" tag + green
+  score, loser dimmed + red score (same green/red as the brackets). Upcoming also holds "Date to
+  be announced" and "Waiting for a result" (past-dated, not played). Its `MatchCard` is local to
+  this page; Home still uses the shared `FixtureRow` / `ScoreStrip`. Rendered at 1366px and 600px
+  against the production API before shipping.
 - **Revert button removed from the admin Tournaments page** (Oct 1 2026, Super Admin: "not
   necessary now"). Both the bracket `MatchBox` and the round-robin match list lost it. The
   backend `POST /api/tournaments/matches/:id/revert` route is still there, but nothing calls it.

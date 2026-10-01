@@ -3530,3 +3530,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - **Revert button removed** from the Super Admin's Tournaments page (bracket cards and the
   round-robin match list), at the Super Admin's request. The backend route is kept but is no
   longer called from the UI.
+- **Public Matches page redesigned** (Oct 1 2026). Was one long scroll of full-width rows with
+  every sport mixed together, the sport/division/venue repeated on every row, and "TBD" for
+  opponents not decided yet. Now: Live / Upcoming / Results tabs; games grouped by day, then by
+  competition (venue shown once); a 1-3 column grid of match cards; "Awaiting opponent" instead
+  of "TBD"; results show the winner with a "WON" tag and green score and the loser in red.
+  Only `Matches.jsx` changed (Home keeps its own rows).

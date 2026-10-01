@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useState, useRef, useLayoutEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { DateTimePicker } from "../../components/DateTimePicker";
@@ -82,8 +82,6 @@ function StandingsView({ tournamentId }) {
 }
 
 function MatchesView({ tournamentId }) {
-  const showError = useErrorDialog();
-  const confirm = useConfirm();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -96,22 +94,6 @@ function MatchesView({ tournamentId }) {
     return () => { alive = false; };
   }, [tournamentId]);
 
-  async function revert(m) {
-    const ok = await confirm(
-      `Revert ${m.teamA?.teamName} vs ${m.teamB?.teamName}?\n\n` +
-      `The score, periods and player stats are discarded, and both teams are pulled ` +
-      `back out of the matches they advanced into. The organizer scores it again.`,
-      { danger: true, confirmLabel: "Revert" }
-    );
-    if (!ok) return;
-    try {
-      await api(`/api/tournaments/matches/${m._id}/revert`, { method: "POST" });
-      const d = await api(`/api/tournaments/${tournamentId}/bracket`);
-      setMatches(d.matches || []);
-    } catch (e) {
-      showError(e.message);
-    }
-  }
 
   if (loading) return <Skeleton className="h-40 w-full rounded-xl" />;
   if (matches.length === 0) return null;
@@ -147,11 +129,6 @@ function MatchesView({ tournamentId }) {
         <span className={cn("flex-1 min-w-0 truncate", done && !aWin ? "font-semibold" : "text-muted-foreground")}>
           {m.teamB?.teamName || "TBD"}
         </span>
-        {done && (
-          <Button size="sm" variant="outline" onClick={() => revert(m)} className="shrink-0">
-            <RotateCcw /> Revert
-          </Button>
-        )}
       </div>
     );
   };
@@ -585,7 +562,7 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
 // Kept as a plain <div ref={innerRef}> (not a shadcn Card) — BracketTree
 // measures this exact DOM node with getBoundingClientRect() to draw the SVG
 // connector wires, and Card doesn't forward refs.
-function MatchBox({ m, innerRef, onRevert }) {
+function MatchBox({ m, innerRef }) {
   const done = ["completed", "forfeited"].includes(m.status);
   const live = m.status === "ongoing";
   const winnerId = String(m.seriesWinner?._id || m.seriesWinner || "");
@@ -638,31 +615,42 @@ function MatchBox({ m, innerRef, onRevert }) {
           ● LIVE
         </div>
       )}
-      {done && onRevert && (
-        <button onClick={() => onRevert(m)}
-          className="w-full px-3 py-1 border-t text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent">
-          Revert
-        </button>
-      )}
     </div>
   );
 }
 
 // The last match of a bracket has nothing to its right, so the tree just stops
 // and nobody can see what winning it earned. This card says so.
-function WinnerCard({ match, label, sublabel, bothQualify }) {
+// Medal icon for a finished place (files in public/medals). Greyed until decided.
+function PlaceIcon({ src, done }) {
+  return (
+    <img src={src} alt="" aria-hidden="true" loading="lazy" decoding="async"
+      className={cn("size-8 shrink-0 object-contain", !done && "opacity-30 grayscale")} />
+  );
+}
+
+// Bronze for the 3rd-place card; everything else keeps the green "decided" look.
+const CARD_TONE = {
+  green: { box: "border-green-500/40 bg-green-500/5", text: "text-green-600 dark:text-green-400" },
+  bronze: { box: "border-[#CD7F32]/50 bg-[#CD7F32]/10", text: "text-[#A0522D] dark:text-[#E0975A]" },
+};
+
+function WinnerCard({ match, label, sublabel, bothQualify, icon, tone = "green" }) {
   const done = match && ["completed", "forfeited"].includes(match.status) && match.seriesWinner;
   const winnerId = done ? String(match.seriesWinner._id || match.seriesWinner) : null;
   const sides = [match?.teamA, match?.teamB];
   const winner = done ? sides.find((t) => t && String(t._id) === winnerId) : null;
   const loser = done ? sides.find((t) => t && String(t._id) !== winnerId) : null;
+  const c = CARD_TONE[tone];
 
   return (
     <div className={cn(
-      "w-52 shrink-0 rounded-lg border px-3 py-2.5",
-      done ? "border-green-500/40 bg-green-500/5" : "border-dashed bg-card"
+      "w-52 shrink-0 rounded-lg border px-3 py-2.5 flex items-center gap-2.5",
+      done ? c.box : "border-dashed bg-card"
     )}>
-      <p className={cn("text-[10px] uppercase tracking-wide", done ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
+      {icon && <PlaceIcon src={icon} done={!!done} />}
+      <div className="min-w-0 flex-1">
+      <p className={cn("text-[10px] uppercase tracking-wide", done ? c.text : "text-muted-foreground")}>
         {label}
       </p>
       <p className={cn("text-sm mt-0.5 truncate", done ? "font-medium" : "text-muted-foreground")}>
@@ -675,6 +663,7 @@ function WinnerCard({ match, label, sublabel, bothQualify }) {
         </p>
       )}
       {sublabel && <p className="text-[11px] text-muted-foreground mt-1">{sublabel}</p>}
+      </div>
     </div>
   );
 }
@@ -686,13 +675,16 @@ function SecondPlaceCard({ match }) {
   const loser = done ? [match.teamA, match.teamB].find((t) => t && String(t._id) !== winnerId) : null;
   return (
     <div className={cn(
-      "w-56 shrink-0 rounded-lg border px-3 py-2.5",
+      "w-56 shrink-0 rounded-lg border px-3 py-2.5 flex items-center gap-2.5",
       done ? "border-slate-400/50 bg-slate-500/5" : "border-dashed bg-card"
     )}>
+      <PlaceIcon src="/medals/2nd-place.png" done={!!done} />
+      <div className="min-w-0 flex-1">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">2nd place</p>
       <p className={cn("text-sm mt-0.5 truncate", done ? "font-medium" : "text-muted-foreground")}>
         {loser?.teamName || "TBD"}
       </p>
+      </div>
     </div>
   );
 }
@@ -710,7 +702,7 @@ function finalOf(matches) {
 // <div> boxes throughout — every coordinate here comes from a live
 // getBoundingClientRect() measurement, not a hardcoded layout assumption, so
 // restyling spacing/colors is safe as long as MatchBox keeps forwarding its ref.
-function BracketTree({ title, matches, labelFor, onRevert, winner, runnerUp }) {
+function BracketTree({ title, matches, labelFor, winner, runnerUp }) {
   const stageRef = useRef(null);
   const dragRef = useDragScroll();
   const boxRefs = useRef({});
@@ -761,14 +753,14 @@ function BracketTree({ title, matches, labelFor, onRevert, winner, runnerUp }) {
                   grandFinal && m._id === grandFinal._id ? (
                     // Absolutely placed so the final keeps its centred spot and the wires don't move.
                     <div key={m._id} className="relative">
-                      <MatchBox m={m} onRevert={onRevert}
+                      <MatchBox m={m}
                         innerRef={(el) => (boxRefs.current[m._id] = el)} />
                       <div className="absolute left-0 top-full mt-3">
                         <SecondPlaceCard match={m} />
                       </div>
                     </div>
                   ) : (
-                    <MatchBox key={m._id} m={m} onRevert={onRevert}
+                    <MatchBox key={m._id} m={m}
                       innerRef={(el) => (boxRefs.current[m._id] = el)} />
                   )
                 )}
@@ -791,8 +783,6 @@ function BracketTree({ title, matches, labelFor, onRevert, winner, runnerUp }) {
 }
 
 function BracketView({ tournamentId }) {
-  const showError = useErrorDialog();
-  const confirm = useConfirm();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -805,22 +795,6 @@ function BracketView({ tournamentId }) {
     return () => { alive = false; };
   }, [tournamentId]);
 
-  async function revert(m) {
-    const ok = await confirm(
-      `Revert ${m.teamA?.teamName} vs ${m.teamB?.teamName}?\n\n` +
-      `The score, periods and player stats are discarded, and both teams are pulled ` +
-      `back out of the matches they advanced into. The organizer scores it again.`,
-      { danger: true, confirmLabel: "Revert" }
-    );
-    if (!ok) return;
-    try {
-      await api(`/api/tournaments/matches/${m._id}/revert`, { method: "POST" });
-      const d = await api(`/api/tournaments/${tournamentId}/bracket`);
-      setMatches(d.matches || []);
-    } catch (e) {
-      showError(e.message);
-    }
-  }
 
   if (loading) return <Skeleton className="h-56 w-full rounded-xl" />;
   if (matches.length === 0) return <p className="text-muted-foreground text-sm">No bracket yet.</p>;
@@ -849,14 +823,15 @@ function BracketView({ tournamentId }) {
       {koMain.length > 0 && (
         <div className="mb-8">
           <h3 className="font-semibold mb-3">Knockout</h3>
-          <BracketTree matches={koMain} labelFor={koLabel} onRevert={revert}
-            winner={{ match: finalOf(koMain), label: "Champion", sublabel: null }} runnerUp />
+          <BracketTree matches={koMain} labelFor={koLabel}
+            winner={{ match: finalOf(koMain), label: "Champion", sublabel: null, icon: "/medals/trophy.png" }} runnerUp />
           {koThird && (
             <div>
               <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>
               <div className="flex items-center gap-10">
-                <MatchBox m={koThird} innerRef={() => {}} onRevert={revert} />
-                <WinnerCard match={koThird} label="Third place" sublabel={null} />
+                <MatchBox m={koThird} innerRef={() => {}} />
+                <WinnerCard match={koThird} label="Third place" sublabel={null}
+                  icon="/medals/3rd-place.png" tone="bronze" />
               </div>
             </div>
           )}
@@ -871,14 +846,14 @@ function BracketView({ tournamentId }) {
             const l = grouped.filter((m) => m.group === g && m.bracket === "losers");
             return (
               <>
-                <BracketTree title="Winners" onRevert={revert} matches={w} labelFor={(r) => `Round ${r}`}
+                <BracketTree title="Winners" matches={w} labelFor={(r) => `Round ${r}`}
                   winner={w.length > 0 ? {
                     match: finalOf(w),
                     label: "Winner",
                     sublabel: l.length === 0 ? "Both teams qualify" : "Qualifies as seed 1",
                     bothQualify: l.length === 0,
                   } : null} />
-                <BracketTree title="Losers" onRevert={revert} matches={l} labelFor={(r, i) => `Round ${i + 1}`}
+                <BracketTree title="Losers" matches={l} labelFor={(r, i) => `Round ${i + 1}`}
                   winner={l.length > 0 ? {
                     match: finalOf(l),
                     label: "Winner",

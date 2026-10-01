@@ -4,6 +4,12 @@ import { Panel, PanelSkeleton, Crest, TabRow, DIVISION_LABEL } from "../../compo
 import Reveal from "../../components/Reveal";
 
 const PLACE = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th" };
+// Medal icon + text colour per finish (icons in public/medals): gold, silver, bronze.
+const MEDAL = {
+  1: { icon: "/medals/trophy.png", text: "text-[#F5A524]", row: "bg-[#F5A524]/[0.06]" },
+  2: { icon: "/medals/2nd-place.png", text: "text-slate-300", row: "bg-slate-400/[0.05]" },
+  3: { icon: "/medals/3rd-place.png", text: "text-[#E0975A]", row: "bg-[#CD7F32]/[0.07]" },
+};
 
 // Reads /api/public/bracket — the same call the Brackets page makes, so the
 // table and the bracket can never disagree about who won what.
@@ -80,14 +86,17 @@ export default function Standings() {
             <Reveal>
               <Panel title="Knockout">
                 <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-500 text-[12px] font-medium tracking-wider">
-                  <span className="w-12">#</span>
+                  <span className="w-16">#</span>
                   <span className="flex-1">TEAM</span>
                   <span className="w-10 text-center">W</span>
                   <span className="w-10 text-center">L</span>
                 </div>
                 {knockout.map((r, i) => (
-                  <div key={r.teamId} className={`flex items-center px-4 py-3 border-b border-[#1C2430] last:border-0 ${r.place === 1 ? "bg-[#F5A524]/[0.06]" : ""}`}>
-                    <span className={`w-12 text-[13px] tabular-nums ${r.place === 1 ? "text-[#F5A524] font-semibold" : "text-slate-500"}`}>
+                  <div key={r.teamId} className={`flex items-center px-4 py-3 border-b border-[#1C2430] last:border-0 ${MEDAL[r.place]?.row || ""}`}>
+                    <span className={`w-16 flex items-center gap-1.5 text-[13px] tabular-nums ${MEDAL[r.place] ? `${MEDAL[r.place].text} font-semibold` : "text-slate-500"}`}>
+                      {MEDAL[r.place] && (
+                        <img src={MEDAL[r.place].icon} alt="" aria-hidden="true" loading="lazy" decoding="async" className="size-6 object-contain" />
+                      )}
                       {r.place ? PLACE[r.place] : i + 1}
                     </span>
                     <div className="flex-1 min-w-0 flex items-center gap-2.5">

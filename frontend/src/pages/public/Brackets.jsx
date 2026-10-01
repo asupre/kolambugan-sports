@@ -73,7 +73,21 @@ function MatchCard({ m, innerRef }) {
 
 // The last match of a bracket has nothing to its right, so the tree just stops
 // and a viewer has to work out what winning it earned. This card says so.
-function WinnerCard({ match, label, sublabel, bothQualify }) {
+// Card colours for a finish: gold (the site accent) by default, bronze for 3rd.
+const CARD_TONE = {
+  gold: { box: "border-[#F5A524]/40 bg-[#F5A524]/[0.06]", text: "text-[#F5A524]" },
+  bronze: { box: "border-[#CD7F32]/50 bg-[#CD7F32]/[0.08]", text: "text-[#E0975A]" },
+};
+
+// Medal icon for a finished place (files in public/medals). Greyed until decided.
+function PlaceIcon({ src, done }) {
+  return (
+    <img src={src} alt="" aria-hidden="true" loading="lazy" decoding="async"
+      className={`size-7 sm:size-9 shrink-0 object-contain ${done ? "" : "opacity-30 grayscale"}`} />
+  );
+}
+
+function WinnerCard({ match, label, sublabel, bothQualify, icon, tone = "gold" }) {
   const done = match && (match.status === "completed" || match.status === "forfeited") && match.winner;
   const winner = done
     ? [match.teamA, match.teamB].find((t) => t && String(t.id) === String(match.winner))
@@ -81,12 +95,15 @@ function WinnerCard({ match, label, sublabel, bothQualify }) {
   const loser = done
     ? [match.teamA, match.teamB].find((t) => t && String(t.id) !== String(match.winner))
     : null;
- 
+  const c = CARD_TONE[tone];
+
   return (
-    <div className={`w-42 sm:w-60 shrink-0 rounded border px-2.5 sm:px-3 py-2 sm:py-3 ${
-      done ? "border-[#F5A524]/40 bg-[#F5A524]/[0.06]" : "border-dashed border-[#1C2430] bg-[#0F141C]"
+    <div className={`w-42 sm:w-60 shrink-0 rounded border px-2.5 sm:px-3 py-2 sm:py-3 flex items-center gap-2.5 ${
+      done ? c.box : "border-dashed border-[#1C2430] bg-[#0F141C]"
     }`}>
-      <p className={`text-[12px] font-semibold uppercase tracking-wide ${done ? "text-[#F5A524]" : "text-slate-600"}`}>
+      {icon && <PlaceIcon src={icon} done={!!done} />}
+      <div className="min-w-0 flex-1">
+      <p className={`text-[12px] font-semibold uppercase tracking-wide ${done ? c.text : "text-slate-600"}`}>
         {label}
       </p>
       <p className={`text-[14px] sm:text-[16px] mt-0.5 truncate ${done ? "text-slate-100 font-medium" : "text-slate-600"}`}>
@@ -100,6 +117,7 @@ function WinnerCard({ match, label, sublabel, bothQualify }) {
         </p>
       )}
       {sublabel && <p className="text-[12px] sm:text-[13px] text-slate-400 mt-1">{sublabel}</p>}
+      </div>
     </div>
   );
 }
@@ -111,15 +129,18 @@ function SecondPlaceCard({ match }) {
     ? [match.teamA, match.teamB].find((t) => t && String(t.id) !== String(match.winner))
     : null;
   return (
-    <div className={`w-42 sm:w-60 shrink-0 rounded border px-2.5 sm:px-3 py-2 sm:py-3 ${
+    <div className={`w-42 sm:w-60 shrink-0 rounded border px-2.5 sm:px-3 py-2 sm:py-3 flex items-center gap-2.5 ${
       done ? "border-slate-400/40 bg-slate-400/[0.06]" : "border-dashed border-[#1C2430] bg-[#0F141C]"
     }`}>
+      <PlaceIcon src="/medals/2nd-place.png" done={!!done} />
+      <div className="min-w-0 flex-1">
       <p className={`text-[12px] font-semibold uppercase tracking-wide ${done ? "text-slate-300" : "text-slate-600"}`}>
         2nd place
       </p>
       <p className={`text-[14px] sm:text-[16px] mt-0.5 truncate ${done ? "text-slate-100 font-medium" : "text-slate-600"}`}>
         {loser?.name || "TBD"}
       </p>
+      </div>
     </div>
   );
 }
@@ -362,6 +383,7 @@ export default function Brackets() {
                     match: finalOf(knockoutMain),
                     label: "Champion",
                     sublabel: null,
+                    icon: "/medals/trophy.png",
                   }}
                   runnerUp />
                                 {knockoutThird && (
@@ -371,7 +393,8 @@ export default function Brackets() {
                     </h3>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-10">
                       <MatchCard m={knockoutThird} innerRef={() => {}} />
-                      <WinnerCard match={knockoutThird} label="Third place" sublabel={null} />
+                      <WinnerCard match={knockoutThird} label="Third place" sublabel={null}
+                        icon="/medals/3rd-place.png" tone="bronze" />
                     </div>
                   </div>
                 )}

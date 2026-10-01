@@ -3523,3 +3523,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
   public Brackets page (match cards + round-robin Fixtures) and the Super Admin's Tournaments
   bracket. Before, the loser was only dimmed grey and the result was hard to read at a glance.
   `Brackets.jsx`, `Tournaments.jsx`.
+- **Brackets: medal icons, bronze 3rd place** (Oct 1 2026). The team's trophy / 2nd-place /
+  3rd-place icons (`frontend/public/medals/`) now sit on the Champion, 2nd place and Third
+  place cards (public Brackets and admin Tournaments) and beside 1st-3rd in the public
+  Standings knockout table. The Third place card is bronze instead of gold/green.
+- **Revert button removed** from the Super Admin's Tournaments page (bracket cards and the
+  round-robin match list), at the Super Admin's request. The backend route is kept but is no
+  longer called from the UI.

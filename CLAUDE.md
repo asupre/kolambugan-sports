@@ -2197,6 +2197,15 @@ repeat this pass before the next deploy.
   `Brackets.jsx` (`MatchCard` + the round-robin Fixtures list) and the admin `Tournaments.jsx`
   (`MatchBox`). Inset `box-shadow`, not a border, so card widths and the measured wires don't move.
   This replaces the public winner's gold score; gold remains the accent everywhere else.
+- **Medal icons + bronze 3rd place** (Oct 1 2026): `frontend/public/medals/` holds `trophy.png`,
+  `2nd-place.png`, `3rd-place.png` (supplied by the team). Shown on the Champion card (trophy),
+  the 2nd place box and the Third place card in both brackets (`PlaceIcon`, greyed until the
+  match is decided), and beside 1st/2nd/3rd in the public Standings knockout table (`MEDAL`).
+  The Third place card is BRONZE (`#CD7F32` border/tint, `#E0975A` text on dark, `#A0522D` on
+  light) via `WinnerCard`'s `tone="bronze"`; the Champion stays gold (public) / green (admin).
+- **Revert button removed from the admin Tournaments page** (Oct 1 2026, Super Admin: "not
+  necessary now"). Both the bracket `MatchBox` and the round-robin match list lost it. The
+  backend `POST /api/tournaments/matches/:id/revert` route is still there, but nothing calls it.
 - **Public `TabRow` (sport/division tabs) is scrollable by mouse** (Sep 30 2026): it used
   `scrollbar-none`, so on a PC tabs past the edge (e.g. Chess, Mobile Legends on Brackets)
   were unreachable. Now a thin `.scrollbar-public` bar, ‹ › arrows while it overflows (sm+),

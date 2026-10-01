@@ -3536,3 +3536,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   competition (venue shown once); a 1-3 column grid of match cards; "Awaiting opponent" instead
   of "TBD"; results show the winner with a "WON" tag and green score and the loser in red.
   Only `Matches.jsx` changed (Home keeps its own rows).
+- **Public viewer recoloured to indigo + violet** (Oct 1 2026, Super Admin's colour sample).
+  Navy/gold → deep indigo background, indigo panels and borders, violet accent, with a faint
+  violet/blue glow behind the page. Reverses the Aug 2026 navy + gold decision. Gold kept only
+  for medal meaning (champion, 1st place, top rank). Every public page; admin pages untouched.
+- **Matches page: VS-style match cards** (Oct 1 2026, Super Admin's "vs sample ui"). Each game
+  is now crest + angled violet→blue name banner on each side with the time (or score) in the
+  middle, replacing the stacked rows. Finished games: winner green, loser red with a grey banner.
+  Also reverses the earlier "no gradients, no VS badges" public design rule.

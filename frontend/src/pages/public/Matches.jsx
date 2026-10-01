@@ -33,35 +33,58 @@ function groupBy(list, keyOf) {
   return [...out.entries()];
 }
 
-function TeamRow({ team, score, showScore, tone }) {
-  // tone: "win" | "lose" | "lead" | "trail" | null
-  const name = !team
-    ? "text-slate-500 italic"
-    : tone === "win" || tone === "lead" ? "text-slate-50 font-semibold"
-    : tone === "lose" || tone === "trail" ? "text-slate-400"
-    : "text-slate-100";
-  const num = tone === "win" ? "text-emerald-400"
-    : tone === "lose" ? "text-red-400/80"
-    : tone === "lead" ? "text-slate-50"
-    : "text-slate-500";
+// ── VS card (Oct 2026, from the Super Admin's "vs sample ui") ──────────────
+// [crest] [angled name banner]   time / score   [angled name banner] [crest]
+// The banner is a violet→blue gradient cut at a slant on its inner edge, with a
+// thin light strip under the name. A finished game's loser gets a grey banner.
+
+// Slant on the edge that faces the centre.
+const CLIP = {
+  left: "polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)",
+  right: "polygon(0 0, 100% 0, 100% 100%, 14px 100%)",
+};
+
+function Banner({ team, side, tone }) {
+  const right = side === "right";
+  const empty = !team;
+  const bg = empty
+    ? "bg-[#1D184F]"
+    : tone === "lose"
+    ? "bg-gradient-to-r from-[#3A3560] to-[#2B2852]"
+    : right
+    ? "bg-gradient-to-l from-[#9D3DF5] to-[#3B5BDB]"
+    : "bg-gradient-to-r from-[#9D3DF5] to-[#3B5BDB]";
   return (
-    <div className="flex items-center gap-2.5 min-w-0 py-1">
-      {team ? (
-        <Crest name={team.name} barangayId={team.barangayId} size={30} />
-      ) : (
-        <span className="size-[30px] shrink-0 rounded border border-dashed border-slate-600/60" />
-      )}
-      <span className={`flex-1 min-w-0 truncate text-[16px] ${name}`}>
-        {team ? team.name : "Awaiting opponent"}
-      </span>
-      {tone === "win" && (
-        <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-emerald-500/15 text-emerald-400">
-          Won
-        </span>
-      )}
-      {showScore && (
-        <span className={`shrink-0 w-9 text-right text-[22px] font-bold tabular-nums ${num}`}>{score}</span>
-      )}
+    <div className="flex-1 min-w-0" style={{ clipPath: CLIP[side] }}>
+      <div className={`${bg} ${right ? "pl-5 pr-3 text-right" : "pl-3 pr-5"} py-2 sm:py-2.5`}>
+        <div className={`text-[13px] sm:text-[15px] leading-tight line-clamp-2 break-words ${
+          empty ? "text-slate-500 italic font-medium" : `font-bold uppercase tracking-wide ${tone === "lose" ? "text-slate-300" : "text-white"}`
+        }`}>
+          {team ? team.name : "Awaiting opponent"}
+        </div>
+      </div>
+      <div className={`h-1 ${empty ? "bg-[#2B2566]" : tone === "lose" ? "bg-slate-500/40" : "bg-white/70"}`} />
+    </div>
+  );
+}
+
+function Side({ team, side, tone }) {
+  const right = side === "right";
+  return (
+    <div className={`flex items-center gap-2 sm:gap-3 min-w-0 ${right ? "flex-row-reverse" : ""}`}>
+      <div className={`relative shrink-0 ${tone === "lose" ? "opacity-60 grayscale" : ""}`}>
+        {team ? (
+          <Crest name={team.name} barangayId={team.barangayId} size={44} />
+        ) : (
+          <span className="block size-[44px] rounded border border-dashed border-[#3B3482]" />
+        )}
+        {tone === "win" && (
+          <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded px-1 text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-[#0E0B2F]">
+            Won
+          </span>
+        )}
+      </div>
+      <Banner team={team} side={side} tone={tone} />
     </div>
   );
 }
@@ -71,42 +94,57 @@ function TeamRow({ team, score, showScore, tone }) {
 function MatchCard({ m, showComp = false, showDate = false }) {
   const live = m.status === "ongoing";
   const done = isDone(m);
-  const scored = live || done;
   const aWon = done && m.winner && String(m.winner) === String(m.teamA?.id);
   const bWon = done && m.winner && String(m.winner) === String(m.teamB?.id);
-  const tones = done
-    ? [aWon ? "win" : bWon ? "lose" : null, bWon ? "win" : aWon ? "lose" : null]
-    : live
-    ? (m.scoreA === m.scoreB ? [null, null] : m.scoreA > m.scoreB ? ["lead", "trail"] : ["trail", "lead"])
-    : [null, null];
-
+  const tone = (won, other) => (won ? "win" : other ? "lose" : null);
   const time = matchTime(m.schedule);
-  const when = done
-    ? [m.status === "forfeited" ? "Forfeit" : "Final", showDate && m.schedule ? matchDateLabel(m.schedule) : null].filter(Boolean).join(" · ")
-    : time || "Time TBA";
+  const scoreTone = (won, lost) => (won ? "text-emerald-400" : lost ? "text-red-400" : "text-white");
 
   return (
-    <div className={`rounded-lg border bg-[#0F141C] px-4 py-3 flex flex-col ${live ? "border-red-500/40" : "border-[#1C2430]"}`}>
-      <div className="flex items-center justify-between gap-3 mb-1.5">
-        {live ? (
-          <span className="flex items-center gap-1.5 text-red-400 text-[13px] font-semibold">
-            <LiveDot />
-            {m.totalPeriods > 1
-              ? `LIVE · ${PERIOD_PREFIX[m.sport] || "P"}${Math.min(m.periodsPlayed + 1, m.totalPeriods)}`
-              : "LIVE"}
-          </span>
-        ) : (
-          <span className={`text-[14px] font-semibold tabular-nums ${done ? "text-slate-400" : time ? "text-[#F5A524]" : "text-slate-400"}`}>
-            {when}
-          </span>
-        )}
-        <span className="text-slate-500 text-[12px] text-right truncate min-w-0">{stageOf(m)}</span>
+    <div className={`rounded-xl border bg-[#161241]/80 px-3 sm:px-4 pt-3 pb-3.5 ${live ? "border-red-500/50" : "border-[#2B2566]"}`}>
+      <div className="flex items-center justify-between gap-3 mb-2.5 text-[12px]">
+        <span className="text-slate-400 truncate min-w-0">
+          {[showComp ? compOf(m) : null, stageOf(m)].filter(Boolean).join(" · ")}
+        </span>
+        {showComp && m.venue && <span className="text-slate-500 shrink-0">{m.venue}</span>}
       </div>
-      {showComp && <div className="text-slate-400 text-[13px] mb-1 truncate">{compOf(m)}{m.venue ? ` · ${m.venue}` : ""}</div>}
-      <TeamRow team={m.teamA} score={m.scoreA} showScore={scored} tone={tones[0]} />
-      <TeamRow team={m.teamB} score={m.scoreB} showScore={scored} tone={tones[1]} />
-      {scored && m.periods?.length > 1 && (
-        <div className="text-slate-500 text-[12px] mt-1.5 pt-1.5 border-t border-[#1C2430] tabular-nums">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-3">
+        <Side team={m.teamA} side="left" tone={tone(aWon, bWon)} />
+
+        <div className="text-center min-w-[64px] sm:min-w-[92px]">
+          {live || done ? (
+            <div className="text-[24px] sm:text-[30px] font-bold tabular-nums leading-none" style={{ fontFamily: "Anton, sans-serif" }}>
+              <span className={done ? scoreTone(aWon, bWon) : "text-white"}>{m.scoreA}</span>
+              <span className="text-slate-500 mx-1">:</span>
+              <span className={done ? scoreTone(bWon, aWon) : "text-white"}>{m.scoreB}</span>
+            </div>
+          ) : (
+            <div className={`text-[24px] sm:text-[30px] leading-none tabular-nums ${time ? "text-white" : "text-slate-400 text-[18px] sm:text-[20px]"}`}
+              style={{ fontFamily: "Anton, sans-serif" }}>
+              {time || "TBA"}
+            </div>
+          )}
+          <div className="mt-1.5 text-[11px] sm:text-[12px] font-semibold uppercase tracking-wide">
+            {live ? (
+              <span className="inline-flex items-center gap-1 text-red-400">
+                <LiveDot />
+                {m.totalPeriods > 1 ? `${PERIOD_PREFIX[m.sport] || "P"}${Math.min(m.periodsPlayed + 1, m.totalPeriods)}` : "Live"}
+              </span>
+            ) : done ? (
+              <span className="text-slate-400">
+                {m.status === "forfeited" ? "Forfeit" : "Final"}
+                {showDate && m.schedule ? ` · ${matchDateLabel(m.schedule)}` : ""}
+              </span>
+            ) : (
+              <span className="text-[#A855F7]">VS</span>
+            )}
+          </div>
+        </div>
+
+        <Side team={m.teamB} side="right" tone={tone(bWon, aWon)} />
+      </div>
+      {(live || done) && m.periods?.length > 1 && (
+        <div className="text-center text-slate-500 text-[12px] mt-3 tabular-nums">
           {m.periods.map((p) => `${p.a}-${p.b}`).join("  ·  ")}
         </div>
       )}
@@ -114,7 +152,7 @@ function MatchCard({ m, showComp = false, showDate = false }) {
   );
 }
 
-const GRID = "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3";
+const GRID = "grid grid-cols-1 xl:grid-cols-2 gap-3";
 
 // A competition's games under one heading; the venue is said once when every
 // game shares it. Long lists open six at a time.
@@ -139,7 +177,7 @@ function CompetitionBlock({ comp, list, showDate = false, initial = 6 }) {
       {list.length > initial && (
         <button
           onClick={() => setOpen(!open)}
-          className="mt-2.5 text-[14px] font-medium text-[#F5A524] hover:text-[#ffbe4d] transition"
+          className="mt-2.5 text-[14px] font-medium text-[#A855F7] hover:text-[#C084FC] transition"
         >
           {open ? "Show less" : `Show all ${list.length} games`}
         </button>
@@ -153,7 +191,7 @@ function DayBlock({ label, list, note, showDate }) {
   const byTime = (a, b) => new Date(a.schedule || 0) - new Date(b.schedule || 0) || (a.group || "").localeCompare(b.group || "");
   return (
     <section className="mb-7">
-      <div className="flex items-baseline gap-2.5 border-b border-[#1C2430] pb-2 mb-4">
+      <div className="flex items-baseline gap-2.5 border-b border-[#2B2566] pb-2 mb-4">
         <h2 className="text-slate-100 text-[18px] font-semibold">{label}</h2>
         {note && <span className="text-slate-500 text-[13px]">{note}</span>}
       </div>
@@ -166,7 +204,7 @@ function DayBlock({ label, list, note, showDate }) {
 
 function Tabs({ tabs, value, onChange }) {
   return (
-    <div role="tablist" className="inline-flex rounded-lg border border-[#1C2430] bg-[#0F141C] p-1 mb-6 max-w-full overflow-x-auto">
+    <div role="tablist" className="inline-flex rounded-lg border border-[#2B2566] bg-[#161241] p-1 mb-6 max-w-full overflow-x-auto">
       {tabs.map((t) => {
         const on = t.value === value;
         return (
@@ -176,12 +214,12 @@ function Tabs({ tabs, value, onChange }) {
             aria-selected={on}
             onClick={() => onChange(t.value)}
             className={`flex items-center gap-2 shrink-0 rounded-md px-4 py-2 text-[15px] font-medium transition ${
-              on ? "bg-[#1C2430] text-slate-50" : "text-slate-400 hover:text-slate-200"
+              on ? "bg-[#2B2566] text-slate-50" : "text-slate-400 hover:text-slate-200"
             }`}
           >
             {t.live && <LiveDot />}
             {t.label}
-            <span className={`tabular-nums text-[13px] ${on ? "text-[#F5A524]" : "text-slate-500"}`}>{t.count}</span>
+            <span className={`tabular-nums text-[13px] ${on ? "text-[#A855F7]" : "text-slate-500"}`}>{t.count}</span>
           </button>
         );
       })}

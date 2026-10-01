@@ -15,7 +15,7 @@ function TeamCard({ t }) {
     <div className="w-44 sm:w-48 shrink-0 snap-start">
       <Link
         to={`/teams/${t.id}`}
-        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-[#1C2430] hover:border-[#F5A524]/50 transition"
+        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-[#2B2566] hover:border-[#A855F7]/50 transition"
       >
         <Crest name={t.barangay || t.name} barangayId={t.barangayId} variant="cover" />
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3 pt-12 pb-3">
@@ -24,7 +24,7 @@ function TeamCard({ t }) {
             {t.barangay ? `Brgy. ${t.barangay}` : "—"}
           </div>
           {t.format && (
-            <span className="inline-block mt-1.5 rounded-full border border-[#F5A524]/40 bg-black/30 px-2.5 py-0.5 text-[12px] font-medium text-[#F5A524]">
+            <span className="inline-block mt-1.5 rounded-full border border-[#A855F7]/40 bg-black/30 px-2.5 py-0.5 text-[12px] font-medium text-[#A855F7]">
               {FORMAT_LABEL[t.format] || t.format}
             </span>
           )}

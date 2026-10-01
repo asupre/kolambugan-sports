@@ -34,7 +34,7 @@ function List({ names, hidden }) {
           <span className="font-['Anton'] text-[28px] uppercase leading-none tracking-wide text-white/70">
             {n}
           </span>
-          <span aria-hidden="true" className="mx-8 size-2 shrink-0 rotate-45 bg-[#D9A441]" />
+          <span aria-hidden="true" className="mx-8 size-2 shrink-0 rotate-45 bg-[#A855F7]" />
         </li>
       ))}
     </ul>
@@ -116,8 +116,8 @@ export default function SportsMarquee() {
       </div>
 
       {/* Names fade in/out at the edges instead of being cut off. */}
-      <div className="marquee-fade pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#0A1220] to-transparent sm:w-40" />
-      <div className="marquee-fade pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#0A1220] to-transparent sm:w-40" />
+      <div className="marquee-fade pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#0E0B2F] to-transparent sm:w-40" />
+      <div className="marquee-fade pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#0E0B2F] to-transparent sm:w-40" />
     </section>
   );
 }

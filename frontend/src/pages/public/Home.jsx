@@ -15,7 +15,7 @@ import HeroImage from "../../components/HeroImage";
 // ongoing, same "color means something" rule as LiveDot elsewhere.
 function StatTile({ icon, value, label, live }) {
   return (
-    <div className={`rounded-xl border ${live ? "border-red-500/35" : "border-[#1C2430]"} bg-[#0F141C] px-2.5 py-4 text-center`}>
+    <div className={`rounded-xl border ${live ? "border-red-500/35" : "border-[#2B2566]"} bg-[#161241] px-2.5 py-4 text-center`}>
       <div className="flex justify-center mb-2">{icon}</div>
       <div className="text-slate-50 text-[30px] font-extrabold leading-none tabular-nums">{value}</div>
       <div className={`text-[11px] tracking-wide uppercase mt-2 font-semibold ${live ? "text-red-400" : "text-slate-500"}`}>
@@ -32,13 +32,13 @@ const ArrowIcon = () => (
 );
 
 const BarangayIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A524" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1" />
   </svg>
 );
 
 const SportIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5A524" strokeWidth="1.8" strokeLinecap="round">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.8" strokeLinecap="round">
     <circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 010 18M3 12h18" />
   </svg>
 );
@@ -81,7 +81,7 @@ export default function Home() {
           1. the Site Images "hero" slot — full opacity, full colour,
              object-cover, full-bleed. With nothing uploaded `hideOnFail`
              makes SiteImage render nothing and the section's own solid
-             #0C3550 shows instead. Upload/crop/focal are untouched;
+             #1A1150 shows instead. Upload/crop/focal are untouched;
           2. ONE gradient scrim (the exact stops below) — nothing else tints
              the photo, and it's drawn even with no photo so the fallback
              looks the same;
@@ -103,17 +103,17 @@ export default function Home() {
           the stat tiles start below the fold. The headline and copy are NOT
           animated; the PHOTO is (HeroImage: load-triggered fade + settle,
           slow drift, scroll parallax — the last two honour reduced motion). */}
-      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#0C3550] -mx-4 lg:-mx-8 -mt-6 mb-6 flex flex-col justify-end min-h-[calc(100svh-7.5rem)] lg:min-h-[calc(100svh-4.5rem)]">
+      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#1A1150] -mx-4 lg:-mx-8 -mt-6 mb-6 flex flex-col justify-end min-h-[calc(100svh-7.5rem)] lg:min-h-[calc(100svh-4.5rem)]">
         <HeroImage containerRef={heroRef} />
         <div
           className="pointer-events-none absolute inset-0 -z-10"
-          style={{ background: "linear-gradient(180deg, rgba(8,35,52,0.55) 0%, rgba(8,35,52,0.30) 45%, rgba(8,35,52,0.88) 100%)" }}
+          style={{ background: "linear-gradient(180deg, rgba(14,11,47,0.55) 0%, rgba(14,11,47,0.30) 45%, rgba(14,11,47,0.88) 100%)" }}
         />
 
         <div className="relative px-5 pt-10 pb-8 sm:px-8 lg:px-12 lg:pb-12">
           <h1 className="text-left font-['Anton'] font-normal uppercase leading-[0.82] tracking-tight text-[length:clamp(2.5rem,min(15vw,28svh),14rem)]">
             <span className="block text-white">Inter-Barangay</span>
-            <span className="block text-[#D9A441]">Sports League</span>
+            <span className="block text-[#A855F7]">Sports League</span>
           </h1>
 
           <div className="mt-7">
@@ -125,9 +125,9 @@ export default function Home() {
               Live scores, brackets and standings for all 26 barangays.
             </p>
             <div className="mt-5 flex flex-wrap gap-2.5">
-              <Link to="/matches" className="flex items-center gap-2 rounded-full bg-[#D9A441] py-2 pl-6 pr-2 text-sm font-bold text-[#0A1220] transition hover:bg-[#c8942f]">
+              <Link to="/matches" className="flex items-center gap-2 rounded-full bg-[#A855F7] py-2 pl-6 pr-2 text-sm font-bold text-[#0E0B2F] transition hover:bg-[#9333EA]">
                 View matches
-                <span className="flex size-8 items-center justify-center rounded-full bg-[#0A1220] text-[#D9A441]"><ArrowIcon /></span>
+                <span className="flex size-8 items-center justify-center rounded-full bg-[#0E0B2F] text-[#A855F7]"><ArrowIcon /></span>
               </Link>
               <Link to="/standings" className="rounded-full border-[1.5px] border-white/40 px-6 py-3 text-sm font-semibold text-white transition hover:border-white">
                 Standings
@@ -200,8 +200,8 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <div className="px-4 py-3.5 border-t border-[#1C2430]">
-              <Link to="/matches" className="text-[#F5A524] text-[14px] font-medium hover:underline">Full schedule →</Link>
+            <div className="px-4 py-3.5 border-t border-[#2B2566]">
+              <Link to="/matches" className="text-[#A855F7] text-[14px] font-medium hover:underline">Full schedule →</Link>
             </div>
           </Panel>
         </Reveal>
@@ -218,7 +218,7 @@ export default function Home() {
       {/* About the league */}
       <Reveal>
         <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-          <SiteImage slot="league" label="league photo" className="w-full h-52 rounded-lg border border-[#1C2430]" />
+          <SiteImage slot="league" label="league photo" className="w-full h-52 rounded-lg border border-[#2B2566]" />
           <div className="flex flex-col justify-center">
             <h2 className="text-slate-100 text-xl font-semibold mb-2">About the league</h2>
             {/* SAMPLE COPY — replace before deployment. */}
@@ -248,11 +248,11 @@ export default function Home() {
               barangays that each field their own teams. The league is as much about
               the barangays as the sport — every entry carries a community's name.
             </p>
-            <Link to="/teams" className="text-[#F5A524] text-[15px] font-medium hover:underline">
+            <Link to="/teams" className="text-[#A855F7] text-[15px] font-medium hover:underline">
               Browse the teams →
             </Link>
           </div>
-          <SiteImage slot="barangay" label="municipality photo" className="w-full h-52 rounded-lg border border-[#1C2430] md:order-2 order-1" />
+          <SiteImage slot="barangay" label="municipality photo" className="w-full h-52 rounded-lg border border-[#2B2566] md:order-2 order-1" />
         </section>
       </Reveal>
 
@@ -261,8 +261,8 @@ export default function Home() {
         <Reveal>
           <Panel title="Recent results" count={`${recent.length}`}>
             <div>{recent.slice(0, 5).map((m) => <ScoreStrip key={m.id} m={m} />)}</div>
-            <div className="px-4 py-3.5 border-t border-[#1C2430]">
-              <Link to="/matches" className="text-[#F5A524] text-[14px] font-medium hover:underline">All results →</Link>
+            <div className="px-4 py-3.5 border-t border-[#2B2566]">
+              <Link to="/matches" className="text-[#A855F7] text-[14px] font-medium hover:underline">All results →</Link>
             </div>
           </Panel>
         </Reveal>

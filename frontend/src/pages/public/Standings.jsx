@@ -85,14 +85,14 @@ export default function Standings() {
           {knockout.length > 0 && (
             <Reveal>
               <Panel title="Knockout">
-                <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-500 text-[12px] font-medium tracking-wider">
+                <div className="flex px-4 py-2.5 border-b border-[#2B2566] text-slate-500 text-[12px] font-medium tracking-wider">
                   <span className="w-16">#</span>
                   <span className="flex-1">TEAM</span>
                   <span className="w-10 text-center">W</span>
                   <span className="w-10 text-center">L</span>
                 </div>
                 {knockout.map((r, i) => (
-                  <div key={r.teamId} className={`flex items-center px-4 py-3 border-b border-[#1C2430] last:border-0 ${MEDAL[r.place]?.row || ""}`}>
+                  <div key={r.teamId} className={`flex items-center px-4 py-3 border-b border-[#2B2566] last:border-0 ${MEDAL[r.place]?.row || ""}`}>
                     <span className={`w-16 flex items-center gap-1.5 text-[13px] tabular-nums ${MEDAL[r.place] ? `${MEDAL[r.place].text} font-semibold` : "text-slate-500"}`}>
                       {MEDAL[r.place] && (
                         <img src={MEDAL[r.place].icon} alt="" aria-hidden="true" loading="lazy" decoding="async" className="size-6 object-contain" />
@@ -148,7 +148,7 @@ export default function Standings() {
               return (
                 <Reveal key={g} delay={(gi % 2) * 0.08}>
                 <Panel title={`Group ${g}`}>
-                  <div className="flex px-4 py-2.5 border-b border-[#1C2430] text-slate-500 text-[12px] font-medium tracking-wider">
+                  <div className="flex px-4 py-2.5 border-b border-[#2B2566] text-slate-500 text-[12px] font-medium tracking-wider">
                     <span className="w-6">#</span>
                     <span className="flex-1">TEAM</span>
                     <span className="w-10 text-center">W</span>
@@ -162,11 +162,11 @@ export default function Standings() {
                     return (
                       <div
                         key={r.teamId}
-                        className={`flex items-center px-4 py-3 border-b border-[#1C2430] last:border-0 ${
-                                                    marked ? "bg-[#F5A524]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : ""
+                        className={`flex items-center px-4 py-3 border-b border-[#2B2566] last:border-0 ${
+                                                    marked ? "bg-[#A855F7]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : ""
                         }`}
                       >
-                        <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#F5A524]" : "text-slate-600"}`}>
+                        <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#A855F7]" : "text-slate-600"}`}>
                           {seed ?? i + 1}
                         </span>
                         <div className="flex-1 min-w-0 flex items-center gap-2.5">

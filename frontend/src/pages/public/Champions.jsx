@@ -69,13 +69,13 @@ export default function Champions() {
               <Reveal key={y}>
                 <section className="mb-7">
                   <div className="flex items-center gap-3 mb-3">
-                    <h2 className="text-[#F5A524] text-[26px] font-bold tabular-nums leading-none" style={{ fontFamily: "Anton, sans-serif" }}>
+                    <h2 className="text-[#A855F7] text-[26px] font-bold tabular-nums leading-none" style={{ fontFamily: "Anton, sans-serif" }}>
                       {y}
                     </h2>
                     <span className="text-slate-500 text-[13px]">
                       {byYear[y].length} {byYear[y].length === 1 ? "title" : "titles"}
                     </span>
-                    <div className="h-px flex-1 bg-[#1C2430]" />
+                    <div className="h-px flex-1 bg-[#2B2566]" />
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {byYear[y].map((c) => (
@@ -98,7 +98,7 @@ export default function Champions() {
               <Panel title="Most titles" count="all sports">
                 <ol>
                   {leaders.map(([name, n], i) => (
-                    <li key={name} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 border-b border-[#1C2430] last:border-0">
+                    <li key={name} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 border-b border-[#2B2566] last:border-0">
                       <span className={`w-5 text-[15px] tabular-nums ${i === 0 ? "text-[#F5A524] font-semibold" : "text-slate-500"}`}>
                         {i + 1}
                       </span>
@@ -132,12 +132,12 @@ export default function Champions() {
 
 function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError }) {
   return (
-    <article className="flex flex-col rounded-lg border border-[#1C2430] bg-[#0F141C] overflow-hidden">
+    <article className="flex flex-col rounded-lg border border-[#2B2566] bg-[#161241] overflow-hidden">
       {showPhoto ? (
         <button
           type="button"
           onClick={onOpenPhoto}
-          className="group relative block aspect-video w-full overflow-hidden bg-[#1C2430] cursor-zoom-in"
+          className="group relative block aspect-video w-full overflow-hidden bg-[#2B2566] cursor-zoom-in"
           aria-label={`View photo: ${titleOf(c)}`}
         >
           <img
@@ -156,14 +156,14 @@ function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError }) {
           </span>
         </button>
       ) : (
-        <div className="relative flex aspect-video w-full items-center justify-center bg-[#141A24]">
+        <div className="relative flex aspect-video w-full items-center justify-center bg-[#1D184F]">
           <Crest name={c.barangay} size={64} />
         </div>
       )}
 
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[#F5A524] text-[13px] font-semibold uppercase tracking-wide">{c.sport}</span>
+          <span className="text-[#A855F7] text-[13px] font-semibold uppercase tracking-wide">{c.sport}</span>
           {c.division && <span className="text-slate-500 text-[13px]">· {c.division}</span>}
         </div>
 
@@ -171,7 +171,7 @@ function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError }) {
         {c.teamName && <p className="text-slate-400 text-[14px] mt-0.5">Barangay {c.barangay}</p>}
 
         {(c.mvp || c.prize) && (
-          <dl className="mt-3 pt-3 border-t border-[#1C2430] grid grid-cols-2 gap-3">
+          <dl className="mt-3 pt-3 border-t border-[#2B2566] grid grid-cols-2 gap-3">
             {c.mvp && (
               <div className="min-w-0">
                 <dt className="text-slate-500 text-[12px] uppercase tracking-wider">MVP</dt>

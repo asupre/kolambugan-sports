@@ -41,7 +41,7 @@ export default function TeamDetail() {
       <Panel>
         <div className="px-5 py-8 text-center">
           <p className="text-slate-300 text-sm mb-3">{error || "That team could not be found."}</p>
-          <Link to="/teams" className="text-[#F5A524] text-sm hover:underline">Back to teams</Link>
+          <Link to="/teams" className="text-[#A855F7] text-sm hover:underline">Back to teams</Link>
         </div>
       </Panel>
     );
@@ -111,7 +111,7 @@ export default function TeamDetail() {
         {roster.length > 0 && (
           <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full">
-              <thead className="border-b border-[#1C2430]">
+              <thead className="border-b border-[#2B2566]">
                 <tr>
                   <Th>#</Th>
                   <Th>Player</Th>
@@ -128,7 +128,7 @@ export default function TeamDetail() {
                   const s = p.stats || { points: 0, fouls: 0, games: 0 };
                   const ppg = s.games > 0 ? (s.points / s.games).toFixed(1) : "—";
                   return (
-                    <tr key={p.id} className="border-b border-[#1C2430] last:border-0">
+                    <tr key={p.id} className="border-b border-[#2B2566] last:border-0">
                       <Td dim>{p.jerseyNumber ?? "—"}</Td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3 min-w-0">

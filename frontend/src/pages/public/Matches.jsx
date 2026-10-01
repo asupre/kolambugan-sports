@@ -1,26 +1,22 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import {
-  Panel, PanelSkeleton, SportTabs, Crest, LiveDot,
-  matchDateLabel, matchTime, DIVISION_LABEL,
+  Panel, PanelSkeleton, SportTabs, LiveDot, matchDateLabel, DIVISION_LABEL,
 } from "../../components/PublicUI";
+import { VsMatchList } from "../../components/VsMatch";
 
 // Matches page, reworked Oct 2026 ("should be presentable and easy to understand"):
 // Live / Upcoming / Results tabs instead of one long scroll, games grouped by day
-// and then by competition (sport · division, with the venue said once), and a
-// grid of match cards instead of full-width rows that left most of a desktop empty.
+// and then by competition (sport · division, with the venue said once). Each game
+// is one VS row (components/VsMatch.jsx), one per line like the Super Admin's sample.
 
 // "2026-09-25" in Manila time — for comparing days, not for display.
 const manilaDay = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(d));
 
-// Quarters in basketball, sets in the rally sports.
-const PERIOD_PREFIX = { Basketball: "Q", Volleyball: "S", Badminton: "S", Pickleball: "S" };
 
 const compOf = (m) => `${m.sport} · ${DIVISION_LABEL[m.division] || m.division}`;
 const isDone = (m) => m.status === "completed" || m.status === "forfeited";
 
-// "Group A · Winners Round 2", "Semifinals", "3rd place"…
-const stageOf = (m) => [m.group ? `Group ${m.group}` : null, m.roundLabel].filter(Boolean).join(" · ");
 
 // Group a list by a key, keeping first-seen order.
 function groupBy(list, keyOf) {
@@ -33,105 +29,6 @@ function groupBy(list, keyOf) {
   return [...out.entries()];
 }
 
-// ── Match card (Oct 2026, Super Admin's "new UI sample for web") ──────────
-// Clean rounded card on the steel-navy palette: a stage chip on top, then the
-// two teams facing each other — crest ABOVE the name, so long names get the
-// full column on a phone — with the time (or score) in the middle.
-
-function Side({ team, tone }) {
-  const name = !team
-    ? "text-slate-500 italic font-normal"
-    : tone === "win" ? "text-white font-semibold"
-    : tone === "lose" ? "text-slate-400"
-    : "text-slate-100 font-medium";
-  return (
-    <div className="flex flex-col items-center text-center min-w-0 gap-2">
-      <div className={`relative ${tone === "lose" ? "opacity-50 grayscale" : ""}`}>
-        {team ? (
-          <Crest name={team.name} barangayId={team.barangayId} size={52} />
-        ) : (
-          <span className="block size-[52px] rounded-lg border border-dashed border-[#2E4466]" />
-        )}
-      </div>
-      <div className={`text-[14px] sm:text-[15px] leading-snug line-clamp-2 break-words max-w-full ${name}`}>
-        {team ? team.name : "Awaiting opponent"}
-      </div>
-      {tone === "win" && (
-        <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-emerald-500/15 text-emerald-400">
-          Winner
-        </span>
-      )}
-    </div>
-  );
-}
-
-// One game. `showComp` adds the sport/division (used where cards aren't
-// already under a competition heading, i.e. the Live tab).
-function MatchCard({ m, showComp = false, showDate = false }) {
-  const live = m.status === "ongoing";
-  const done = isDone(m);
-  const aWon = done && m.winner && String(m.winner) === String(m.teamA?.id);
-  const bWon = done && m.winner && String(m.winner) === String(m.teamB?.id);
-  const tone = (won, other) => (won ? "win" : other ? "lose" : null);
-  const time = matchTime(m.schedule);
-  const scoreTone = (won, lost) => (won ? "text-emerald-400" : lost ? "text-red-400" : "text-white");
-
-  return (
-    <div className={`rounded-xl border bg-[#122036] p-4 transition-colors hover:border-[#2E4466] ${live ? "border-red-500/50" : "border-[#22344F]"}`}>
-      <div className="flex items-center justify-between gap-2 mb-4">
-        <span className="rounded-md bg-[#172840] px-2 py-1 text-[12px] text-slate-300 truncate min-w-0">
-          {[showComp ? compOf(m) : null, stageOf(m)].filter(Boolean).join(" · ") || "Match"}
-        </span>
-        {live ? (
-          <span className="flex items-center gap-1.5 shrink-0 rounded-md bg-red-500/15 px-2 py-1 text-[12px] font-semibold text-red-400">
-            <LiveDot />
-            {m.totalPeriods > 1 ? `LIVE · ${PERIOD_PREFIX[m.sport] || "P"}${Math.min(m.periodsPlayed + 1, m.totalPeriods)}` : "LIVE"}
-          </span>
-        ) : done ? (
-          <span className="shrink-0 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
-            {m.status === "forfeited" ? "Forfeit" : "Final"}
-            {showDate && m.schedule ? ` · ${matchDateLabel(m.schedule)}` : ""}
-          </span>
-        ) : showComp && m.venue ? (
-          <span className="shrink-0 text-[12px] text-slate-500">{m.venue}</span>
-        ) : null}
-      </div>
-
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
-        <Side team={m.teamA} tone={tone(aWon, bWon)} />
-
-        <div className="flex flex-col items-center justify-center min-w-[72px] sm:min-w-[96px] pt-2.5">
-          {live || done ? (
-            <div className="flex items-baseline gap-1.5 text-[30px] sm:text-[34px] leading-none tabular-nums" style={{ fontFamily: "Anton, sans-serif" }}>
-              <span className={done ? scoreTone(aWon, bWon) : "text-white"}>{m.scoreA}</span>
-              <span className="text-slate-500 px-0.5">:</span>
-              <span className={done ? scoreTone(bWon, aWon) : "text-white"}>{m.scoreB}</span>
-            </div>
-          ) : (
-            <>
-              <div className={`leading-none tabular-nums ${time ? "text-white text-[26px] sm:text-[30px]" : "text-slate-400 text-[20px]"}`}
-                style={{ fontFamily: "Anton, sans-serif" }}>
-                {time || "TBA"}
-              </div>
-              <span className="mt-2 rounded-full bg-[#FACC15] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#0B1626]">
-                VS
-              </span>
-            </>
-          )}
-          {(live || done) && m.periods?.length > 1 && (
-            <div className="mt-2 text-[11px] text-slate-500 tabular-nums text-center">
-              {m.periods.map((p) => `${p.a}-${p.b}`).join(" · ")}
-            </div>
-          )}
-        </div>
-
-        <Side team={m.teamB} tone={tone(bWon, aWon)} />
-      </div>
-    </div>
-  );
-}
-
-const GRID = "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4";
 
 // A competition's games under one heading; the venue is said once when every
 // game shares it. Long lists open six at a time.
@@ -148,11 +45,7 @@ function CompetitionBlock({ comp, list, showDate = false, initial = 6 }) {
           {[`${list.length} ${list.length === 1 ? "game" : "games"}`, shared].filter(Boolean).join(" · ")}
         </span>
       </div>
-      <div className={GRID}>
-        {shown.map((m) => (
-          <MatchCard key={m.id} m={m} showDate={showDate} />
-        ))}
-      </div>
+      <VsMatchList matches={shown} showDate={showDate} />
       {list.length > initial && (
         <button
           onClick={() => setOpen(!open)}
@@ -280,9 +173,7 @@ export default function Matches() {
           <Tabs tabs={tabs} value={current} onChange={setTab} />
 
           {current === "live" && (
-            <div className={GRID}>
-              {live.map((m) => <MatchCard key={m.id} m={m} showComp />)}
-            </div>
+            <VsMatchList matches={live} showDate={false} />
           )}
 
           {current === "upcoming" && (

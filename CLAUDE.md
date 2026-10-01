@@ -1013,12 +1013,25 @@ so a bug in one route cannot expose the other.
   sky right). **Gold `#F5A524` stays ONLY for medal / 1st meaning**: bracket Champion card
   (`CARD_TONE.gold`), Standings 1st (`MEDAL[1]`), Champions "Most titles" #1, Players rank 1,
   Basketball's own colour in `SportGrid`.
-- **Matches cards (Oct 1 2026)**: `MatchCard` in `Matches.jsx` — a clean rounded card (`#122036`):
-  a stage chip ("Group A · Winners Round 2") + FINAL / LIVE on top, then the two teams FACING each
-  other with crest ABOVE name (`Side`), time (Anton) + a yellow "VS" pill in the middle, or the
-  score "0 : 1" (winner green, loser red; loser crest greyscale + dimmed name, green "WINNER" chip
-  under the winner). Day headings are Anton uppercase. Grid 1 / 2 / 3 columns (phone / sm / xl).
-  The angled gradient "VS banner" version from the "vs sample ui" was replaced the same day.
+- **Match display = VS ROWS, one game per row (Oct 1 2026, Super Admin: "keep the vs UI, I like
+  it… 1 row just like the picture… put it in the home page")**. ONE shared component,
+  `components/VsMatch.jsx` (`VsMatchRow`, `VsMatchList`), used by `Matches.jsx` (every tab) and
+  `Home.jsx` (Live now, Today, Coming up, Recent results) — change it there, not per page.
+  Layout: `[crest][angled name banner]  time|score  [banner][crest]`; the banner is a BLUE gradient
+  (`#1D4ED8`→`#3B82F6`, slanted toward the centre via `clip-path`) with a light strip under the
+  name carrying sport · division (left) and the round (right). Upcoming: time in Anton + "VS"
+  (Home shows the date there when `showDate`); no time → "TBA". Finished: winner green / loser red
+  score, loser banner grey + crest greyscale, green "WON" chip under the winner's crest. Set
+  scores sit under the row. NEVER a 2-3 column grid — rows stack, centred, `max-w-5xl`.
+  Phones (<sm): crest ABOVE its banner, strip text hidden (a thin bar), names 12px — at 390px the
+  side-by-side version broke names mid-word. The same-day clean-card grid and the purple banners
+  were both replaced. Home no longer uses `FixtureRow` / `ScoreStrip` (still exported, unused by
+  Home/Matches).
+- **Screenshotting public pages with scroll reveals**: plain `msedge --screenshot` leaves every
+  `Reveal` at opacity 0. Drive Edge over CDP (Node's global `WebSocket`), scroll the page, inject
+  `[style*=opacity]{opacity:1!important;transform:none!important}`, then
+  `Page.captureScreenshot` with `captureBeyondViewport` + `clip` — don't resize the viewport to
+  the page height, the Home hero is `100svh` and grows with it.
 - Background `#0A1220`; footer `#060C16`; panels `#0F141C`; `PublicLayout`
   borders use `slate-500/15` while panel borders use `#1C2430`; accent gold
   `#F5A524`. (Supersedes the earlier "R7 navy" note — the real R7 site

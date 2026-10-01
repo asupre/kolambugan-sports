@@ -3552,3 +3552,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
   dropped for clean rounded cards: stage chip on top, crest above each team name facing each
   other, time + yellow "VS" pill (or the score "0 : 1", winner green / loser red) in the middle,
   Anton uppercase day headings, 1-3 column grid.
+- **VS match rows back, one per row, also on Home** (Oct 1 2026). At the Super Admin's request
+  the VS banner design returns (now in blue to suit the navy + yellow theme), laid out one game
+  per row like the sample picture instead of a 3-column card grid. One shared component,
+  `components/VsMatch.jsx`, now draws every match list on Matches and on Home (Live now, Today,
+  Coming up, Recent results). On phones the crest sits above its banner so names fit.

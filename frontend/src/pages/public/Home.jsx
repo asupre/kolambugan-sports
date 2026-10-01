@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import {
-  Panel, SiteImage, LiveDot, ScoreStrip, FixtureRow, DateBar, matchDateLabel, matchTime, matchContext,
+  Panel, SiteImage, LiveDot, DateBar, matchDateLabel,
 } from "../../components/PublicUI";
 import Reveal, { RevealGroup, RevealItem } from "../../components/Reveal";
 import SportsMarquee from "../../components/SportsMarquee";
 import HeroImage from "../../components/HeroImage";
+import { VsMatchList } from "../../components/VsMatch";
 
 
 
@@ -161,7 +162,7 @@ export default function Home() {
       {/* Live now: NOT wrapped — in-progress matches update mid-game. */}
       {live.length > 0 && (
         <Panel title="Live now" count={`${live.length}`}>
-          <div>{live.map((m) => <ScoreStrip key={m.id} m={m} showTime={false} />)}</div>
+          <div className="px-3 sm:px-5 py-5"><VsMatchList matches={live} showDate={false} /></div>
         </Panel>
       )}
 
@@ -172,11 +173,7 @@ export default function Home() {
       {today.length > 0 && (
         <Reveal>
           <Panel title="Today" count={`${today.length} scheduled`}>
-            <div>
-              {today.map((m) => (
-                <FixtureRow key={m.id} m={m} when={matchTime(m.schedule)} where={m.venue} context={matchContext(m)} />
-              ))}
-            </div>
+            <div className="px-3 sm:px-5 py-5"><VsMatchList matches={today} showDate={false} /></div>
           </Panel>
         </Reveal>
       )}
@@ -194,9 +191,7 @@ export default function Home() {
               ).map(([date, list]) => (
                 <div key={date}>
                   <DateBar>{date}</DateBar>
-                  {list.map((m) => (
-                    <FixtureRow key={m.id} m={m} when={matchTime(m.schedule)} where={m.venue} context={matchContext(m)} />
-                  ))}
+                  <div className="px-3 sm:px-5 py-5"><VsMatchList matches={list} showDate={false} /></div>
                 </div>
               ))}
             </div>
@@ -260,7 +255,7 @@ export default function Home() {
       {recent.length > 0 && (
         <Reveal>
           <Panel title="Recent results" count={`${recent.length}`}>
-            <div>{recent.slice(0, 5).map((m) => <ScoreStrip key={m.id} m={m} />)}</div>
+            <div className="px-3 sm:px-5 py-5"><VsMatchList matches={recent.slice(0, 5)} /></div>
             <div className="px-4 py-3.5 border-t border-[#22344F]">
               <Link to="/matches" className="text-[#FACC15] text-[14px] font-medium hover:underline">All results →</Link>
             </div>

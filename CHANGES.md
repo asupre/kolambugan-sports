@@ -3598,3 +3598,7 @@ its filename and status, making "should I delete this and re-upload" a guess.
   with a red note explaining why. The server also refuses a save where a team's player points add
   up to more than the team scored. Applies to sports scored by points (basketball, volleyball,
   badminton, pickleball); chess, billiards and esports keep score in games won, so not capped.
+- **VS rows: sport and division in the centre** (Oct 1 2026). The "Badminton · Girls" label moved
+  from the small strip under the left team's name to the middle, above the time or score, in
+  bigger bold text. The Matches competition headings no longer repeat the venue, since every row
+  shows it under the VS.

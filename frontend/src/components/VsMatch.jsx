@@ -15,7 +15,6 @@ import { Crest, LiveDot, matchDateLabel, matchTime, DIVISION_LABEL } from "./Pub
 const PERIOD_PREFIX = { Basketball: "Q", Volleyball: "S", Badminton: "S", Pickleball: "S" };
 
 const isDone = (m) => m.status === "completed" || m.status === "forfeited";
-const compOf = (m) => `${m.sport} · ${DIVISION_LABEL[m.division] || m.division}`;
 const stageOf = (m) => [m.group ? `Group ${m.group}` : null, m.roundLabel].filter(Boolean).join(" · ");
 
 const CLIP = {
@@ -94,9 +93,16 @@ function VsMatchRowImpl({ m, showDate = true }) {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-5">
-      <Side team={m.teamA} side="left" tone={tone(aWon, bWon)} info={compOf(m)} />
+      {/* The competition label moved from the left banner's strip to the centre (Oct 2026). */}
+      <Side team={m.teamA} side="left" tone={tone(aWon, bWon)} info={null} />
 
       <div className="flex flex-col items-center text-center min-w-[56px] sm:min-w-[110px]">
+        {/* Sport · division, centred over the time / score. Two short lines on a phone. */}
+        <div className="mb-1.5 flex flex-col sm:flex-row sm:gap-1.5 items-center text-[11px] sm:text-[13px] font-bold uppercase tracking-wide leading-tight text-slate-100">
+          <span>{m.sport}</span>
+          <span className="hidden sm:inline text-slate-500">·</span>
+          <span className="text-slate-300">{DIVISION_LABEL[m.division] || m.division}</span>
+        </div>
         {live || done ? (
           <div className="text-[24px] sm:text-[36px] leading-none tabular-nums" style={{ fontFamily: "Anton, sans-serif" }}>
             <span className={done ? scoreTone(aWon, bWon) : "text-white"}>{m.scoreA}</span>

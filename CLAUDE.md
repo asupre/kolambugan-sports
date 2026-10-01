@@ -1033,7 +1033,10 @@ so a bug in one route cannot expose the other.
   `Home.jsx` (Live now, Today, Coming up, Recent results) — change it there, not per page.
   Layout: `[crest][angled name banner]  time|score  [banner][crest]`; the banner is a BLUE gradient
   (`#1D4ED8`→`#3B82F6`, slanted toward the centre via `clip-path`) with a light strip under the
-  name carrying sport · division (left) and the round (right). Upcoming: time in Anton + "VS"
+  name; the RIGHT strip carries the round, the left strip is a plain bar. **Sport · division sits
+  in the CENTRE, above the time / score** (Oct 1 2026, "make it a little bigger to be visible"):
+  bold uppercase 13px (11px, two lines on phones). The Matches competition headings no longer
+  repeat the venue ("Billiards · Open · 12 games") — each row shows it under the VS. Upcoming: time in Anton + "VS"
   (Home shows the date there when `showDate`); no time → "TBA". Finished: winner green / loser red
   score, loser banner grey + crest greyscale, green "WON" chip under the winner's crest. Set
   scores sit under the row. NEVER a 2-3 column grid — rows stack, centred, `max-w-5xl`.

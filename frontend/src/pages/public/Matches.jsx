@@ -37,19 +37,17 @@ function groupBy(list, keyOf) {
 }
 
 
-// A competition's games under one heading; the venue is said once when every
-// game shares it. Long lists open four at a time.
+// A competition's games under one heading. Long lists open four at a time.
+// (The venue is NOT in the heading — every VS row shows it under the time.)
 function CompetitionBlock({ comp, list, showDate = false, initial = 4 }) {
   const [open, setOpen] = useState(false);
-  const venues = [...new Set(list.map((m) => m.venue).filter(Boolean))];
-  const shared = venues.length === 1 ? venues[0] : null;
   const shown = open ? list : list.slice(0, initial);
   return (
     <div className="mb-5 last:mb-0">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-2.5">
         <h3 className="text-slate-100 text-[15px] font-semibold">{comp}</h3>
         <span className="text-slate-500 text-[13px]">
-          {[`${list.length} ${list.length === 1 ? "game" : "games"}`, shared].filter(Boolean).join(" · ")}
+          {`${list.length} ${list.length === 1 ? "game" : "games"}`}
         </span>
       </div>
       <VsMatchList matches={shown} showDate={showDate} />

@@ -3518,3 +3518,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
   sat above the unbeaten upper-bracket winner (2-0, seed #1), e.g. Palao in Badminton Boys
   Group A. Now ordered seed 1, seed 2, then fewest losses, then most wins. Round-robin tables
   (everyone plays the same number of games) keep wins first. `Standings.jsx` only.
+- **Brackets: winner green, loser red** (Oct 1 2026). On a finished (completed or forfeited)
+  match, the winner's row is tinted green with a green score and the loser's row red, on the
+  public Brackets page (match cards + round-robin Fixtures) and the Super Admin's Tournaments
+  bracket. Before, the loser was only dimmed grey and the result was hard to read at a glance.
+  `Brackets.jsx`, `Tournaments.jsx`.

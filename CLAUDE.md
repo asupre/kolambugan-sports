@@ -2192,6 +2192,11 @@ repeat this pass before the next deploy.
   (Oct 1 2026, `ordered` in `Standings.jsx`): the server sorts by wins first, which is right for
   round-robin but in a double-elim group put a 3-1 / 3-2 losers-bracket team above the unbeaten
   2-0 group winner (Badminton Boys, Group A). Round-robin tables keep the server's wins-first order.
+- **Bracket match cards colour the result** (Oct 1 2026): once a match is completed/forfeited the
+  winner's row is green (tint + 3px inset bar, green score) and the loser's row red, on the public
+  `Brackets.jsx` (`MatchCard` + the round-robin Fixtures list) and the admin `Tournaments.jsx`
+  (`MatchBox`). Inset `box-shadow`, not a border, so card widths and the measured wires don't move.
+  This replaces the public winner's gold score; gold remains the accent everywhere else.
 - **Public `TabRow` (sport/division tabs) is scrollable by mouse** (Sep 30 2026): it used
   `scrollbar-none`, so on a PC tabs past the edge (e.g. Chess, Mobile Legends on Brackets)
   were unreachable. Now a thin `.scrollbar-public` bar, ‹ › arrows while it overflows (sm+),

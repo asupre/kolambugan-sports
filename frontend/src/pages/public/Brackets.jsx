@@ -23,10 +23,18 @@ function MatchCard({ m, innerRef }) {
   const aWin = done && m.winner && String(m.winner) === String(m.teamA?.id);
   const bWin = done && m.winner && String(m.winner) === String(m.teamB?.id);
 
-    const Side = ({ team, score, won }) => (
-    <div className="flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 sm:py-2.5">
+  // A finished match tints the winner's row green and the loser's red (inset
+  // shadow as the side bar, so the row's width never changes).
+  const decided = done && !!m.winner;
+  const Side = ({ team, score, won }) => {
+    const lost = decided && !won && !!team;
+    return (
+    <div className={`flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 sm:py-2.5 ${
+      decided && won ? "bg-emerald-500/10 shadow-[inset_3px_0_0_#34D399]"
+        : lost ? "bg-red-500/[0.08] shadow-[inset_3px_0_0_#F87171]" : ""
+    }`}>
       <Crest name={team?.name} barangayId={team?.barangayId} size={compact ? 18 : 24} />
-      <span className={`flex-1 min-w-0 truncate text-[13px] sm:text-[15px] ${won ? "text-slate-100 font-medium" : done ? "text-slate-500" : "text-slate-300"}`}>
+      <span className={`flex-1 min-w-0 truncate text-[13px] sm:text-[15px] ${won ? "text-slate-100 font-semibold" : lost ? "text-red-300/80" : "text-slate-300"}`}>
         {team?.name || "TBD"}
       </span>
       {/* A forfeit is recorded 1–0; the tag on the no-show team says why. */}
@@ -36,12 +44,13 @@ function MatchCard({ m, innerRef }) {
         </span>
       )}
       {(done || live) && (
-        <span className={`text-[13px] sm:text-[15px] font-bold tabular-nums w-6 sm:w-7 text-right ${won ? "text-[#F5A524]" : "text-slate-500"}`}>
+        <span className={`text-[13px] sm:text-[15px] font-bold tabular-nums w-6 sm:w-7 text-right ${won ? "text-emerald-400" : lost ? "text-red-400" : "text-slate-500"}`}>
           {score}
         </span>
       )}
     </div>
-  );
+    );
+  };
 
   return (
     <div
@@ -263,16 +272,18 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
       </div>
       {matches.map((m) => {
         const done = ["completed", "forfeited"].includes(m.status);
-        const aWin = done && String(m.winner) === String(m.teamA?.id);
+        const decided = done && !!m.winner;
+        const aWin = decided && String(m.winner) === String(m.teamA?.id);
+        const tone = (won) => (!decided ? "text-slate-400" : won ? "text-emerald-400 font-semibold" : "text-red-400/80");
         return (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#1C2430] last:border-0">
-            <span className={`flex-1 min-w-0 truncate text-right text-[15px] ${aWin ? "text-slate-100" : "text-slate-400"}`}>
+            <span className={`flex-1 min-w-0 truncate text-right text-[15px] ${tone(aWin)}`}>
               {m.teamA?.name || "TBD"}
             </span>
             <span className="shrink-0 text-[15px] font-semibold tabular-nums text-slate-400 w-14 text-center">
               {done ? `${m.scoreA}–${m.scoreB}` : m.status === "ongoing" ? "LIVE" : "vs"}
             </span>
-            <span className={`flex-1 min-w-0 truncate text-[15px] ${done && !aWin ? "text-slate-100" : "text-slate-400"}`}>
+            <span className={`flex-1 min-w-0 truncate text-[15px] ${tone(!aWin)}`}>
               {m.teamB?.name || "TBD"}
             </span>
           </div>

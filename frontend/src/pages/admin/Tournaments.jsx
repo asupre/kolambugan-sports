@@ -600,9 +600,16 @@ function MatchBox({ m, innerRef, onRevert }) {
 
   // A forfeit is recorded 1–0; the tag on the no-show team says why.
   const forfeit = m.status === "forfeited";
-  const Side = ({ name, score, won }) => (
-    <div className={cn("flex items-center gap-2 px-3 py-2", won && "bg-green-500/10")}>
-      <span className={cn("flex-1 min-w-0 truncate", won ? "font-semibold" : "text-muted-foreground")}>
+  // Finished match: winner's row green, loser's row red.
+  const decided = done && !!winnerId;
+  const Side = ({ name, score, won }) => {
+    const lost = decided && !won && !!name;
+    return (
+    <div className={cn("flex items-center gap-2 px-3 py-2",
+      decided && won && "bg-green-500/10 shadow-[inset_3px_0_0_var(--color-green-500)]",
+      lost && "bg-red-500/10 shadow-[inset_3px_0_0_var(--color-red-500)]")}>
+      <span className={cn("flex-1 min-w-0 truncate",
+        won ? "font-semibold" : lost ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
         {name || "TBD"}
       </span>
       {forfeit && !won && (
@@ -610,9 +617,15 @@ function MatchBox({ m, innerRef, onRevert }) {
           Forfeited
         </span>
       )}
-      {(done || live) && <span className="font-medium w-6 text-center tabular-nums">{score}</span>}
+      {(done || live) && (
+        <span className={cn("font-medium w-6 text-center tabular-nums",
+          won && decided && "text-green-600 dark:text-green-400", lost && "text-red-600 dark:text-red-400")}>
+          {score}
+        </span>
+      )}
     </div>
-  );
+    );
+  };
 
   return (
     <div ref={innerRef}

@@ -636,7 +636,7 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   **The public Team page shows only the sheet's columns** (Sep 2026 fix: it used to always
   add Fouls, so chess/badminton set to Points showed an all-zero Fouls column). `GET
   /api/public/teams/:id` returns `team.statColumns` (the sheet ∩ the four public columns);
-  `TeamDetail.jsx` renders from that. Don't hardcode stat columns on public pages.
+  `TeamDetail.jsx` renders from that. Don't hardcode stat columns on public pages. **Every stat cell (GP, PTS, PPG, REB, AST, Fouls) is bright `text-slate-100 font-semibold`** (Oct 1 2026, "it looks so gray" — only PTS used to be bright); headers `text-slate-300`; only jersey # and age stay softer (`slate-400`).
 - **Sport TYPE (Sep 2026):** `Sport.category` ∈ physical (a sport) / esports / **board** (a board
   game), set per sport in League Setup. Decides the live scoring default (sport = points; esports
   and board = games won) and which sheet columns are on offer. Existing Chess / Billiards stay

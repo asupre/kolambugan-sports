@@ -3570,3 +3570,5 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - **Players page: "Top scorers" removed** (Oct 1 2026, Super Admin request). The page now only
   shows the rosters (All players); the view switch is gone. The backend `/api/public/leaders`
   route is kept but nothing calls it.
+- **Team page stats readable** (Oct 1 2026). GP, PPG, REB, AST and Fouls were dim grey next to a
+  bright PTS; every stat column is now bold white like PTS, and the column headers are lighter.

@@ -67,12 +67,12 @@ export default function TeamDetail() {
   });
 
   const Th = ({ children, right }) => (
-    <th className={`px-3 py-3 text-slate-500 text-[12px] font-medium uppercase tracking-wide ${right ? "text-right" : "text-left"}`}>
+    <th className={`px-3 py-3 text-slate-300 text-[12px] font-semibold uppercase tracking-wide ${right ? "text-right" : "text-left"}`}>
       {children}
     </th>
   );
   const Td = ({ children, right, dim }) => (
-    <td className={`px-3 py-3 text-[15px] tabular-nums ${right ? "text-right" : ""} ${dim ? "text-slate-500" : "text-slate-200"}`}>
+    <td className={`px-3 py-3 text-[15px] tabular-nums ${right ? "text-right" : ""} ${dim ? "text-slate-400" : "text-slate-100 font-semibold"}`}>
       {children}
     </td>
   );
@@ -141,11 +141,12 @@ export default function TeamDetail() {
                       <Td right dim>{p.age ?? "—"}</Td>
                       {statsTracked && (
                         <>
-                          <Td right dim>{s.games}</Td>
-                          {has("points") && <><Td right>{s.points}</Td><Td right dim>{ppg}</Td></>}
-                          {has("rebounds") && <Td right dim>{s.rebounds || 0}</Td>}
-                          {has("assists") && <Td right dim>{s.assists || 0}</Td>}
-                          {has("fouls") && <Td right dim>{s.fouls || 0}</Td>}
+                          {/* Every stat as bright as PTS (Super Admin, Oct 2026: "it looks so gray"). */}
+                          <Td right>{s.games}</Td>
+                          {has("points") && <><Td right>{s.points}</Td><Td right>{ppg}</Td></>}
+                          {has("rebounds") && <Td right>{s.rebounds || 0}</Td>}
+                          {has("assists") && <Td right>{s.assists || 0}</Td>}
+                          {has("fouls") && <Td right>{s.fouls || 0}</Td>}
                         </>
                       )}
                     </tr>

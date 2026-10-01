@@ -3588,3 +3588,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - **Standings: Knockout box matches the group boxes** (Oct 1 2026). It was full page width; it
   is now the same width as one group table, centred above the groups, with medal icons in the
   # column for 1st-3rd and numbers from 4th on (full width on phones, like the groups).
+- **Organizer: player stats score sheet is a modal** (Oct 1 2026). It used to sit inline under the
+  scoreboard. It now pops up right after End match, and a "Player stats" card (Saved / Not entered
+  yet) reopens it any time. The player list scrolls inside the modal with Save pinned at the
+  bottom; closing with unsaved numbers asks before discarding them. Also cached the organizer
+  match list's date formatter (same per-item slowness fixed on the public pages).

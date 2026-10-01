@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CalendarClock, Circle, CircleCheck, ClipboardList, ListChecks, Play, Radio, TriangleAlert, Undo2, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
@@ -123,7 +123,11 @@ function Crest({ team, size = 40 }) {
 // choice per sport in League Setup (points, fouls, rebounds, blocks…, or the role played for
 // esports) and arrives as `data.statFields` / `data.roles`. It also picks the MVP. Blank = 0;
 // a player left completely blank is recorded as "didn't play".
-function StatsForm({ data, matchId, onSaved }) {
+// Oct 2026: shown in a MODAL (StatsDialog below), not inline under the scoreboard.
+// It opens by itself right after End match and can be reopened from the
+// "Player stats" card. This component is the modal's content; its state starts
+// fresh from the saved stats each time the modal opens.
+function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
   const showError = useErrorDialog();
   const m = data.match;
   const fields = data.statFields || [];
@@ -153,8 +157,13 @@ function StatsForm({ data, matchId, onSaved }) {
   const enteredPoints = roster.reduce((n, p) => n + (Number(rows[String(p._id)]?.points) || 0), 0);
   const diff = teamScore - enteredPoints;
 
+  // Unsaved edits — the modal asks before throwing them away.
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+
   const setField = (id, key, value) => {
     setSavedAt(null);
+    setDirty(true);
     setRows((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
   };
 
@@ -171,7 +180,10 @@ function StatsForm({ data, matchId, onSaved }) {
         body: JSON.stringify({ players, mvpPlayerId: mvp === "none" ? null : mvp }),
       });
       setSavedAt(new Date());
+      setDirty(false);
+      onDirtyChange?.(false);
       await onSaved();
+      onClose?.();
     } catch (e) { showError(e.message); }
     finally { setSaving(false); }
   }
@@ -182,17 +194,20 @@ function StatsForm({ data, matchId, onSaved }) {
   ];
 
   return (
-    <Card className="gap-0 p-4">
-      <div className="mb-1 flex items-center gap-2">
-        <ClipboardList className="size-4 text-blue-500" />
-        <h2 className="text-sm font-semibold">Player stats</h2>
-      </div>
-      <p className="mb-4 text-xs text-muted-foreground">
-        {fields.length > 0
-          ? "Enter each player's totals from your scoresheet. Leave a player blank if they didn't play. You can come back and change these later."
-          : "Pick the role each player played. Leave a player as \"No role\" if they didn't play."}
-      </p>
+    <>
+      <DialogHeader className="border-b px-4 pt-4 pb-3 sm:px-5">
+        <DialogTitle className="flex items-center gap-2">
+          <ClipboardList className="size-4 text-blue-500" /> Player stats
+        </DialogTitle>
+        <DialogDescription>
+          {fields.length > 0
+            ? "Enter each player's totals from your scoresheet. Leave a player blank if they didn't play. You can come back and change these later."
+            : "Pick the role each player played. Leave a player as \"No role\" if they didn't play."}
+        </DialogDescription>
+      </DialogHeader>
 
+      {/* Only this middle part scrolls; the title and Save stay put. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin px-4 py-3 sm:px-5">
       <div className="mb-3 flex gap-2">
         {["A", "B"].map((s) => (
           <button key={s} type="button" onClick={() => setSide(s)}
@@ -212,7 +227,7 @@ function StatsForm({ data, matchId, onSaved }) {
         </p>
       )}
 
-      <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         {roster.map((p) => {
           const r = rows[String(p._id)] || {};
           return (
@@ -270,16 +285,51 @@ function StatsForm({ data, matchId, onSaved }) {
         </Select>
       </div>
 
-      <button onClick={save} disabled={saving}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-        {saving ? "Saving…" : "Save player stats"}
-      </button>
-      {savedAt && (
-        <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-green-600 dark:text-green-400">
-          <CircleCheck className="size-3.5" /> Saved
-        </p>
-      )}
-    </Card>
+      </div>
+
+      <div className="border-t px-4 py-3 sm:px-5">
+        <button onClick={save} disabled={saving}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+          {saving ? "Saving…" : "Save player stats"}
+        </button>
+        {savedAt && (
+          <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+            <CircleCheck className="size-3.5" /> Saved
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+// The score sheet modal. Closing with unsaved numbers asks first — a stray tap
+// outside the sheet must not lose a whole scoresheet.
+function StatsDialog({ open, onOpenChange, data, matchId, onSaved }) {
+  const confirm = useConfirm();
+  const dirtyRef = useRef(false);
+  const onDirtyChange = useCallback((d) => { dirtyRef.current = d; }, []);
+
+  async function requestOpenChange(next) {
+    if (!next && dirtyRef.current) {
+      const ok = await confirm("Close without saving? The player stats you typed will be lost.", {
+        danger: true, confirmLabel: "Discard",
+      });
+      if (!ok) return;
+    }
+    if (!next) dirtyRef.current = false;
+    onOpenChange(next);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={requestOpenChange}>
+      <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        {open && (
+          <StatsForm data={data} matchId={matchId} onSaved={onSaved}
+            onClose={() => { dirtyRef.current = false; onOpenChange(false); }}
+            onDirtyChange={onDirtyChange} />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -289,6 +339,8 @@ function ScoringView({ matchId, onBack }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [ending, setEnding] = useState(false);
+  // The post-match score sheet modal (opens by itself after End match).
+  const [statsOpen, setStatsOpen] = useState(false);
   // null until the organizer taps a choice; the default comes from the sport's own options
   // (below). It used to default to 1 — which basketball doesn't even offer (only 4) — so an
   // organizer who simply tapped Start began a ONE-quarter game.
@@ -544,8 +596,8 @@ function ScoringView({ matchId, onBack }) {
           <AlertDescription className="text-foreground">
             <span className="font-medium">Match finished.</span>{" "}
             {(data.statFields?.length || 0) > 0
-              ? "Fill in the player stats below from your scoresheet."
-              : "Pick the role each player played below."}
+              ? "Fill in the player stats from your scoresheet."
+              : "Pick the role each player played."}
           </AlertDescription>
         </Alert>
       )}
@@ -670,7 +722,34 @@ function ScoringView({ matchId, onBack }) {
             </div>
           ))}
 
-          {finished && hasStatsForm && <StatsForm data={data} matchId={matchId} onSaved={load} />}
+          {/* The score sheet itself is a modal; this card opens it again any time. */}
+          {finished && hasStatsForm && (() => {
+            const saved = Object.keys(data.statByPlayer || {}).length > 0 || !!m.mvp;
+            return (
+              <Card className="gap-0 p-4">
+                <div className="mb-1 flex items-center gap-2">
+                  <ClipboardList className="size-4 text-blue-500" />
+                  <h2 className="text-sm font-semibold">Player stats</h2>
+                  <Badge className={cn("ml-auto", saved
+                    ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                    : "bg-amber-500/15 text-amber-600 dark:text-amber-400")}>
+                    {saved ? "Saved" : "Not entered yet"}
+                  </Badge>
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {saved
+                    ? "Open the score sheet to check or change the numbers."
+                    : (data.statFields?.length || 0) > 0
+                    ? "Enter each player's totals from your scoresheet."
+                    : "Pick the role each player played."}
+                </p>
+                <button onClick={() => setStatsOpen(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90">
+                  <ClipboardList className="size-4" /> {saved ? "Edit player stats" : "Fill in player stats"}
+                </button>
+              </Card>
+            );
+          })()}
 
           {live && !finalMode && tied && (m.games?.length || 0) >= (m.bestOf || 1) && (
             <p className="text-amber-600 dark:text-amber-400 text-sm text-center mt-3">
@@ -681,6 +760,10 @@ function ScoringView({ matchId, onBack }) {
 
         <Scoreboard />
       </div>
+
+      {finished && hasStatsForm && (
+        <StatsDialog open={statsOpen} onOpenChange={setStatsOpen} data={data} matchId={matchId} onSaved={load} />
+      )}
 
       <Dialog open={ending} onOpenChange={setEnding}>
         <DialogContent>
@@ -696,7 +779,13 @@ function ScoringView({ matchId, onBack }) {
             <button onClick={() => setEnding(false)}
               className="flex-1 py-2.5 rounded-lg border text-muted-foreground text-sm">Cancel</button>
             <button
-              onClick={async () => { await call("end", {}); setEnding(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              onClick={async () => {
+                await call("end", {});
+                setEnding(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                // Straight into the score sheet.
+                if (hasStatsForm) setStatsOpen(true);
+              }}
               disabled={busy}
               className="flex-1 py-2.5 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
               {busy ? "Ending…" : "Confirm"}
@@ -707,6 +796,11 @@ function ScoringView({ matchId, onBack }) {
     </div>
   );
 }
+
+// Built ONCE — a new Intl.DateTimeFormat per match on every render is slow (Oct 2026 perf pass).
+const MANILA_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+});
 
 function ListSkeleton() {
   return (
@@ -765,10 +859,7 @@ export default function OrganizerScoring() {
   // A group picked under another division may not exist here — fall back to all.
   const activeGroup = groups.includes(group) ? group : "all";
   const matches = activeGroup === "all" ? inDivision : inDivision.filter((m) => groupKey(m) === activeGroup);
-  const manilaDay = (d) =>
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(new Date(d));
+  const manilaDay = (d) => MANILA_DAY.format(new Date(d));
   const todayKey = manilaDay(new Date());
   const isToday = (d) => !!d && manilaDay(d) === todayKey;
   const bySchedule = (a, b) => new Date(a.schedule || 0) - new Date(b.schedule || 0);

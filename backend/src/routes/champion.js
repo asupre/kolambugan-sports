@@ -56,6 +56,10 @@ router.get('/', async (req, res) => {
         prize: c.prize,
         notes: c.notes,
         hasPhoto: !!c.photo,
+        // The photo's GridFS file id: a replaced photo is a NEW file, so the
+        // pages put this in the image URL and the browser fetches the new one
+        // instead of showing its cached copy until a refresh (Oct 2026).
+        photoRev: c.photo ? String(c.photo) : null,
       })),
     });
   } catch (err) {

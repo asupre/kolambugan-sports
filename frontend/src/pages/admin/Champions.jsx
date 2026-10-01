@@ -31,7 +31,9 @@ const BLANK = {
 };
 
 const MAX_PHOTO = 3 * 1024 * 1024;
-const photoUrl = (c) => `/api/champions/${c.id}/photo?c=2`;
+// ?f= is the photo's file id (photoRev): replacing the photo changes the URL, so
+// the new one shows at once instead of the browser's cached copy (Oct 2026).
+const photoUrl = (c) => `/api/champions/${c.id}/photo?f=${c.photoRev || "none"}`;
 
 export default function Champions() {
   const showError = useErrorDialog();

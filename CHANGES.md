@@ -3604,3 +3604,7 @@ its filename and status, making "should I delete this and re-upload" a guess.
   shows it under the VS.
 - **VS rows: sport/division label lifted higher** (Oct 1 2026) — more space between it and the
   score, and a little more space between rows so each label clearly belongs to its own game.
+- **Champions: a replaced photo shows immediately** (Oct 1 2026). After the Super Admin changed a
+  champion's photo, the old one kept showing until the page was refreshed, because the photo URL
+  never changed. The champion list now returns the photo's file id (`photoRev`) and both
+  Champions pages put it in the URL, so a new photo means a new URL.

@@ -2268,6 +2268,12 @@ repeat this pass before the next deploy.
   them). Photo `<img>` URLs carry `?rev=` / `?f=<photo file id>` / `?c=2` so
   browsers skip copies cached under the old rule. New file routes: pick a policy
   on purpose, and never use `public` for anything private.
+  **A FIXED query (`?c=2`) is not enough for a photo that can be REPLACED** — the
+  URL never changes, so the page keeps showing its cached image until a refresh.
+  Put the file id in the URL instead. Champions did exactly that (Oct 1 2026: "when
+  I change one the user needs to refresh"): `GET /api/champions` now returns
+  `photoRev` (the GridFS file id; PATCH uploads a new file on replace) and both
+  Champions pages use `?f=<photoRev>`.
 - **Mongoose `findOneAndUpdate({ new: true })` is deprecated** — use
   `returnDocument: 'after'`. Fixed in `organizer.js`; `siteimage.js`'s
   `PATCH /:key/focal` still uses the old `{ new: true }` and needs the

@@ -5,7 +5,9 @@ import { Lightbox } from "../../components/DocumentViewer";
 import Reveal from "../../components/Reveal";
 import { formatPrize } from "../../lib/peso";
 
-const photoUrl = (c) => `/api/champions/${c.id}/photo?c=2`;
+// ?f= is the photo's file id (photoRev), so a replaced photo gets a new URL
+// and visitors see it without a hard refresh (Oct 2026).
+const photoUrl = (c) => `/api/champions/${c.id}/photo?f=${c.photoRev || "none"}`;
 const titleOf = (c) => c.teamName || `Barangay ${c.barangay}`;
 
 // Sport tabs come from the CHAMPIONS themselves, not the current season — a

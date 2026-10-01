@@ -3614,3 +3614,7 @@ its filename and status, making "should I delete this and re-upload" a guess.
   (`GlassStage`), with a coloured group-letter badge (A blue, B green, C amber, D violet…).
   Round-robin standings show two groups side by side from `md`. Blur only on the panels, at `lg`,
   never on the match boxes. Visual only — no bracket logic touched.
+- **Admin Tournaments: round-robin group matches collapse by round** (Oct 1 2026). The "Group
+  matches" list under a round-robin sport's standings is now one card per round (plus one for the
+  tiebreaker playoff), opened and closed with a chevron like the Schedule section's rounds. A round
+  where every match is played starts closed; the header shows "N matches · x/N played".

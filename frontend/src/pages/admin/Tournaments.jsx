@@ -135,6 +135,9 @@ function StandingsView({ tournamentId }) {
 function MatchesView({ tournamentId }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Same as the Schedule section: one collapsible card per round, a fully
+  // played round starts closed so it doesn't bury the rounds still to play.
+  const [openRounds, setOpenRounds] = useState({});
 
   useEffect(() => {
     let alive = true;
@@ -161,6 +164,11 @@ function MatchesView({ tournamentId }) {
 
   const group = matches.filter((m) => !m.isTiebreaker);
   const playoff = matches.filter((m) => m.isTiebreaker);
+  const rounds = [...new Set(group.map((m) => m.round))].sort((a, b) => a - b);
+  const sections = [
+    ...rounds.map((r) => ({ key: `r-${r}`, label: `Round ${r}`, list: group.filter((m) => m.round === r) })),
+    ...(playoff.length > 0 ? [{ key: "playoff", label: "Tiebreaker playoff", list: playoff }] : []),
+  ];
 
   const Row = ({ m }) => {
     const done = ["completed", "forfeited"].includes(m.status);
@@ -192,14 +200,27 @@ function MatchesView({ tournamentId }) {
           scored by the organizer — {group.filter((m) => ["completed", "forfeited"].includes(m.status)).length}/{group.length} played
         </span>
       </div>
-      <div className="space-y-2">{group.map((m) => <Row key={m._id} m={m} />)}</div>
-
-      {playoff.length > 0 && (
-        <>
-          <h3 className="font-medium text-sm mt-5 mb-2">Tiebreaker playoff</h3>
-          <div className="space-y-2">{playoff.map((m) => <Row key={m._id} m={m} />)}</div>
-        </>
-      )}
+      <div className="space-y-3">
+        {sections.map(({ key, label, list }) => {
+          const played = list.filter((m) => ["completed", "forfeited"].includes(m.status)).length;
+          const allPlayed = played === list.length;
+          const open = openRounds[key] ?? !allPlayed;
+          return (
+            <Card key={key} className="p-0 gap-0 overflow-hidden">
+              <button onClick={() => setOpenRounds({ ...openRounds, [key]: !open })}
+                aria-expanded={open}
+                className={cn("flex items-center gap-2 w-full text-left bg-muted/60 px-4 py-3 hover:bg-muted", open && "border-b")}>
+                {open ? <ChevronDown className="size-3.5 text-muted-foreground" /> : <ChevronRight className="size-3.5 text-muted-foreground" />}
+                <h4 className="font-medium text-sm">{label}</h4>
+                <span className="text-muted-foreground text-xs">
+                  {list.length} match{list.length === 1 ? "" : "es"} · {allPlayed ? "all played" : `${played}/${list.length} played`}
+                </span>
+              </button>
+              {open && <div className="space-y-2 p-3">{list.map((m) => <Row key={m._id} m={m} />)}</div>}
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

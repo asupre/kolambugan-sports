@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Panel, PanelSkeleton, Crest, TabRow, GlassBackdrop, DIVISION_LABEL } from "../../components/PublicUI";
+import { Panel, PanelSkeleton, Crest, TabRow, DIVISION_LABEL } from "../../components/PublicUI";
 import Reveal from "../../components/Reveal";
 
 const PLACE = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th" };
@@ -55,11 +55,9 @@ export default function Standings() {
   // from the tournament, not a constant — a hardcoded 2 was wrong for a Top 8 knockout.
   const advance = data?.tournament?.advancePerGroup || 2;
 
-  // Glassmorphism trial (Oct 2026): glows fixed behind the page, frosted panels.
   return (
     <>
-      <GlassBackdrop />
-      <div className="relative z-10">
+      <div>
       <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-4">Standings</h1>
 
       <TabRow

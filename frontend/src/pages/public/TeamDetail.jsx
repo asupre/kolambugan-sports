@@ -111,7 +111,7 @@ export default function TeamDetail() {
         {roster.length > 0 && (
           <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full">
-              <thead className="border-b border-[#22344F]">
+              <thead className="border-b border-white/[0.08]">
                 <tr>
                   <Th>#</Th>
                   <Th>Player</Th>
@@ -128,7 +128,7 @@ export default function TeamDetail() {
                   const s = p.stats || { points: 0, fouls: 0, games: 0 };
                   const ppg = s.games > 0 ? (s.points / s.games).toFixed(1) : "—";
                   return (
-                    <tr key={p.id} className="border-b border-[#22344F] last:border-0">
+                    <tr key={p.id} className="border-b border-white/[0.08] last:border-0">
                       <Td dim>{p.jerseyNumber ?? "—"}</Td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3 min-w-0">

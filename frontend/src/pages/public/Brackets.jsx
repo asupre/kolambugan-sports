@@ -55,12 +55,12 @@ function MatchCard({ m, innerRef }) {
   return (
     <div
       ref={innerRef}
-      className={`rounded border bg-[#122036] w-42 sm:w-60 shrink-0 overflow-hidden ${
-        live ? "border-red-500/40" : "border-[#22344F]"
+      className={`rounded border bg-white/[0.05] w-42 sm:w-60 shrink-0 overflow-hidden ${
+        live ? "border-red-500/40" : "border-white/[0.08]"
       }`}
     >
       <Side team={m.teamA} score={m.scoreA} won={aWin} />
-      <div className="border-t border-[#22344F]" />
+      <div className="border-t border-white/[0.08]" />
       <Side team={m.teamB} score={m.scoreB} won={bWin} />
       {live && (
         <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 bg-red-500/10 text-red-400 text-[12px] font-semibold">
@@ -99,7 +99,7 @@ function WinnerCard({ match, label, sublabel, bothQualify, icon, tone = "gold" }
 
   return (
     <div className={`w-42 sm:w-60 shrink-0 rounded border px-2.5 sm:px-3 py-2 sm:py-3 flex items-center gap-2.5 ${
-      done ? c.box : "border-dashed border-[#22344F] bg-[#122036]"
+      done ? c.box : "border-dashed border-white/[0.12] bg-white/[0.03]"
     }`}>
       {icon && <PlaceIcon src={icon} done={!!done} />}
       <div className="min-w-0 flex-1">
@@ -130,7 +130,7 @@ function SecondPlaceCard({ match }) {
     : null;
   return (
     <div className={`w-42 sm:w-60 shrink-0 rounded border px-2.5 sm:px-3 py-2 sm:py-3 flex items-center gap-2.5 ${
-      done ? "border-slate-400/40 bg-slate-400/[0.06]" : "border-dashed border-[#22344F] bg-[#122036]"
+      done ? "border-slate-400/40 bg-slate-400/[0.06]" : "border-dashed border-white/[0.12] bg-white/[0.03]"
     }`}>
       <PlaceIcon src="/medals/2nd-place.png" done={!!done} />
       <div className="min-w-0 flex-1">
@@ -251,7 +251,7 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
 
   return (
     <div>
-      <div className="flex px-4 py-2.5 border-b border-[#22344F] text-slate-500 text-[12px] font-medium tracking-wider">
+      <div className="flex px-4 py-2.5 border-b border-white/[0.08] text-slate-500 text-[12px] font-medium tracking-wider">
         <span className="w-6">#</span>
         <span className="flex-1">TEAM</span>
         <span className="w-10 text-center">W</span>
@@ -265,7 +265,7 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
         const marked = isThrough || provisional;
         return (
           <div key={r.teamId}
-            className={`flex items-center px-4 py-3 border-b border-[#22344F] ${
+            className={`flex items-center px-4 py-3 border-b border-white/[0.08] ${
               isThrough ? "bg-[#FACC15]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : provisional ? "bg-[#FACC15]/[0.03]" : ""
             }`}>
             <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#FACC15]" : "text-slate-600"}`}>
@@ -288,7 +288,7 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
         );
       })}
 
-      <div className="px-4 py-2 bg-[#172840] border-b border-[#22344F]">
+      <div className="px-4 py-2 bg-white/[0.04] border-b border-white/[0.08]">
         <span className="text-slate-300 text-[14px] font-semibold">Fixtures</span>
       </div>
       {matches.map((m) => {
@@ -297,7 +297,7 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
         const aWin = decided && String(m.winner) === String(m.teamA?.id);
         const tone = (won) => (!decided ? "text-slate-400" : won ? "text-emerald-400 font-semibold" : "text-red-400/80");
         return (
-          <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#22344F] last:border-0">
+          <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.08] last:border-0">
             <span className={`flex-1 min-w-0 truncate text-right text-[15px] ${tone(aWin)}`}>
               {m.teamA?.name || "TBD"}
             </span>

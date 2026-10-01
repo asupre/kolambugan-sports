@@ -1027,15 +1027,21 @@ so a bug in one route cannot expose the other.
   side-by-side version broke names mid-word. The same-day clean-card grid and the purple banners
   were both replaced. Home no longer uses `FixtureRow` / `ScoreStrip` (still exported, unused by
   Home/Matches).
-- **VS rows show the VENUE under the time / VS** (Oct 1 2026, Super Admin request): small grey
-  text in the centre column of `VsMatchRow`, 2 lines max (84px wide on phones, 150px desktop).
-- **Standings is GLASSMORPHISM** (Oct 1 2026, Super Admin tried it and kept it): `Panel` has an
-  opt-in `glass` prop (translucent `bg-white/[0.05]`, `backdrop-blur-xl`, `border-white/[0.12]`,
-  `rounded-2xl`, inset top highlight + soft shadow) and `GlassBackdrop` (PublicUI.jsx) paints three
-  FIXED blurred glows (blue, yellow, sky) behind the page — glass needs colour behind it. Standings
-  wraps its content in `relative z-10` above the backdrop; its row dividers are `border-white/[0.07]`.
-  Only Standings uses it. Caution: `backdrop-filter` is costly on phone GPUs (the admin dialog
-  blur was removed for exactly that) — if Standings feels laggy on a phone, drop the blur first.
+- **VS rows show the VENUE under the time / VS, BOLD** (Oct 1 2026, Super Admin: "visible and
+  bold"): centre column of `VsMatchRow`, `font-bold text-slate-100`, 11px / 13px, with a yellow
+  map-pin icon, 2 lines max.
+- **The WHOLE public viewer is GLASSMORPHISM** (Oct 1 2026 — tried on Standings first, then
+  applied everywhere). `PublicLayout` renders `GlassBackdrop` ONCE (PublicUI.jsx: three FIXED
+  blurred glows — blue, yellow, sky — glass needs colour behind it); `main` and `footer` are
+  `relative z-10` above it, the header is `bg-[#0B1626]/70 backdrop-blur-xl`, the footer
+  `/85` + blur. `Panel` is glass BY DEFAULT (`glass={false}` = the old solid panel):
+  `rounded-2xl`, `bg-white/[0.05]`, `backdrop-blur-xl`, `border-white/[0.12]`, inset top highlight
+  + soft shadow; skeletons match. Dividers / inner borders are `border-white/[0.08]` (was
+  `#22344F`). Other surfaces: Home stat tiles, Champions cards, Matches tab bar, search input =
+  glass WITH blur (few of them). **Repeated small items — bracket match boxes, Players cards,
+  DateBar, placeholders — are translucent `bg-white/[0.03-0.05]` WITHOUT their own blur**, on
+  purpose: they sit on an already-blurred panel, and dozens of `backdrop-filter`s on one page lag
+  a phone (the admin dialog blur was removed for exactly that). Keep that rule for new UI.
 - **Screenshotting public pages with scroll reveals**: plain `msedge --screenshot` leaves every
   `Reveal` at opacity 0. Drive Edge over CDP (Node's global `WebSocket`), scroll the page, inject
   `[style*=opacity]{opacity:1!important;transform:none!important}`, then

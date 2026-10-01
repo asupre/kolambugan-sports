@@ -16,7 +16,7 @@ import { VsMatchList } from "../../components/VsMatch";
 // ongoing, same "color means something" rule as LiveDot elsewhere.
 function StatTile({ icon, value, label, live }) {
   return (
-    <div className={`rounded-xl border ${live ? "border-red-500/35" : "border-[#22344F]"} bg-[#122036] px-2.5 py-4 text-center`}>
+    <div className={`rounded-2xl border ${live ? "border-red-500/35" : "border-white/[0.12]"} bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] px-2.5 py-4 text-center`}>
       <div className="flex justify-center mb-2">{icon}</div>
       <div className="text-slate-50 text-[30px] font-extrabold leading-none tabular-nums">{value}</div>
       <div className={`text-[11px] tracking-wide uppercase mt-2 font-semibold ${live ? "text-red-400" : "text-slate-500"}`}>
@@ -195,7 +195,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <div className="px-4 py-3.5 border-t border-[#22344F]">
+            <div className="px-4 py-3.5 border-t border-white/[0.08]">
               <Link to="/matches" className="text-[#FACC15] text-[14px] font-medium hover:underline">Full schedule →</Link>
             </div>
           </Panel>
@@ -213,7 +213,7 @@ export default function Home() {
       {/* About the league */}
       <Reveal>
         <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-          <SiteImage slot="league" label="league photo" className="w-full h-52 rounded-lg border border-[#22344F]" />
+          <SiteImage slot="league" label="league photo" className="w-full h-52 rounded-lg border border-white/[0.08]" />
           <div className="flex flex-col justify-center">
             <h2 className="text-slate-100 text-xl font-semibold mb-2">About the league</h2>
             {/* SAMPLE COPY — replace before deployment. */}
@@ -247,7 +247,7 @@ export default function Home() {
               Browse the teams →
             </Link>
           </div>
-          <SiteImage slot="barangay" label="municipality photo" className="w-full h-52 rounded-lg border border-[#22344F] md:order-2 order-1" />
+          <SiteImage slot="barangay" label="municipality photo" className="w-full h-52 rounded-lg border border-white/[0.08] md:order-2 order-1" />
         </section>
       </Reveal>
 
@@ -256,7 +256,7 @@ export default function Home() {
         <Reveal>
           <Panel title="Recent results" count={`${recent.length}`}>
             <div className="px-3 sm:px-5 py-5"><VsMatchList matches={recent.slice(0, 5)} /></div>
-            <div className="px-4 py-3.5 border-t border-[#22344F]">
+            <div className="px-4 py-3.5 border-t border-white/[0.08]">
               <Link to="/matches" className="text-[#FACC15] text-[14px] font-medium hover:underline">All results →</Link>
             </div>
           </Panel>

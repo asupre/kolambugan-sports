@@ -98,7 +98,7 @@ export default function Champions() {
               <Panel title="Most titles" count="all sports">
                 <ol>
                   {leaders.map(([name, n], i) => (
-                    <li key={name} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 border-b border-[#22344F] last:border-0">
+                    <li key={name} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 border-b border-white/[0.08] last:border-0">
                       <span className={`w-5 text-[15px] tabular-nums ${i === 0 ? "text-[#F5A524] font-semibold" : "text-slate-500"}`}>
                         {i + 1}
                       </span>
@@ -132,7 +132,7 @@ export default function Champions() {
 
 function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError }) {
   return (
-    <article className="flex flex-col rounded-lg border border-[#22344F] bg-[#122036] overflow-hidden">
+    <article className="flex flex-col rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden">
       {showPhoto ? (
         <button
           type="button"
@@ -156,7 +156,7 @@ function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError }) {
           </span>
         </button>
       ) : (
-        <div className="relative flex aspect-video w-full items-center justify-center bg-[#172840]">
+        <div className="relative flex aspect-video w-full items-center justify-center bg-white/[0.04]">
           <Crest name={c.barangay} size={64} />
         </div>
       )}
@@ -171,7 +171,7 @@ function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError }) {
         {c.teamName && <p className="text-slate-400 text-[14px] mt-0.5">Barangay {c.barangay}</p>}
 
         {(c.mvp || c.prize) && (
-          <dl className="mt-3 pt-3 border-t border-[#22344F] grid grid-cols-2 gap-3">
+          <dl className="mt-3 pt-3 border-t border-white/[0.08] grid grid-cols-2 gap-3">
             {c.mvp && (
               <div className="min-w-0">
                 <dt className="text-slate-500 text-[12px] uppercase tracking-wider">MVP</dt>

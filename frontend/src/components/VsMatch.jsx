@@ -118,9 +118,13 @@ export function VsMatchRow({ m, showDate = true }) {
           )}
         </div>
         {/* Venue under the VS (Super Admin request, Oct 2026). */}
+        {/* Bold + a yellow pin so it reads at a glance (Super Admin, Oct 2026). */}
         {m.venue && (
-          <div className="mt-1 max-w-[84px] sm:max-w-[150px] text-[10px] sm:text-[12px] leading-snug text-slate-400 line-clamp-2 break-words">
-            {m.venue}
+          <div className="mt-1.5 flex items-start justify-center gap-1 max-w-[92px] sm:max-w-[170px] text-[11px] sm:text-[13px] font-bold leading-snug text-slate-100">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="mt-[1px] size-3 sm:size-3.5 shrink-0 fill-[#FACC15]">
+              <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+            </svg>
+            <span className="line-clamp-2 break-words">{m.venue}</span>
           </div>
         )}
       </div>

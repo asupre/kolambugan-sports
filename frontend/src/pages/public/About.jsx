@@ -9,7 +9,7 @@ import Reveal from "../../components/Reveal";
 
 function Step({ n, title, children }) {
   return (
-    <div className="flex gap-4 px-4 sm:px-5 py-4 border-b border-[#22344F] last:border-0">
+    <div className="flex gap-4 px-4 sm:px-5 py-4 border-b border-white/[0.08] last:border-0">
       <div className="w-7 h-7 rounded-full bg-[#22344F] text-[#FACC15] text-[13px] font-semibold flex items-center justify-center shrink-0">
         {n}
       </div>
@@ -42,7 +42,7 @@ export default function About() {
       {/* SAMPLE COPY — replace before deployment. */}
       <Reveal>
       <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-        <SiteImage slot="about" label="league photo" className="w-full h-56 rounded-lg border border-[#22344F]" />
+        <SiteImage slot="about" label="league photo" className="w-full h-56 rounded-lg border border-white/[0.08]" />
         <div className="flex flex-col justify-center">
           <h2 className="text-slate-100 text-lg font-semibold mb-2">The league</h2>
           <p className="text-slate-400 text-[14px] leading-relaxed mb-3">
@@ -131,7 +131,7 @@ export default function About() {
               for verification.
             </p>
           </div>
-          <div className="pt-3 border-t border-[#22344F]">
+          <div className="pt-3 border-t border-white/[0.08]">
             <p className="text-slate-500 text-[15px] leading-relaxed">
               This system was developed as an undergraduate thesis at the Lanao
               School of Science and Technology, Inc.

@@ -31,7 +31,7 @@ function PhotoTile({ player }) {
 
 function PlayerCard({ p }) {
   return (
-    <RevealItem className="border-r border-b border-[#22344F] bg-[#122036]">
+    <RevealItem className="border-r border-b border-white/[0.08] bg-white/[0.03]">
     <div className="flex h-full flex-col items-center text-center px-3 py-4">
       <PhotoTile player={p} />
       <div className="mt-2.5 flex items-baseline gap-1.5 max-w-full">
@@ -162,7 +162,7 @@ export default function Players() {
                     {t.players.map((p) => <PlayerCard key={p.id} p={p} />)}
                   </RevealGroup>
                   </div>
-                  <div className="px-4 sm:px-5 py-3.5 border-t border-[#22344F]">
+                  <div className="px-4 sm:px-5 py-3.5 border-t border-white/[0.08]">
                     <Link to={`/teams/${t.id}`} className="text-[#FACC15] text-[14px] font-medium hover:underline">
                       Team page →
                     </Link>
@@ -180,7 +180,7 @@ export default function Players() {
                         {visibleLeaders.map((p) => {
               const ppg = p.games > 0 ? (p.points / p.games).toFixed(1) : "—";
               return (
-                <div key={p.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 border-b border-[#22344F] last:border-0">
+                <div key={p.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 border-b border-white/[0.08] last:border-0">
                   <span className={`w-6 text-[17px] font-semibold tabular-nums ${podium(p.rank)}`}>{p.rank}</span>
                   <PlayerAvatar player={p} size={40} />
                   <div className="flex-1 min-w-0">

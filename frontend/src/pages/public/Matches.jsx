@@ -63,7 +63,7 @@ function DayBlock({ label, list, note, showDate }) {
   const byTime = (a, b) => new Date(a.schedule || 0) - new Date(b.schedule || 0) || (a.group || "").localeCompare(b.group || "");
   return (
     <section className="mb-7">
-      <div className="flex items-baseline gap-2.5 border-b border-[#22344F] pb-2 mb-4">
+      <div className="flex items-baseline gap-2.5 border-b border-white/[0.08] pb-2 mb-4">
         <h2 className="text-white text-[22px] uppercase tracking-wide leading-none" style={{ fontFamily: "Anton, sans-serif" }}>{label}</h2>
         {note && <span className="text-slate-500 text-[13px]">{note}</span>}
       </div>
@@ -76,7 +76,7 @@ function DayBlock({ label, list, note, showDate }) {
 
 function Tabs({ tabs, value, onChange }) {
   return (
-    <div role="tablist" className="inline-flex rounded-lg border border-[#22344F] bg-[#122036] p-1 mb-6 max-w-full overflow-x-auto">
+    <div role="tablist" className="inline-flex rounded-xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl p-1 mb-6 max-w-full overflow-x-auto">
       {tabs.map((t) => {
         const on = t.value === value;
         return (

@@ -125,16 +125,16 @@ export function PlayerAvatar({ player, size = 40 }) {
   );
 }
 
-// glass: frosted-glass look (Standings trial, Oct 2026) — translucent fill, backdrop
+// glass (DEFAULT since Oct 2026 — whole public viewer): frosted-glass look — translucent fill, backdrop
 // blur, hairline white border and a top highlight. Needs something colourful
-// behind it (see GlassBackdrop) or it just reads as a darker panel.
-export function Panel({ title, count, children, empty, actions, glass = false }) {
+// behind it (GlassBackdrop, rendered once by PublicLayout). glass={false} = old solid panel.
+export function Panel({ title, count, children, empty, actions, glass = true }) {
   return (
     <section className={glass
       ? "relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden"
-      : "rounded-lg border border-[#22344F] bg-[#122036] mb-5 overflow-hidden"}>
+      : "rounded-lg border border-white/[0.08] bg-[#122036] mb-5 overflow-hidden"}>
       {title && (
-        <div className={`px-4 sm:px-5 py-3.5 border-b ${glass ? "border-white/[0.08] bg-white/[0.03]" : "border-[#22344F]"} flex items-center justify-between gap-2.5`}>
+        <div className={`px-4 sm:px-5 py-3.5 border-b ${glass ? "border-white/[0.08] bg-white/[0.03]" : "border-white/[0.08]"} flex items-center justify-between gap-2.5`}>
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 min-w-0">
             <h2 className="text-slate-100 text-[17px] font-semibold truncate max-w-full">{title}</h2>
             {count != null && <span className="text-slate-500 text-[13px]">{count}</span>}
@@ -196,12 +196,12 @@ function TeamLine({ team, size = 28, className = "text-slate-100" }) {
 // letters on a phone ("Ku… vs Ri…"); stacked, each name gets the full width.
 export function FixtureRow({ m, when, where, context }) {
   return (
-    <div className="flex gap-3 px-4 py-3 border-b border-[#22344F] last:border-0">
+    <div className="flex gap-3 px-4 py-3 border-b border-white/[0.08] last:border-0">
       <div className="w-[4.5rem] sm:w-24 shrink-0 pt-0.5">
         <div className="text-slate-100 text-[15px] font-semibold tabular-nums leading-tight">{when || "TBD"}</div>
         {where && <div className="text-slate-500 text-[13px] leading-snug mt-1 line-clamp-2 break-words">{where}</div>}
       </div>
-      <div className="flex-1 min-w-0 border-l border-[#22344F] pl-3">
+      <div className="flex-1 min-w-0 border-l border-white/[0.08] pl-3">
         {context && <div className="text-slate-500 text-[13px] leading-snug line-clamp-2 mb-0.5">{context}</div>}
         <TeamLine team={m.teamA} />
         <TeamLine team={m.teamB} />
@@ -228,7 +228,7 @@ export function ScoreStrip({ m, showTime = true }) {
   const aLeads = m.scoreA >= m.scoreB;
   const place = [matchContext(m), m.venue].filter(Boolean).join(" · ");
   return (
-    <div className="px-4 py-3.5 border-b border-[#22344F] last:border-0">
+    <div className="px-4 py-3.5 border-b border-white/[0.08] last:border-0">
       <div className="flex items-start justify-between gap-3 mb-1">
         <span className="text-slate-500 text-[13px] leading-snug line-clamp-2">{place}</span>
         {live ? (
@@ -259,7 +259,7 @@ export function ScoreStrip({ m, showTime = true }) {
 // Date header bar inside a schedule panel.
 export function DateBar({ children, count }) {
   return (
-    <div className="px-4 py-2.5 bg-[#172840] border-b border-[#22344F] flex items-baseline gap-2">
+    <div className="px-4 py-2.5 bg-white/[0.04] border-b border-white/[0.08] flex items-baseline gap-2">
       <span className="text-slate-100 text-[14px] font-semibold">{children}</span>
       {count != null && <span className="text-slate-500 text-[13px]">{count}</span>}
     </div>
@@ -275,7 +275,7 @@ export function CarouselArrow({ dir, onClick, disabled }) {
       onClick={onClick}
       disabled={disabled}
       aria-label={dir === "prev" ? "Scroll left" : "Scroll right"}
-      className="w-7 h-7 rounded-full border border-[#22344F] flex items-center justify-center text-slate-400 hover:text-slate-100 hover:border-[#2E4466] disabled:opacity-30 disabled:pointer-events-none transition"
+      className="w-7 h-7 rounded-full border border-white/[0.08] flex items-center justify-center text-slate-400 hover:text-slate-100 hover:border-[#2E4466] disabled:opacity-30 disabled:pointer-events-none transition"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
         <path d={dir === "prev" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} strokeLinecap="round" strokeLinejoin="round" />
@@ -353,7 +353,7 @@ export function TabRow({ items, value, onChange }) {
   const overflow = edge.left || edge.right;
 
   return (
-    <div className="mb-6 border-b border-[#22344F] flex items-end gap-2">
+    <div className="mb-6 border-b border-white/[0.08] flex items-end gap-2">
       <div className="relative flex-1 min-w-0">
         <div
           ref={ref}
@@ -432,7 +432,7 @@ export function SiteImage({ slot, label, className = "", hideOnFail = false, onL
   if (failed && hideOnFail) return null;
   if (failed) {
     return (
-      <div className={`flex items-center justify-center bg-[#172840] border border-dashed border-[#2E4466] ${className}`}>
+      <div className={`flex items-center justify-center bg-white/[0.04] border border-dashed border-white/[0.15] ${className}`}>
         <span className="text-slate-600 text-[11px] tracking-wide">Sample image · {label}</span>
       </div>
     );
@@ -461,13 +461,13 @@ export function Skeleton({ className = "" }) {
 // page whose loaded content is a stack of rows.
 export function PanelSkeleton({ rows = 4, title = true }) {
   return (
-    <section className="rounded-lg border border-[#22344F] bg-[#122036] mb-5 overflow-hidden">
+    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
       {title && (
-        <div className="px-5 py-3.5 border-b border-[#22344F]">
+        <div className="px-5 py-3.5 border-b border-white/[0.08]">
           <Skeleton className="h-4 w-32" />
         </div>
       )}
-      <div className="divide-y divide-[#22344F]">
+      <div className="divide-y divide-white/[0.08]">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3.5">
             <Skeleton className="h-6 w-6 rounded shrink-0" />
@@ -483,13 +483,13 @@ export function PanelSkeleton({ rows = 4, title = true }) {
 // Grid-of-tiles panel — stands in for Teams and the Players "all" view.
 export function TileGridSkeleton({ tiles = 6, cols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" }) {
   return (
-    <section className="rounded-lg border border-[#22344F] bg-[#122036] mb-5 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-[#22344F]">
+    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-white/[0.08]">
         <Skeleton className="h-4 w-32" />
       </div>
       <div className={`grid ${cols} gap-px bg-[#22344F]`}>
         {Array.from({ length: tiles }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 px-5 py-4 bg-[#122036]">
+          <div key={i} className="flex items-center gap-3 px-5 py-4">
             <Skeleton className="h-10 w-10 rounded shrink-0" />
             <div className="min-w-0 flex-1 space-y-1.5">
               <Skeleton className="h-3.5 w-3/4" />
@@ -505,12 +505,12 @@ export function TileGridSkeleton({ tiles = 6, cols = "grid-cols-2 sm:grid-cols-3
 // Photo + text rows — stands in for Champions.
 export function PhotoRowSkeleton({ rows = 2 }) {
   return (
-    <section className="rounded-lg border border-[#22344F] bg-[#122036] mb-5 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-[#22344F]">
+    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-white/[0.08]">
         <Skeleton className="h-4 w-24" />
       </div>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex flex-col sm:flex-row gap-5 p-5 border-b border-[#22344F] last:border-0">
+        <div key={i} className="flex flex-col sm:flex-row gap-5 p-5 border-b border-white/[0.08] last:border-0">
           <Skeleton className="shrink-0 w-full sm:w-72 h-48 sm:h-52 rounded" />
           <div className="min-w-0 flex-1 space-y-2.5 py-2">
             <Skeleton className="h-3 w-20" />
@@ -538,7 +538,7 @@ export function LiveDot({ className = "" }) {
 // Focus glow (a soft gold ring, not just the border color swap) and the
 // clear button both animate with Motion — the clear button was a plain
 // `{value && <button>}` that just popped in/out with no transition, and the
-// focus state had almost no visible feedback (`border-[#22344F]` to
+// focus state had almost no visible feedback (`border-white/[0.08]` to
 // `border-[#2E4466]` is barely a shade apart). Gold matches the rest of the
 // site's one accent color, so "the search bar is active" reads the same way
 // "this nav link is active" or "this is live" already do everywhere else.
@@ -567,7 +567,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…" }) {
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-[#22344F] bg-[#122036] text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#FACC15]/50 transition-colors"
+        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.05] backdrop-blur-md text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#FACC15]/50 transition-colors"
       />
       <AnimatePresence>
         {value && (

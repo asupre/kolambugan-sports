@@ -3562,3 +3562,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - **Standings: glassmorphism** (Oct 1 2026, Super Admin trial, kept). Frosted translucent panels
   (blur, hairline white border, soft shadow) over fixed blue / yellow / sky glows. Opt-in `glass`
   prop on the shared `Panel` plus a `GlassBackdrop`; only the Standings page uses them.
+- **Whole public viewer is glassmorphism** (Oct 1 2026, after the Standings trial). Fixed blue /
+  yellow / sky glows behind every public page; panels, stat tiles, champion cards, the Matches
+  tab bar, search box, header and footer are frosted translucent glass. Small repeated items
+  (bracket boxes, player cards) are translucent without their own blur, to keep phones smooth.
+- **Venue under the VS is bold** (Oct 1 2026): white bold text with a yellow map-pin icon.

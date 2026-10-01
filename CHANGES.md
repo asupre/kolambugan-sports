@@ -3513,3 +3513,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
   `periodOptions`. The server refuses even lengths for these sports (400: "A best-of series
   needs an odd number of games") — a best of 2 or 4 has no guaranteed majority.
   `routes/reference.js` (`evenSeries`), `SportConfig.jsx`.
+- **Public Standings: double-elim group order fixed** (Oct 1 2026). A double-elim group's
+  table was sorted by wins first, so teams that came through the losers bracket (3-1, 3-2)
+  sat above the unbeaten upper-bracket winner (2-0, seed #1), e.g. Palao in Badminton Boys
+  Group A. Now ordered seed 1, seed 2, then fewest losses, then most wins. Round-robin tables
+  (everyone plays the same number of games) keep wins first. `Standings.jsx` only.

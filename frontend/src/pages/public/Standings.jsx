@@ -119,9 +119,19 @@ export default function Standings() {
               const contested = new Set(q?.contested || []);
                             // A qualifier below an eliminated team reads as a mistake, even
               // though the table is sorted by group record.
+              // Double-elim: teams play different numbers of matches, so wins
+              // alone puts a 3-1 runner-up above the unbeaten 2-0 group winner.
+              // Seed 1, seed 2, then fewest losses, then most wins.
               const ordered = clear.size
                 ? [...rows].sort((a, b) => (clear.has(b.teamId) ? 1 : 0) - (clear.has(a.teamId) ? 1 : 0))
-                : rows;
+                : isRoundRobin
+                ? rows
+                : [...rows].sort(
+                    (a, b) =>
+                      (seedOf(a.teamId) ?? 9) - (seedOf(b.teamId) ?? 9) ||
+                      a.losses - b.losses ||
+                      b.wins - a.wins
+                  );
               const provisional =
                 seeds.length === 0 && clear.size === 0 && contested.size === 0 &&
                 rows.some((r) => r.played > 0);

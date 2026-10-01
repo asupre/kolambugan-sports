@@ -3593,3 +3593,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
   yet) reopens it any time. The player list scrolls inside the modal with Save pinned at the
   bottom; closing with unsaved numbers asks before discarding them. Also cached the organizer
   match list's date formatter (same per-item slowness fixed on the public pages).
+- **Organizer: player points can't exceed the team's score** (Oct 1 2026). On the player stats
+  sheet, a points number that would push a team past its final score is lowered to what is left,
+  with a red note explaining why. The server also refuses a save where a team's player points add
+  up to more than the team scored. Applies to sports scored by points (basketball, volleyball,
+  badminton, pickleball); chess, billiards and esports keep score in games won, so not capped.

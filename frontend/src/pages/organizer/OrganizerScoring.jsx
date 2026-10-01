@@ -167,6 +167,30 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
     setRows((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
   };
 
+  // Player points can't add up to more than the team scored (Oct 2026; the server
+  // refuses it too). Only where the team score IS a points total — a games-won
+  // sport (chess, billiards, esports) keeps its score as games. A number that
+  // would go over is lowered to what is left, with a note saying why.
+  const capPoints = data.scoringMode !== "final" && fields.includes("points");
+  const [capNote, setCapNote] = useState("");
+  const setPoints = (id, raw) => {
+    let v = raw.replace(/\D/g, "").slice(0, 3);
+    if (capPoints && v !== "") {
+      const others = roster.reduce(
+        (n, p) => (String(p._id) === id ? n : n + (Number(rows[String(p._id)]?.points) || 0)), 0);
+      const left = Math.max(0, (teamScore || 0) - others);
+      if (Number(v) > left) {
+        v = String(left);
+        setCapNote(left === 0
+          ? `${teamOf(side)?.teamName} scored ${teamScore || 0} and the other players already have them all, so no points are left for this player.`
+          : `${teamOf(side)?.teamName} scored ${teamScore || 0}, so only ${left} point${left === 1 ? " is" : "s are"} left for this player.`);
+      } else {
+        setCapNote("");
+      }
+    }
+    setField(id, "points", v);
+  };
+
   async function save() {
     setSaving(true);
     try {
@@ -210,7 +234,7 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin px-4 py-3 sm:px-5">
       <div className="mb-3 flex gap-2">
         {["A", "B"].map((s) => (
-          <button key={s} type="button" onClick={() => setSide(s)}
+          <button key={s} type="button" onClick={() => { setSide(s); setCapNote(""); }}
             className={cn(
               "flex-1 truncate rounded-lg px-2 py-2.5 text-sm font-medium transition",
               side === s ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
@@ -224,6 +248,11 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
         <p className={cn("mb-3 text-xs tabular-nums", diff === 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400")}>
           Player points {enteredPoints} · team score {teamScore}
           {diff === 0 ? " — matches" : diff > 0 ? ` — ${diff} short` : ` — ${-diff} over`}
+        </p>
+      )}
+      {capNote && (
+        <p role="status" className="-mt-1.5 mb-3 flex items-start gap-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+          <TriangleAlert className="mt-px size-3.5 shrink-0" /> {capNote}
         </p>
       )}
 
@@ -246,7 +275,9 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
                       <span className="mb-0.5 block text-center text-[10px] font-medium tracking-wide text-muted-foreground">{data.statLabels?.[f]?.short || f}</span>
                       <input
                         inputMode="numeric" pattern="[0-9]*" value={r[f] ?? ""}
-                        onChange={(e) => setField(String(p._id), f, e.target.value.replace(/\D/g, "").slice(0, 3))}
+                        onChange={(e) => (f === "points"
+                          ? setPoints(String(p._id), e.target.value)
+                          : setField(String(p._id), f, e.target.value.replace(/\D/g, "").slice(0, 3)))}
                         placeholder="0"
                         className="h-11 w-full rounded-lg border bg-background text-center text-base font-semibold tabular-nums outline-none focus:ring-2 focus:ring-primary/40"
                       />

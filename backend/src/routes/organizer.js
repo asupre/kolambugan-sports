@@ -291,8 +291,11 @@ router.put('/matches/:matchId/stats', async (req, res) => {
     const rules = rulesFor(ctx.sport);
     const rows = Array.isArray(req.body.players) ? req.body.players : [];
 
-    const links = await TeamPlayer.find({ team: { $in: [match.teamA, match.teamB] } }).select('player');
+    const links = await TeamPlayer.find({ team: { $in: [match.teamA, match.teamB] } }).select('player team');
     const onRoster = new Set(links.map((l) => String(l.player)));
+    // Which side each player is on, for the points cap below.
+    const sideOf = {};
+    links.forEach((l) => { sideOf[String(l.player)] = String(l.team) === String(match.teamA) ? 'A' : 'B'; });
 
     // Validate everything first so a bad row can't leave the form half-saved.
     const clean = [];
@@ -316,6 +319,25 @@ router.put('/matches/:matchId/stats', async (req, res) => {
       doc.$set.role = role || null;
       doc.empty = !role && Object.values(doc.$set).every((v) => v === 0 || v === null);
       clean.push(doc);
+    }
+
+    // Players can't score more than their team did (Oct 2026). Only for sports scored by
+    // POINTS, where the team score is a points total; a games-won sport (chess, billiards,
+    // esports) keeps its score as games, so a "points" column there isn't capped by it.
+    if (rules.scoringMode !== 'final' && rules.statFields.includes('points')) {
+      const sum = { A: 0, B: 0 };
+      for (const d of clean) {
+        const side = sideOf[d.player];
+        if (side) sum[side] += Number(d.$set.points) || 0;
+      }
+      for (const [side, team, score] of [['A', match.teamA, match.liveScoreA || 0], ['B', match.teamB, match.liveScoreB || 0]]) {
+        if (sum[side] > score) {
+          const name = (await Team.findById(team).select('teamName'))?.teamName || 'a team';
+          return res.status(400).json({
+            message: `${name}'s players add up to ${sum[side]} points, but the team scored ${score}. Player points can't be more than the team's score.`,
+          });
+        }
+      }
     }
 
     let mvp = match.mvp || null;

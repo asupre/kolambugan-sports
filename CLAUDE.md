@@ -624,6 +624,14 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   scrolling middle (players 2 columns from `sm`), Save pinned at the bottom; saving closes it.
   Closing with unsaved edits asks "Close without saving?" first (`dirtyRef`). Tested against a
   mock organizer API with headless Edge at 1280 and 390px.
+  **Player points can't exceed the team's score** (Oct 1 2026), per team, for sports scored by
+  POINTS only (`scoringMode !== 'final'`; chess / billiards / esports keep their score as games,
+  so a "points" column there is not capped). Form: `setPoints` lowers a number that would go over
+  to what is left and shows a red `capNote` ("…so only 12 points are left for this player").
+  Server: `PUT .../stats` sums each side's points (`sideOf` from TeamPlayer.team) and returns 400
+  ("X's players add up to 63 points, but the team scored 62…") — the real guard; the form is
+  convenience. Tested: form via the mock (70→62, then 5→0, 15→12 after lowering to 50); route via
+  stubbed models (6 cases incl. exact total allowed and chess not capped).
   **Which columns the sheet has is the Super Admin's choice per sport** (League Setup → each sport's
   "After-match score sheet", stored as `Sport.scoreSheet`; absent = the built-in default, empty =
   no player form). The catalog and defaults are in `backend/src/lib/sportRules.js`

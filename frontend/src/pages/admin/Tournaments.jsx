@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useState, useRef, useLayoutEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2, Trophy } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { DateTimePicker } from "../../components/DateTimePicker";
@@ -27,6 +27,57 @@ import { cn } from "../../lib/utils";
 
 const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under15: "U15", under30: "U30" };
 
+// Glass panels (Oct 2026): each group / the knockout sits in its own frosted
+// panel over soft colour glows, so the groups read as separate blocks. One hue
+// per group letter tells them apart at a glance. Blur is lg-only and only on
+// these few panels, never on the match boxes inside (phone GPU cost).
+const GROUP_HUE = {
+  A: "bg-blue-500/15 text-blue-600 dark:text-blue-400 ring-blue-500/30",
+  B: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-emerald-500/30",
+  C: "bg-amber-500/15 text-amber-600 dark:text-amber-400 ring-amber-500/30",
+  D: "bg-violet-500/15 text-violet-600 dark:text-violet-400 ring-violet-500/30",
+  E: "bg-rose-500/15 text-rose-600 dark:text-rose-400 ring-rose-500/30",
+  F: "bg-sky-500/15 text-sky-600 dark:text-sky-400 ring-sky-500/30",
+  G: "bg-orange-500/15 text-orange-600 dark:text-orange-400 ring-orange-500/30",
+  H: "bg-teal-500/15 text-teal-600 dark:text-teal-400 ring-teal-500/30",
+};
+
+// Glass needs colour behind it: radial gradients (no blur filters) under the panels.
+function GlassStage({ children, className }) {
+  return (
+    <div className={cn("relative isolate", className)}>
+      <div aria-hidden="true" className="pointer-events-none absolute -inset-2 -z-10 rounded-3xl opacity-80 dark:opacity-60"
+        style={{ background:
+          "radial-gradient(40% 50% at 8% 0%, rgba(59,130,246,.22), transparent 70%)," +
+          "radial-gradient(35% 45% at 95% 30%, rgba(14,165,233,.18), transparent 70%)," +
+          "radial-gradient(40% 40% at 40% 100%, rgba(250,204,21,.14), transparent 70%)" }} />
+      {children}
+    </div>
+  );
+}
+
+function GlassPanel({ letter, title, subtitle, children, className }) {
+  return (
+    <section className={cn(
+      "min-w-0 rounded-2xl border border-white/70 dark:border-white/[0.12] bg-white/55 dark:bg-white/[0.05] lg:backdrop-blur-xl",
+      "shadow-[inset_0_1px_0_rgba(255,255,255,.7),0_10px_30px_-14px_rgba(15,23,42,.35)]",
+      "dark:shadow-[inset_0_1px_0_rgba(255,255,255,.06),0_10px_30px_-14px_rgba(0,0,0,.6)]",
+      "p-4 sm:p-5", className)}>
+      <header className="flex items-center gap-3 mb-4 pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
+        <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl font-bold ring-1",
+          GROUP_HUE[letter] || "bg-primary/15 text-primary ring-primary/30")}>
+          {letter || <Trophy className="size-4" />}
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-semibold leading-tight">{title}</h3>
+          {subtitle && <p className="text-muted-foreground text-xs mt-0.5">{subtitle}</p>}
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+}
+
 function StandingsView({ tournamentId }) {
   const [groups, setGroups] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,13 +96,13 @@ function StandingsView({ tournamentId }) {
     return <p className="text-muted-foreground text-sm">No standings yet.</p>;
 
   return (
-    <div className="space-y-6">
+    <GlassStage className="grid gap-4 md:grid-cols-2">
       {Object.entries(groups).filter(([name]) => name !== "-").map(([groupName, table]) => (
-        <div key={groupName}>
-          <h3 className="font-medium text-sm mb-2">Group {groupName}</h3>
-          <div className="overflow-x-auto scrollbar-thin rounded-lg border">
+        <GlassPanel key={groupName} letter={groupName} title={`Group ${groupName}`}
+          subtitle={`${table.length} team${table.length === 1 ? "" : "s"}`}>
+          <div className="overflow-x-auto scrollbar-thin rounded-lg border bg-card/70">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-muted-foreground text-left">
+              <thead className="bg-muted/70 text-muted-foreground text-left">
                 <tr>
                   <th className="px-3 py-2 font-medium w-8">#</th>
                   <th className="px-3 py-2 font-medium">Team</th>
@@ -75,9 +126,9 @@ function StandingsView({ tournamentId }) {
               </tbody>
             </table>
           </div>
-        </div>
+        </GlassPanel>
       ))}
-    </div>
+    </GlassStage>
   );
 }
 
@@ -819,10 +870,9 @@ function BracketView({ tournamentId }) {
   const koThird = knockout.find((m) => (m.bracket || "").includes("third"));
 
   return (
-    <div>
+    <GlassStage className="space-y-5">
       {koMain.length > 0 && (
-        <div className="mb-8">
-          <h3 className="font-semibold mb-3">Knockout</h3>
+        <GlassPanel title="Knockout" subtitle="Single elimination · winners advance, semifinal losers play for 3rd">
           <BracketTree matches={koMain} labelFor={koLabel}
             winner={{ match: finalOf(koMain), label: "Champion", sublabel: null, icon: "/medals/trophy.png" }} runnerUp />
           {koThird && (
@@ -835,36 +885,33 @@ function BracketView({ tournamentId }) {
               </div>
             </div>
           )}
-        </div>
+        </GlassPanel>
       )}
 
-      {groups.map((g) => (
-        <div key={g} className="mb-8">
-          <h3 className="font-semibold mb-3">Group {g}</h3>
-          {(() => {
-            const w = grouped.filter((m) => m.group === g && m.bracket === "winners");
-            const l = grouped.filter((m) => m.group === g && m.bracket === "losers");
-            return (
-              <>
-                <BracketTree title="Winners" matches={w} labelFor={(r) => `Round ${r}`}
-                  winner={w.length > 0 ? {
-                    match: finalOf(w),
-                    label: "Winner",
-                    sublabel: l.length === 0 ? "Both teams qualify" : "Qualifies as seed 1",
-                    bothQualify: l.length === 0,
-                  } : null} />
-                <BracketTree title="Losers" matches={l} labelFor={(r, i) => `Round ${i + 1}`}
-                  winner={l.length > 0 ? {
-                    match: finalOf(l),
-                    label: "Winner",
-                    sublabel: "Qualifies as seed 2",
-                  } : null} />
-              </>
-            );
-          })()}
-        </div>
-      ))}
-    </div>
+      {groups.map((g) => {
+        const w = grouped.filter((m) => m.group === g && m.bracket === "winners");
+        const l = grouped.filter((m) => m.group === g && m.bracket === "losers");
+        // A round-robin group has no winners/losers tree to draw here.
+        if (w.length === 0 && l.length === 0) return null;
+        return (
+          <GlassPanel key={g} letter={g} title={`Group ${g}`} subtitle="Double elimination · top 2 qualify">
+            <BracketTree title="Winners" matches={w} labelFor={(r) => `Round ${r}`}
+              winner={w.length > 0 ? {
+                match: finalOf(w),
+                label: "Winner",
+                sublabel: l.length === 0 ? "Both teams qualify" : "Qualifies as seed 1",
+                bothQualify: l.length === 0,
+              } : null} />
+            <BracketTree title="Losers" matches={l} labelFor={(r, i) => `Round ${i + 1}`}
+              winner={l.length > 0 ? {
+                match: finalOf(l),
+                label: "Winner",
+                sublabel: "Qualifies as seed 2",
+              } : null} />
+          </GlassPanel>
+        );
+      })}
+    </GlassStage>
   );
 }
 

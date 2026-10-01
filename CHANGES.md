@@ -3608,3 +3608,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
   champion's photo, the old one kept showing until the page was refreshed, because the photo URL
   never changed. The champion list now returns the photo's file id (`photoRev`) and both
   Champions pages put it in the URL, so a new photo means a new URL.
+- **Admin Tournaments: groups in glass panels** (Oct 1 2026, Super Admin: "we can't clearly see
+  the divided groups"). Each group (double-elim brackets, and the round-robin standings tables)
+  and the Knockout now sit in their own frosted panel (`GlassPanel`) over soft colour glows
+  (`GlassStage`), with a coloured group-letter badge (A blue, B green, C amber, D violet…).
+  Round-robin standings show two groups side by side from `md`. Blur only on the panels, at `lg`,
+  never on the match boxes. Visual only — no bracket logic touched.

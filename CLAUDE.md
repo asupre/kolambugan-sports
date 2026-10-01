@@ -2316,6 +2316,11 @@ repeat this pass before the next deploy.
   be announced" and "Waiting for a result" (past-dated, not played). Its `MatchCard` is local to
   this page; Home still uses the shared `FixtureRow` / `ScoreStrip`. Rendered at 1366px and 600px
   against the production API before shipping.
+- **Admin Tournaments groups are GLASS PANELS** (Oct 1 2026, "we can't clearly see the divided
+  groups"): `GlassStage` (radial-gradient glows, no blur filter) holds one `GlassPanel` per group
+  and one for the Knockout in `Tournaments.jsx` (BracketView + StandingsView), each with a
+  group-letter badge coloured from `GROUP_HUE` (A-H). Light + dark aware. Same perf rule as the
+  public site: `backdrop-blur` only on these few panels and only at `lg`, never on `MatchBox`.
 - **Revert button removed from the admin Tournaments page** (Oct 1 2026, Super Admin: "not
   necessary now"). Both the bracket `MatchBox` and the round-robin match list lost it. The
   backend `POST /api/tournaments/matches/:id/revert` route is still there, but nothing calls it.

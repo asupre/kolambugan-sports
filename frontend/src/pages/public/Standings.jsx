@@ -93,29 +93,31 @@ export default function Standings() {
               : "Two teams advance from each group — the winner of the upper bracket and the winner of the lower bracket. Highlighted once decided."}
           </p>
 
+          {/* Same size and layout as a group box (Oct 2026), centred above the groups:
+              one grid column wide (half the row minus half the 1.25rem gap) at lg. */}
           {knockout.length > 0 && (
-            <Reveal>
+            <Reveal className="mx-auto w-full lg:w-[calc(50%-0.625rem)]">
               <Panel glass title="Knockout">
                 <div className="flex px-4 py-2.5 border-b border-white/[0.07] text-slate-500 text-[12px] font-medium tracking-wider">
-                  <span className="w-16">#</span>
+                  <span className="w-8">#</span>
                   <span className="flex-1">TEAM</span>
                   <span className="w-10 text-center">W</span>
                   <span className="w-10 text-center">L</span>
                 </div>
                 {knockout.map((r, i) => (
                   <div key={r.teamId} className={`flex items-center px-4 py-3 border-b border-white/[0.07] last:border-0 ${MEDAL[r.place]?.row || ""}`}>
-                    <span className={`w-16 flex items-center gap-1.5 text-[13px] tabular-nums ${MEDAL[r.place] ? `${MEDAL[r.place].text} font-semibold` : "text-slate-500"}`}>
-                      {MEDAL[r.place] && (
-                        <img src={MEDAL[r.place].icon} alt="" aria-hidden="true" loading="lazy" decoding="async" className="size-6 object-contain" />
-                      )}
-                      {r.place ? PLACE[r.place] : i + 1}
+                    {/* 1st-3rd: the medal icon alone (it says the place); 4th on: the number, like a group table. */}
+                    <span className="w-8 flex items-center text-[15px] tabular-nums text-slate-500">
+                      {MEDAL[r.place] ? (
+                        <img src={MEDAL[r.place].icon} alt={PLACE[r.place]} title={`${PLACE[r.place]} place`} loading="lazy" decoding="async" className="size-6 object-contain" />
+                      ) : (r.place || i + 1)}
                     </span>
                     <div className="flex-1 min-w-0 flex items-center gap-2.5">
                       <Crest name={r.teamName} barangayId={r.barangayId} size={28} />
                       <span className={`text-[16px] truncate ${r.place === 1 ? "text-slate-100" : "text-slate-300"}`}>{r.teamName}</span>
                       {r.forfeitWins > 0 && (
                         <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 uppercase tracking-wide">
-                          {r.forfeitWins === 1 ? "1 win by forfeit" : `${r.forfeitWins} wins by forfeit`}
+                          {r.forfeitWins === 1 ? "1 forfeit win" : `${r.forfeitWins} forfeit wins`}
                         </span>
                       )}
                     </div>

@@ -2264,7 +2264,7 @@ repeat this pass before the next deploy.
   `routes/public.js`, returned as `knockout` on `/api/public/bracket`): group tables only
   count group matches, so knockout wins, forfeits included, used to show up nowhere (a
   pickleball champion that won the final by forfeit still read 3-1). It lists place
-  (1st-4th from the final / 3rd-place match), W/L, and "N win(s) by forfeit". Public Standings' provisional highlight (before a group's
+  (1st-4th from the final / 3rd-place match), W/L, and "N forfeit win(s)". **Since Oct 1 2026 it is the SAME size as a group box, centred above the groups** (`lg:w-[calc(50%-0.625rem)] mx-auto` — one grid column of the `gap-5` group grid; full width on phones), with a narrow `#` column: the medal icon alone for 1st-3rd, the number from 4th on. Public Standings' provisional highlight (before a group's
   qualifiers are decided) now only marks teams with at least one win.
   **Double-elim group tables are ordered seed 1, seed 2, then fewest losses, then most wins**
   (Oct 1 2026, `ordered` in `Standings.jsx`): the server sorts by wins first, which is right for

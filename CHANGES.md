@@ -3585,3 +3585,6 @@ its filename and status, making "should I delete this and re-upload" a guess.
   failed refresh keeps the page instead of blanking it. Also: fewer match rows drawn up front
   ("Show more days"), memoised match rows, off-screen sections skipped, crests render once,
   cheaper glass (gradient glows, panel blur only on large screens).
+- **Standings: Knockout box matches the group boxes** (Oct 1 2026). It was full page width; it
+  is now the same width as one group table, centred above the groups, with medal icons in the
+  # column for 1st-3rd and numbers from 4th on (full width on phones, like the groups).

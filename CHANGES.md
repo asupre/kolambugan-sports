@@ -3567,3 +3567,6 @@ its filename and status, making "should I delete this and re-upload" a guess.
   tab bar, search box, header and footer are frosted translucent glass. Small repeated items
   (bracket boxes, player cards) are translucent without their own blur, to keep phones smooth.
 - **Venue under the VS is bold** (Oct 1 2026): white bold text with a yellow map-pin icon.
+- **Players page: "Top scorers" removed** (Oct 1 2026, Super Admin request). The page now only
+  shows the rosters (All players); the view switch is gone. The backend `/api/public/leaders`
+  route is kept but nothing calls it.

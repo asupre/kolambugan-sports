@@ -1107,7 +1107,7 @@ so a bug in one route cannot expose the other.
   the SVG wires are measured from box positions, so the boxes must move
   together with the stage), Teams (each row as ONE block; per-card stagger lagged, Sep 2026), Players (card grid, staggered), About
   (every section). NOT wrapped: the hero, Home's LIVE NOW tile + "Live now"
-  panel, Matches, Champions, TeamDetail, Players' "Top scorers" list.
+  panel, Matches, Champions, TeamDetail. (Players' "Top scorers" list was REMOVED Oct 1 2026 — the Players page is rosters only; `/api/public/leaders` is still there but unused.)
   Card grids use per-card borders (`border-r border-b` inside an
   `overflow-hidden` wrapper with `-mr-px -mb-px`), not the old
   `gap-px bg-[#1C2430]` trick — with that, unrevealed cards showed as grey

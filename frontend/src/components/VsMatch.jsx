@@ -98,7 +98,7 @@ function VsMatchRowImpl({ m, showDate = true }) {
 
       <div className="flex flex-col items-center text-center min-w-[56px] sm:min-w-[110px]">
         {/* Sport · division, centred over the time / score. Two short lines on a phone. */}
-        <div className="mb-1.5 flex flex-col sm:flex-row sm:gap-1.5 items-center text-[11px] sm:text-[13px] font-bold uppercase tracking-wide leading-tight text-slate-100">
+        <div className="-mt-1 mb-3 sm:-mt-2 sm:mb-4 flex flex-col sm:flex-row sm:gap-1.5 items-center text-[11px] sm:text-[13px] font-bold uppercase tracking-wide leading-tight text-slate-100">
           <span>{m.sport}</span>
           <span className="hidden sm:inline text-slate-500">·</span>
           <span className="text-slate-300">{DIVISION_LABEL[m.division] || m.division}</span>
@@ -155,7 +155,7 @@ function VsMatchRowImpl({ m, showDate = true }) {
 // across a wide desktop.
 export function VsMatchList({ matches, showDate = true, className = "" }) {
   return (
-    <div className={`mx-auto w-full max-w-5xl flex flex-col gap-5 sm:gap-6 ${className}`}>
+    <div className={`mx-auto w-full max-w-5xl flex flex-col gap-7 sm:gap-9 ${className}`}>
       {matches.map((m) => <VsMatchRow key={m.id} m={m} showDate={showDate} />)}
     </div>
   );

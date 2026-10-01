@@ -3602,3 +3602,5 @@ its filename and status, making "should I delete this and re-upload" a guess.
   from the small strip under the left team's name to the middle, above the time or score, in
   bigger bold text. The Matches competition headings no longer repeat the venue, since every row
   shows it under the VS.
+- **VS rows: sport/division label lifted higher** (Oct 1 2026) — more space between it and the
+  score, and a little more space between rows so each label clearly belongs to its own game.

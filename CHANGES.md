@@ -3544,3 +3544,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   is now crest + angled violet→blue name banner on each side with the time (or score) in the
   middle, replacing the stacked rows. Finished games: winner green, loser red with a grey banner.
   Also reverses the earlier "no gradients, no VS badges" public design rule.
+- **Public viewer re-recoloured: steel-blue navy + yellow** (Oct 1 2026). The purple/violet
+  version above was rejected ("it looks bad") and replaced the same day, following the Super
+  Admin's "new UI sample for web" (an esports dashboard): navy-blue background and cards, yellow
+  accent and yellow buttons with dark text, faint blue glow. Gold still only for medal meaning.
+- **Matches cards redone in the same style** (Oct 1 2026). The angled gradient VS banners were
+  dropped for clean rounded cards: stage chip on top, crest above each team name facing each
+  other, time + yellow "VS" pill (or the score "0 : 1", winner green / loser red) in the middle,
+  Anton uppercase day headings, 1-3 column grid.

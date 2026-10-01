@@ -1001,24 +1001,24 @@ so a bug in one route cannot expose the other.
 ## Design system (two looks, one product)
 
 **Public Viewer — DARK, "ESPN structure" (decided Aug 2026):**
-- **RECOLOURED to indigo + violet (Oct 1 2026, Super Admin's "UI color sample" — an esports
-  site). Supersedes the navy/gold hex values in the bullets below**, which are kept as history.
-  Mapping (mechanical, every public file): page `#0A1220`→`#0E0B2F`, footer `#060C16`→`#08061F`,
-  panel `#0F141C`→`#161241`, bar `#141A24`→`#1D184F`, border `#1C2430`→`#2B2566`, strong border
-  `#2A3441`→`#3B3482`, accent gold `#F5A524`/`#D9A441`→violet `#A855F7` (hover `#C084FC`), hero
-  fallback `#0C3550`→`#1A1150` and its scrim `rgba(8,35,52)`→`rgba(14,11,47)`. Also
-  `PUBLIC_CHROME` in `lib/themeChrome.js`, `index.html`'s pre-React colour, `.scrollbar-public`.
-  `PublicLayout` adds two faint radial glows (violet top, blue right) behind the page.
-  **Gold is kept ONLY where it means a medal / 1st**: bracket Champion card (`CARD_TONE.gold`),
-  Standings 1st (`MEDAL[1]`), Champions "Most titles" #1, Players rank 1, plus Basketball's own
-  colour in `SportGrid`. A new public accent = violet, not gold. Gradients are now allowed
-  where the sample has them (the VS banners, `from-[#9D3DF5] to-[#3B5BDB]`).
-- **Matches = VS cards (Oct 1 2026, "vs sample ui")**: `MatchCard` in `Matches.jsx` is
-  `[crest][angled gradient name banner]  time|score  [banner][crest]` (`Side`/`Banner`,
-  `clip-path` slant on the inner edge, a light strip under the name). Upcoming: time in Anton +
-  "VS" (no time → "TBA"); live: score + red LIVE/period; finished: score with winner green /
-  loser red, the loser's banner turns grey and its crest greyscale, a green "WON" chip under the
-  winner's crest. Cards are 1 column, 2 from `xl`. Phone (≤600px) checked: names wrap to 2 lines.
+- **CURRENT PALETTE = steel-blue navy + YELLOW accent (Oct 1 2026, Super Admin's "new UI
+  sample for web" — an esports dashboard). Supersedes the navy/gold hex values in the bullets
+  below (kept as history).** Same day, a purple/indigo + violet version (from a "UI color sample")
+  shipped first and was rejected as "looks bad" — don't bring it back. Values used across every
+  public file: page `#0B1626`, footer `#070F1C`, panel/card `#122036`, bar/chip `#172840`,
+  border `#22344F`, strong border `#2E4466`, accent yellow `#FACC15` (hover `#FDE047`, pressed
+  `#EAB308`) — yellow BUTTONS carry dark `#0B1626` text, as in the sample. Hero fallback
+  `#0E2340`, scrim `rgba(11,22,38,…)`. Also `PUBLIC_CHROME` (`lib/themeChrome.js`), `index.html`'s
+  pre-React colour, `.scrollbar-public`. `PublicLayout` paints two faint radial glows (blue top,
+  sky right). **Gold `#F5A524` stays ONLY for medal / 1st meaning**: bracket Champion card
+  (`CARD_TONE.gold`), Standings 1st (`MEDAL[1]`), Champions "Most titles" #1, Players rank 1,
+  Basketball's own colour in `SportGrid`.
+- **Matches cards (Oct 1 2026)**: `MatchCard` in `Matches.jsx` — a clean rounded card (`#122036`):
+  a stage chip ("Group A · Winners Round 2") + FINAL / LIVE on top, then the two teams FACING each
+  other with crest ABOVE name (`Side`), time (Anton) + a yellow "VS" pill in the middle, or the
+  score "0 : 1" (winner green, loser red; loser crest greyscale + dimmed name, green "WINNER" chip
+  under the winner). Day headings are Anton uppercase. Grid 1 / 2 / 3 columns (phone / sm / xl).
+  The angled gradient "VS banner" version from the "vs sample ui" was replaced the same day.
 - Background `#0A1220`; footer `#060C16`; panels `#0F141C`; `PublicLayout`
   borders use `slate-500/15` while panel borders use `#1C2430`; accent gold
   `#F5A524`. (Supersedes the earlier "R7 navy" note — the real R7 site

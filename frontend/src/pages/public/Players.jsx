@@ -14,7 +14,7 @@ function PhotoTile({ player }) {
   const name = `${player.firstName || ""} ${player.lastName || ""}`.trim();
   const show = SHOW_PLAYER_PHOTOS && player.hasPhoto && !failed;
   return (
-    <div className="w-20 h-20 rounded-full overflow-hidden bg-[#2B2566] flex items-center justify-center shrink-0">
+    <div className="w-20 h-20 rounded-full overflow-hidden bg-[#22344F] flex items-center justify-center shrink-0">
       {show ? (
         <img
           src={playerPhotoUrl(player.id)}
@@ -31,11 +31,11 @@ function PhotoTile({ player }) {
 
 function PlayerCard({ p }) {
   return (
-    <RevealItem className="border-r border-b border-[#2B2566] bg-[#161241]">
+    <RevealItem className="border-r border-b border-[#22344F] bg-[#122036]">
     <div className="flex h-full flex-col items-center text-center px-3 py-4">
       <PhotoTile player={p} />
       <div className="mt-2.5 flex items-baseline gap-1.5 max-w-full">
-        <span className="text-[#A855F7] text-[17px] font-bold tabular-nums shrink-0">
+        <span className="text-[#FACC15] text-[17px] font-bold tabular-nums shrink-0">
           {p.jerseyNumber ?? "—"}
         </span>
         <span className="text-slate-100 text-[15px] font-semibold truncate">{p.lastName}</span>
@@ -110,7 +110,7 @@ export default function Players() {
     <button
       onClick={() => setView(v)}
       className={`px-3 py-2 rounded text-[14px] font-medium transition ${
-        view === v ? "bg-[#2B2566] text-slate-100" : "text-slate-500 hover:text-slate-300"
+        view === v ? "bg-[#22344F] text-slate-100" : "text-slate-500 hover:text-slate-300"
       }`}
     >
       {label}
@@ -162,8 +162,8 @@ export default function Players() {
                     {t.players.map((p) => <PlayerCard key={p.id} p={p} />)}
                   </RevealGroup>
                   </div>
-                  <div className="px-4 sm:px-5 py-3.5 border-t border-[#2B2566]">
-                    <Link to={`/teams/${t.id}`} className="text-[#A855F7] text-[14px] font-medium hover:underline">
+                  <div className="px-4 sm:px-5 py-3.5 border-t border-[#22344F]">
+                    <Link to={`/teams/${t.id}`} className="text-[#FACC15] text-[14px] font-medium hover:underline">
                       Team page →
                     </Link>
                   </div>
@@ -180,7 +180,7 @@ export default function Players() {
                         {visibleLeaders.map((p) => {
               const ppg = p.games > 0 ? (p.points / p.games).toFixed(1) : "—";
               return (
-                <div key={p.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 border-b border-[#2B2566] last:border-0">
+                <div key={p.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 border-b border-[#22344F] last:border-0">
                   <span className={`w-6 text-[17px] font-semibold tabular-nums ${podium(p.rank)}`}>{p.rank}</span>
                   <PlayerAvatar player={p} size={40} />
                   <div className="flex-1 min-w-0">

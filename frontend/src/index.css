@@ -250,11 +250,11 @@
     background: transparent;
   }
   .scrollbar-public::-webkit-scrollbar-thumb {
-    background-color: #3B3482;
+    background-color: #2E4466;
     border-radius: 9999px;
   }
   .scrollbar-public::-webkit-scrollbar-thumb:hover {
-    background-color: #A855F7;
+    background-color: #FACC15;
   }
   /* Swipeable tab rows on the public site: still scrolls, no bar. */
   .scrollbar-none {

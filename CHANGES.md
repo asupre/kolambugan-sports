@@ -3572,3 +3572,7 @@ its filename and status, making "should I delete this and re-upload" a guess.
   route is kept but nothing calls it.
 - **Team page stats readable** (Oct 1 2026). GP, PPG, REB, AST and Fouls were dim grey next to a
   bright PTS; every stat column is now bold white like PTS, and the column headers are lighter.
+- **Players page: poster cards like Teams, bigger; opens on the first sport** (Oct 1 2026). Each
+  team is a swipe/drag row of large 3:4 player cards (headshot filling the card, or big initials;
+  jersey number, surname, first name and points on a dark strip). The page used to open on
+  Basketball even though Badminton is the first tab; it now opens on the first tab.

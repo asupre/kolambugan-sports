@@ -1105,7 +1105,7 @@ so a bug in one route cannot expose the other.
   Today, Coming up, About-league, Kolambugan, Recent results), Standings (each group
   table), Brackets (each PANEL — Knockout + groups — not the round columns:
   the SVG wires are measured from box positions, so the boxes must move
-  together with the stage), Teams (each row as ONE block; per-card stagger lagged, Sep 2026), Players (card grid, staggered), About
+  together with the stage), Teams (each row as ONE block; per-card stagger lagged, Sep 2026), Players (each team row as ONE block, like Teams — Oct 2026), About
   (every section). NOT wrapped: the hero, Home's LIVE NOW tile + "Live now"
   panel, Matches, Champions, TeamDetail. (Players' "Top scorers" list was REMOVED Oct 1 2026 — the Players page is rosters only; `/api/public/leaders` is still there but unused.)
   Card grids use per-card borders (`border-r border-b` inside an
@@ -1188,6 +1188,12 @@ so a bug in one route cannot expose the other.
   `RevealItem`s: 20+ cards animating while their crests decode stuttered), and
   cover crests use `decoding="async"` + `loading="lazy"` with a blank tile (not the
   monogram) while the logo check is pending.
+- **Players page = poster cards like Teams, BIGGER** (Oct 1 2026, `Players.jsx`): one drag-scroll
+  row per team (`TeamRow`, same arrows/scroll logic as Teams' `TeamGroupPanel`) of `PlayerCard`s —
+  `w-52 sm:w-60` (teams are `w-44 sm:w-48`), `aspect-[3/4]`; the headshot fills the card (no photo →
+  big Anton initials on a navy gradient), jersey # (yellow Anton) + SURNAME + first name + a
+  "15 PTS · 3 GP" chip on a dark bottom scrim. Card links to the team page. **Opens on the FIRST
+  sport tab** (it used to force Basketball, skipping Badminton which sits first).
 - **Champions pages (Sep 29 2026)**: public `/champions` is a card grid per year
   (16:9 photo, gold Anton year heading) + a "Most titles" panel (all sports, sticky at
   `lg`); photos open the shared zoomable `Lightbox` in gallery mode across every photo on

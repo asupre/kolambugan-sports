@@ -10,21 +10,22 @@ import { useDragScroll } from "../../hooks/useDragScroll";
 // overlaid at the bottom on a dark scrim so the text stays legible over
 // whatever the photo looks like. Fixed width so the row scrolls
 // horizontally instead of wrapping.
+// Oct 2026: same size and type as the Players page cards (w-52 / sm:w-60).
 function TeamCard({ t }) {
   return (
-    <div className="w-44 sm:w-48 shrink-0 snap-start">
+    <div className="w-52 sm:w-60 shrink-0 snap-start">
       <Link
         to={`/teams/${t.id}`}
-        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-[#22344F] hover:border-[#FACC15]/50 transition"
+        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-white/[0.12] hover:border-[#FACC15]/50 transition"
       >
         <Crest name={t.barangay || t.name} barangayId={t.barangayId} variant="cover" />
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3 pt-12 pb-3">
-          <div className="text-white text-[17px] font-bold leading-tight truncate">{t.name}</div>
-          <div className="text-slate-300 text-[13px] truncate mt-0.5">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3.5 pt-14 pb-3.5">
+          <div className="text-white text-[19px] font-bold uppercase leading-tight truncate">{t.name}</div>
+          <div className="text-slate-300 text-[14px] truncate mt-0.5">
             {t.barangay ? `Brgy. ${t.barangay}` : "—"}
           </div>
           {t.format && (
-            <span className="inline-block mt-1.5 rounded-full border border-[#FACC15]/40 bg-black/30 px-2.5 py-0.5 text-[12px] font-medium text-[#FACC15]">
+            <span className="inline-block mt-2 rounded-full border border-[#FACC15]/40 bg-black/30 px-2.5 py-0.5 text-[12px] font-medium text-[#FACC15]">
               {FORMAT_LABEL[t.format] || t.format}
             </span>
           )}
@@ -67,6 +68,7 @@ function TeamGroupPanel({ sportName, division, list }) {
 
   return (
     <Panel
+      className="[content-visibility:auto] [contain-intrinsic-size:auto_440px]"
       title={`${sportName} · ${DIVISION_LABEL[division] || division}`}
       count={`${list.length}`}
       actions={scrollable && (

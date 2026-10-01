@@ -3576,3 +3576,12 @@ its filename and status, making "should I delete this and re-upload" a guess.
   team is a swipe/drag row of large 3:4 player cards (headshot filling the card, or big initials;
   jersey number, surname, first name and points on a dark strip). The page used to open on
   Basketball even though Badminton is the first tab; it now opens on the first tab.
+- **Teams cards match the Players cards** (Oct 1 2026): same bigger size and bold capital names.
+- **Public site performance pass** (Oct 1 2026, measured at 4x CPU slowdown, phone width).
+  Matches: switching sport showed no skeleton and froze ~1.8s; now the skeleton appears in ~0.1s.
+  The cause was a date helper creating a new timezone formatter for every match (2.4s of CPU);
+  formatters are now created once. Live pages (Home, Matches, Standings, Brackets) no longer
+  redraw on a refresh that brings no change (idle freezes went from ~4s per 23s to none), and a
+  failed refresh keeps the page instead of blanking it. Also: fewer match rows drawn up front
+  ("Show more days"), memoised match rows, off-screen sections skipped, crests render once,
+  cheaper glass (gradient glows, panel blur only on large screens).

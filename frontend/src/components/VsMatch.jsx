@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Crest, LiveDot, matchDateLabel, matchTime, DIVISION_LABEL } from "./PublicUI";
 
 // VS match row (Oct 2026, from the Super Admin's "vs sample ui"), shared by the
@@ -57,10 +58,10 @@ function Side({ team, side, tone, info }) {
     <div className={`flex flex-col sm:flex-row items-center gap-2 sm:gap-3 min-w-0 ${right ? "sm:flex-row-reverse" : ""}`}>
       <div className={`relative shrink-0 ${tone === "lose" ? "opacity-50 grayscale" : ""}`}>
         {team ? (
-          <>
-            <span className="sm:hidden"><Crest name={team.name} barangayId={team.barangayId} size={38} /></span>
-            <span className="hidden sm:block"><Crest name={team.name} barangayId={team.barangayId} size={56} /></span>
-          </>
+          // ONE crest that resizes with CSS (it used to render two and hide one).
+          <div className="relative size-[38px] sm:size-[56px] overflow-hidden rounded">
+            <Crest name={team.name} barangayId={team.barangayId} variant="cover" coverText={14} />
+          </div>
         ) : (
           <span className="block size-[38px] sm:size-[56px] rounded-lg border border-dashed border-[#2E4466]" />
         )}
@@ -76,7 +77,12 @@ function Side({ team, side, tone, info }) {
 }
 
 // showDate: put the date under the time (Home's "Today" doesn't need it).
-export function VsMatchRow({ m, showDate = true }) {
+// Memoised on the match's CONTENT: a poll hands back new objects every 10s,
+// and only rows whose data actually changed should redraw.
+export const VsMatchRow = memo(VsMatchRowImpl, (a, b) =>
+  a.showDate === b.showDate && (a.m === b.m || JSON.stringify(a.m) === JSON.stringify(b.m)));
+
+function VsMatchRowImpl({ m, showDate = true }) {
   const live = m.status === "ongoing";
   const done = isDone(m);
   const aWon = done && m.winner && String(m.winner) === String(m.teamA?.id);
@@ -145,6 +151,32 @@ export function VsMatchList({ matches, showDate = true, className = "" }) {
   return (
     <div className={`mx-auto w-full max-w-5xl flex flex-col gap-5 sm:gap-6 ${className}`}>
       {matches.map((m) => <VsMatchRow key={m.id} m={m} showDate={showDate} />)}
+    </div>
+  );
+}
+
+// Loading placeholder shaped like the VS rows, shown the moment a sport tab is
+// switched (the page used to freeze on the old list with no feedback).
+export function VsMatchSkeleton({ rows = 5 }) {
+  return (
+    <div className="mx-auto w-full max-w-5xl flex flex-col gap-5 sm:gap-6" aria-busy="true" aria-label="Loading matches">
+      <div className="h-9 w-56 rounded-xl bg-white/[0.06] animate-pulse" />
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-5">
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3">
+            <div className="size-[38px] sm:size-[56px] shrink-0 rounded bg-white/[0.07] animate-pulse" />
+            <div className="h-9 sm:h-12 w-full rounded bg-white/[0.07] animate-pulse" />
+          </div>
+          <div className="flex flex-col items-center gap-2 min-w-[56px] sm:min-w-[110px]">
+            <div className="h-6 sm:h-8 w-14 sm:w-20 rounded bg-white/[0.08] animate-pulse" />
+            <div className="h-3 w-8 rounded bg-white/[0.06] animate-pulse" />
+          </div>
+          <div className="flex flex-col sm:flex-row-reverse items-center gap-2 sm:gap-3">
+            <div className="size-[38px] sm:size-[56px] shrink-0 rounded bg-white/[0.07] animate-pulse" />
+            <div className="h-9 sm:h-12 w-full rounded bg-white/[0.07] animate-pulse" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

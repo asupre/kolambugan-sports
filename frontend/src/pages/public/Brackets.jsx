@@ -338,10 +338,20 @@ export default function Brackets() {
     if (!tid) return;
     let alive = true;
     setLoading(true);
+    // `last` = the previous response as text. A poll that returns the same data
+    // skips the re-render (redrawing every 10-15s stalled phones), and a failed
+    // poll keeps what is on screen instead of blanking the page.
+    let last = "";
     const load = () =>
       api(`/api/public/bracket?tournament=${tid}`)
-        .then((d) => { if (alive) setData(d); })
-        .catch(() => { if (alive) setData(null); })
+        .then((d) => {
+          if (!alive) return;
+          const text = JSON.stringify(d);
+          if (text === last) return;
+          last = text;
+          setData(d);
+        })
+        .catch(() => { if (alive && !last) setData(null); })
         .finally(() => { if (alive) setLoading(false); });
     load();
     const timer = setInterval(load, 15000);

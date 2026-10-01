@@ -132,7 +132,7 @@ export default function Champions() {
 
 function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError }) {
   return (
-    <article className="flex flex-col rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden">
+    <article className="flex flex-col rounded-2xl border border-white/[0.12] bg-white/[0.05] lg:backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden">
       {showPhoto ? (
         <button
           type="button"

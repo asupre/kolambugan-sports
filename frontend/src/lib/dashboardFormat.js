@@ -2,12 +2,18 @@
 // All league dates are Philippine dates whatever the viewer's device says.
 const PH = "Asia/Manila";
 
+// Formatters are built ONCE: constructing an Intl.DateTimeFormat is expensive, and
+// these run for every match on a page (Oct 2026: a per-call formatter stalled the
+// public Matches page ~2s on a phone).
+const DAY_KEY = new Intl.DateTimeFormat("en-CA", { timeZone: PH });
+const HM = new Intl.DateTimeFormat("en-GB", { timeZone: PH, hour: "2-digit", minute: "2-digit", hour12: false });
+
 // "2026-09-25" — a stable per-day key for grouping.
-export const dayKey = (iso) => new Intl.DateTimeFormat("en-CA", { timeZone: PH }).format(new Date(iso));
+export const dayKey = (iso) => DAY_KEY.format(new Date(iso));
 export const fmtDay = (iso) =>
   new Date(iso).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", timeZone: PH });
 const manilaHM = (iso) => {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: PH, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(iso));
+  const parts = HM.formatToParts(new Date(iso));
   return { h: +parts.find((p) => p.type === "hour").value % 24, m: +parts.find((p) => p.type === "minute").value };
 };
 // A date picked without a time is stored as midnight MANILA (parseManila), and must

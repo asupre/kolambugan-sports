@@ -1194,6 +1194,32 @@ so a bug in one route cannot expose the other.
   big Anton initials on a navy gradient), jersey # (yellow Anton) + SURNAME + first name + a
   "15 PTS · 3 GP" chip on a dark bottom scrim. Card links to the team page. **Opens on the FIRST
   sport tab** (it used to force Basketball, skipping Badminton which sits first).
+- **Teams cards = Players cards** (Oct 1 2026): `TeamCard` is `w-52 sm:w-60`, SURNAME-style bold
+  uppercase name (19px), same scrim as `PlayerCard`. Keep the two in step.
+- **Public PERFORMANCE pass (Oct 1 2026) — measured, keep these rules.** Headless Edge over CDP,
+  4x CPU throttle, 390px, long tasks (>50ms); scripts `perf.mjs` (scenario tab / idle / scroll) and
+  `prof.mjs` (CPU profile of a click) were in the session scratchpad — recreate if it regresses.
+  Before → after: Matches sport switch 1.8s freeze, NO skeleton → skeleton in ~0.1s, worst task
+  ~0.1s; Matches idle (polling) 4s of freezes per 23s → 0; Home idle → 0; Players scroll 188ms → 0.
+  1. **Never build an `Intl.DateTimeFormat` (or call `toLocale*String` with options) per item in
+     a list.** Matches' `manilaDay()` did, ~400 matches x several calls = **2.4s of CPU** — the real
+     cause of the tab-switch freeze. Formatters are module-level constants now: `MANILA_DAY`
+     (Matches), `DATE_LABEL`/`TIME_LABEL` (PublicUI `matchDateLabel`/`matchTime`), `DAY_KEY`/`HM`
+     (`lib/dashboardFormat.js` `dayKey`/`hasTime`, shared with the admin dashboards). Same output.
+  2. **Polls skip identical data**: Home, Matches, Standings, Brackets keep the last response as
+     text (`last` / `lastRef`) and don't `setState` when it's unchanged; a FAILED poll keeps what
+     is on screen (it used to blank the page on one dropped request).
+  3. `VsMatchRow` is `memo`ed on the match's content (JSON compare) and draws ONE crest
+     (`variant="cover"` in a CSS-sized box, `coverText`) — it used to render two and hide one.
+  4. Matches: the tab click sets `loading` in the SAME handler (`VsMatchSkeleton` shows next
+     frame); days render 2 at a time (`DAYS_STEP`, "Show more days"), 4 games per competition
+     before "Show all"; day sections and the long Players / Teams panels use
+     `[content-visibility:auto]` (Panel has a `className` prop for it).
+  5. `Crest` keeps the resolved logo set (`logoSet`) so crests mounted later render right the
+     first time (no monogram flash, no second render per crest).
+  6. Glass cost: `GlassBackdrop` is radial gradients (no `blur()` filters); panel / card blur is
+     `lg:` only (phones get a slightly stronger tint — over a soft gradient the blur was nearly
+     invisible anyway); header blur is light below lg; footer has none.
 - **Champions pages (Sep 29 2026)**: public `/champions` is a card grid per year
   (16:9 photo, gold Anton year heading) + a "Most titles" panel (all sports, sticky at
   `lg`); photos open the shared zoomable `Lightbox` in gallery mode across every photo on

@@ -125,7 +125,7 @@ export default function PublicLayout() {
       {/* Glassmorphism (Oct 2026): fixed coloured glows behind every public page, for
           the frosted panels to blur. main/footer sit above it (relative z-10). */}
       <GlassBackdrop />
-      <header className="bg-[#0B1626]/70 backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-30">
+      <header className="bg-[#0B1626]/85 backdrop-blur-sm lg:bg-[#0B1626]/70 lg:backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-30">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
           {/* Header row layout (Sep 2026, from the Super Admin's sketch):
               logo, nav (centered at lg+), season-name pill at the far right —
@@ -208,7 +208,7 @@ export default function PublicLayout() {
           stacked into one long column, all the height of NAV plus no
           visual organisation — becomes a tidy 2-column block instead.
           Both collapse back to the original compact desktop sizing at sm:. */}
-      <footer className="relative z-10 bg-[#070F1C]/85 backdrop-blur-xl border-t border-white/[0.08] mt-8">
+      <footer className="relative z-10 bg-[#070F1C]/90 border-t border-white/[0.08] mt-8">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-10 sm:py-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-6">
             <div className="text-center sm:text-left">

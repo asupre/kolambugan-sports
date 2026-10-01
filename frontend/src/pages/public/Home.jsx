@@ -16,7 +16,7 @@ import { VsMatchList } from "../../components/VsMatch";
 // ongoing, same "color means something" rule as LiveDot elsewhere.
 function StatTile({ icon, value, label, live }) {
   return (
-    <div className={`rounded-2xl border ${live ? "border-red-500/35" : "border-white/[0.12]"} bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] px-2.5 py-4 text-center`}>
+    <div className={`rounded-2xl border ${live ? "border-red-500/35" : "border-white/[0.12]"} bg-white/[0.05] lg:backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] px-2.5 py-4 text-center`}>
       <div className="flex justify-center mb-2">{icon}</div>
       <div className="text-slate-50 text-[30px] font-extrabold leading-none tabular-nums">{value}</div>
       <div className={`text-[11px] tracking-wide uppercase mt-2 font-semibold ${live ? "text-red-400" : "text-slate-500"}`}>
@@ -60,10 +60,20 @@ export default function Home() {
 
   useEffect(() => {
     let alive = true;
+    // `last` = the previous response as text. A poll that returns the same data
+    // skips the re-render (redrawing every 10-15s stalled phones), and a failed
+    // poll keeps what is on screen instead of blanking the page.
+    let last = "";
     const load = () =>
       api("/api/public/overview")
-        .then((d) => { if (alive) setData(d); })
-        .catch(() => { if (alive) setData(null); });
+        .then((d) => {
+          if (!alive) return;
+          const text = JSON.stringify(d);
+          if (text === last) return;
+          last = text;
+          setData(d);
+        })
+        .catch(() => { if (alive && !last) setData(null); });
     load();
     const timer = setInterval(load, 10000);
     return () => { alive = false; clearInterval(timer); };

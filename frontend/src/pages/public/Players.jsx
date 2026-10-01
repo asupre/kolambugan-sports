@@ -91,6 +91,7 @@ function TeamRow({ t }) {
 
   return (
     <Panel
+      className="[content-visibility:auto] [contain-intrinsic-size:auto_440px]"
       title={t.name}
       count={`${t.barangay ? `Brgy. ${t.barangay} · ` : ""}${DIVISION_LABEL[t.division] || t.division} · ${t.players.length}`}
       empty="No players listed."

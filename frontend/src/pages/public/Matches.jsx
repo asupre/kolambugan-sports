@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import {
-  Panel, PanelSkeleton, SportTabs, LiveDot, matchDateLabel, DIVISION_LABEL,
+  Panel, SportTabs, LiveDot, matchDateLabel, DIVISION_LABEL,
 } from "../../components/PublicUI";
-import { VsMatchList } from "../../components/VsMatch";
+import { VsMatchList, VsMatchSkeleton } from "../../components/VsMatch";
+
+// Days are drawn a few at a time: the Upcoming tab can hold 200+ games, and
+// rendering every day at once froze a phone for ~2s on each sport switch.
+const DAYS_STEP = 2;
 
 // Matches page, reworked Oct 2026 ("should be presentable and easy to understand"):
 // Live / Upcoming / Results tabs instead of one long scroll, games grouped by day
@@ -11,7 +15,10 @@ import { VsMatchList } from "../../components/VsMatch";
 // is one VS row (components/VsMatch.jsx), one per line like the Super Admin's sample.
 
 // "2026-09-25" in Manila time — for comparing days, not for display.
-const manilaDay = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(d));
+// The formatter is built ONCE — creating one per call (it runs several times per
+// match, ~400 matches) was the ~2s freeze on a phone when switching sport.
+const MANILA_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" });
+const manilaDay = (d) => MANILA_DAY.format(new Date(d));
 
 
 const compOf = (m) => `${m.sport} · ${DIVISION_LABEL[m.division] || m.division}`;
@@ -31,8 +38,8 @@ function groupBy(list, keyOf) {
 
 
 // A competition's games under one heading; the venue is said once when every
-// game shares it. Long lists open six at a time.
-function CompetitionBlock({ comp, list, showDate = false, initial = 6 }) {
+// game shares it. Long lists open four at a time.
+function CompetitionBlock({ comp, list, showDate = false, initial = 4 }) {
   const [open, setOpen] = useState(false);
   const venues = [...new Set(list.map((m) => m.venue).filter(Boolean))];
   const shared = venues.length === 1 ? venues[0] : null;
@@ -62,7 +69,8 @@ function CompetitionBlock({ comp, list, showDate = false, initial = 6 }) {
 function DayBlock({ label, list, note, showDate }) {
   const byTime = (a, b) => new Date(a.schedule || 0) - new Date(b.schedule || 0) || (a.group || "").localeCompare(b.group || "");
   return (
-    <section className="mb-7">
+    // content-visibility: an off-screen day is not laid out or painted until it scrolls near.
+    <section className="mb-7 [content-visibility:auto] [contain-intrinsic-size:auto_900px]">
       <div className="flex items-baseline gap-2.5 border-b border-white/[0.08] pb-2 mb-4">
         <h2 className="text-white text-[22px] uppercase tracking-wide leading-none" style={{ fontFamily: "Anton, sans-serif" }}>{label}</h2>
         {note && <span className="text-slate-500 text-[13px]">{note}</span>}
@@ -76,7 +84,7 @@ function DayBlock({ label, list, note, showDate }) {
 
 function Tabs({ tabs, value, onChange }) {
   return (
-    <div role="tablist" className="inline-flex rounded-xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl p-1 mb-6 max-w-full overflow-x-auto">
+    <div role="tablist" className="inline-flex rounded-xl border border-white/[0.12] bg-white/[0.05] lg:backdrop-blur-xl p-1 mb-6 max-w-full overflow-x-auto">
       {tabs.map((t) => {
         const on = t.value === value;
         return (
@@ -106,6 +114,10 @@ export default function Matches() {
   // null = pick automatically; ?tab=results (or live / upcoming) opens that tab.
   const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get("tab"));
   const [loading, setLoading] = useState(true);
+  const [daysShown, setDaysShown] = useState(DAYS_STEP);
+  // Last response as text: a poll that returns the same data skips the
+  // re-render entirely (every 10s redraw used to stall a phone for ~1s).
+  const lastRef = useRef("");
 
   useEffect(() => {
     api("/api/public/tournaments")
@@ -115,10 +127,21 @@ export default function Matches() {
 
   useEffect(() => {
     let alive = true;
+    // A sport switch shows the skeleton at once instead of leaving the old list
+    // frozen on screen until the new one arrives.
+    setLoading(true);
+    setDaysShown(DAYS_STEP);
+    lastRef.current = "";
     const load = () =>
       api(`/api/public/matches${sport ? `?sport=${encodeURIComponent(sport)}` : ""}`)
-        .then((d) => { if (alive) setMatches(d.matches || []); })
-        .catch(() => { if (alive) setMatches([]); })
+        .then((d) => {
+          if (!alive) return;
+          const text = JSON.stringify(d.matches || []);
+          if (text === lastRef.current) return; // nothing changed — no re-render
+          lastRef.current = text;
+          setMatches(d.matches || []);
+        })
+        .catch(() => { if (alive && lastRef.current === "") setMatches([]); })
         .finally(() => { if (alive) setLoading(false); });
     load();
     const timer = setInterval(load, 10000);
@@ -150,6 +173,23 @@ export default function Matches() {
   // (a live game ended).
   const current = tabs.some((t) => t.value === tab) ? tab : live.length > 0 ? "live" : "upcoming";
 
+  const pickTab = (v) => { setTab(v); setDaysShown(DAYS_STEP); };
+
+  // Show N day-blocks, then a "Show more days" button.
+  const paged = (blocks) => (
+    <>
+      {blocks.slice(0, daysShown)}
+      {blocks.length > daysShown && (
+        <button
+          onClick={() => setDaysShown((n) => n + DAYS_STEP)}
+          className="w-full rounded-xl border border-white/[0.12] bg-white/[0.05] py-3.5 text-[15px] font-semibold text-[#FACC15] hover:bg-white/[0.08] transition"
+        >
+          Show more days ({blocks.length - daysShown} more)
+        </button>
+      )}
+    </>
+  );
+
   const dayLabel = (day, list) => {
     const label = matchDateLabel(list[0].schedule);
     return day === today ? `Today · ${label}` : label;
@@ -159,18 +199,17 @@ export default function Matches() {
     <>
       <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-4">Matches</h1>
 
-      <SportTabs sports={sports} value={sport} onChange={setSport} />
+      {/* Flip to the skeleton in the SAME render as the tab click, so the old list
+          is never redrawn first (that made the skeleton appear ~2s late on a phone). */}
+      <SportTabs sports={sports} value={sport} onChange={(v) => { if (v !== sport) { setLoading(true); setSport(v); } }} />
 
       {loading ? (
-        <>
-          <PanelSkeleton rows={2} />
-          <PanelSkeleton rows={5} />
-        </>
+        <VsMatchSkeleton rows={5} />
       ) : real.length === 0 ? (
         <Panel empty="No games scheduled yet. The schedule appears here once teams are verified and the brackets are drawn." />
       ) : (
         <>
-          <Tabs tabs={tabs} value={current} onChange={setTab} />
+          <Tabs tabs={tabs} value={current} onChange={pickTab} />
 
           {current === "live" && (
             <VsMatchList matches={live} showDate={false} />
@@ -181,18 +220,20 @@ export default function Matches() {
               {upcoming.length === 0 && undated.length === 0 && overdue.length === 0 && (
                 <Panel empty="No games coming up." />
               )}
-              {byDay(upcoming).map(([day, list]) => (
-                <DayBlock key={day} label={dayLabel(day, list)} list={list}
-                  note={`${list.length} ${list.length === 1 ? "game" : "games"}`} />
-              ))}
-              {undated.length > 0 && (
-                <DayBlock label="Date to be announced" list={undated}
-                  note={`${undated.length} ${undated.length === 1 ? "game" : "games"}`} />
-              )}
-              {overdue.length > 0 && (
-                <DayBlock label="Waiting for a result" list={overdue}
-                  note="Scheduled on an earlier day, not played or recorded yet" showDate />
-              )}
+              {paged([
+                ...byDay(upcoming).map(([day, list]) => (
+                  <DayBlock key={day} label={dayLabel(day, list)} list={list}
+                    note={`${list.length} ${list.length === 1 ? "game" : "games"}`} />
+                )),
+                undated.length > 0 && (
+                  <DayBlock key="tba" label="Date to be announced" list={undated}
+                    note={`${undated.length} ${undated.length === 1 ? "game" : "games"}`} />
+                ),
+                overdue.length > 0 && (
+                  <DayBlock key="overdue" label="Waiting for a result" list={overdue}
+                    note="Scheduled on an earlier day, not played or recorded yet" showDate />
+                ),
+              ].filter(Boolean))}
             </>
           )}
 
@@ -202,13 +243,15 @@ export default function Matches() {
             ) : (
               <>
                 {/* Most recent day first — a results feed reads backwards. */}
-                {byDay(done.filter((m) => m.schedule)).reverse().map(([day, list]) => (
-                  <DayBlock key={day} label={dayLabel(day, list)} list={list}
-                    note={`${list.length} ${list.length === 1 ? "result" : "results"}`} />
-                ))}
-                {done.some((m) => !m.schedule) && (
-                  <DayBlock label="Undated" list={done.filter((m) => !m.schedule)} />
-                )}
+                {paged([
+                  ...byDay(done.filter((m) => m.schedule)).reverse().map(([day, list]) => (
+                    <DayBlock key={day} label={dayLabel(day, list)} list={list}
+                      note={`${list.length} ${list.length === 1 ? "result" : "results"}`} />
+                  )),
+                  done.some((m) => !m.schedule) && (
+                    <DayBlock key="undated" label="Undated" list={done.filter((m) => !m.schedule)} />
+                  ),
+                ].filter(Boolean))}
               </>
             )
           )}

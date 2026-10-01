@@ -45,12 +45,17 @@ export const barangayLogoUrl = (id) => `/api/barangays/${id}/logo`;
 // every crest fires a request that 404s before falling back to the monogram —
 // on a page with 26 barangays that's dozens of wasted round trips.
 let logoPromise = null;
+// The resolved set, kept so crests mounted AFTER the first load know the answer
+// on their very first render (no monogram flash, no second render per crest —
+// that was 2 renders x every crest on every page).
+let logoSet = null;
 function loadLogos() {
   if (!logoPromise) {
     logoPromise = fetch("/api/barangays")
       .then((r) => (r.ok ? r.json() : { barangays: [] }))
       .then((d) => new Set((d.barangays || []).filter((b) => b.hasLogo).map((b) => String(b._id))))
-      .catch(() => new Set());
+      .catch(() => new Set())
+      .then((set) => { logoSet = set; return set; });
   }
   return logoPromise;
 }
@@ -61,13 +66,16 @@ function loadLogos() {
 // — for a poster-style card where the crest is the whole background and other
 // content (a name, a scrim) sits on top of it. The parent must be `relative`
 // with its own size/aspect-ratio; this variant doesn't set its own dimensions.
-export function Crest({ name, barangayId, size = 40, variant = "icon" }) {
-  const [has, setHas] = useState(null);   // null = still checking
+// coverText: monogram font size for the cover variant (small cover boxes need less than 32).
+export function Crest({ name, barangayId, size = 40, variant = "icon", coverText = 32 }) {
+  // null = still checking. Known at once when the logo list has already loaded.
+  const [has, setHas] = useState(() => (!barangayId ? false : logoSet ? logoSet.has(String(barangayId)) : null));
   const [failed, setFailed] = useState(false);
   const cover = variant === "cover";
 
   useEffect(() => {
     if (!barangayId) { setHas(false); return; }
+    if (logoSet) { setHas(logoSet.has(String(barangayId))); return; }
     let alive = true;
     loadLogos().then((set) => { if (alive) setHas(set.has(String(barangayId))); });
     return () => { alive = false; };
@@ -99,7 +107,7 @@ export function Crest({ name, barangayId, size = 40, variant = "icon" }) {
       className={cover
         ? "absolute inset-0 flex items-center justify-center bg-[#22344F] text-slate-500 font-semibold"
         : "rounded bg-[#22344F] text-slate-400 font-semibold flex items-center justify-center shrink-0"}
-      style={cover ? { fontSize: 32 } : { width: size, height: size, fontSize: size * 0.3 }}
+      style={cover ? { fontSize: coverText } : { width: size, height: size, fontSize: size * 0.3 }}
     >
       {initials(name) || "—"}
     </div>
@@ -128,11 +136,15 @@ export function PlayerAvatar({ player, size = 40 }) {
 // glass (DEFAULT since Oct 2026 — whole public viewer): frosted-glass look — translucent fill, backdrop
 // blur, hairline white border and a top highlight. Needs something colourful
 // behind it (GlassBackdrop, rendered once by PublicLayout). glass={false} = old solid panel.
-export function Panel({ title, count, children, empty, actions, glass = true }) {
+// Performance (Oct 2026): the blur only runs from lg up. Behind a panel is the
+// already-soft GlassBackdrop gradient, so blurring it changes almost nothing
+// visually but costs a lot on a phone GPU; below lg the tint is a bit stronger.
+// className: extra classes, e.g. content-visibility for long lists.
+export function Panel({ title, count, children, empty, actions, glass = true, className = "" }) {
   return (
-    <section className={glass
-      ? "relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden"
-      : "rounded-lg border border-white/[0.08] bg-[#122036] mb-5 overflow-hidden"}>
+    <section className={(glass
+      ? "relative rounded-2xl border border-white/[0.12] bg-white/[0.07] lg:bg-white/[0.05] lg:backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden"
+      : "rounded-lg border border-white/[0.08] bg-[#122036] mb-5 overflow-hidden") + (className ? " " + className : "")}>
       {title && (
         <div className={`px-4 sm:px-5 py-3.5 border-b ${glass ? "border-white/[0.08] bg-white/[0.03]" : "border-white/[0.08]"} flex items-center justify-between gap-2.5`}>
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 min-w-0">
@@ -150,27 +162,38 @@ export function Panel({ title, count, children, empty, actions, glass = true }) 
 // Soft coloured glows fixed behind a page, for glass panels to blur. Purely
 // decorative; pointer-events off. Content above it needs `relative z-10`.
 export function GlassBackdrop() {
+  // Radial gradients, not blur() filters: the same soft glow without asking the
+  // GPU to blur three 400px+ layers (Oct 2026 performance pass).
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <div className="absolute -top-24 -left-24 size-[28rem] rounded-full bg-[#2563EB]/35 blur-[110px]" />
-      <div className="absolute top-1/3 -right-32 size-[30rem] rounded-full bg-[#FACC15]/20 blur-[120px]" />
-      <div className="absolute -bottom-32 left-1/4 size-[26rem] rounded-full bg-[#0EA5E9]/25 blur-[110px]" />
-    </div>
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 z-0"
+      style={{
+        background: [
+          "radial-gradient(38rem 32rem at 0% 0%, rgba(37,99,235,0.30), transparent 70%)",
+          "radial-gradient(40rem 34rem at 100% 45%, rgba(250,204,21,0.13), transparent 70%)",
+          "radial-gradient(36rem 30rem at 30% 105%, rgba(14,165,233,0.20), transparent 70%)",
+        ].join(","),
+      }}
+    />
   );
 }
 
 // ── Match rows ──────────────────────────────────────────────────────────────
 // Pinned to Manila: league dates are Philippine dates whatever the device says.
-export const matchDateLabel = (d) =>
-  new Date(d).toLocaleDateString(undefined, {
-    timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric",
-  });
+// Formatters built once and reused (toLocale*String builds a new one per call,
+// which is slow when it runs for every match row).
+const DATE_LABEL = new Intl.DateTimeFormat(undefined, {
+  timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric",
+});
+const TIME_LABEL = new Intl.DateTimeFormat([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
+export const matchDateLabel = (d) => DATE_LABEL.format(new Date(d));
 
 // A time is shown only when one was actually chosen — a date-only schedule is
 // stored as midnight and must not render as a made-up "12:00 AM".
 export const matchTime = (d) =>
   d && hasTime(d)
-    ? new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" })
+    ? TIME_LABEL.format(new Date(d))
     : null;
 
 // "Basketball · U15 · Grp A · Round 1" — roundLabel comes from the API (lib/roundLabels.js):
@@ -461,7 +484,7 @@ export function Skeleton({ className = "" }) {
 // page whose loaded content is a stack of rows.
 export function PanelSkeleton({ rows = 4, title = true }) {
   return (
-    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
+    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] lg:backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
       {title && (
         <div className="px-5 py-3.5 border-b border-white/[0.08]">
           <Skeleton className="h-4 w-32" />
@@ -483,7 +506,7 @@ export function PanelSkeleton({ rows = 4, title = true }) {
 // Grid-of-tiles panel — stands in for Teams and the Players "all" view.
 export function TileGridSkeleton({ tiles = 6, cols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" }) {
   return (
-    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
+    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] lg:backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
       <div className="px-5 py-3.5 border-b border-white/[0.08]">
         <Skeleton className="h-4 w-32" />
       </div>
@@ -505,7 +528,7 @@ export function TileGridSkeleton({ tiles = 6, cols = "grid-cols-2 sm:grid-cols-3
 // Photo + text rows — stands in for Champions.
 export function PhotoRowSkeleton({ rows = 2 }) {
   return (
-    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
+    <section className="relative rounded-2xl border border-white/[0.12] bg-white/[0.05] lg:backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden">
       <div className="px-5 py-3.5 border-b border-white/[0.08]">
         <Skeleton className="h-4 w-24" />
       </div>
@@ -567,7 +590,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…" }) {
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.05] backdrop-blur-md text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#FACC15]/50 transition-colors"
+        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.05] lg:backdrop-blur-md text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#FACC15]/50 transition-colors"
       />
       <AnimatePresence>
         {value && (

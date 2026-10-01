@@ -618,6 +618,12 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   `OrganizerScoring.jsx`, saved with `PUT /api/organizer/matches/:id/stats`): one card per
   rostered player, both teams, filled in from the organizer's scoresheet. It also picks the MVP
   (no longer chosen at End match). Re-openable and re-saveable any time by that sport's organizer.
+  **It is a MODAL since Oct 1 2026** (`StatsDialog` wraps `StatsForm`): it opens by itself right
+  after End match is confirmed, and a "Player stats" card on the finished match (Saved / Not
+  entered yet badge, "Fill in" / "Edit player stats" button) reopens it. Inside: title, a
+  scrolling middle (players 2 columns from `sm`), Save pinned at the bottom; saving closes it.
+  Closing with unsaved edits asks "Close without saving?" first (`dirtyRef`). Tested against a
+  mock organizer API with headless Edge at 1280 and 390px.
   **Which columns the sheet has is the Super Admin's choice per sport** (League Setup → each sport's
   "After-match score sheet", stored as `Sport.scoreSheet`; absent = the built-in default, empty =
   no player form). The catalog and defaults are in `backend/src/lib/sportRules.js`

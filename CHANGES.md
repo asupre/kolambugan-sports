@@ -3631,3 +3631,8 @@ its filename and status, making "should I delete this and re-upload" a guess.
   brings it forward, tapping the front card opens the team page. Adapted from React Bits without
   adding GSAP; page scrolling over it is never hijacked. Shipped to be judged in production; the
   old scrolling row can come back if it doesn't work out.
+- **Players carousel: bigger and smoother on phones** (Oct 2 2026, "kinda small" and "laggy on
+  mobile"). The front card on a phone goes from 172px to 250px wide (it was shrinking to leave room
+  for arrows that phones don't show). Swiping no longer re-renders the cards, and the back cards are
+  darkened with a cheap see-through layer instead of a filter that had to be redrawn every frame.
+  Measured on a slowed-down phone: 39-49fps with many stutters before, a steady ~60fps after.

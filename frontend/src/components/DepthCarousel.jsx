@@ -9,11 +9,18 @@
   - a click right after a drag is swallowed, and a click on a side card only
     brings it to the front (the front card's own link works as normal);
   - dots below the cards instead of over them; arrows in the site's style.
+  Phone performance (Oct 2026, measured): moving it never re-renders React —
+  the dots and aria-hidden are updated directly, and the cards are memoized —
+  and back cards are darkened by a plain black overlay's OPACITY (composited)
+  instead of a brightness() filter + mix-blend (repainted every frame). Blur
+  is a filter, so keep it 0 on phones.
 */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 const power3Out = (t) => 1 - Math.pow(1 - t, 3);
+const DOT_ON = "w-5 bg-[#FACC15]";
+const DOT_OFF = "w-[7px] bg-white/30 hover:bg-white/60";
 
 export default function DepthCarousel({
   items = [],
@@ -22,7 +29,6 @@ export default function DepthCarousel({
   cardWidth = 240,
   cardHeight = 320,
   radius = 14,
-  tint = "#05060a",
   depth = 220,
   spread = 90,
   tilt = 22,
@@ -35,6 +41,8 @@ export default function DepthCarousel({
   loop = true,
   showControls = true,
   showIndicators = true,
+  // Room kept beside the stack when shrinking to fit (the arrows need ~120px).
+  sidePadding = 120,
   label = "Carousel",
   className = "",
 }) {
@@ -44,6 +52,7 @@ export default function DepthCarousel({
   const rootRef = useRef(null);
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
+  const dotRefs = useRef([]);
   const posRef = useRef(0);
   const focusRef = useRef(0);
   const rafRef = useRef(0);
@@ -54,13 +63,18 @@ export default function DepthCarousel({
   const wheelTimerRef = useRef(null);
   const reducedRef = useRef(false);
 
-  const [active, setActive] = useState(0);
+  // Only used for the arrows' disabled state when the carousel doesn't loop
+  // (1-2 cards); a looping one never re-renders while it moves.
+  const [edgeIdx, setEdgeIdx] = useState(0);
 
   // Latest props for the event handlers / animation loop. Declared before the
   // other effects, so it is current by the time they run.
   useLayoutEffect(() => {
-    cfgRef.current = { count, depth, spread, tilt, tiltDirection, visibleCards, falloff, blur, duration, loop: looping, cardWidth };
+    cfgRef.current = { count, depth, spread, tilt, tiltDirection, visibleCards, falloff, blur, duration, loop: looping, cardWidth, sidePadding };
   });
+
+  // The cards themselves only re-render when the items change.
+  const cards = useMemo(() => items.map((it, i) => renderItem(it, i)), [items, renderItem]);
 
   const layout = useCallback((pos) => {
     const cfg = cfgRef.current;
@@ -81,27 +95,47 @@ export default function DepthCarousel({
 
       const back = Math.max(0, d);
       const shown = Math.abs(d) <= cfg.visibleCards + 0.5;
+      let opacity = d < 0 ? Math.max(0, 1 + d) : 1;
+      if (!shown) opacity = 0;
+
+      if (opacity <= 0.01) {
+        // Off-stage: skip the transform work and drop it from painting.
+        if (el.style.visibility !== "hidden") {
+          el.style.visibility = "hidden";
+          el.style.opacity = "0";
+          el.style.pointerEvents = "none";
+        }
+        continue;
+      }
+
       const tz = -cfg.depth * d;
       const tx = dir * cfg.spread * d;
       const ry = dir * cfg.tilt * clamp(d, 0, 1);
 
-      let opacity = d < 0 ? Math.max(0, 1 + d) : 1;
-      if (!shown) opacity = 0;
-
-      const brightness = Math.max(0.15, 1 - back * cfg.falloff);
-      const blurPx = cfg.blur > 0 ? Math.min(cfg.blur, (back / Math.max(1, cfg.visibleCards)) * cfg.blur) : 0;
-
-      el.style.transform = `translate(-50%, -50%) scale(${sc}) translateX(${tx.toFixed(2)}px) translateZ(${tz.toFixed(2)}px) rotateY(${ry.toFixed(3)}deg)`;
+      el.style.visibility = "visible";
+      el.style.transform = `translate3d(-50%, -50%, 0) scale(${sc}) translateX(${tx.toFixed(1)}px) translateZ(${tz.toFixed(1)}px) rotateY(${ry.toFixed(2)}deg)`;
       el.style.opacity = opacity.toFixed(3);
-      // Hidden cards drop their filter and paint entirely (cheaper on phones).
-      el.style.visibility = opacity > 0.01 ? "visible" : "hidden";
-      el.style.filter = opacity > 0.01 ? `brightness(${brightness.toFixed(3)})${blurPx > 0.05 ? ` blur(${blurPx.toFixed(2)}px)` : ""}` : "none";
       el.style.zIndex = String(Math.round(2000 - d * 20));
-      el.style.pointerEvents = shown && opacity > 0.05 ? "auto" : "none";
+      el.style.pointerEvents = opacity > 0.05 ? "auto" : "none";
+      if (cfg.blur > 0) {
+        const blurPx = Math.min(cfg.blur, (back / Math.max(1, cfg.visibleCards)) * cfg.blur);
+        el.style.filter = blurPx > 0.05 ? `blur(${blurPx.toFixed(2)}px)` : "none";
+      }
 
       const ov = overlayRefs.current[i];
-      if (ov) ov.style.opacity = clamp(back * cfg.falloff * 1.25, 0, 0.86).toFixed(3);
+      if (ov) ov.style.opacity = clamp(back * cfg.falloff * 1.6, 0, 0.85).toFixed(3);
     }
+  }, []);
+
+  // Dots + aria-hidden, written straight to the DOM (no React render).
+  const paintActive = useCallback((idx) => {
+    dotRefs.current.forEach((dot, i) => {
+      if (!dot) return;
+      const on = i === idx;
+      dot.className = `h-[7px] rounded-full transition-[width,background] duration-200 ${on ? DOT_ON : DOT_OFF}`;
+      dot.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    cardRefs.current.forEach((card, i) => card?.setAttribute("aria-hidden", i === idx ? "false" : "true"));
   }, []);
 
   const tweenTo = useCallback((target, animate) => {
@@ -139,20 +173,21 @@ export default function DepthCarousel({
     tweenTo(posRef.current + delta, animate);
     if (idx !== focusRef.current) {
       focusRef.current = idx;
-      setActive(idx);
+      paintActive(idx);
+      if (!cfg.loop) setEdgeIdx(idx);
     }
-  }, [tweenTo]);
+  }, [tweenTo, paintActive]);
 
   const navigateBy = useCallback((s) => setFocus(focusRef.current + s, true), [setFocus]);
 
-  // Shrink everything to fit narrow containers (phones).
+  // Shrink everything to fit narrow containers.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return undefined;
     const ro = new ResizeObserver((entries) => {
       const w = entries[0].contentRect.width;
       const cfg = cfgRef.current;
-      scaleRef.current = clamp(w / (cfg.cardWidth + Math.abs(cfg.spread) * 2 + 120), 0.4, 1);
+      scaleRef.current = clamp(w / (cfg.cardWidth + Math.abs(cfg.spread) * 2 + cfg.sidePadding), 0.4, 1);
       layout(posRef.current);
     });
     ro.observe(root);
@@ -182,6 +217,8 @@ export default function DepthCarousel({
     };
   }, [layout, setFocus]);
 
+  // Drag: the pointer moves set the position directly, painted once per frame.
+  const dragRafRef = useRef(0);
   const onPointerDown = useCallback((e) => {
     if (cfgRef.current.count < 2 || e.button > 0) return;
     cancelAnimationFrame(rafRef.current);
@@ -205,7 +242,12 @@ export default function DepthCarousel({
     drag.lastT = now;
     posRef.current = drag.startPos - dx / stepPx;
     if (!cfg.loop) posRef.current = clamp(posRef.current, -0.3, cfg.count - 0.7);
-    layout(posRef.current);
+    if (!dragRafRef.current) {
+      dragRafRef.current = requestAnimationFrame(() => {
+        dragRafRef.current = 0;
+        layout(posRef.current);
+      });
+    }
   }, [layout]);
 
   const onPointerEnd = useCallback(() => {
@@ -213,6 +255,8 @@ export default function DepthCarousel({
     if (!drag) return;
     dragRef.current = null;
     if (!drag.moved) return;
+    cancelAnimationFrame(dragRafRef.current);
+    dragRafRef.current = 0;
     justDraggedRef.current = true;
     setTimeout(() => { justDraggedRef.current = false; }, 0);
     const stepPx = Math.max(cfgRef.current.cardWidth * 0.55 * scaleRef.current, 40);
@@ -239,15 +283,20 @@ export default function DepthCarousel({
   }, []);
 
   useLayoutEffect(() => {
-    if (focusRef.current > count - 1) { focusRef.current = 0; posRef.current = 0; setActive(0); }
+    if (focusRef.current > count - 1) { focusRef.current = 0; posRef.current = 0; }
+    paintActive(focusRef.current);
     layout(posRef.current);
-  }, [layout, depth, spread, tilt, tiltDirection, visibleCards, falloff, blur, cardWidth, cardHeight, radius, count]);
+  }, [layout, paintActive, depth, spread, tilt, tiltDirection, visibleCards, falloff, blur, cardWidth, cardHeight, radius, count, sidePadding]);
 
-  useEffect(() => () => { cancelAnimationFrame(rafRef.current); clearTimeout(wheelTimerRef.current); }, []);
+  useEffect(() => () => {
+    cancelAnimationFrame(rafRef.current);
+    cancelAnimationFrame(dragRafRef.current);
+    clearTimeout(wheelTimerRef.current);
+  }, []);
 
   const arrow = "absolute top-1/2 z-[3000] grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[#0B1626]/70 text-slate-100 transition hover:border-[#FACC15]/60 hover:text-[#FACC15] active:scale-95 disabled:opacity-30 disabled:pointer-events-none";
-  const atStart = !looping && active === 0;
-  const atEnd = !looping && active === count - 1;
+  const atStart = !looping && edgeIdx === 0;
+  const atEnd = !looping && edgeIdx === count - 1;
 
   return (
     <div
@@ -269,19 +318,17 @@ export default function DepthCarousel({
           <div
             key={getKey(item, i)}
             ref={(el) => { cardRefs.current[i] = el; }}
-            className="absolute left-1/2 top-1/2 overflow-hidden bg-[#0B1626] shadow-[0_30px_60px_-20px_rgba(0,0,0,0.65),0_8px_20px_-10px_rgba(0,0,0,0.5)] [transform-origin:center] [will-change:transform,opacity,filter]"
-            style={{ width: cardWidth, height: cardHeight, borderRadius: radius, transform: "translate(-50%,-50%)" }}
+            className={`absolute left-1/2 top-1/2 overflow-hidden bg-[#0B1626] shadow-[0_24px_48px_-20px_rgba(0,0,0,0.7)] [transform-origin:center] ${blur > 0 ? "[will-change:transform,opacity,filter]" : "[will-change:transform,opacity]"}`}
+            style={{ width: cardWidth, height: cardHeight, borderRadius: radius, transform: "translate3d(-50%,-50%,0)" }}
             aria-roledescription="slide"
             aria-label={`${i + 1} of ${count}`}
-            aria-hidden={active !== i}
             onClickCapture={(e) => onCardClickCapture(e, i)}
             onDragStart={(e) => e.preventDefault()}
           >
-            {renderItem(item, i, active === i)}
+            {cards[i]}
             <span
               ref={(el) => { overlayRefs.current[i] = el; }}
-              className="pointer-events-none absolute inset-0 opacity-0 mix-blend-multiply"
-              style={{ background: tint }}
+              className="pointer-events-none absolute inset-0 bg-black opacity-0"
             />
           </div>
         ))}
@@ -303,11 +350,11 @@ export default function DepthCarousel({
           {items.map((item, i) => (
             <button
               key={getKey(item, i)}
+              ref={(el) => { dotRefs.current[i] = el; }}
               type="button"
               role="tab"
-              aria-selected={active === i}
               aria-label={`Go to ${i + 1}`}
-              className={`h-[7px] rounded-full transition-[width,background] duration-200 ${active === i ? "w-5 bg-[#FACC15]" : "w-[7px] bg-white/30 hover:bg-white/60"}`}
+              className={`h-[7px] rounded-full ${DOT_OFF}`}
               onClick={() => setFocus(i, true)}
             />
           ))}

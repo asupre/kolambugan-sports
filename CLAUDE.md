@@ -1216,9 +1216,20 @@ so a bug in one route cannot expose the other.
   scrolls the page, the original hijacked it), a click right after a drag is swallowed, a click on
   a side card brings it to the front (the front card's link works). Front card faces you, the rest
   stack back to the right, darker (`falloff` 0.13). Desktop 270x360 + arrows + blur 3; phones
-  (<640px) 220x293, flatter, no arrows (they covered the card), no blur. Dots below. Ships first to
-  be judged in production, so it may still be tuned or reverted. Rendered at 1366 and 390px against
-  the production API before shipping.
+  (<640px) 250x333 using the full width (`sidePadding={0}`: the shrink-to-fit used to reserve 120px
+  for arrows phones don't have, so the card came out 172px), spread 34, no arrows, no blur. Dots
+  below. Rendered at 1366 and 390px against the production API.
+  **Phone performance — measured, keep these rules** (Oct 2 2026, "laggy on mobile"; 390px, 4x CPU
+  throttle, touch swipes on a 10-card Basketball row; script `perf.mjs` was in the session
+  scratchpad): old 39-49fps with 12-62 frames over 50ms per test → now ~60fps, 0 over 50ms.
+  (1) Moving it NEVER re-renders React: dots + `aria-hidden` are written to the DOM (`paintActive`),
+  the cards are `useMemo`'d, and `renderItem` must be a STABLE callback (`useCallback` in
+  `TeamRow`), or every card re-renders on each swipe. (2) Back cards are darkened by a plain black
+  overlay's OPACITY, never `filter: brightness()` or `mix-blend-mode` (both repaint every frame).
+  `blur` is a filter: keep it 0 on phones. (3) Off-stage cards are `visibility: hidden` and skipped.
+  (4) A drag paints at most once per frame (rAF). Measuring gotcha: with touch emulation on, a
+  synthetic mouse click on the sport tab is ignored (you silently measure Badminton's 2-card rows);
+  click from page JS and check the subtitle says 520 players.
 - (Superseded Oct 2 2026 by the carousel above; card styling still applies.) **Players page = poster cards like Teams, BIGGER** (Oct 1 2026, `Players.jsx`): one drag-scroll
   row per team (`TeamRow`, same arrows/scroll logic as Teams' `TeamGroupPanel`) of `PlayerCard`s —
   `w-52 sm:w-60` (teams are `w-44 sm:w-48`), `aspect-[3/4]`; the headshot fills the card (no photo →

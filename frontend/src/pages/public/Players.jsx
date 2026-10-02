@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { Panel, TileGridSkeleton, SportTabs, SearchInput, DIVISION_LABEL, initials, playerPhotoUrl, SHOW_PLAYER_PHOTOS } from "../../components/PublicUI";
@@ -65,9 +65,12 @@ function PlayerCard({ p, teamId }) {
   );
 }
 
-// One team: a Depth Carousel of PlayerCards (smaller and flatter on phones).
+// One team: a Depth Carousel of PlayerCards. Phones: a 250px front card that
+// uses the full width (no arrows, so no side padding) and a tighter stack.
 function TeamRow({ t }) {
   const wide = useMediaQuery("(min-width: 640px)");
+  // Stable, so the carousel's memoized cards never re-render while it moves.
+  const renderPlayer = useCallback((p) => <PlayerCard p={p} teamId={t.id} />, [t.id]);
   return (
     <Panel
       className="[content-visibility:auto] [contain-intrinsic-size:auto_480px]"
@@ -82,16 +85,17 @@ function TeamRow({ t }) {
               items={t.players}
               getKey={(p) => p.id}
               label={`${t.name} players`}
-              cardWidth={wide ? 270 : 220}
-              cardHeight={wide ? 360 : 293}
-              spread={wide ? 115 : 48}
+              cardWidth={wide ? 270 : 250}
+              cardHeight={wide ? 360 : 333}
+              spread={wide ? 115 : 34}
               depth={wide ? 200 : 150}
-              tilt={wide ? 22 : 16}
+              tilt={wide ? 22 : 14}
               visibleCards={wide ? 4 : 3}
               blur={wide ? 3 : 0}
               falloff={0.13}
               showControls={wide}
-              renderItem={(p) => <PlayerCard p={p} teamId={t.id} />}
+              sidePadding={wide ? 120 : 0}
+              renderItem={renderPlayer}
             />
           </Reveal>
           <div className="px-4 sm:px-5 py-3.5 border-t border-white/[0.08]">

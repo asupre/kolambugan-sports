@@ -1190,7 +1190,7 @@ so a bug in one route cannot expose the other.
   `React.lazy` into its own ~15.7 KB gzip chunk, frozen (`speed 0`) under
   `prefers-reduced-motion`. A photo layer was tried and removed (the Super
   Admin deleted `login-bg.jpg`).
-- **Teams page — drag-scroll carousel of poster-card crests** (Sep 2026):
+- (Superseded Oct 2 2026 by the Depth Carousel, see the Players/Teams entry below; card styling still applies.) **Teams page — drag-scroll carousel of poster-card crests** (Sep 2026):
   each sport/division group on `/teams` is a horizontally-scrolling row
   (`TeamGroupPanel`/`TeamCard` in `Teams.jsx`), not a wrapping grid —
   click-and-drag panning via the existing `hooks/useDragScroll.js`, plus
@@ -1209,13 +1209,18 @@ so a bug in one route cannot expose the other.
   `RevealItem`s: 20+ cards animating while their crests decode stuttered), and
   cover crests use `decoding="async"` + `loading="lazy"` with a blank tile (not the
   monogram) while the logo check is pending.
-- **Players page = a DEPTH CAROUSEL per team** (Oct 2 2026, Super Admin wanted to try React Bits'
-  "Depth Carousel"; replaces the drag-scroll row below). `components/DepthCarousel.jsx` is the React
+- **Players AND Teams pages = a DEPTH CAROUSEL per panel** (Oct 2 2026, Super Admin wanted to try
+  React Bits' "Depth Carousel"; replaces the drag-scroll rows below). Players: one per team. Teams
+  (same day): one per sport + division, `TeamCard` fills the slide, `renderTeam` is module-level
+  (stable). Both take their sizes from ONE place, `posterCarouselProps(wide)` in
+  `lib/posterCarousel.js`: change it there so the pages stay in step. More than 15 items (`maxDots`)
+  shows a "3 / 26" counter instead of dots (26 dots wrapped into 3 rows on a phone).
+  `components/DepthCarousel.jsx` is the React
   Bits component adapted: takes `renderItem` (any card, not just images), a small rAF tween instead
   of GSAP (no new dependency), ONLY a horizontal wheel/trackpad swipe moves it (vertical wheel
   scrolls the page, the original hijacked it), a click right after a drag is swallowed, a click on
   a side card brings it to the front (the front card's link works). Front card faces you, the rest
-  stack back to the right, darker (`falloff` 0.13). Desktop 270x360 + arrows + blur 3; phones
+  stack back to the right, darker (`falloff` 0.13). Desktop 270x360 + arrows, NO blur; phones
   (<640px) 250x333 using the full width (`sidePadding={0}`: the shrink-to-fit used to reserve 120px
   for arrows phones don't have, so the card came out 172px), spread 34, no arrows, no blur. Dots
   below. Rendered at 1366 and 390px against the production API.
@@ -1230,6 +1235,20 @@ so a bug in one route cannot expose the other.
   (4) A drag paints at most once per frame (rAF). Measuring gotcha: with touch emulation on, a
   synthetic mouse click on the sport tab is ignored (you silently measure Badminton's 2-card rows);
   click from page JS and check the subtitle says 520 players.
+  **Desktop performance — measured, keep these rules too** (Oct 2 2026, "laggy on desktop, and
+  scrolling drops fps"; 1366x900, 4x CPU throttle, wheel-scroll + arrow clicks, `perf-desk.mjs`):
+  page scroll went from 22-34fps (freezes up to 1.3s) to ~45-55fps; other public pages do 56-60.
+  (5) NO `blur` on desktop either (a blur filter on each moving card was the biggest cost, ~+15fps
+  when removed). (6) The carousel panels use `<Panel blur={false}>` (new prop: the glass tint without
+  the desktop `backdrop-blur`, i.e. what phones already get); a backdrop blur under moving 3D cards
+  cost ~5-10fps on scroll. (7) The darkening overlay gets its own layer (`will-change: opacity`, set
+  in `layout()`), or changing its opacity repaints the whole card every frame. (8) Cards are layers
+  (`will-change`) only while on stage; off-stage cards drop it. (9) Cards more than visibleCards+3
+  from the front get `content-visibility: hidden`: every card sits at the same spot on screen, so
+  otherwise the browser loads + decodes ALL of a panel's images at once (26 x 768px barangay logos
+  per Teams panel). (10) No big box-shadow on the cards. Measuring gotcha: results swing a lot with
+  whatever else the PC is doing (the user's own Chrome) — compare old vs new by ALTERNATING runs in
+  the same minutes, never against numbers from earlier.
 - (Superseded Oct 2 2026 by the carousel above; card styling still applies.) **Players page = poster cards like Teams, BIGGER** (Oct 1 2026, `Players.jsx`): one drag-scroll
   row per team (`TeamRow`, same arrows/scroll logic as Teams' `TeamGroupPanel`) of `PlayerCard`s —
   `w-52 sm:w-60` (teams are `w-44 sm:w-48`), `aspect-[3/4]`; the headshot fills the card (no photo →

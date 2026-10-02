@@ -1,22 +1,26 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, CarouselArrow, TileGridSkeleton, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
+import { Crest, Panel, TileGridSkeleton, SportTabs, SearchInput, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
 import Reveal from "../../components/Reveal";
-import { useDragScroll } from "../../hooks/useDragScroll";
+import DepthCarousel from "../../components/DepthCarousel";
+import { useMediaQuery } from "../../lib/useMediaQuery";
+import { posterCarouselProps } from "../../lib/posterCarousel";
 
 // One big, grabbable box per team, poster-card style: the crest fills the
 // ENTIRE card (not just a top strip), with the team's name/barangay/format
 // overlaid at the bottom on a dark scrim so the text stays legible over
 // whatever the photo looks like. Fixed width so the row scrolls
 // horizontally instead of wrapping.
-// Oct 2026: same size and type as the Players page cards (w-52 / sm:w-60).
+// Oct 2026: a slide in a Depth Carousel, like the Players page; it fills the
+// carousel's card box.
 function TeamCard({ t }) {
   return (
-    <div className="w-52 sm:w-60 shrink-0 snap-start">
+    <div className="h-full w-full">
       <Link
         to={`/teams/${t.id}`}
-        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-white/[0.12] hover:border-[#FACC15]/50 transition"
+        draggable={false}
+        className="group relative block h-full w-full overflow-hidden rounded-[14px] border border-white/[0.12] hover:border-[#FACC15]/50 transition"
       >
         <Crest name={t.barangay || t.name} barangayId={t.barangayId} variant="cover" />
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3.5 pt-14 pb-3.5">
@@ -35,64 +39,30 @@ function TeamCard({ t }) {
   );
 }
 
-// A drag-to-scroll row of TeamCards, with prev/next arrows in the panel
-// header for anyone who'd rather click than grab. Arrows disable themselves
-// at either end instead of just doing nothing.
+// Module-level, so it is a stable renderItem: the carousel's memoized cards
+// then never re-render while it moves (see the Players page).
+const renderTeam = (t) => <TeamCard t={t} />;
+
+// One sport + division: a Depth Carousel of TeamCards, same settings as Players.
 function TeamGroupPanel({ sportName, division, list }) {
-  const dragRef = useDragScroll();
-  const [atStart, setAtStart] = useState(true);
-  const [atEnd, setAtEnd] = useState(true);
-
-  useEffect(() => {
-    const el = dragRef.current;
-    if (!el) return undefined;
-    function update() {
-      setAtStart(el.scrollLeft <= 4);
-      setAtEnd(el.scrollLeft >= el.scrollWidth - el.clientWidth - 4);
-    }
-    update();
-    el.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      el.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list.length]);
-
-  function scroll(dir) {
-    dragRef.current?.scrollBy({ left: dir * dragRef.current.clientWidth * 0.9, behavior: "smooth" });
-  }
-
-  const scrollable = !atStart || !atEnd;
-
+  const wide = useMediaQuery("(min-width: 640px)");
   return (
     <Panel
-      className="[content-visibility:auto] [contain-intrinsic-size:auto_440px]"
+      className="[content-visibility:auto] [contain-intrinsic-size:auto_480px]"
+      blur={false}
       title={`${sportName} · ${DIVISION_LABEL[division] || division}`}
       count={`${list.length}`}
-      actions={scrollable && (
-        <>
-          <CarouselArrow dir="prev" onClick={() => scroll(-1)} disabled={atStart} />
-          <CarouselArrow dir="next" onClick={() => scroll(1)} disabled={atEnd} />
-        </>
-      )}
     >
-      <div
-        ref={dragRef}
-        // overflow-y-hidden: with only overflow-x set, CSS turns overflow-y into
-        // "auto" too, so the reveal's 24px downward offset (more than the 20px of
-        // bottom padding) made a vertical scrollbar appear inside the section.
-        className="overflow-x-auto overflow-y-hidden cursor-grab snap-x snap-mandatory scroll-px-4 sm:scroll-px-5 px-4 sm:px-5 py-5"
-      >
-        {/* The whole row reveals as ONE layer. It used to stagger every card
-            separately; with 20+ cards that was 20+ elements animating on the
-            main thread while their crest images decoded, which stuttered on
-            phones. */}
-        <Reveal className="flex gap-3">
-          {list.map((t) => <TeamCard key={t.id} t={t} />)}
-        </Reveal>
-      </div>
+      {/* The whole carousel reveals as ONE layer (per-card reveals stuttered on phones). */}
+      <Reveal className="px-2 sm:px-5 pt-5 pb-3">
+        <DepthCarousel
+          items={list}
+          getKey={(t) => t.id}
+          label={`${sportName} ${DIVISION_LABEL[division] || division} teams`}
+          {...posterCarouselProps(wide)}
+          renderItem={renderTeam}
+        />
+      </Reveal>
     </Panel>
   );
 }

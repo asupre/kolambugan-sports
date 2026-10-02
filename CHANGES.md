@@ -3636,3 +3636,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
   for arrows that phones don't show). Swiping no longer re-renders the cards, and the back cards are
   darkened with a cheap see-through layer instead of a filter that had to be redrawn every frame.
   Measured on a slowed-down phone: 39-49fps with many stutters before, a steady ~60fps after.
+- **Teams page: Depth Carousel too, and smoother carousels on desktop** (Oct 2 2026). Each sport +
+  division on the Teams page is now the same 3D card stack as the Players page, with the same
+  sizes (shared settings, so the two pages stay in step). Long lists (over 15) show "3 / 26" instead
+  of a row of dots. Desktop lag fixed on both pages: no blur on the back cards, no frosted-glass blur
+  behind these panels, the darkening layer no longer repaints the card each frame, hidden cards give
+  their GPU layer back, far-back cards don't load their images until they get close, and the cards
+  lost their heavy shadow. Measured page scrolling: about 22-34fps before, 45-55fps after.

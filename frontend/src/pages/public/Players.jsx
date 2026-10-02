@@ -5,6 +5,7 @@ import { Panel, TileGridSkeleton, SportTabs, SearchInput, DIVISION_LABEL, initia
 import Reveal from "../../components/Reveal";
 import DepthCarousel from "../../components/DepthCarousel";
 import { useMediaQuery } from "../../lib/useMediaQuery";
+import { posterCarouselProps } from "../../lib/posterCarousel";
 
 // Players page (Oct 2026): one React Bits "Depth Carousel" per team: the front
 // player's poster card faces you, the rest stack back in 3D. Drag, swipe,
@@ -74,6 +75,7 @@ function TeamRow({ t }) {
   return (
     <Panel
       className="[content-visibility:auto] [contain-intrinsic-size:auto_480px]"
+      blur={false}
       title={t.name}
       count={`${t.barangay ? `Brgy. ${t.barangay} · ` : ""}${DIVISION_LABEL[t.division] || t.division} · ${t.players.length}`}
       empty="No players listed."
@@ -85,16 +87,7 @@ function TeamRow({ t }) {
               items={t.players}
               getKey={(p) => p.id}
               label={`${t.name} players`}
-              cardWidth={wide ? 270 : 250}
-              cardHeight={wide ? 360 : 333}
-              spread={wide ? 115 : 34}
-              depth={wide ? 200 : 150}
-              tilt={wide ? 22 : 14}
-              visibleCards={wide ? 4 : 3}
-              blur={wide ? 3 : 0}
-              falloff={0.13}
-              showControls={wide}
-              sidePadding={wide ? 120 : 0}
+              {...posterCarouselProps(wide)}
               renderItem={renderPlayer}
             />
           </Reveal>

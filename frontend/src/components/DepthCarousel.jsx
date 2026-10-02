@@ -41,6 +41,8 @@ export default function DepthCarousel({
   loop = true,
   showControls = true,
   showIndicators = true,
+  // More items than this: a "3 / 26" counter instead of one dot each.
+  maxDots = 15,
   // Room kept beside the stack when shrinking to fit (the arrows need ~120px).
   sidePadding = 120,
   label = "Carousel",
@@ -53,6 +55,7 @@ export default function DepthCarousel({
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
   const dotRefs = useRef([]);
+  const counterRef = useRef(null);
   const posRef = useRef(0);
   const focusRef = useRef(0);
   const rafRef = useRef(0);
@@ -95,6 +98,12 @@ export default function DepthCarousel({
 
       const back = Math.max(0, d);
       const shown = Math.abs(d) <= cfg.visibleCards + 0.5;
+      // Every card sits in the same spot on screen, so without this the browser
+      // would load and decode EVERY card's image at once (26 logos per Teams
+      // panel). Cards more than a few places from the front skip rendering;
+      // the next few are rendered (images loaded) just ahead of time.
+      const cv = Math.abs(d) <= cfg.visibleCards + 3 ? "visible" : "hidden";
+      if (el.style.contentVisibility !== cv) el.style.contentVisibility = cv;
       let opacity = d < 0 ? Math.max(0, 1 + d) : 1;
       if (!shown) opacity = 0;
 
@@ -104,6 +113,9 @@ export default function DepthCarousel({
           el.style.visibility = "hidden";
           el.style.opacity = "0";
           el.style.pointerEvents = "none";
+          el.style.willChange = "auto"; // gives its GPU layer back
+          const ov = overlayRefs.current[i];
+          if (ov) ov.style.willChange = "auto";
         }
         continue;
       }
@@ -113,6 +125,7 @@ export default function DepthCarousel({
       const ry = dir * cfg.tilt * clamp(d, 0, 1);
 
       el.style.visibility = "visible";
+      el.style.willChange = cfg.blur > 0 ? "transform, opacity, filter" : "transform, opacity";
       el.style.transform = `translate3d(-50%, -50%, 0) scale(${sc}) translateX(${tx.toFixed(1)}px) translateZ(${tz.toFixed(1)}px) rotateY(${ry.toFixed(2)}deg)`;
       el.style.opacity = opacity.toFixed(3);
       el.style.zIndex = String(Math.round(2000 - d * 20));
@@ -122,8 +135,13 @@ export default function DepthCarousel({
         el.style.filter = blurPx > 0.05 ? `blur(${blurPx.toFixed(2)}px)` : "none";
       }
 
+      // Its own layer, so changing its opacity doesn't repaint the card under it
+      // every frame (measured: that repaint was most of the cost on desktop).
       const ov = overlayRefs.current[i];
-      if (ov) ov.style.opacity = clamp(back * cfg.falloff * 1.6, 0, 0.85).toFixed(3);
+      if (ov) {
+        ov.style.willChange = "opacity";
+        ov.style.opacity = clamp(back * cfg.falloff * 1.6, 0, 0.85).toFixed(3);
+      }
     }
   }, []);
 
@@ -136,6 +154,7 @@ export default function DepthCarousel({
       dot.setAttribute("aria-selected", on ? "true" : "false");
     });
     cardRefs.current.forEach((card, i) => card?.setAttribute("aria-hidden", i === idx ? "false" : "true"));
+    if (counterRef.current) counterRef.current.textContent = `${idx + 1} / ${cfgRef.current.count}`;
   }, []);
 
   const tweenTo = useCallback((target, animate) => {
@@ -318,7 +337,7 @@ export default function DepthCarousel({
           <div
             key={getKey(item, i)}
             ref={(el) => { cardRefs.current[i] = el; }}
-            className={`absolute left-1/2 top-1/2 overflow-hidden bg-[#0B1626] shadow-[0_24px_48px_-20px_rgba(0,0,0,0.7)] [transform-origin:center] ${blur > 0 ? "[will-change:transform,opacity,filter]" : "[will-change:transform,opacity]"}`}
+            className={`absolute left-1/2 top-1/2 overflow-hidden bg-[#0B1626] [transform-origin:center]`}
             style={{ width: cardWidth, height: cardHeight, borderRadius: radius, transform: "translate3d(-50%,-50%,0)" }}
             aria-roledescription="slide"
             aria-label={`${i + 1} of ${count}`}
@@ -345,7 +364,13 @@ export default function DepthCarousel({
         </>
       )}
 
-      {showIndicators && count > 1 && (
+      {showIndicators && count > maxDots && (
+        <div className="absolute bottom-2 left-1/2 z-[3000] -translate-x-1/2 rounded-full border border-white/[0.12] bg-black/30 px-3 py-0.5 text-[13px] font-medium tabular-nums text-slate-200" aria-live="polite">
+          <span ref={counterRef}>1 / {count}</span>
+        </div>
+      )}
+
+      {showIndicators && count > 1 && count <= maxDots && (
         <div className="absolute bottom-2 left-1/2 z-[3000] flex max-w-[90%] -translate-x-1/2 flex-wrap justify-center gap-1.5" role="tablist" aria-label="Slides">
           {items.map((item, i) => (
             <button

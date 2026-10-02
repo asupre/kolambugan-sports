@@ -140,10 +140,13 @@ export function PlayerAvatar({ player, size = 40 }) {
 // already-soft GlassBackdrop gradient, so blurring it changes almost nothing
 // visually but costs a lot on a phone GPU; below lg the tint is a bit stronger.
 // className: extra classes, e.g. content-visibility for long lists.
-export function Panel({ title, count, children, empty, actions, glass = true, className = "" }) {
+// `blur={false}`: the glass look WITHOUT the desktop backdrop blur (the tint
+// phones already get). Used around the 3D Depth Carousels: a backdrop blur
+// under moving 3D cards cost ~10fps while scrolling (measured, Oct 2026).
+export function Panel({ title, count, children, empty, actions, glass = true, blur = true, className = "" }) {
   return (
     <section className={(glass
-      ? "relative rounded-2xl border border-white/[0.12] bg-white/[0.07] lg:bg-white/[0.05] lg:backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden"
+      ? `relative rounded-2xl border border-white/[0.12] bg-white/[0.07] ${blur ? "lg:bg-white/[0.05] lg:backdrop-blur-xl " : ""}shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden`
       : "rounded-lg border border-white/[0.08] bg-[#122036] mb-5 overflow-hidden") + (className ? " " + className : "")}>
       {title && (
         <div className={`px-4 sm:px-5 py-3.5 border-b ${glass ? "border-white/[0.08] bg-white/[0.03]" : "border-white/[0.08]"} flex items-center justify-between gap-2.5`}>

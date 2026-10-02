@@ -86,7 +86,7 @@ function decideFromCandidates(player, teamBarangay, candidates) {
     return {
       status: 'needs_document',
       code: 'minor',
-      reason: `${MINOR_AGE} or under — needs parental consent and documents`,
+      reason: `${MINOR_AGE} or under: needs parental consent and documents`,
       matchedReferenceId: null,
     };
   }
@@ -112,7 +112,7 @@ function decideFromCandidates(player, teamBarangay, candidates) {
     return {
       status: 'flagged',
       code: 'not_on_list',
-      reason: 'Not found on the reference list (name, middle initial, and birthdate must all match) — possible Dayo. If the name is misspelled, correct it and it will be re-checked',
+      reason: 'Not found on the reference list (name, middle initial, and birthdate must all match). Possible Dayo. If the name is misspelled, correct it and it will be re-checked',
       matchedReferenceId: null,
     };
   }

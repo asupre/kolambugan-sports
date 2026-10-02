@@ -125,7 +125,7 @@ export default function InstructionModal({ role, onClose }) {
         <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              How this works — {ROLE_LABEL[role] || role}
+              How this works: {ROLE_LABEL[role] || role}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Step {step + 1} of {steps.length}
@@ -194,7 +194,7 @@ export default function InstructionModal({ role, onClose }) {
               Next <ArrowRight />
             </Button>
           ) : (
-            <Button onClick={onClose}>Got it — let's go</Button>
+            <Button onClick={onClose}>Got it, let's go</Button>
           )}
         </div>
       </DialogContent>

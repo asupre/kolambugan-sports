@@ -143,7 +143,7 @@ export default function OrganizerHome() {
               </CardTitle>
               <CardDescription>
                 {c.overdue > 0 && `${c.overdue} match${c.overdue === 1 ? " was" : "es were"} dated for a past day but never played. `}
-                {c.awaitingDate > 0 && `${c.awaitingDate} ready match${c.awaitingDate === 1 ? " has" : "es have"} no date yet — ask the Super Admin to set one.`}
+                {c.awaitingDate > 0 && `${c.awaitingDate} ready match${c.awaitingDate === 1 ? " has" : "es have"} no date yet. Ask the Super Admin to set one.`}
               </CardDescription>
             </CardHeader>
             {data.overdue.length > 0 && (
@@ -196,7 +196,7 @@ export default function OrganizerHome() {
                     <Button size="sm" onClick={openScoring}>Open scoring <ArrowRight /></Button>
                   </>
                 ) : (
-                  <Empty>{c.today > 0 ? "Every match dated today is in play — see above." : "No matches today."}</Empty>
+                  <Empty>{c.today > 0 ? "Every match dated today is in play, see above." : "No matches today."}</Empty>
                 )}
               </CardContent>
             </Card>

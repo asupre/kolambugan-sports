@@ -90,7 +90,7 @@ export default function Standings() {
               ? advance === 1
                 ? "The winner of each group advances to the knockout round."
                 : `The top ${advance} of each group advance to the knockout round.`
-              : "Two teams advance from each group — the winner of the upper bracket and the winner of the lower bracket. Highlighted once decided."}
+              : "Two teams advance from each group: the winner of the upper bracket and the winner of the lower bracket. Highlighted once decided."}
           </p>
 
           {/* Same size and layout as a group box (Oct 2026), centred above the groups:

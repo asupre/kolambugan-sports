@@ -269,7 +269,7 @@ router.post('/teams/:teamId/players/:playerId/approve', requireVerificationStage
       if (d.status === 'flagged') {
         return res.status(409).json({
           message: d.code === 'cross_barangay'
-            ? `${d.reason}. This can't be approved — reject the player, or allow cross-barangay players for this barangay in League Setup.`
+            ? `${d.reason}. This can't be approved. Reject the player, or allow cross-barangay players for this barangay in League Setup.`
             : "This player isn't on the reference list (possible Dayo), so they can't be approved. If the name is misspelled, the Barangay Admin can correct it and it will re-screen; otherwise reject the player.",
         });
       }
@@ -279,7 +279,7 @@ router.post('/teams/:teamId/players/:playerId/approve', requireVerificationStage
       const docCount = await Document.countDocuments({ player: req.params.playerId });
       if (docCount === 0) {
         return res.status(400).json({
-          message: 'This player has no residency document uploaded yet — the Barangay Admin needs to submit one before this player can be approved.',
+          message: 'This player has no residency document uploaded yet. The Barangay Admin needs to submit one before this player can be approved.',
         });
       }
     }
@@ -399,7 +399,7 @@ router.post('/teams/:teamId/reopen', async (req, res) => {
     }
     team.status = 'pending';
     await team.save();
-    res.json({ message: `${team.teamName} reopened — it's back in the queue and its Barangay Admin can correct it.`, teamId: team._id, status: team.status });
+    res.json({ message: `${team.teamName} reopened. It's back in the queue and its Barangay Admin can correct it.`, teamId: team._id, status: team.status });
   } catch (err) {
     console.error('Reopen team error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

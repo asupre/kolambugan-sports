@@ -168,7 +168,7 @@ function SportSetupSummary() {
         </div>
         <CardDescription>
           <InfoHint summary="Check these before opening registration.">
-            <p>Once barangays start registering, divisions and entry formats are locked — rosters get built against them.</p>
+            <p>Once barangays start registering, divisions and entry formats are locked. Rosters get built against them.</p>
           </InfoHint>
         </CardDescription>
       </CardHeader>
@@ -407,9 +407,9 @@ export default function Season() {
               <CardHeader>
                 <CardTitle>Ready to move on?</CardTitle>
                 <CardDescription>
-                  <InfoHint summary="Moving on can't be undone — this checklist is the safety net." label="Why">
-                    <p>Registration and the Review Queue verdicts are tied to the season stage — brackets and scoring
-                    aren't — so nothing else will stop a premature move.</p>
+                  <InfoHint summary="Moving on can't be undone. This checklist is the safety net." label="Why">
+                    <p>Registration and the Review Queue verdicts are tied to the season stage (brackets and scoring
+                    aren't), so nothing else will stop a premature move.</p>
                   </InfoHint>
                 </CardDescription>
               </CardHeader>
@@ -419,7 +419,7 @@ export default function Season() {
                     {readiness.map((r, i) => <ReadinessRow key={i} item={r} onGo={navigate} />)}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Couldn't load the checklist — you can still move on.</p>
+                  <p className="text-sm text-muted-foreground">Couldn't load the checklist. You can still move on.</p>
                 )}
                 <div className="flex flex-wrap items-center gap-3">
                   <Button onClick={() => { setError(""); setAdvanceOpen(true); }}>

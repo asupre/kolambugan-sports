@@ -108,7 +108,7 @@ export default function BrgyHome() {
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-foreground">
               <span>
                 <span className="font-medium">{p.attention} player{p.attention === 1 ? "" : "s"}</span> on your teams
-                {p.attention === 1 ? " needs" : " need"} attention — a name to correct or a document to send.
+                {p.attention === 1 ? " needs" : " need"} attention: a name to correct or a document to send.
               </span>
               <Button size="sm" variant="outline" onClick={() => navigate("/brgy/documents")}>
                 Open Verification Status <ArrowRight />
@@ -126,7 +126,7 @@ export default function BrgyHome() {
         </div>
         {!loading && p && (
           <p className="-mt-2 text-xs text-muted-foreground">
-            Each player is counted once — someone on several of your teams counts by their most advanced team.
+            Each player is counted once: someone on several of your teams counts by their most advanced team.
           </p>
         )}
 
@@ -202,7 +202,7 @@ export default function BrgyHome() {
                       <Empty>
                         {data?.season?.status === "ongoing"
                           ? "No matches scheduled for your teams right now."
-                          : "No matches yet — they appear once brackets are drawn and scheduled."}
+                          : "No matches yet. They appear once brackets are drawn and scheduled."}
                       </Empty>
                     )}
                   </div>

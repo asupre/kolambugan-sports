@@ -137,7 +137,7 @@ export default function PublicLayout() {
             <Link to="/" className="flex items-center min-w-0">
               <img
                 src="/logo/ksl-lockup-horizontal-dark.svg"
-                alt="Kolambugan Sports — Inter-Barangay League"
+                alt="Kolambugan Sports · Inter-Barangay League"
                 className="h-11 w-auto shrink-0"
               />
             </Link>

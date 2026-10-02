@@ -177,7 +177,7 @@ router.post('/provision-all', async (req, res) => {
     res.status(201).json({
       created,
       message: created.length
-        ? `Provisioned ${created.length} account(s). Copy these credentials now — passwords can't be shown again.`
+        ? `Provisioned ${created.length} account(s). Copy these credentials now. Passwords can't be shown again.`
         : 'All barangays and sports already have accounts.',
     });
   } catch (err) {

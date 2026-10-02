@@ -1181,7 +1181,7 @@ so a bug in one route cannot expose the other.
   div instead of the page and the header scrolled away. Now `overflow-x-clip`
   (clips, creates no scroll container). Don't put `overflow-hidden`/`-x-hidden`
   on any ancestor of a sticky element.
-- **Login page (Sep 2026):** the desktop-only left brand panel uses React Bits
+- **Login page (Sep 2026):** the "Kolambugan Sports" logo + name (and the phone logo) link to `/`, the public Home (Oct 2026). the desktop-only left brand panel uses React Bits
   **Gradient Waves** (`components/GradientWaves.jsx`, copied in per React Bits'
   copy-paste model, (c) David Haz, MIT + Commons Clause — keep the header
   comment; needs the `ogl` dependency). Layers: purple gradient (fallback) ->
@@ -1780,6 +1780,9 @@ Basketball, Volleyball, Badminton, Mobile Legends, Billiards, Chess, Pickleball.
   role-checked routes. Player photos are public by decision (Aug 2026).
 - Log deviations from the thesis document in CHANGES.md as you build —
   the document gets trued-up in early September.
+- **No em dashes ("—") in user-facing sentences** (Super Admin request, Oct 2026): use a
+  comma, colon, full stop, parentheses or " · " instead. Comments may use them; a lone "—" as an
+  empty-value placeholder is fine.
 
 ---
 ---

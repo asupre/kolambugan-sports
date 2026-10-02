@@ -59,7 +59,7 @@ function ReasonCallout({ status, reason, nearMiss, className }) {
       {/* A same-name row exists but the middle initial/birthdate disagree —
           see the full breakdown in the player modal instead of repeating it
           here, this row just needs to say a likely match exists at all. */}
-      {hasNearMiss && " — possible match on the list, details differ"}
+      {hasNearMiss && " · possible match on the list, details differ"}
     </p>
   );
 }
@@ -114,7 +114,7 @@ function MatchCallout({ status, reason, nearMiss, lastName, firstName, navigate 
       <Alert className="border-green-500/30 bg-green-500/5">
         <ListChecks className="text-green-600 dark:text-green-400" />
         <AlertDescription className="text-foreground flex items-center justify-between gap-3 flex-wrap">
-          <span>Eligible — open the Reference List to see the exact resident record behind this.</span>
+          <span>Eligible. Open the Reference List to see the exact resident record behind this.</span>
           <Button
             size="sm"
             variant="outline"
@@ -159,7 +159,7 @@ function MatchCallout({ status, reason, nearMiss, lastName, firstName, navigate 
         {hasNearMiss && (
           <div className="space-y-2 border-t border-current/20 pt-2.5">
             <p className="text-xs font-semibold flex items-center gap-1.5">
-              <AlertTriangle className="size-3.5 shrink-0" /> Possible match on the list — same name, details differ:
+              <AlertTriangle className="size-3.5 shrink-0" /> Possible match on the list (same name, details differ):
             </p>
             {nearMiss.map((m, i) => <NearMissDetail key={i} m={m} />)}
           </div>
@@ -402,23 +402,23 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
         <div className="px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap shrink-0">
           <p className={cn("text-xs", locked || teamVerified ? "text-muted-foreground font-medium" : blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : hasNearMiss ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
             {teamVerified
-              ? "This team is verified and locked — nothing here can be edited. Reopen the team above to make corrections."
+              ? "This team is verified and locked. Nothing here can be edited. Reopen the team above to make corrections."
               : locked
-              ? "View only — approving and rejecting open once the season moves to the verification stage."
+              ? "View only. Approving and rejecting open once the season moves to the verification stage."
               : blockedCrossBarangay
               ? "This barangay doesn't allow cross-barangay players, so this player can't be approved. Reject them, or allow cross-barangay for this barangay in League Setup."
               : blockedDayo
-              ? "Not on the reference list (possible Dayo) — this player can't be approved. If the name is misspelled, the Barangay Admin can correct it and it re-screens; otherwise reject them."
+              ? "Not on the reference list (possible Dayo). This player can't be approved. If the name is misspelled, the Barangay Admin can correct it and it re-screens; otherwise reject them."
               : blockedNoDocument
-              ? "No document uploaded yet — Approve is disabled until the Barangay Admin submits one."
+              ? "No document uploaded yet. Approve is disabled until the Barangay Admin submits one."
               : hasNearMiss
-              ? "Check the near-miss details above before approving — a same-name row exists but the middle name or birthdate doesn't match it."
+              ? "Check the near-miss details above before approving. A same-name row exists but the middle name or birthdate doesn't match it."
               : "Approving also marks this player's pending documents as approved. Rejecting removes the player and their files, and reopens the roster."}
           </p>
           {!teamVerified && p.eligibilityStatus !== "eligible" && (
             <div className="flex gap-2 shrink-0">
               <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || locked || approveBlocked}
-                title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : blockedNoDocument ? "This player has no document uploaded yet." : hasNearMiss ? "A same-name reference-list row exists but the middle name or birthdate differs — double-check before approving." : undefined}
+                title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : blockedNoDocument ? "This player has no document uploaded yet." : hasNearMiss ? "A same-name reference-list row exists but the middle name or birthdate differs. Double-check before approving." : undefined}
                 className={cn(
                   "text-white",
                   hasNearMiss
@@ -636,7 +636,7 @@ export default function ReviewQueue() {
               <CardHeader>
                 <CardTitle>
                   {selectedBarangayInfo
-                    ? selectedBarangayInfo.cleared ? `Brgy. ${selectedBarangayInfo.name} — cleared` : `Brgy. ${selectedBarangayInfo.name} — nothing pending`
+                    ? selectedBarangayInfo.cleared ? `Brgy. ${selectedBarangayInfo.name}: cleared` : `Brgy. ${selectedBarangayInfo.name}: nothing pending`
                     : "Nothing to review"}
                 </CardTitle>
                 <CardDescription>
@@ -644,7 +644,7 @@ export default function ReviewQueue() {
                     ? selectedBarangayInfo.cleared
                       ? `Brgy. ${selectedBarangayInfo.name} has a verified team in every sport/division this season (${selectedBarangayInfo.completedSlots}/${selectedBarangayInfo.requiredSlots}).`
                       : selectedBarangayInfo.completedSlots > 0
-                        ? `Brgy. ${selectedBarangayInfo.name} has ${selectedBarangayInfo.completedSlots} of ${selectedBarangayInfo.requiredSlots} sport/division slots verified, and nothing currently awaiting review — still short of the rest.`
+                        ? `Brgy. ${selectedBarangayInfo.name} has ${selectedBarangayInfo.completedSlots} of ${selectedBarangayInfo.requiredSlots} sport/division slots verified, and nothing currently awaiting review, but still short of the rest.`
                         : `Brgy. ${selectedBarangayInfo.name} hasn't submitted any teams yet this season.`
                     : "No submitted teams are awaiting review in the current season. Teams appear here once a Barangay Admin submits their roster."}
                 </CardDescription>
@@ -694,7 +694,7 @@ export default function ReviewQueue() {
                           {/* Verify team */}
                           <div className="mt-4 pt-3 border-t flex items-center justify-between">
                             <p className="text-xs text-muted-foreground">
-                              {!reviewOpen ? "Verifying opens at the verification stage." : allEligible ? "All players eligible — ready to verify." : "Resolve all flagged / needs-document players to verify."}
+                              {!reviewOpen ? "Verifying opens at the verification stage." : allEligible ? "All players eligible, ready to verify." : "Resolve all flagged / needs-document players to verify."}
                             </p>
                             <Button onClick={() => verify(t.teamId)} disabled={busy || !reviewOpen || !allEligible}>
                               <ShieldCheck /> Verify Team
@@ -745,10 +745,10 @@ export default function ReviewQueue() {
               <CardHeader>
                 <CardTitle>Verified teams</CardTitle>
                 <CardDescription>
-                  <InfoHint summary="Locked for their Barangay Admin — open one to view its roster and check players against the Reference List.">
+                  <InfoHint summary="Locked for their Barangay Admin. Open one to view its roster and check players against the Reference List.">
                     <p>Nothing here can be edited directly. Reopen one (verification stage only) to let the
                     Barangay Admin correct a player; it returns to the queue above and needs verifying again.</p>
-                    <p className="mt-1.5">A team already in a tournament can't be reopened — delete the tournament first.</p>
+                    <p className="mt-1.5">A team already in a tournament can't be reopened. Delete the tournament first.</p>
                   </InfoHint>
                 </CardDescription>
               </CardHeader>

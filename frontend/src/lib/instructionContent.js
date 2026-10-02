@@ -36,7 +36,7 @@ const RAW_STEPS = {
     {
       title: "Start a season",
       description:
-        "Everything else in the app is scoped to whichever season is active. A season runs through five stages — setup, registration, verification, ongoing, completed — and only you can advance it.",
+        "Everything else in the app is scoped to whichever season is active. A season runs through five stages (setup, registration, verification, ongoing, completed), and only you can advance it.",
       icon: CalendarRange,
       shots: [
         ["create-season.png", "No season yet: tap Create Season"],
@@ -47,7 +47,7 @@ const RAW_STEPS = {
     {
       title: "Reference List",
       description:
-        "Upload the SK Federation's reference list (a CSV) from Reference List. Every player a Barangay Admin adds is checked against it automatically — uploading a new list replaces the old one for the season.",
+        "Upload the SK Federation's reference list (a CSV) from Reference List. Every player a Barangay Admin adds is checked against it automatically. Uploading a new list replaces the old one for the season.",
       icon: ClipboardList,
       shots: [
         ["reference-list.png", "The Reference List page"],
@@ -58,7 +58,7 @@ const RAW_STEPS = {
     {
       title: "Review Queue",
       description:
-        "Players the system can't confirm land here as “needs document” or “flagged.” Open a player to compare their photo against their submitted ID, then Approve or Reject — rejecting removes the player and reopens the roster so the barangay can fix it.",
+        "Players the system can't confirm land here as “needs document” or “flagged.” Open a player to compare their photo against their submitted ID, then Approve or Reject. Rejecting removes the player and reopens the roster so the barangay can fix it.",
       icon: UserCheck,
       shots: [
         ["review-queue.png", "Teams waiting for review, filtered by barangay"],
@@ -79,14 +79,14 @@ const RAW_STEPS = {
     {
       title: "Tournaments",
       description:
-        "Once enough teams in a division are verified, generate its bracket from Tournaments (pick the sport in the sidebar). The structure locks at draw time — organizers only ever enter scores, never pick who advances.",
+        "Once enough teams in a division are verified, generate its bracket from Tournaments (pick the sport in the sidebar). The structure locks at draw time. Organizers only ever enter scores, never pick who advances.",
       icon: Trophy,
       shots: [["tournament-side.png", "Pick a sport in the sidebar, then generate its tournament"]],
     },
     {
       title: "Accounts",
       description:
-        "Provision any missing barangay-admin or organizer account in one click from Accounts. Temporary passwords are shown once — copy and share them before you close that screen.",
+        "Provision any missing barangay-admin or organizer account in one click from Accounts. Temporary passwords are shown once. Copy and share them before you close that screen.",
       icon: KeyRound,
       shots: [["accounts.png", "Every account, its password status, and Provision all"]],
     },
@@ -109,7 +109,7 @@ const RAW_STEPS = {
       shots: [
         ["profile.png", "Your name at the top right opens your profile"],
         ["profile-info.png", "Change your password, or set up account recovery"],
-        ["profile-generated-recovery.png", "A new recovery code is shown only once — save it"],
+        ["profile-generated-recovery.png", "A new recovery code is shown only once. Save it"],
       ],
     },
   ],
@@ -124,20 +124,20 @@ const RAW_STEPS = {
     {
       title: "Register a team",
       description:
-        "From My Teams, pick a sport and division, name the team, then open its roster and add players — name, birthdate, address, jersey number, and a close-up photo. You can also import a CSV.",
+        "From My Teams, pick a sport and division, name the team, then open its roster and add players: name, birthdate, address, jersey number, and a close-up photo. You can also import a CSV.",
       icon: UserPlus,
       shots: [
         ["teams.png", "My Teams"],
         ["teams-create.png", "Pick the sport"],
         ["teams-create-2.png", "Name the team and tap Create team"],
-        ["teams-created.png", "The new team is a draft — tap Edit roster"],
+        ["teams-created.png", "The new team is a draft. Tap Edit roster"],
         ["teams-modal-edit-roster.png", "Add your players"],
       ],
     },
     {
       title: "Documents",
       description:
-        "Players 15 and under, or anyone the system can't confirm from the reference list, need a supporting document. Upload it from Verification Status — the Super Admin reviews it before your team can be verified.",
+        "Players 15 and under, or anyone the system can't confirm from the reference list, need a supporting document. Upload it from Verification Status. The Super Admin reviews it before your team can be verified.",
       icon: ClipboardList,
       shots: [
         ["verification-status.png", "Verification Status: every player's result"],
@@ -147,14 +147,14 @@ const RAW_STEPS = {
     {
       title: "Submit & track",
       description:
-        "Once your roster meets the size limit, submit it. It locks and gets screened automatically — watch each player's status turn eligible, or follow up if one comes back flagged.",
+        "Once your roster meets the size limit, submit it. It locks and gets screened automatically. Watch each player's status turn eligible, or follow up if one comes back flagged.",
       icon: Send,
       shots: [["teams-submit-modal.png", "Roster ready: tap Submit roster"]],
     },
     {
       title: "Follow your matches",
       description:
-        "Once the tournaments start, Matches shows your barangay's games — when and where they are, and the results.",
+        "Once the tournaments start, Matches shows your barangay's games: when and where they are, and the results.",
       icon: CalendarDays,
       shots: [["matches.png", "Your barangay's matches"]],
     },
@@ -179,7 +179,7 @@ const RAW_STEPS = {
     {
       title: "Start & score",
       description:
-        "Pick how many periods you're playing, tap Start, then tap the team that scored (+1, +2 or +3 in basketball). Scoring is by team — you don't pick players while the game runs. Everything updates live on the public site as you go.",
+        "Pick how many periods you're playing, tap Start, then tap the team that scored (+1, +2 or +3 in basketball). Scoring is by team. You don't pick players while the game runs. Everything updates live on the public site as you go.",
       icon: Play,
       shots: [
         ["start.png", "Choose the number of periods and tap Start"],
@@ -189,14 +189,14 @@ const RAW_STEPS = {
     {
       title: "End the match",
       description:
-        "Once every period is in, End match locks the score and advances the winner automatically — you never pick who moves on, the score decides it.",
+        "Once every period is in, End match locks the score and advances the winner automatically. You never pick who moves on, the score decides it.",
       icon: Flag,
       shots: [["completed.png", "Finished games move to the Completed tab"]],
     },
     {
       title: "Fill in the player stats",
       description:
-        "After the match, a score sheet lists every player. Fill in the columns the Super Admin set up for your sport (for example points, fouls, rebounds, blocks and assists in basketball; the role each player played, and kills / deaths / assists, in esports). Leave a player blank if they didn't play, choose the MVP and Save — you can come back and correct it later.",
+        "After the match, a score sheet lists every player. Fill in the columns the Super Admin set up for your sport (for example points, fouls, rebounds, blocks and assists in basketball; the role each player played, and kills / deaths / assists, in esports). Leave a player blank if they didn't play, choose the MVP and Save. You can come back and correct it later.",
       icon: ClipboardList,
     },
   ],

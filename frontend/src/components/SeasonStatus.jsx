@@ -24,7 +24,7 @@ const GUIDE = {
     completed: "The season has ended. Results and champions are final.",
   },
   barangay_admin: {
-    setup: "The league is still being set up. Registration hasn't opened yet — you'll be able to add teams and players once it does.",
+    setup: "The league is still being set up. Registration hasn't opened yet. You'll be able to add teams and players once it does.",
     registration_open: "Registration is open. Add your players, then submit each roster before registration closes. A roster locks once it's submitted.",
     verification: "The SK Federation is verifying rosters. Watch for flagged players and send any documents you're asked for. Verified teams are locked.",
     ongoing: "The league is underway and rosters are final. Follow your matches on the Matches tab.",
@@ -34,7 +34,7 @@ const GUIDE = {
     setup: "The league is being set up. There's nothing to score yet.",
     registration_open: "Barangays are still registering teams. Brackets are drawn after verification, so there's nothing to score yet.",
     verification: "Rosters are being verified. Once the Super Admin draws the brackets, your matches will appear here.",
-    ongoing: "Matches are being played. Start each match courtside and record the score — winners advance automatically.",
+    ongoing: "Matches are being played. Start each match courtside and record the score. Winners advance automatically.",
     completed: "This season has ended. All results are final.",
   },
 };

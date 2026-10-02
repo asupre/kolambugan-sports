@@ -111,7 +111,7 @@ function Slot({ slot, onChanged, onError }) {
             file={pending}
             aspect={slot.aspect || 1.6}
             maxWidth={MAX_WIDTH}
-            title={`Position the photo — ${slot.label}`}
+            title={`Position the photo: ${slot.label}`}
             description="Drag to move, and use the slider to zoom. What's inside the frame is what appears on the site."
             onCancel={() => setPending(null)}
             onSave={uploadBlob}
@@ -156,8 +156,8 @@ export default function SiteImages() {
               <ImageIcon className="size-4 text-blue-500" /> Photos on the public site
             </CardTitle>
             <CardDescription>
-              <InfoHint summary="These images are public on the site — don't upload anything you wouldn't put on a poster.">
-                <p>Pick a photo, position it in the frame, and it's live on the public pages — no code change needed.</p>
+              <InfoHint summary="These images are public on the site. Don't upload anything you wouldn't put on a poster.">
+                <p>Pick a photo, position it in the frame, and it's live on the public pages, no code change needed.</p>
               </InfoHint>
             </CardDescription>
           </CardHeader>

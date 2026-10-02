@@ -22,15 +22,15 @@ export const NEXT_LABEL = {
 export const CONSEQUENCES = {
   setup: [
     "Barangay admins can create teams, add players, import rosters and submit them.",
-    "Each sport's divisions and entry format should be final — rosters are built against them.",
+    "Each sport's divisions and entry format should be final. Rosters are built against them.",
   ],
   registration_open: [
     "Barangays can no longer create teams, add or remove players, import a roster, or submit one. Rosters already submitted stay as they are.",
     "Players on teams that aren't verified yet can still be corrected by their barangay.",
-    "You can reopen a verified team for corrections — that is only possible during Verification.",
+    "You can reopen a verified team for corrections. That is only possible during Verification.",
   ],
   verification: [
-    "Verified teams can no longer be reopened for corrections — from here they're final.",
+    "Verified teams can no longer be reopened for corrections. From here they're final.",
     "Brackets are built from verified teams, so draw them before matches start.",
   ],
   ongoing: [
@@ -50,7 +50,7 @@ export function buildReadiness(status, s) {
   const items = [];
 
   if (status === "setup") {
-    if (s.referenceList?.count > 0) items.push(ok(`Reference list loaded — ${s.referenceList.count.toLocaleString()} residents.`));
+    if (s.referenceList?.count > 0) items.push(ok(`Reference list loaded: ${s.referenceList.count.toLocaleString()} residents.`));
     else items.push(warn("No reference list is uploaded, so players can't be checked automatically.", "/admin/reference", "Upload list"));
 
     const missing = (s.accounts?.missingBarangayAdmins || 0) + (s.accounts?.missingOrganizers || 0);
@@ -74,7 +74,7 @@ export function buildReadiness(status, s) {
       items.push(ok("Every barangay has registered at least one team."));
     }
     const draft = s.teamsByState?.draft || 0;
-    if (draft > 0) items.push(warn(`${plural(draft, "team is", "teams are")} still a draft — not submitted, so it won't be reviewed.`));
+    if (draft > 0) items.push(warn(`${plural(draft, "team is", "teams are")} still a draft, not submitted, so it won't be reviewed.`));
     else items.push(ok("Every registered team has been submitted."));
     items.push(info(`${s.teams} teams registered · ${s.teamsByState?.verified || 0} verified so far.`));
   }

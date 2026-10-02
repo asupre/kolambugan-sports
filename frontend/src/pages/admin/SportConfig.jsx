@@ -96,7 +96,7 @@ function Section({ title, hint, children }) {
 function RulesByType() {
   const blocks = [
     ["Sports", "Basketball, volleyball, badminton, pickleball…",
-      "Scored by team while the game runs (basketball +1 / +2 / +3, the others +1), in quarters or sets — the higher total wins. Nothing is credited to a player live. After the match the organizer fills in the score sheet for each player."],
+      "Scored by team while the game runs (basketball +1 / +2 / +3, the others +1), in quarters or sets, and the higher total wins. Nothing is credited to a player live. After the match the organizer fills in the score sheet for each player."],
     ["Esports", "Mobile Legends, Call of Duty Mobile…",
       "Round-robin groups, then a Top 8 or Top 16 knockout you pick under Registration (Top 8 = 1 team per barangay, Top 16 = up to 2). Played as a best-of series; the organizer taps who won each game. After the match the score sheet asks for the role each player played (Carry, Support…) and, if you tick them, kills, deaths and assists."],
     ["Board games", "Chess…",
@@ -300,7 +300,7 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
 
         <div className="grid grid-cols-1 gap-x-10 gap-y-6 lg:grid-cols-2">
           {/* Registration */}
-          <Section title="Registration" hint="Set before registration opens — teams are built against these.">
+          <Section title="Registration" hint="Set before registration opens. Teams are built against these.">
             <Label className="mb-2">Divisions</Label>
             <div className="flex flex-wrap gap-2">
               {DIVISIONS.map((d) => (
@@ -429,7 +429,7 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
                 )}
               </Chip>
             ))}
-            {sheetOptions.length === 0 && <p className="text-xs text-muted-foreground">This type has no built-in columns — add your own below.</p>}
+            {sheetOptions.length === 0 && <p className="text-xs text-muted-foreground">This type has no built-in columns. Add your own below.</p>}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Input value={newCol} maxLength={24} className="h-8 w-full sm:w-64"
@@ -621,7 +621,7 @@ function AddSport({ onAdded, onCancel, onError }) {
         )}
 
         <p className="text-xs text-muted-foreground">
-          A new game also needs an organizer account — use Provision all on the Accounts page.
+          A new game also needs an organizer account. Use Provision all on the Accounts page.
         </p>
         <div className="flex gap-2">
           <Button onClick={add} disabled={busy || !name.trim()}>{busy ? "Adding…" : "Add game"}</Button>
@@ -721,7 +721,7 @@ function BarangayCard({ onError, onNotice }) {
           </span>
         </CardTitle>
         <CardDescription>
-          <InfoHint summary="Tick a barangay to let its teams field players from any barangay — for ones too small to field a roster alone.">
+          <InfoHint summary="Tick a barangay to let its teams field players from any barangay, for ones too small to field a roster alone.">
             <p>An unticked barangay's teams may only field its own residents.</p>
             <p className="mt-1.5">Changing a tick re-checks every player straight away.</p>
           </InfoHint>
@@ -793,7 +793,7 @@ function BarangayCard({ onError, onNotice }) {
             )}
 
             <p className="mt-3 text-xs text-muted-foreground">
-              A new barangay needs an admin account — use Provision all on the Accounts page.
+              A new barangay needs an admin account. Use Provision all on the Accounts page.
             </p>
           </>
         )}
@@ -851,8 +851,8 @@ export default function SportConfig() {
           <h1 className="text-xl font-semibold tracking-tight">League Setup</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Divisions decide how many tournaments a game runs, and the entry format decides how many players a
-            barangay registers. Set them <span className="font-medium text-foreground">before registration opens</span> —
-            once teams sign up, changing them would invalidate rosters built against the old settings.
+            barangay registers. Set them <span className="font-medium text-foreground">before registration opens</span>.
+            Once teams sign up, changing them would invalidate rosters built against the old settings.
           </p>
         </div>
 

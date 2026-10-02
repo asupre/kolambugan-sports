@@ -214,7 +214,7 @@ export default function Documents() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground text-sm">
-                If a name here looks wrong, it may just be a typo — the reference list is
+                If a name here looks wrong, it may just be a typo. The reference list is
                 matched on the exact spelling. Open the player on{" "}
                 <span className="font-medium text-foreground">My Teams → View roster → Edit</span> to
                 correct it, and the residency check runs again straight away. No document

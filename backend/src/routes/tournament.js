@@ -814,7 +814,7 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
       // /de-bracket, which seeds A1–B2 properly. The hardcoded 8-team
       // double-elim that lived here silently ignored any team past the eighth.
       return res.status(400).json({
-        message: 'This sport uses group double-elimination — generate its knockout from the group qualifiers instead.',
+        message: 'This sport uses group double-elimination. Generate its knockout from the group qualifiers instead.',
       });
     }
 
@@ -1058,7 +1058,7 @@ router.post('/matches/:matchId/revert', authenticate, authorize('super_admin'), 
     // is a bigger decision than correcting a score.
     if (['final', 'ko_final'].includes(match.bracket)) {
       return res.status(409).json({
-        message: 'This is the final — reverting it would reopen a completed tournament. Delete and regenerate the bracket instead.',
+        message: 'This is the final. Reverting it would reopen a completed tournament. Delete and regenerate the bracket instead.',
       });
     }
 

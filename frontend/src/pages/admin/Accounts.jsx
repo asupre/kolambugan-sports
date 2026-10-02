@@ -199,7 +199,7 @@ function AccountRow({ a, resetting, onReset, onDelete, currentUserId }) {
                 variant="outline"
                 onClick={() => onReset(a)}
                 disabled={resetting || locked}
-                title={locked ? "This Super Admin already set their own password — only they can change it now." : undefined}
+                title={locked ? "This Super Admin already set their own password. Only they can change it now." : undefined}
               >
                 <KeyRound /> {resetting ? "…" : "Reset password"}
               </Button>
@@ -360,7 +360,7 @@ export default function Accounts() {
           <p className="text-xs text-muted-foreground max-w-prose -mt-2">
             <span className="font-medium text-foreground">Provision all</span> creates any missing barangay
             admin (one per barangay) and organizer (one per sport) account with a random temporary password.
-            It's safe to run any time — anything that already has an account is skipped.
+            It's safe to run any time. Anything that already has an account is skipped.
           </p>
 
           {/* One-time password reveals */}
@@ -370,7 +370,7 @@ export default function Accounts() {
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <h3 className="flex items-center gap-1.5 font-semibold text-sm text-amber-700 dark:text-amber-400">
                     <TriangleAlert className="size-4 shrink-0" />
-                    New passwords — copy now, they won't be shown again
+                    New passwords: copy now, they won't be shown again
                   </h3>
                   <button
                     onClick={() => setReveals([])}
@@ -476,7 +476,7 @@ export default function Accounts() {
           <DialogHeader>
             <DialogTitle>Add an account</DialogTitle>
             <DialogDescription>
-              For anything outside the standard set — like a second super admin. Barangay admins and
+              For anything outside the standard set, like a second super admin. Barangay admins and
               organizers are limited to one per barangay / sport.
             </DialogDescription>
           </DialogHeader>

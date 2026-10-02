@@ -92,7 +92,7 @@ function buildAttention(s) {
     }
   }
   if (status === "verification" && s.teamsByState?.review === 0 && s.teamsByState?.draft === 0 && s.teamsByState?.verified > 0) {
-    add("blue", CircleCheck, "Every team is verified — you can generate brackets and move the season on.", "/admin/season", "Manage season");
+    add("blue", CircleCheck, "Every team is verified. You can generate brackets and move the season on.", "/admin/season", "Manage season");
   }
   if (s.accounts?.tempPassword > 0) {
     const n = s.accounts.tempPassword;

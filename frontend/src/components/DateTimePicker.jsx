@@ -164,7 +164,7 @@ export function DateTimePicker({ value, onChange, placeholder = "Pick date & tim
       />
       <div className={cn("border-t px-3", isPhone ? "py-3 space-y-1.5" : "py-2 flex items-center gap-2")}>
         <p className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground" title={date ? undefined : "Pick a day first"}>
-          <Clock className="size-3.5" /> {date || !isPhone ? "Time" : "Time — pick a day first"}
+          <Clock className="size-3.5" /> {date || !isPhone ? "Time" : "Time (pick a day first)"}
         </p>
         <TimeSelect time={time} disabled={!date} onChange={(t) => onChange(joinDateTime(date, t))} />
       </div>

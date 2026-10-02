@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle2, Eye, EyeOff, KeyRound, LockKeyhole, ShieldCheck, Trophy, Users2 } from "lucide-react";
 import { api } from "../api";
 import LoadingScreen from "../components/LoadingScreen";
@@ -74,7 +74,7 @@ function ForgotPasswordDialog({ open, onOpenChange }) {
               <CheckCircle2 className="size-4" />
               <AlertDescription>
                 Password reset. You can now sign in with your new password. Once you're back in,
-                generate a new recovery code from your profile — this one has been used up.
+                generate a new recovery code from your profile. This one has been used up.
               </AlertDescription>
             </Alert>
             <DialogFooter>
@@ -230,10 +230,14 @@ export default function Login() {
           style={{ background: "linear-gradient(180deg, rgba(20,8,48,0.55) 0%, rgba(20,8,48,0.25) 40%, rgba(20,8,48,0.88) 100%)" }}
         />
 
-        <div className="relative flex items-center gap-2.5">
+        <Link
+          to="/"
+          title="Go to the public site"
+          className="relative flex w-fit items-center gap-2.5 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+        >
           <img src="/logo/ksl-mark-simple.svg" alt="" className="h-9 w-9" />
           <span className="font-semibold">Kolambugan Sports</span>
-        </div>
+        </Link>
 
         <div className="relative space-y-6 max-w-md">
           <Trophy className="size-10 opacity-90" />
@@ -242,7 +246,7 @@ export default function Login() {
           </h1>
           <p className="text-primary-foreground/80 text-sm leading-relaxed">
             Residency verification, live scoring, and standings for every
-            barangay and every sport — all in one place, all season long.
+            barangay and every sport, all in one place, all season long.
           </p>
           <div className="flex flex-wrap gap-x-6 gap-y-3 pt-2 text-sm text-primary-foreground/80">
             <span className="flex items-center gap-1.5">
@@ -264,7 +268,9 @@ export default function Login() {
       <div className="flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
           <div className="flex lg:hidden justify-center mb-6">
-            <img src="/logo/ksl-mark-simple.svg" alt="Kolambugan Sports" className="h-12 w-12" />
+            <Link to="/" title="Go to the public site" className="rounded-full transition-opacity hover:opacity-80">
+              <img src="/logo/ksl-mark-simple.svg" alt="Kolambugan Sports" className="h-12 w-12" />
+            </Link>
           </div>
 
           <div className="mb-8">

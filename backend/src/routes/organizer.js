@@ -393,16 +393,16 @@ router.post('/matches/:matchId/end', async (req, res) => {
       const need = winsNeeded(total);
       if (Math.max(a, b) < need) {
         return res.status(409).json({
-          message: `Best of ${total}: a side needs ${need} game win${need === 1 ? '' : 's'} to take the match — it's ${a}–${b}.`,
+          message: `Best of ${total}: a side needs ${need} game win${need === 1 ? '' : 's'} to take the match. It's ${a}–${b}.`,
         });
       }
     } else if (match.games.length < total) {
       return res.status(409).json({
-        message: `All ${total} ${PERIOD_LABEL[ctx.sportName] || 'period'}(s) must be recorded first — ${match.games.length} done.`,
+        message: `All ${total} ${PERIOD_LABEL[ctx.sportName] || 'period'}(s) must be recorded first, ${match.games.length} done.`,
       });
     }
 
-    if (a === b) return res.status(400).json({ message: 'A match cannot end in a tie — the score must separate the teams.' });
+    if (a === b) return res.status(400).json({ message: 'A match cannot end in a tie. The score must separate the teams.' });
 
     const winner = a > b ? match.teamA : match.teamB;
     const loser = a > b ? match.teamB : match.teamA;

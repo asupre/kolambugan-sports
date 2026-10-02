@@ -3618,3 +3618,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
   matches" list under a round-robin sport's standings is now one card per round (plus one for the
   tiebreaker playoff), opened and closed with a chevron like the Schedule section's rounds. A round
   where every match is played starts closed; the header shows "N matches · x/N played".
+- **No em dashes in user-facing text** (Oct 2 2026, Super Admin request). Every "—" inside a
+  sentence the app shows (labels, hints, dialogs, instruction steps, server error messages, the page
+  title) was rewritten as a comma, colon, full stop, parentheses or " · ", whichever reads
+  naturally (~140 strings, front and back end). Code comments were left alone, and a lone "—"
+  standing in for an empty value (e.g. no jersey number) is kept, since it isn't a sentence.
+- **Login: "Kolambugan Sports" goes to the public site** (Oct 2 2026). The logo + name at the top
+  of the login page's left panel (and the logo on phones) is now a link to `/`, the public Home.

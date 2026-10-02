@@ -251,7 +251,7 @@ export default function Home() {
             <p className="text-slate-300 text-[16px] leading-relaxed mb-3">
               A coastal municipality in Lanao del Norte, Kolambugan is made up of
               barangays that each field their own teams. The league is as much about
-              the barangays as the sport — every entry carries a community's name.
+              the barangays as the sport. Every entry carries a community's name.
             </p>
             <Link to="/teams" className="text-[#FACC15] text-[15px] font-medium hover:underline">
               Browse the teams →

@@ -247,7 +247,7 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
       {fields.includes("points") && (
         <p className={cn("mb-3 text-xs tabular-nums", diff === 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400")}>
           Player points {enteredPoints} · team score {teamScore}
-          {diff === 0 ? " — matches" : diff > 0 ? ` — ${diff} short` : ` — ${-diff} over`}
+          {diff === 0 ? " · matches" : diff > 0 ? ` — ${diff} short` : ` — ${-diff} over`}
         </p>
       )}
       {capNote && (
@@ -615,7 +615,7 @@ function ScoringView({ matchId, onBack }) {
             {finalMode
               ? seriesLength === 1
                 ? "Tap the winner when the game finishes."
-                : `Tap the winner of each game as it finishes — first to ${winsNeeded} wins the match.`
+                : `Tap the winner of each game as it finishes. First to ${winsNeeded} wins the match.`
               : `${periodWord.replace(/^./, (c) => c.toUpperCase())} 1 of ${m.bestOf || 1}. Tap the team that scored; Undo is at the top.`}
           </AlertDescription>
         </Alert>
@@ -784,7 +784,7 @@ function ScoringView({ matchId, onBack }) {
 
           {live && !finalMode && tied && (m.games?.length || 0) >= (m.bestOf || 1) && (
             <p className="text-amber-600 dark:text-amber-400 text-sm text-center mt-3">
-              Scores are level — play a deciding {data.periodLabel || "period"}.
+              Scores are level. Play a deciding {data.periodLabel || "period"}.
             </p>
           )}
         </div>
@@ -1110,7 +1110,7 @@ export default function OrganizerScoring() {
 
             {toPlay === 0 && (
               <p className="rounded-lg border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
-                {done.length > 0 ? "Nothing left to play — every match is finished. See Completed." : "Nothing scheduled yet."}
+                {done.length > 0 ? "Nothing left to play: every match is finished. See Completed." : "Nothing scheduled yet."}
               </p>
             )}
           </>

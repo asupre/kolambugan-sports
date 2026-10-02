@@ -217,7 +217,7 @@ router.post('/recovery-code', authenticate, authorize('super_admin'), async (req
     await user.save();
 
     res.json({
-      message: 'Recovery code generated. Save it somewhere safe — it will not be shown again.',
+      message: 'Recovery code generated. Save it somewhere safe. It will not be shown again.',
       code,
       recoveryCodeSetAt: user.recoveryCodeSetAt,
     });

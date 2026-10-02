@@ -267,7 +267,7 @@ function DocumentUpload({ teamId, playerId, onUploaded }) {
         <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden"
           onChange={(e) => { upload(e.target.files[0]); e.target.value = ""; }} />
       </label>
-      {done && <span className="text-xs text-green-600">Uploaded — awaiting review</span>}
+      {done && <span className="text-xs text-green-600">Uploaded, awaiting review</span>}
       {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   );
@@ -336,7 +336,7 @@ function LogoCard() {
           <ImageIcon className="size-4 text-blue-500" /> Barangay logo
         </CardTitle>
         <CardDescription>
-          Shown beside your teams everywhere on the public site — match results,
+          Shown beside your teams everywhere on the public site: match results,
           standings, brackets.
         </CardDescription>
       </CardHeader>
@@ -505,7 +505,7 @@ function RosterEditor({ team, sports, onClose }) {
     setBusy(true);
     try {
       await api(`/api/teams/${team._id}/submit`, { method: "POST" });
-      await confirm("Roster submitted. The residency pre-screen has run — check each player's status.", { alertOnly: true });
+      await confirm("Roster submitted. The residency pre-screen has run. Check each player's status.", { alertOnly: true });
       onClose();
     } catch (e) {
       showError(e.message);
@@ -637,7 +637,7 @@ function RosterEditor({ team, sports, onClose }) {
                 <AlertDescription className="text-foreground">
                   This team is verified, so its player details are locked. You can still change
                   player photos. If something needs correcting during the verification period,
-                  ask the Super Admin to reopen the team — it will then come back here as editable.
+                  ask the Super Admin to reopen the team. It will then come back here as editable.
                 </AlertDescription>
               </Alert>
             )}
@@ -653,7 +653,7 @@ function RosterEditor({ team, sports, onClose }) {
                 aspect={3 / 4}
                 maxWidth={900}
                 title="Position the photo"
-                description="Drag to move, and use the slider (or pinch / scroll) to zoom in and out. Keep the face centred — this is how it appears on the public roster."
+                description="Drag to move, and use the slider (or pinch / scroll) to zoom in and out. Keep the face centred. This is how it appears on the public roster."
                 onCancel={() => setPendingPhoto(null)}
                 onSave={(blob) => uploadPhoto(pendingPhoto.playerId, blob)}
               />
@@ -735,7 +735,7 @@ function RosterEditor({ team, sports, onClose }) {
                         {isMinor && !p.eligibilityStatus && (
                           <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
                             <ShieldAlert className="size-3.5 shrink-0" />
-                            {MINOR_AGE} or under — too young for the voters' list, so a document is needed.
+                            {MINOR_AGE} or under: too young for the voters' list, so a document is needed.
                           </p>
                         )}
                         <DocumentUpload teamId={team._id} playerId={p._id} onUploaded={load} />
@@ -755,8 +755,8 @@ function RosterEditor({ team, sports, onClose }) {
                             !res.rescreened
                               ? "Player updated."
                               : res.teamStatus === "pending"
-                                ? `Updated. Residency re-checked — now "${status}". This team no longer qualifies as verified and has returned to the Review Queue.`
-                                : `Updated. Residency re-checked — now "${status}".`
+                                ? `Updated. Residency re-checked, now "${status}". This team no longer qualifies as verified and has returned to the Review Queue.`
+                                : `Updated. Residency re-checked, now "${status}".`
                           );
                           load();
                         }}
@@ -789,7 +789,7 @@ function RosterEditor({ team, sports, onClose }) {
                   </div>
                   <p className="text-muted-foreground text-xs mb-3">
                     Already have a list? Upload a CSV with columns for first name, last name,
-                    birthdate, and optionally middle name and jersey number — column
+                    birthdate, and optionally middle name and jersey number. Column
                     names don't have to match exactly. Every imported player's address is set to
                     your barangay's name. Rows are added up to the roster's limit;
                     anything invalid or over the limit is skipped and reported.
@@ -819,20 +819,20 @@ function RosterEditor({ team, sports, onClose }) {
 
                   {newAge !== null && newAge <= MINOR_AGE && (
                     <p className="text-amber-700 dark:text-amber-400 text-xs mb-2">
-                      Age {newAge} — players {MINOR_AGE} and under aren't on the voters' list, so you'll be asked
+                      Age {newAge}: players {MINOR_AGE} and under aren't on the voters' list, so you'll be asked
                       to attach a birth certificate or parental consent once they're added.
                     </p>
                   )}
 
                   {overAgeLimit && (
                     <p className="text-destructive text-xs mb-2">
-                      Age {newAge} — this is a {DIVISION_LABEL[team.division]} team, capped at {divisionAgeLimit} and under.
+                      Age {newAge}: this is a {DIVISION_LABEL[team.division]} team, capped at {divisionAgeLimit} and under.
                     </p>
                   )}
 
                   {underAgeMin && (
                     <p className="text-destructive text-xs mb-2">
-                      Age {newAge} — this is a {DIVISION_LABEL[team.division]} team, {divisionAgeMin} and up.
+                      Age {newAge}: this is a {DIVISION_LABEL[team.division]} team, {divisionAgeMin} and up.
                     </p>
                   )}
 
@@ -1082,9 +1082,9 @@ export default function BrgyDashboard() {
                 <p className="text-xs text-muted-foreground">
                   {entryFormat === "team"
                     ? limits.min === limits.max
-                      ? `Squad entry — exactly ${limits.max} players.`
-                      : `Squad entry — ${limits.min}–${limits.max} players.`
-                    : `${entryFormat === "singles" ? "Singles" : "Doubles"} entry — ${limits.max} player${limits.max > 1 ? "s" : ""}.`}
+                      ? `Squad entry: exactly ${limits.max} players.`
+                      : `Squad entry: ${limits.min}–${limits.max} players.`
+                    : `${entryFormat === "singles" ? "Singles" : "Doubles"} entry: ${limits.max} player${limits.max > 1 ? "s" : ""}.`}
                 </p>
               )}
 
@@ -1100,7 +1100,7 @@ export default function BrgyDashboard() {
                   <p className="font-medium">
                     {maxTeams === 1
                       ? `1 team per barangay${divisions.length > 1 ? ` in ${DIVISION_LABEL[activeDivision] || activeDivision}` : ""} — ${registeredHere ? "already registered" : "not registered yet"}.`
-                      : `Up to ${maxTeams} teams per barangay — ${registeredHere} of ${maxTeams} registered.`}
+                      : `Up to ${maxTeams} teams per barangay, ${registeredHere} of ${maxTeams} registered.`}
                   </p>
                   {koSize ? (
                     <p>

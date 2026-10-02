@@ -142,7 +142,7 @@ function RecoverySection({ profile, onGenerated }) {
         <Alert className="border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400">
           <ShieldAlert className="size-4" />
           <AlertDescription>
-            Save this somewhere safe now — it will never be shown again. Anyone signed in as you
+            Save this somewhere safe now. It will never be shown again. Anyone signed in as you
             generated a NEW code just now, which replaced any earlier one.
           </AlertDescription>
         </Alert>
@@ -165,7 +165,7 @@ function RecoverySection({ profile, onGenerated }) {
     <form onSubmit={generate} className="space-y-3">
       <h3 className="text-sm font-medium flex items-center gap-1.5"><KeyRound className="size-4" /> Account recovery</h3>
       <p className="text-xs text-muted-foreground">
-        A backup code for resetting your password if you're ever locked out — used from "Forgot
+        A backup code for resetting your password if you're ever locked out, used from "Forgot
         your password?" on the sign-in page. Only you have this code; generating a new one replaces
         the old one and does not affect any other Super Admin's code.
       </p>

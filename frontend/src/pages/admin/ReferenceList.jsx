@@ -103,7 +103,7 @@ function MatchInfo({ info }) {
     <>
                               {rowTone === "multi" && (
                                 <p className="text-amber-600 dark:text-amber-400 text-[11px] font-medium">
-                                  On {matchGroups.length} barangays' rosters — a player may only play for one
+                                  On {matchGroups.length} barangays' rosters: a player may only play for one
                                 </p>
                               )}
                               {matchGroups.map((g, i) => {
@@ -143,7 +143,7 @@ function MatchInfo({ info }) {
                                   </span>
                                   <p className="text-muted-foreground text-xs break-words md:truncate">
                                     {m.playerName}{m.barangay ? ` · plays for ${m.barangay}` : ""}
-                                    {m.minor ? " — 15 or under, needs a document either way" : ""}
+                                    {m.minor ? " · 15 or under, needs a document either way" : ""}
                                   </p>
                                   <GamesLine entries={[m]} />
                                   {m.differs.middle && (
@@ -183,7 +183,7 @@ function MatchInfo({ info }) {
                                     Same name, 15 or under{m.sameBarangay ? " · same barangay" : ""}
                                   </span>
                                   <p className="text-muted-foreground text-xs break-words md:truncate">
-                                    {m.playerName}{m.barangay ? ` · plays for ${m.barangay}` : ""} — needs a document regardless, informational only
+                                    {m.playerName}{m.barangay ? ` · plays for ${m.barangay}` : ""} · needs a document regardless, informational only
                                   </p>
                                   <GamesLine entries={[m]} />
                                 </div>
@@ -464,10 +464,10 @@ export default function ReferenceList() {
           <CardHeader>
             <CardTitle>Upload a new list</CardTitle>
             <CardDescription>
-              <InfoHint summary="Upload a CSV of eligible residents — this replaces the current list for this season.">
+              <InfoHint summary="Upload a CSV of eligible residents. This replaces the current list for this season.">
                 <p>Columns can be named flexibly (first/middle/last name, birthdate, barangay).</p>
                 <p className="mt-1.5"><span className="font-medium text-foreground">Middle name and birthdate are
-                now required for a match</span> — a row missing either can never confirm a player as eligible,
+                now required for a match</span>. A row missing either can never confirm a player as eligible,
                 so include them if you have them.</p>
               </InfoHint>
             </CardDescription>
@@ -478,7 +478,7 @@ export default function ReferenceList() {
                 <TriangleAlert className="text-amber-600 dark:text-amber-400" />
                 <AlertDescription className="text-foreground">
                   <p className="font-medium">
-                    <InfoHint summary="The list is locked — it can't be replaced until the season ends." label="Why">
+                    <InfoHint summary="The list is locked. It can't be replaced until the season ends." label="Why">
                       <p>The Review Queue is judging players against this list, and a new one would re-check
                       everyone (the season is "{season.status.replace(/_/g, " ")}").</p>
                       <p className="mt-1.5">You can still search and view it below. Upload a new list before
@@ -521,7 +521,7 @@ export default function ReferenceList() {
                   {result.missingForMatch > 0 && (
                     <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
                       {result.missingForMatch} of {result.inserted} row(s) are missing a middle name and/or
-                      birthdate — those residents can never auto-clear a player (name alone isn't enough
+                      birthdate. Those residents can never auto-clear a player (name alone isn't enough
                       anymore), so an adult who only matches such a row is flagged as a possible Dayo until the Super Admin reviews them by hand.
                     </p>
                   )}
@@ -551,7 +551,7 @@ export default function ReferenceList() {
               <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer select-none hover:text-foreground">How matching works</summary>
                 <p className="mt-1.5">
-                  A player matches a row only when the name, middle initial AND birthdate all agree — a
+                  A player matches a row only when the name, middle initial AND birthdate all agree. A
                   blank middle name or birthdate means that row can never confirm a match on its own.
                   Players 15 and under can never be officially matched (the list starts at 16) and always
                   still need a document, but a same-name row is still checked the same way: if the middle
@@ -577,14 +577,14 @@ export default function ReferenceList() {
                   <span>
                     Exact name matches for{" "}
                     <span className="font-medium text-foreground">{exactName.last}, {exactName.first}</span>{" "}
-                    — the same name check the screening uses.
+                    (the same name check the screening uses).
                   </span>
                   <Button size="sm" variant="outline" onClick={() => setExactName(null)}>Show all residents</Button>
                 </div>
               )}
               {searchIsNoiseOnly ? (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Jersey numbers aren't on the reference list — try a name instead.
+                  Jersey numbers aren't on the reference list. Try a name instead.
                 </p>
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -642,7 +642,7 @@ export default function ReferenceList() {
                       <tr>
                         <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
                           {exactName
-                            ? "No one on the reference list has this exact name — this player isn't on the list."
+                            ? "No one on the reference list has this exact name. This player isn't on the list."
                             : "No residents match your search."}
                         </td>
                       </tr>
@@ -685,7 +685,7 @@ export default function ReferenceList() {
                   {visibleRecords.length === 0 ? (
                     <p className="rounded-lg border px-3 py-6 text-center text-sm text-muted-foreground">
                       {exactName
-                        ? "No one on the reference list has this exact name — this player isn't on the list."
+                        ? "No one on the reference list has this exact name. This player isn't on the list."
                         : "No residents match your search."}
                     </p>
                   ) : (

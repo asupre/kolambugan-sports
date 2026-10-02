@@ -114,7 +114,7 @@ router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async
     if (req.body.knockoutSize !== undefined && req.body.knockoutSize !== null) {
       const ko = Number(req.body.knockoutSize);
       if (!isRoundRobinSport(sport)) {
-        return res.status(400).json({ message: `${sport.name} isn't an esport or round-robin game — its knockout is always a Top 8.` });
+        return res.status(400).json({ message: `${sport.name} isn't an esport or round-robin game. Its knockout is always a Top 8.` });
       }
       if (!KNOCKOUT_SIZES.includes(ko)) {
         return res.status(400).json({ message: 'Knockout size must be Top 8 or Top 16.' });
@@ -466,7 +466,7 @@ router.delete('/sports/:id', authenticate, authorize('super_admin'), async (req,
         organizers ? `${organizers} organizer account(s)` : null,
       ].filter(Boolean).join(', ');
       return res.status(409).json({
-        message: `${sport.name} still has ${parts}. Remove those first — deleting it now would orphan their records.`,
+        message: `${sport.name} still has ${parts}. Remove those first. Deleting it now would orphan their records.`,
       });
     }
 

@@ -184,7 +184,7 @@ export default function Champions() {
               </div>
               <div>
                 <p className="font-medium">No champions recorded yet</p>
-                <p className="text-sm text-muted-foreground">Start with last season's winners — a team photo or trophy shot makes the public page.</p>
+                <p className="text-sm text-muted-foreground">Start with last season's winners. A team photo or trophy shot makes the public page.</p>
               </div>
               <Button onClick={() => setEditing({})}><Plus /> Add the first champion</Button>
             </CardContent>

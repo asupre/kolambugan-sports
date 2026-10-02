@@ -74,7 +74,7 @@ function TournamentTable({ s }) {
               Champion: <span className="font-medium">{s.champion}</span>
             </span>
           ) : (
-            "Not yet decided — tournament in progress."
+            "Not yet decided: tournament in progress."
           )}
         </CardDescription>
       </CardHeader>
@@ -208,7 +208,7 @@ export default function Reports() {
               <div className="min-w-0">
                 <h2 className="font-semibold mb-1">Season records</h2>
                 <p className="text-muted-foreground text-sm">
-                  Every registered team, ranked by wins across the whole tournament —
+                  Every registered team, ranked by wins across the whole tournament:
                   group stage and knockout combined. This is a record of results, not the
                   competition standing: the bracket decides the title, so the champion is
                   named above each table. Printing produces every sport, not just the one
@@ -223,7 +223,7 @@ export default function Reports() {
 
           {/* Printed header — paper only. */}
           <div className="hidden print-only mb-4">
-            <h1 className="text-xl font-semibold">Inter-Barangay Sports League — Season Records</h1>
+            <h1 className="text-xl font-semibold">Inter-Barangay Sports League: Season Records</h1>
             <p className="text-sm text-muted-foreground">
               {season?.name || "Current season"} · Municipality of Kolambugan · Printed {printedOn}
             </p>

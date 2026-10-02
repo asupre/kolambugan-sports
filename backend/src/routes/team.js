@@ -73,9 +73,9 @@ function checkDivisionAge(division, birthdate) {
 
 function divisionAgeMessage(ageCheck, playerPhrase) {
   if (ageCheck.reason === 'under') {
-    return `This is a ${ageCheck.label} team — ${playerPhrase} ${ageCheck.age}, under the ${ageCheck.min}-and-up minimum for this division.`;
+    return `This is a ${ageCheck.label} team: ${playerPhrase} ${ageCheck.age}, under the ${ageCheck.min}-and-up minimum for this division.`;
   }
-  return `This is a ${ageCheck.label} team — ${playerPhrase} ${ageCheck.age}, over the ${ageCheck.limit}-and-under limit.`;
+  return `This is a ${ageCheck.label} team: ${playerPhrase} ${ageCheck.age}, over the ${ageCheck.limit}-and-under limit.`;
 }
 
 // Identity key for the same-sport duplicate-roster check below — name
@@ -313,7 +313,7 @@ router.post('/', authenticate, authorize('barangay_admin'),
         if (existing.length >= maxTeams) {
       return res.status(409).json({
         message: ko
-          ? `${sport.name} is a Top ${ko} knockout this season, which allows ${maxTeams} team${maxTeams === 1 ? '' : 's'} per barangay — you already have ${existing.length}.`
+          ? `${sport.name} is a Top ${ko} knockout this season, which allows ${maxTeams} team${maxTeams === 1 ? '' : 's'} per barangay. You already have ${existing.length}.`
           : maxTeams === 1
             ? `Your barangay already has a ${division} team for ${sport.name} this season.`
             : `Your barangay already has the maximum of ${maxTeams} teams for ${sport.name} this season.`,
@@ -523,7 +523,7 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
     const dupTeamName = dupIndex.get(playerKey(lastName, firstName, birthdate));
     if (dupTeamName) {
       return res.status(409).json({
-        message: `${firstName.trim()} ${lastName.trim()} is already on ${dupTeamName}'s roster for this sport — the same player can't be on two of your barangay's teams in one sport.`,
+        message: `${firstName.trim()} ${lastName.trim()} is already on ${dupTeamName}'s roster for this sport. The same player can't be on two of your barangay's teams in one sport.`,
       });
     }
     const genderIndex = await genderConflictIndex(team);
@@ -652,12 +652,12 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
       }
       const genderWhere = genderIndex.get(key2);
       if (genderWhere) {
-        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on your ${genderWhere} roster — can't play in a ${GENDER_LABEL[team.division]} division.` });
+        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on your ${genderWhere} roster, so they can't play in a ${GENDER_LABEL[team.division]} division.` });
         continue;
       }
       const holder = await otherBarangayHolder(team, rec.lastName, rec.firstName, d);
       if (holder) {
-        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on ${holder.barangay}'s ${holder.sport} roster — a player can only play for one barangay.` });
+        skipped.push({ row: rowNum, reason: `${rec.firstName} ${rec.lastName} is already on ${holder.barangay}'s ${holder.sport} roster. A player can only play for one barangay.` });
         continue;
       }
       const crossReason = await crossBarangayBlock(team, teamBrgy,
@@ -800,7 +800,7 @@ router.patch('/:id/players/:playerId', authenticate,
       const dupTeamName = dupIndex.get(playerKey(player.lastName, player.firstName, player.birthdate));
       if (dupTeamName) {
         return res.status(409).json({
-          message: `${player.firstName} ${player.lastName} is already on ${dupTeamName}'s roster for this sport — the same player can't be on two of your barangay's teams in one sport.`,
+          message: `${player.firstName} ${player.lastName} is already on ${dupTeamName}'s roster for this sport. The same player can't be on two of your barangay's teams in one sport.`,
         });
       }
       const genderWhere = (await genderConflictIndex(team)).get(playerKey(player.lastName, player.firstName, player.birthdate));
@@ -1117,7 +1117,7 @@ router.delete('/:id/players/:playerId/documents/:docId', authenticate, authorize
     if (!doc) return res.status(404).json({ message: 'Document not found.' });
     if (doc.verifyStatus !== 'pending') {
       return res.status(409).json({
-        message: `This document has already been ${doc.verifyStatus} — it can no longer be deleted. Upload a new one instead, or ask the Super Admin to reopen the team.`,
+        message: `This document has already been ${doc.verifyStatus}. It can no longer be deleted. Upload a new one instead, or ask the Super Admin to reopen the team.`,
       });
     }
 

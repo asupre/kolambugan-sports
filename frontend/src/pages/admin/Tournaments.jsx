@@ -197,7 +197,7 @@ function MatchesView({ tournamentId }) {
       <div className="flex items-baseline gap-2 mb-2">
         <h3 className="font-medium text-sm">Group matches</h3>
         <span className="text-muted-foreground text-xs">
-          scored by the organizer — {group.filter((m) => ["completed", "forfeited"].includes(m.status)).length}/{group.length} played
+          scored by the organizer · {group.filter((m) => ["completed", "forfeited"].includes(m.status)).length}/{group.length} played
         </span>
       </div>
       <div className="space-y-3">
@@ -371,7 +371,7 @@ function ScheduleSection({ tournamentId }) {
         <span className="text-muted-foreground text-sm">{dated} of {matches.length} dated</span>
       </div>
       <p className="text-muted-foreground text-sm mb-4">
-        Dates are guidance, not a lock — an organizer can still start an undated match,
+        Dates are guidance, not a lock. An organizer can still start an undated match,
         or one being played on a different day. Times are Philippine time.
       </p>
 
@@ -976,7 +976,7 @@ function OrphanedTournamentsSection({ sportId, division, onChanged }) {
   async function remove(t) {
     const ok = await confirm(
       `Delete this orphaned tournament? Every match, score, and player stat in it is discarded ` +
-      `permanently — its teams are not deleted, they just become free (and, if orphaned themselves, ` +
+      `permanently. Its teams are not deleted, they just become free (and, if orphaned themselves, ` +
       `deletable).`,
       { danger: true, confirmLabel: "Delete" }
     );
@@ -1042,7 +1042,7 @@ function OrphanedTournamentsSection({ sportId, division, onChanged }) {
           )}
         </div>
         <CardDescription>
-          Left behind by a deleted season — this is why their teams can't be deleted below
+          Left behind by a deleted season. This is why their teams can't be deleted below
           ("still appears in N match(es)"). Delete these first.
         </CardDescription>
         {bulkProgress && (
@@ -1164,7 +1164,7 @@ function TeamsSection({ sportId, division, onChanged }) {
     setBulkProgress(null);
     if (failed > 0) {
       showError(
-        `Deleted ${deleted} of ${inDivision.length} team(s). ${failed} couldn't be removed — ` +
+        `Deleted ${deleted} of ${inDivision.length} team(s). ${failed} couldn't be removed, ` +
         `for example: "${lastError}"`
       );
     } else {
@@ -1195,8 +1195,8 @@ function TeamsSection({ sportId, division, onChanged }) {
           )}
         </div>
         <CardDescription>
-          These teams' season was deleted without them, so they're left over pointing at nothing —
-          that's what's blocking this sport (or its barangay) from being deleted. Delete one that's
+          These teams' season was deleted without them, so they're left over pointing at nothing.
+          That's what's blocking this sport (or its barangay) from being deleted. Delete one that's
           still in a match by deleting its tournament first.
         </CardDescription>
         {bulkProgress && (
@@ -1321,10 +1321,10 @@ export default function Tournaments() {
     const ok = await confirm(
       completedCount > 0
         ? `Delete this ${selectedSport.name} tournament? ${completedCount} match(es) have ALREADY BEEN ` +
-          `PLAYED with real scores — those results, every player stat, and the whole bracket are discarded ` +
+          `PLAYED with real scores. Those results, every player stat, and the whole bracket are discarded ` +
           `permanently. Teams themselves are not deleted.`
         : `Delete this ${selectedSport.name} tournament? Every match, score, and player stat in it is ` +
-          `discarded permanently. Teams themselves are not deleted — they're free to enter a new tournament.`,
+          `discarded permanently. Teams themselves are not deleted. They're free to enter a new tournament.`,
       { danger: true, confirmLabel: completedCount > 0 ? `Delete ${completedCount} played match(es)` : "Delete" }
     );
     if (!ok) return;

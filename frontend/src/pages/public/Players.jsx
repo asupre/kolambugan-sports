@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
-import { Panel, CarouselArrow, TileGridSkeleton, SportTabs, SearchInput, DIVISION_LABEL, initials, playerPhotoUrl, SHOW_PLAYER_PHOTOS } from "../../components/PublicUI";
+import { Panel, TileGridSkeleton, SportTabs, SearchInput, DIVISION_LABEL, initials, playerPhotoUrl, SHOW_PLAYER_PHOTOS } from "../../components/PublicUI";
 import Reveal from "../../components/Reveal";
-import { useDragScroll } from "../../hooks/useDragScroll";
+import DepthCarousel from "../../components/DepthCarousel";
+import { useMediaQuery } from "../../lib/useMediaQuery";
 
-// Players page (Oct 2026): same look as Teams — one drag-scroll row per team of
-// poster cards — but BIGGER cards (w-52 / sm:w-60 vs the team's w-44 / sm:w-48).
+// Players page (Oct 2026): one React Bits "Depth Carousel" per team: the front
+// player's poster card faces you, the rest stack back in 3D. Drag, swipe,
+// arrows, dots or the keyboard move it; tapping a side card brings it forward,
+// tapping the front card opens the team page.
 // Opens on the FIRST sport tab (it used to jump to Basketball, skipping the
 // Badminton tab that sits first in line).
 
@@ -18,10 +21,11 @@ function PlayerCard({ p, teamId }) {
   const name = `${p.firstName || ""} ${p.lastName || ""}`.trim();
   const show = SHOW_PLAYER_PHOTOS && p.hasPhoto && !failed;
   return (
-    <div className="w-52 sm:w-60 shrink-0 snap-start">
+    <div className="h-full w-full">
       <Link
         to={`/teams/${teamId}`}
-        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border border-white/[0.12] hover:border-[#FACC15]/50 transition"
+        draggable={false}
+        className="group relative block h-full w-full overflow-hidden rounded-[14px] border border-white/[0.12] hover:border-[#FACC15]/50 transition"
       >
         {show ? (
           <img
@@ -29,6 +33,7 @@ function PlayerCard({ p, teamId }) {
             alt=""
             loading="lazy"
             decoding="async"
+            draggable={false}
             onError={() => setFailed(true)}
             className="absolute inset-0 h-full w-full object-cover bg-[#22344F]"
           />
@@ -60,61 +65,35 @@ function PlayerCard({ p, teamId }) {
   );
 }
 
-// One team: a drag-to-scroll row of PlayerCards with prev/next arrows in the
-// panel header (shown only when the row overflows), like Teams' TeamGroupPanel.
+// One team: a Depth Carousel of PlayerCards (smaller and flatter on phones).
 function TeamRow({ t }) {
-  const dragRef = useDragScroll();
-  const [atStart, setAtStart] = useState(true);
-  const [atEnd, setAtEnd] = useState(true);
-
-  useEffect(() => {
-    const el = dragRef.current;
-    if (!el) return undefined;
-    function update() {
-      setAtStart(el.scrollLeft <= 4);
-      setAtEnd(el.scrollLeft >= el.scrollWidth - el.clientWidth - 4);
-    }
-    update();
-    el.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      el.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t.players.length]);
-
-  function scroll(dir) {
-    dragRef.current?.scrollBy({ left: dir * dragRef.current.clientWidth * 0.9, behavior: "smooth" });
-  }
-  const scrollable = !atStart || !atEnd;
-
+  const wide = useMediaQuery("(min-width: 640px)");
   return (
     <Panel
-      className="[content-visibility:auto] [contain-intrinsic-size:auto_440px]"
+      className="[content-visibility:auto] [contain-intrinsic-size:auto_480px]"
       title={t.name}
       count={`${t.barangay ? `Brgy. ${t.barangay} · ` : ""}${DIVISION_LABEL[t.division] || t.division} · ${t.players.length}`}
       empty="No players listed."
-      actions={scrollable && (
-        <>
-          <CarouselArrow dir="prev" onClick={() => scroll(-1)} disabled={atStart} />
-          <CarouselArrow dir="next" onClick={() => scroll(1)} disabled={atEnd} />
-        </>
-      )}
     >
       {t.players.length > 0 && (
         <>
-          <div
-            ref={dragRef}
-            // overflow-y-hidden: see Teams.jsx — keeps the reveal offset from
-            // adding a vertical scrollbar inside the row.
-            className="overflow-x-auto overflow-y-hidden cursor-grab snap-x snap-mandatory scroll-px-4 sm:scroll-px-5 px-4 sm:px-5 py-5"
-          >
-            {/* The whole row reveals as ONE layer (per-card reveals stuttered on phones). */}
-            <Reveal className="flex gap-3">
-              {t.players.map((p) => <PlayerCard key={p.id} p={p} teamId={t.id} />)}
-            </Reveal>
-          </div>
+          <Reveal className="px-2 sm:px-5 pt-5 pb-3">
+            <DepthCarousel
+              items={t.players}
+              getKey={(p) => p.id}
+              label={`${t.name} players`}
+              cardWidth={wide ? 270 : 220}
+              cardHeight={wide ? 360 : 293}
+              spread={wide ? 115 : 48}
+              depth={wide ? 200 : 150}
+              tilt={wide ? 22 : 16}
+              visibleCards={wide ? 4 : 3}
+              blur={wide ? 3 : 0}
+              falloff={0.13}
+              showControls={wide}
+              renderItem={(p) => <PlayerCard p={p} teamId={t.id} />}
+            />
+          </Reveal>
           <div className="px-4 sm:px-5 py-3.5 border-t border-white/[0.08]">
             <Link to={`/teams/${t.id}`} className="text-[#FACC15] text-[14px] font-medium hover:underline">
               Team page →

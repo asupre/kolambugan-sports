@@ -3625,3 +3625,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
   standing in for an empty value (e.g. no jersey number) is kept, since it isn't a sentence.
 - **Login: "Kolambugan Sports" goes to the public site** (Oct 2 2026). The logo + name at the top
   of the login page's left panel (and the logo on phones) is now a link to `/`, the public Home.
+- **Players page: Depth Carousel** (Oct 2 2026, Super Admin wanted to try the React Bits "Depth
+  Carousel"). Each team's players are now a 3D stack: the front player's card faces you, the rest
+  stack behind it. Drag / swipe, arrows (desktop), dots or arrow keys move it; tapping a back card
+  brings it forward, tapping the front card opens the team page. Adapted from React Bits without
+  adding GSAP; page scrolling over it is never hijacked. Shipped to be judged in production; the
+  old scrolling row can come back if it doesn't work out.

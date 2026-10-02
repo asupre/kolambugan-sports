@@ -1209,7 +1209,17 @@ so a bug in one route cannot expose the other.
   `RevealItem`s: 20+ cards animating while their crests decode stuttered), and
   cover crests use `decoding="async"` + `loading="lazy"` with a blank tile (not the
   monogram) while the logo check is pending.
-- **Players page = poster cards like Teams, BIGGER** (Oct 1 2026, `Players.jsx`): one drag-scroll
+- **Players page = a DEPTH CAROUSEL per team** (Oct 2 2026, Super Admin wanted to try React Bits'
+  "Depth Carousel"; replaces the drag-scroll row below). `components/DepthCarousel.jsx` is the React
+  Bits component adapted: takes `renderItem` (any card, not just images), a small rAF tween instead
+  of GSAP (no new dependency), ONLY a horizontal wheel/trackpad swipe moves it (vertical wheel
+  scrolls the page, the original hijacked it), a click right after a drag is swallowed, a click on
+  a side card brings it to the front (the front card's link works). Front card faces you, the rest
+  stack back to the right, darker (`falloff` 0.13). Desktop 270x360 + arrows + blur 3; phones
+  (<640px) 220x293, flatter, no arrows (they covered the card), no blur. Dots below. Ships first to
+  be judged in production, so it may still be tuned or reverted. Rendered at 1366 and 390px against
+  the production API before shipping.
+- (Superseded Oct 2 2026 by the carousel above; card styling still applies.) **Players page = poster cards like Teams, BIGGER** (Oct 1 2026, `Players.jsx`): one drag-scroll
   row per team (`TeamRow`, same arrows/scroll logic as Teams' `TeamGroupPanel`) of `PlayerCard`s —
   `w-52 sm:w-60` (teams are `w-44 sm:w-48`), `aspect-[3/4]`; the headshot fills the card (no photo →
   big Anton initials on a navy gradient), jersey # (yellow Anton) + SURNAME + first name + a

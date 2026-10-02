@@ -440,6 +440,8 @@ function RosterEditor({ team, sports, onClose }) {
   const [editingId, setEditingId] = useState(null);
   const [notice, setNotice] = useState("");
   const [uploadingId, setUploadingId] = useState(null);
+  // A picked photo waits here for the position-and-zoom step: { playerId, file }.
+  const [pendingPhoto, setPendingPhoto] = useState(null);
   const [importing, setImporting] = useState(false);
   const barangayName = team.barangayName || "";
   const blankForm = { firstName: "", middleName: "", lastName: "", birthdate: "", address: barangayName, jerseyNumber: "" };
@@ -553,12 +555,14 @@ function RosterEditor({ team, sports, onClose }) {
     }
   }
 
-  async function uploadPhoto(playerId, file) {
-    if (!file) return;
+  // `blob` is the cropped JPEG from ImageCropDialog.
+  async function uploadPhoto(playerId, blob) {
+    if (!blob) return;
+    setPendingPhoto(null);
     setUploadingId(playerId);
     try {
       const fd = new FormData();
-      fd.append("photo", file);
+      fd.append("photo", blob, `player-${playerId}.jpg`);
       const token = localStorage.getItem("token");
       const res = await fetch(`/api/teams/${team._id}/players/${playerId}/photo`, {
         method: "POST",
@@ -639,8 +643,21 @@ function RosterEditor({ team, sports, onClose }) {
             )}
             <p className="text-xs text-muted-foreground">
               Player photos: close-up headshot, face clearly visible, plain background if possible.
-              JPEG or PNG, max 3&nbsp;MB. Photos appear on the public team roster.
+              JPEG, PNG or WebP. You can move and zoom the photo before it's saved. Photos appear
+              on the public team roster.
             </p>
+
+            {pendingPhoto && (
+              <ImageCropDialog
+                file={pendingPhoto.file}
+                aspect={3 / 4}
+                maxWidth={900}
+                title="Position the photo"
+                description="Drag to move, and use the slider (or pinch / scroll) to zoom in and out. Keep the face centred — this is how it appears on the public roster."
+                onCancel={() => setPendingPhoto(null)}
+                onSave={(blob) => uploadPhoto(pendingPhoto.playerId, blob)}
+              />
+            )}
 
             <div className="space-y-1.5">
               {players.length === 0 && <p className="text-muted-foreground text-sm">No players yet.</p>}
@@ -697,7 +714,11 @@ function RosterEditor({ team, sports, onClose }) {
                           <label className="text-primary hover:underline cursor-pointer">
                             {uploadingId === p._id ? "Uploading…" : p.photo ? "Change photo" : "Add photo"}
                             <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-                              onChange={(e) => { uploadPhoto(p._id, e.target.files[0]); e.target.value = ""; }} />
+                              onChange={(e) => {
+                                const f = e.target.files[0];
+                                if (f) setPendingPhoto({ playerId: p._id, file: f });
+                                e.target.value = "";   // picking the same file twice still opens the cropper
+                              }} />
                           </label>
                         </div>
                       </div>

@@ -62,7 +62,7 @@ function GlassPanel({ letter, title, subtitle, children, className }) {
       "min-w-0 rounded-2xl border border-white/70 dark:border-white/[0.12] bg-white/55 dark:bg-white/[0.05] lg:backdrop-blur-xl",
       "shadow-[inset_0_1px_0_rgba(255,255,255,.7),0_10px_30px_-14px_rgba(15,23,42,.35)]",
       "dark:shadow-[inset_0_1px_0_rgba(255,255,255,.06),0_10px_30px_-14px_rgba(0,0,0,.6)]",
-      "p-4 sm:p-5", className)}>
+      "p-3 sm:p-5", className)}>
       <header className="flex items-center gap-3 mb-4 pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
         <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl font-bold ring-1",
           GROUP_HUE[letter] || "bg-primary/15 text-primary ring-primary/30")}>
@@ -654,7 +654,7 @@ function MatchBox({ m, innerRef }) {
   const Side = ({ name, score, won }) => {
     const lost = decided && !won && !!name;
     return (
-    <div className={cn("flex items-center gap-2 px-3 py-2",
+    <div className={cn("flex items-center gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2",
       decided && won && "bg-green-500/10 shadow-[inset_3px_0_0_var(--color-green-500)]",
       lost && "bg-red-500/10 shadow-[inset_3px_0_0_var(--color-red-500)]")}>
       <span className={cn("flex-1 min-w-0 truncate",
@@ -662,7 +662,7 @@ function MatchBox({ m, innerRef }) {
         {name || "TBD"}
       </span>
       {forfeit && !won && (
-        <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-red-500/15 text-red-600 dark:text-red-400">
+        <span className="shrink-0 rounded px-1 sm:px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-red-500/15 text-red-600 dark:text-red-400">
           Forfeited
         </span>
       )}
@@ -678,12 +678,12 @@ function MatchBox({ m, innerRef }) {
 
   return (
     <div ref={innerRef}
-      className={cn("border rounded-lg overflow-hidden text-sm w-56 shrink-0 bg-card", live ? "border-red-500/40" : "border-border")}>
+      className={cn("border rounded-lg overflow-hidden text-[13px] sm:text-sm w-42 sm:w-56 shrink-0 bg-card", live ? "border-red-500/40" : "border-border")}>
       <Side name={m.teamA?.teamName} score={aScore} won={aWin} />
       <div className="border-t" />
       <Side name={m.teamB?.teamName} score={bScore} won={bWin} />
       {live && (
-        <div className="px-3 py-1 bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-semibold">
+        <div className="px-2.5 sm:px-3 py-0.5 sm:py-1 bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-semibold">
           ● LIVE
         </div>
       )}
@@ -697,7 +697,7 @@ function MatchBox({ m, innerRef }) {
 function PlaceIcon({ src, done }) {
   return (
     <img src={src} alt="" aria-hidden="true" loading="lazy" decoding="async"
-      className={cn("size-8 shrink-0 object-contain", !done && "opacity-30 grayscale")} />
+      className={cn("size-7 sm:size-8 shrink-0 object-contain", !done && "opacity-30 grayscale")} />
   );
 }
 
@@ -717,7 +717,7 @@ function WinnerCard({ match, label, sublabel, bothQualify, icon, tone = "green" 
 
   return (
     <div className={cn(
-      "w-52 shrink-0 rounded-lg border px-3 py-2.5 flex items-center gap-2.5",
+      "w-42 sm:w-52 shrink-0 rounded-lg border px-2.5 sm:px-3 py-2 sm:py-2.5 flex items-center gap-2.5",
       done ? c.box : "border-dashed bg-card"
     )}>
       {icon && <PlaceIcon src={icon} done={!!done} />}
@@ -747,7 +747,7 @@ function SecondPlaceCard({ match }) {
   const loser = done ? [match.teamA, match.teamB].find((t) => t && String(t._id) !== winnerId) : null;
   return (
     <div className={cn(
-      "w-56 shrink-0 rounded-lg border px-3 py-2.5 flex items-center gap-2.5",
+      "w-42 sm:w-56 shrink-0 rounded-lg border px-2.5 sm:px-3 py-2 sm:py-2.5 flex items-center gap-2.5",
       done ? "border-slate-400/50 bg-slate-500/5" : "border-dashed bg-card"
     )}>
       <PlaceIcon src="/medals/2nd-place.png" done={!!done} />
@@ -813,14 +813,14 @@ function BracketTree({ title, matches, labelFor, winner, runnerUp }) {
     <div className="mb-6">
       {title && <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">{title}</p>}
       <div ref={dragRef} className="overflow-x-auto scrollbar-thin pb-4 cursor-grab">
-        <div ref={stageRef} className={cn("relative flex gap-10 min-w-min", grandFinal && rounds.length < 3 && "pb-24")}>
+        <div ref={stageRef} className={cn("relative flex gap-5 sm:gap-10 min-w-min", grandFinal && rounds.length < 3 && "pb-24")}>
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
             {wires.map((d, i) => <path key={i} d={d} className="stroke-border" strokeWidth="2" fill="none" />)}
           </svg>
           {rounds.map((r, i) => (
             <div key={r} className="relative z-10 flex flex-col">
-              <p className="text-muted-foreground text-xs font-medium mb-2">{labelFor(r, i, rounds.length)}</p>
-              <div className="flex-1 flex flex-col justify-around gap-3">
+              <p className="text-muted-foreground text-xs font-medium mb-2 whitespace-nowrap">{labelFor(r, i, rounds.length)}</p>
+              <div className="flex-1 flex flex-col justify-around gap-2 sm:gap-3">
                 {matches.filter((m) => m.round === r).map((m) =>
                   grandFinal && m._id === grandFinal._id ? (
                     // Absolutely placed so the final keeps its centred spot and the wires don't move.
@@ -899,7 +899,7 @@ function BracketView({ tournamentId }) {
           {koThird && (
             <div>
               <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide mb-2">Third place</p>
-              <div className="flex items-center gap-10">
+              <div className="flex items-center gap-5 sm:gap-10 overflow-x-auto scrollbar-thin pb-2">
                 <MatchBox m={koThird} innerRef={() => {}} />
                 <WinnerCard match={koThird} label="Third place" sublabel={null}
                   icon="/medals/3rd-place.png" tone="bronze" />

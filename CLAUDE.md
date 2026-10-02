@@ -130,7 +130,10 @@ score tallying, no public visibility, records lost every season.
 - **Player photos ARE PUBLIC** (changed Aug 2026 — see CHANGES.md). They appear on
   the public team roster so viewers can see who plays for a barangay. Standard:
   **close-up headshot, face clearly visible, plain background**; JPEG/PNG/WebP,
-  max 3 MB. The standard is enforced by UI guidance + Super Admin review, not
+  max 3 MB. **Position-and-zoom before saving (Oct 2 2026)**: picking a photo in the
+  roster editor opens the shared `ImageCropDialog` (3:4 portrait, the public
+  `PlayerCard` shape; saved as a ≤900px-wide JPEG, so the upload is always small).
+  `pendingPhoto` in `RosterEditor` (`BrgyDashboard.jsx`). The standard is enforced by UI guidance + Super Admin review, not
   automatically. Address and birthdate remain PRIVATE — never on public routes.
 - One athlete may join **multiple sports** in a season (schedule permitting)
   → players↔teams is many-to-many (TeamPlayer). **But only for ONE barangay**
@@ -1248,6 +1251,9 @@ so a bug in one route cannot expose the other.
 - **Public brackets are compact below `sm`** (Sep 29 2026, `Brackets.jsx`): match /
   winner cards 168px (`w-42`, was 240px), 13px names, 18px crests, 20px column gap.
   Desktop unchanged; wires are measured, so nothing else needed changing.
+  **The admin `Tournaments.jsx` tree uses the same phone sizes** (Oct 2 2026): `MatchBox`,
+  `WinnerCard`, `SecondPlaceCard` are `w-42` below `sm`, 13px text, 20px column gap,
+  `GlassPanel` padding `p-3`. Keep the two brackets in step.
 - **Public search bar — Motion + compact width** (Sep 2026,
   `SearchInput` in `PublicUI.jsx`, used by Teams and Players): the clear
   (✕) button now fades/scales in via `AnimatePresence`/`motion.button`

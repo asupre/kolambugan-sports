@@ -38,11 +38,7 @@ const RAW_STEPS = {
       description:
         "Everything else in the app is scoped to whichever season is active. A season runs through five stages (setup, registration, verification, ongoing, completed), and only you can advance it.",
       icon: CalendarRange,
-      shots: [
-        ["create-season.png", "No season yet: tap Create Season"],
-        ["create-season-modal.png", "Name the season"],
-        ["create-season-dashboard.png", "The season page: its stage, and a checklist before you move on"],
-      ],
+      shots: [["create-season.png", "The Season page: its stage, the seasons before it, and Create New Season"]],
     },
     {
       title: "Reference List",
@@ -51,8 +47,7 @@ const RAW_STEPS = {
       icon: ClipboardList,
       shots: [
         ["reference-list.png", "The Reference List page"],
-        ["reference-list-upload.png", "Upload the CSV"],
-        ["reference-list-uploadedlist.png", "The uploaded list, searchable"],
+        ["reference-upload.png", "Choose the CSV, then tap Upload & Replace List"],
       ],
     },
     {
@@ -61,9 +56,8 @@ const RAW_STEPS = {
         "Players the system can't confirm land here as “needs document” or “flagged.” Open a player to compare their photo against their submitted ID, then Approve or Reject. Rejecting removes the player and reopens the roster so the barangay can fix it.",
       icon: UserCheck,
       shots: [
-        ["review-queue.png", "Teams waiting for review, filtered by barangay"],
-        ["review-queue-modal.png", "A player's photo, details and documents side by side"],
-        ["review-queue-modal-2.png", "Approve or reject the player"],
+        ["review-queue.png", "Pick a barangay: red shows how many teams are waiting"],
+        ["review-queue-modal.png", "A player's photo, details and documents side by side, then Approve or Reject"],
       ],
     },
     {
@@ -72,8 +66,9 @@ const RAW_STEPS = {
         "Configure each sport's divisions, roster format, scoring rules and after-match score sheet here, and which barangays may field players from other barangays. Set these before registration opens, since changing them afterward would invalidate rosters already built against the old settings.",
       icon: Settings2,
       shots: [
-        ["league-setup-games.png", "Games: divisions, entry format, scoring and score sheet"],
-        ["league-setup-brgy.png", "Barangays: who may field players from other barangays"],
+        ["league-setup.png", "Games: every game with its divisions, entry and draw"],
+        ["league-setup2.png", "Open a game and set it up step by step"],
+        ["league-setup3.png", "Barangays: who may field players from other barangays"],
       ],
     },
     {
@@ -104,12 +99,12 @@ const RAW_STEPS = {
     {
       title: "Your profile & recovery code",
       description:
-        "Tap your name at the top right to change your password or add a profile photo. Generate a recovery code and keep it somewhere safe: it's the only way back in if you forget your password, since no one can reset a Super Admin's password for you.",
+        "Tap your name above Sign out (bottom of the sidebar) to change your password, add a profile photo or a Dashboard banner picture. Generate a recovery code and keep it somewhere safe: it's the only way back in if you forget your password, since no one can reset a Super Admin's password for you.",
       icon: UserCircle,
       shots: [
-        ["profile.png", "Your name at the top right opens your profile"],
-        ["profile-info.png", "Change your password, or set up account recovery"],
-        ["profile-generated-recovery.png", "A new recovery code is shown only once. Save it"],
+        ["profile.png", "Your name above Sign out opens your profile"],
+        ["profile-info.png", "Profile photo, Dashboard banner and password"],
+        ["profile-recovery.png", "Account recovery: enter your password to generate a code. It's shown only once"],
       ],
     },
   ],
@@ -127,11 +122,10 @@ const RAW_STEPS = {
         "From My Teams, pick a sport and division, name the team, then open its roster and add players: name, birthdate, address, jersey number, and a close-up photo. You can also import a CSV.",
       icon: UserPlus,
       shots: [
-        ["teams.png", "My Teams"],
-        ["teams-create.png", "Pick the sport"],
-        ["teams-create-2.png", "Name the team and tap Create team"],
-        ["teams-created.png", "The new team is a draft. Tap Edit roster"],
-        ["teams-modal-edit-roster.png", "Add your players"],
+        ["teams.png", "My Teams: your barangay logo and Register a team"],
+        ["team-create.png", "Pick the sport and division, name the team, tap Create team"],
+        ["team-created.png", "The new team is a draft. Tap Edit roster"],
+        ["team-modal-edit-roster.png", "Add your players one by one, or Import CSV"],
       ],
     },
     {
@@ -141,7 +135,7 @@ const RAW_STEPS = {
       icon: ClipboardList,
       shots: [
         ["verification-status.png", "Verification Status: every player's result"],
-        ["verification-status-document.png", "Pick the document type and upload the file"],
+        ["verification-status-document.png", "Pick the document type, then choose the file"],
       ],
     },
     {
@@ -149,7 +143,7 @@ const RAW_STEPS = {
       description:
         "Once your roster meets the size limit, submit it. It locks and gets screened automatically. Watch each player's status turn eligible, or follow up if one comes back flagged.",
       icon: Send,
-      shots: [["teams-submit-modal.png", "Roster ready: tap Submit roster"]],
+      shots: [["team-submit-modal.png", "Roster ready: tap Submit roster"]],
     },
     {
       title: "Follow your matches",
@@ -164,10 +158,7 @@ const RAW_STEPS = {
       title: "Welcome, Organizer",
       description: "You score matches for your assigned sport, courtside, in real time. The Dashboard shows the game being played now, today's schedule and how far each bracket has got.",
       icon: Radio,
-      shots: [
-        ["dashboard-1.png", "Your Dashboard"],
-        ["dashboard-2.png", "Today, the schedule, bracket progress and recent results"],
-      ],
+      shots: [["dashboard.png", "Your Dashboard: your sport, the season, today's games and what needs attention"]],
     },
     {
       title: "Find your match",
@@ -182,7 +173,7 @@ const RAW_STEPS = {
         "Pick how many periods you're playing, tap Start, then tap the team that scored (+1, +2 or +3 in basketball). Scoring is by team. You don't pick players while the game runs. Everything updates live on the public site as you go.",
       icon: Play,
       shots: [
-        ["start.png", "Choose the number of periods and tap Start"],
+        ["start.png", "Choose the number of periods and tap Start match"],
         ["scoring.png", "Tap the team that scored"],
       ],
     },
@@ -198,6 +189,7 @@ const RAW_STEPS = {
       description:
         "After the match, a score sheet lists every player. Fill in the columns the Super Admin set up for your sport (for example points, fouls, rebounds, blocks and assists in basketball; the role each player played, and kills / deaths / assists, in esports). Leave a player blank if they didn't play, choose the MVP and Save. You can come back and correct it later.",
       icon: ClipboardList,
+      shots: [["scoresheet.png", "Player stats: each player's totals, team by team, then Save"]],
     },
   ],
 };

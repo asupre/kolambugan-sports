@@ -2437,7 +2437,7 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   `StepShots` shows one large + a thumbnail strip of all of them; clicking the
   large one opens the shared zoomable `Lightbox` (`components/DocumentViewer.jsx`)
   in gallery mode (`onPrev`/`onNext`/`caption`/`position`). A step with no shots
-  shows its icon (Organizer "Fill in the player stats" has none yet).
+  shows its icon. **All screenshots re-captured Oct 3 2026** after the white admin / banner redesign (32 pictures; the old ones were deleted; Organizer "Fill in the player stats" now has ).
   **The modal has a FIXED height** (`h-[92dvh] md:h-[min(92dvh,760px)]`, `sm:max-w-6xl`)
   — it used to size to each step, and being centred it jumped on every Next.
   Measured: identical top/height across all steps at 1366x768 and 390x844. All

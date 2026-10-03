@@ -3729,3 +3729,4 @@ its filename and status, making "should I delete this and re-upload" a guess.
   closing statement).
 - Admin light mode: pale green-tinted page with white sidebar and cards (from the reference), green accent kept.
 - Admin light mode: plain white page, sidebar and cards (replaces the pale green page), green accent kept.
+- Instruction guide: every screenshot re-captured for the new admin look (old pictures removed); profile step text now points to the name above Sign out.

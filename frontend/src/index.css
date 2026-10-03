@@ -547,19 +547,19 @@
    From a fitness-dashboard reference: a white sidebar with icons, the current page as a solid
    green pill, and the Dashboard's picture banner. Colours otherwise = the calm look. */
 :root.calm-fit:not(.dark) {
-  /* The reference's light, airy surfaces: a pale green-tinted page, WHITE cards / sidebar /
-     popovers, soft borders. The accent stays the calm green #2F6B4B (a slate accent was rejected). */
-  --background: #EDF4EF;
+  /* WHITE page, sidebar and cards; hairline grey-green borders separate them. The accent stays the
+     calm green #2F6B4B. (A pale-green page was tried and rejected: "kinda bad, use white".) */
+  --background: #FFFFFF;
   --card: #FFFFFF;
   --popover: #FFFFFF;
-  --secondary: #E6EFE9;
-  --muted: #E6EFE9;
-  --accent: #E4EEE8;
-  --border: #DFE9E2;
-  --input: #D5E1D9;
+  --secondary: #F2F5F3;
+  --muted: #F2F5F3;
+  --accent: #EFF4F0;
+  --border: #E4E9E5;
+  --input: #D9E0DB;
   --sidebar: #FFFFFF;
-  --sidebar-accent: #EEF4EF;
-  --sidebar-border: #E4ECE6;
+  --sidebar-accent: #F2F5F3;
+  --sidebar-border: #E4E9E5;
 }
 /* The current page in the sidebar: a solid green pill, white text. */
 :root.calm-fit:not(.dark) aside [aria-current="page"] {
@@ -574,5 +574,5 @@
 }
 /* The menu's scroll-edge fade must fade into the white sidebar, not the page colour. */
 :root.calm-fit aside .scroll-shadow-y { --scroll-shadow-bg: var(--sidebar); }
-/* The dashboard's own hover / bar-track tones, retuned from warm beige to the pale green page. */
-:root.calm-fit:not(.dark) .calm { --calm-card-hover: #F3F8F4; --calm-track: #E3ECE6; }
+/* The dashboard's own hover / bar-track tones, retuned from warm beige for the white page. */
+:root.calm-fit:not(.dark) .calm { --calm-card-hover: #F6F8F7; --calm-track: #EAEEEB; }

@@ -3728,3 +3728,4 @@ its filename and status, making "should I delete this and re-upload" a guess.
   (photo hero fading into the page, Outfit headline, stats strip, games + "why follow" columns,
   closing statement).
 - Admin light mode: pale green-tinted page with white sidebar and cards (from the reference), green accent kept.
+- Admin light mode: plain white page, sidebar and cards (replaces the pale green page), green accent kept.

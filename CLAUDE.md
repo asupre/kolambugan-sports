@@ -1622,8 +1622,9 @@ mode only for the sidebar tokens):
   cropped 4:1, `POST/DELETE /api/auth/profile/banner`, public `GET /api/auth/users/:id/banner`,
   'photos' bucket, any role) → `/banner.jpg` (a LOCAL preview file, gitignored in
   `frontend/.gitignore`, never shipped) → a drawn SVG landscape (Mount Bucas, Panguil Bay, pines).
-- Colours (light mode): the reference's surfaces, a pale green-tinted page (#EDF4EF) with WHITE
-  sidebar / cards / popovers, and the calm green #2F6B4B as the ONLY accent (Super Admin: "just the
+- Colours (light mode): ALL WHITE (page, sidebar, cards, popovers) with hairline grey-green borders
+  (#E4E9E5) and very light neutral greys; a pale green-tinted page was tried and rejected ("kinda
+  bad, use white"). The calm green #2F6B4B is the ONLY accent (Super Admin: "just the
   color green, not the whole thing"). A dark-slate accent was tried and rejected; so were an icon-chip/gradient "rich" layer ("AI slop"), a dark green
   sidebar, and Anton page titles (that one is kept in `git stash` "league-identity").
 

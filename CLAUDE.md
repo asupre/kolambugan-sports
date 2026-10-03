@@ -3229,6 +3229,16 @@ so a bug in one route cannot expose the other.
   6. Glass cost: `GlassBackdrop` is radial gradients (no `blur()` filters); panel / card blur is
      `lg:` only (phones get a slightly stronger tint — over a soft gradient the blur was nearly
      invisible anyway); header blur is light below lg; footer has none.
+- **Public Champions = LEADERBOARD first (Oct 3 2026)**, `pages/public/Champions.jsx`: barangays ranked
+  by titles (ties share a rank, 1-1-3; within a tie the more recent winner first), medal icons for
+  ranks 1-3, crest, per-sport chips, "Last won", title count. The sport tabs filter it. Tapping a
+  barangay (row or the "Barangay X →" link on an archive card) opens its TROPHY CABINET, a dark Radix
+  Dialog (`BarangayCabinet`) with every title it won in ALL sports (photo, year, MVP, prize, notes).
+  Photos open the shared `Lightbox` as a gallery of that barangay; the Lightbox is itself a Dialog,
+  so it renders INSIDE the cabinet (children), or the cabinet treats clicks on it as outside and
+  closes. Esc closes only the zoom. Champion.barangay is free text, so crests are matched by NAME
+  against `/api/barangays` (case / spacing tolerant). The year archive ("Every title") stays below
+  and replaces the old "Most titles" side panel. Rendered at 1366 / 390 against the prod API.
 - **Champions pages (Sep 29 2026)**: public `/champions` is a card grid per year
   (16:9 photo, gold Anton year heading) + a "Most titles" panel (all sports, sticky at
   `lg`); photos open the shared zoomable `Lightbox` in gallery mode across every photo on

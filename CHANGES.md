@@ -3672,3 +3672,7 @@ its filename and status, making "should I delete this and re-upload" a guess.
   Before, these attacks failed only because of how individual routes happened to be written.
   Normal input is unaffected: names like "Sto. Niño" are values, not field names. Tested against
   every request the app sends.
+- **Champions page is now a leaderboard** (Oct 3 2026). Barangays are ranked by how many titles
+  they have won (gold, silver and bronze icons for the top three), with the sports they won in.
+  Tapping a barangay opens its own page of titles: every championship with its photo, year, sport,
+  team, MVP and prize, and the photos can be zoomed. The year-by-year list of titles is still below.

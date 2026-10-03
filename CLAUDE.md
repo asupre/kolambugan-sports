@@ -1553,8 +1553,13 @@ accent, one big title + one plain subtitle per page, sections headed on the page
   progress line, "Needs your attention" list (coloured DOTS for meaning: red overdue/urgent,
   amber to-do, green info), "At a glance" tiles, Registration / Today's games (a list, no
   carousel) / Competition (green progress bar per division). Extra tokens `--calm-*` on `.calm`.
-- **League Setup is STEP BY STEP** (`SportEditor` in `SportConfig.jsx`): a **Game** dropdown
-  picks the game, then 1 Registration → 2 Scoring → 3 Score sheet → 4 Review & save (summary rows
+- **League Setup is STEP BY STEP, in a MODAL** (`SportEditor` in `SportConfig.jsx`). Since Oct 3 2026
+  (Super Admin: "a form modal instead of that being displayed") the Games tab is a TABLE
+  (`GamesTable`: game + type, divisions, entry, draw; whole row clickable, Enter/Space too) and a
+  row opens `GameDialog` (the editor in a scrolling modal; closing with unsaved changes asks first
+  via `dirtyRef`; a step change scrolls the modal body, `[data-editor-scroll]`, to the top). "Add a
+  game" is a modal too and opens the new game's editor right after. (Before: a **Game** dropdown
+  and the editor inline on the page.) Steps: 1 Registration → 2 Scoring → 3 Score sheet → 4 Review & save (summary rows
   with "Change" links and per-field "changed" tags). Progress line is clickable; amber dot =
   unsaved changes in that step; changing step scrolls the editor top into view. Nothing saves
   until step 4, except Type and custom columns (apply at once, as before).
@@ -1578,7 +1583,10 @@ accent, one big title + one plain subtitle per page, sections headed on the page
   shared as `components/AuthBrandPanel.jsx` (GradientWaves, trophy + Anton headline, live counts;
   used by both pages, change it there), the form on the right ("You're signed in as <username>",
   Temporary / New / Confirm, "Save and continue"). It adds `calm-theme` itself (no AdminLayout).
-  Logic and the InstructionModal afterwards are unchanged.
+  **The first-login guide opens ON THE DASHBOARD** (Oct 3 2026): after saving, the page redirects
+  with `navigate(dest, { state: { firstLoginGuide: true } })` and `AdminLayout` opens the
+  `InstructionModal` when it sees that state, then clears it (`replace`), so a refresh / Back
+  doesn't reopen it. It used to open over the bare password page.
 - **Phone fixes (Oct 3 2026, every admin page scanned at 390px for sideways overflow: none).** The
   five-step season trackers (`SeasonTracker` in `SeasonStatus.jsx`, `SeasonSteps` on the Super
   Admin Dashboard) hide their step labels below `sm` (they overlapped) and show one line instead,

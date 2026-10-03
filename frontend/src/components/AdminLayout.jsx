@@ -105,6 +105,15 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
+  // First-login guide (Oct 2026: it used to open on the blank "Set a new password" page). The
+  // password page sends `state.firstLoginGuide` with the redirect, so the guide opens here, over
+  // the user's own dashboard. The state is cleared at once, so a refresh / Back won't reopen it.
+  useEffect(() => {
+    if (!location.state?.firstLoginGuide) return;
+    setShowHelp(true);
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [location.state, location.pathname, location.search, navigate]);
+
   const grouped = menu[0]?.header !== undefined;
   const items = flattenItems(menu);
   const needsSports = items.some((m) => m.dynamic === "sports");

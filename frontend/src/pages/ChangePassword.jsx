@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import InstructionModal from "../components/InstructionModal";
 import { PasswordInput, PasswordMatchHint } from "../components/PasswordInput";
 import { KeyRound } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -14,7 +13,6 @@ export default function ChangePassword() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showIntro, setShowIntro] = useState(false);
   const navigate = useNavigate();
 
   // Same calm look as the login and admin pages (Oct 2026; this page was still the old blue).
@@ -61,9 +59,9 @@ export default function ChangePassword() {
         setError(data.message || "Could not change password.");
       } else {
         // Success — this is a real first login (mustChangePassword only ever
-        // fires once), so show the orientation modal before sending them to
-        // their dashboard rather than navigating immediately.
-        setShowIntro(true);
+        // fires once). Go to the dashboard and open the orientation guide THERE
+        // (AdminLayout reads state.firstLoginGuide), not over this page.
+        navigate(dest, { replace: true, state: { firstLoginGuide: true } });
       }
     } catch {
       setError("Could not reach the server. Is the backend running?");
@@ -148,9 +146,6 @@ export default function ChangePassword() {
         </div>
       </div>
 
-      {showIntro && (
-        <InstructionModal role={user?.role} onClose={() => navigate(dest)} />
-      )}
     </div>
   );
 }

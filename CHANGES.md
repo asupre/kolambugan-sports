@@ -3715,3 +3715,5 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - The first-login "Set a new password" page moved to the calm admin look (green, Figtree, shadcn
   form controls). Behaviour unchanged.
 - "Set a new password" redone as the same split screen as Login (shared `AuthBrandPanel`).
+- First-login guide now opens over the user's dashboard (not the password page).
+- League Setup: games are a table; each game's step-by-step editor, and "Add a game", open in a modal.

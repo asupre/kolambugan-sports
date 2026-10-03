@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Building2, Check, Info, Lock, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Building2, Check, ChevronRight, Info, Lock, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -122,7 +122,7 @@ function RulesByType() {
 // One game's editor. Everything you change here (divisions, entry format, scoring rules, score
 // sheet ticks) is saved together with ONE button; the type and your own score sheet columns apply
 // immediately because they change what the rest of the form offers.
-function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
+function SportEditor({ sport, onSaved, onRemoved, onError, locked, dirtyRef }) {
   const confirm = useConfirm();
   const savedDivisions = sport.divisions?.length ? sport.divisions : ["open"];
   const [divisions, setDivisions] = useState(savedDivisions);
@@ -146,10 +146,8 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
   const firstStep = useRef(true);
   useEffect(() => {
     if (firstStep.current) { firstStep.current = false; return; }
-    const el = editorRef.current;
-    if (!el) return;
-    const top = el.getBoundingClientRect().top;
-    if (top < 80) window.scrollTo({ top: window.scrollY + top - 80 });
+    // Inside the game modal: scroll its body back to the top of the step.
+    editorRef.current?.closest("[data-editor-scroll]")?.scrollTo({ top: 0 });
   }, [step]);
 
   // The after-match score sheet: which columns the organizer fills in per player.
@@ -178,6 +176,8 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
     format !== sport.entryFormat ||
     (isRoundRobin && koSize !== savedKo);
   const dirty = configDirty || sheetDirty || rulesDirty;
+  // The modal asks "close without saving?" from this (GameDialog).
+  useEffect(() => { if (dirtyRef) dirtyRef.current = dirty; }, [dirty, dirtyRef]);
 
   const touch = () => setSaved("");
   function toggleDivision(value) {
@@ -330,10 +330,10 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
   );
 
   return (
-    <Card ref={editorRef}>
-      <CardContent className="space-y-7">
+    <div ref={editorRef}>
+      <div className="space-y-7">
         {/* Header: name, type, rename / remove */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 pr-8">
           {renaming ? (
             <div className="flex flex-1 items-center gap-2">
               <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs"
@@ -588,10 +588,10 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
             )}
           </div>
         </div>
-      </CardContent>
+      </div>
       <PurgeSportDialog sport={sport} history={history} onClose={() => setHistory(null)}
         onDone={() => { setHistory(null); onRemoved(sport._id); }} />
-    </Card>
+    </div>
   );
 }
 
@@ -687,14 +687,14 @@ function AddSport({ onAdded, onCancel, onError }) {
   }
 
   return (
-    <Card className="border-l-4 border-l-emerald-500">
-      <CardHeader>
-        <CardTitle>Add a game</CardTitle>
-        <CardDescription>
-          Give it a name and a type. You'll set its divisions, entry format and score sheet on the next screen.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <>
+      <DialogHeader>
+        <DialogTitle>Add a game</DialogTitle>
+        <DialogDescription>
+          Give it a name and a type. Its divisions, entry format and score sheet come next.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label>Name</Label>
@@ -753,12 +753,12 @@ function AddSport({ onAdded, onCancel, onError }) {
         <p className="text-xs text-muted-foreground">
           A new game also needs an organizer account. Use Provision all on the Accounts page.
         </p>
-        <div className="flex gap-2">
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
           <Button onClick={add} disabled={busy || !name.trim()}>{busy ? "Adding…" : "Add game"}</Button>
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-        </div>
-      </CardContent>
-    </Card>
+        </DialogFooter>
+      </div>
+    </>
   );
 }
 
@@ -954,6 +954,86 @@ function TabBar({ value, onChange, tabs }) {
   );
 }
 
+// The games on the page: one row each, whole row clickable (Enter / Space too), like the Review
+// Queue's team tables. Phones fold the details under the name.
+function GamesTable({ sports, onOpen }) {
+  const divText = (sp) => (sp.divisions?.length ? sp.divisions : ["open"])
+    .map((d) => DIVISIONS.find((x) => x.value === d)?.label || d).join(", ");
+  const fmtText = (sp) => FORMATS.find((f) => f.value === sp.entryFormat)?.label || sp.entryFormat || "Team";
+  const typeText = (sp) => TYPES.find((t) => t.value === sp.category)?.label || sp.category;
+  const drawText = (sp) => sp.category === "esports"
+    ? `Round-robin, Top ${sp.knockoutSize || 16}`
+    : sp.tournamentFormat === "round_robin" ? "Round-robin" : "Double elimination";
+  return (
+    <div className="overflow-hidden rounded-xl border bg-card">
+      <table className="w-full text-left">
+        <thead className="border-b bg-muted/40 text-[13px] text-muted-foreground">
+          <tr>
+            <th className="px-4 py-2.5 font-medium">Game</th>
+            <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Divisions</th>
+            <th className="hidden px-4 py-2.5 font-medium md:table-cell">Entry</th>
+            <th className="hidden px-4 py-2.5 font-medium lg:table-cell">Draw</th>
+            <th className="w-10 px-2 py-2.5"><span className="sr-only">Edit</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {sports.map((sp) => (
+            <tr key={sp._id}
+              onClick={() => onOpen(sp._id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(sp._id); } }}
+              tabIndex={0}
+              className="cursor-pointer border-b align-middle transition-colors last:border-0 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none">
+              <td className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[15px] font-medium">{sp.name}</span>
+                  <Badge variant="secondary">{typeText(sp)}</Badge>
+                </div>
+                <p className="text-[13px] text-muted-foreground sm:hidden">{divText(sp)} · {fmtText(sp)}</p>
+              </td>
+              <td className="hidden px-4 py-3 text-[15px] sm:table-cell">{divText(sp)}</td>
+              <td className="hidden px-4 py-3 text-[15px] md:table-cell">{fmtText(sp)}</td>
+              <td className="hidden px-4 py-3 text-[15px] lg:table-cell">{drawText(sp)}</td>
+              <td className="px-2 py-3 text-muted-foreground"><ChevronRight className="size-4" /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// One game's step-by-step editor in a modal. Closing with unsaved changes asks first.
+function GameDialog({ sport, onClose, onSaved, onRemoved, onError, locked }) {
+  const confirm = useConfirm();
+  const dirtyRef = useRef(false);
+  async function requestClose() {
+    if (dirtyRef.current && !(await confirm("You have unsaved changes to this game. Close without saving?", { title: "Close without saving?", confirmLabel: "Close without saving", danger: true }))) return;
+    dirtyRef.current = false;
+    onClose();
+  }
+  return (
+    <Dialog open={!!sport} onOpenChange={(o) => !o && requestClose()}>
+      <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogTitle className="sr-only">Edit {sport?.name}</DialogTitle>
+        <DialogDescription className="sr-only">Divisions, scoring and score sheet for this game.</DialogDescription>
+        <div data-editor-scroll className="scrollbar-thin overflow-y-auto overscroll-contain p-5 sm:p-7">
+          {sport && (
+            <SportEditor
+              key={sport._id}
+              sport={sport}
+              dirtyRef={dirtyRef}
+              onSaved={onSaved}
+              onRemoved={onRemoved}
+              onError={onError}
+              locked={locked}
+            />
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SportConfig() {
   const showError = useErrorDialog();
   const [sports, setSports] = useState([]);
@@ -961,7 +1041,7 @@ export default function SportConfig() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState("games");
-  const [selectedId, setSelectedId] = useState(null);
+  const [editId, setEditId] = useState(null);   // the game open in the editor modal
   const [adding, setAdding] = useState(false);
   const [showTypes, setShowTypes] = useState(false);
   const { season } = useSeason();
@@ -977,8 +1057,7 @@ export default function SportConfig() {
 
   useEffect(() => { load(); }, []);
 
-  // The selected game falls back to the first one if it was removed (or none is chosen yet).
-  const selected = sports.find((s) => s._id === selectedId) || sports[0] || null;
+  const editing = sports.find((s) => s._id === editId) || null;
 
   return (
     <AdminLayout title="League Setup" menu={superAdminMenu} enableDarkMode
@@ -1018,26 +1097,10 @@ export default function SportConfig() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Pick a game; the editor below is for that one game. A dropdown (Oct 2026, Super
-                Admin request) instead of a row of pills: one clear "which game am I editing". */}
+            {/* Games as a table (Oct 2026, Super Admin: "a form modal instead of that being
+                displayed"): a row opens that game's step-by-step editor in a modal. */}
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-[15px] font-medium">Game</span>
-              <Select
-                value={adding ? "" : selected?._id || ""}
-                onValueChange={(v) => { setSelectedId(v); setAdding(false); }}
-              >
-                <SelectTrigger className="w-full sm:w-72">
-                  <SelectValue placeholder={adding ? "Adding a new game…" : "Pick a game"} />
-                </SelectTrigger>
-                <SelectContent position="popper" side="bottom" avoidCollisions={false} className="max-h-[min(20rem,var(--radix-select-content-available-height))]">
-                  {sports.map((sp) => (
-                    <SelectItem key={sp._id} value={sp._id}>
-                      {sp.name} · {TYPES.find((t) => t.value === sp.category)?.label || sp.category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={() => setAdding(true)} disabled={locked || adding} title={locked ? LOCK_TITLE : undefined}>
+              <Button onClick={() => setAdding(true)} disabled={locked} title={locked ? LOCK_TITLE : undefined}>
                 {locked ? <Lock className="size-3.5" /> : <Plus className="size-3.5" />} Add a game
               </Button>
               <button onClick={() => setShowTypes(!showTypes)}
@@ -1048,31 +1111,37 @@ export default function SportConfig() {
 
             {showTypes && <RulesByType />}
 
-            {adding && !locked ? (
-              <AddSport
-                onCancel={() => setAdding(false)}
-                onError={showError}
-                onAdded={(sport, message) => {
-                  setNotice(message);
-                  setSports((prev) => [...prev, sport].sort((a, b) => a.name.localeCompare(b.name)));
-                  setSelectedId(sport._id);
-                  setAdding(false);
-                }}
-              />
-            ) : selected ? (
-              <SportEditor
-                key={selected._id}
-                sport={selected}
-                onSaved={(updated) => setSports((prev) => prev.map((x) => (x._id === updated._id ? updated : x)))}
-                onRemoved={(id) => setSports((prev) => prev.filter((x) => x._id !== id))}
-                onError={showError}
-                locked={locked}
-              />
+            {sports.length ? (
+              <GamesTable sports={sports} onOpen={setEditId} />
             ) : (
               <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
                 No games yet. Use “Add a game” to create the first one.
               </CardContent></Card>
             )}
+
+            <Dialog open={adding && !locked} onOpenChange={(o) => !o && setAdding(false)}>
+              <DialogContent className="max-h-[92dvh] overflow-y-auto scrollbar-thin sm:max-w-2xl">
+                <AddSport
+                  onCancel={() => setAdding(false)}
+                  onError={showError}
+                  onAdded={(sport, message) => {
+                    setNotice(message);
+                    setSports((prev) => [...prev, sport].sort((a, b) => a.name.localeCompare(b.name)));
+                    setAdding(false);
+                    setEditId(sport._id);   // straight on to its divisions / format / sheet
+                  }}
+                />
+              </DialogContent>
+            </Dialog>
+
+            <GameDialog
+              sport={editing}
+              onClose={() => setEditId(null)}
+              onSaved={(updated) => setSports((prev) => prev.map((x) => (x._id === updated._id ? updated : x)))}
+              onRemoved={(id) => { setEditId(null); setSports((prev) => prev.filter((x) => x._id !== id)); }}
+              onError={showError}
+              locked={locked}
+            />
           </div>
         )}
       </div>

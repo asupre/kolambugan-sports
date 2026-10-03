@@ -3714,3 +3714,4 @@ its filename and status, making "should I delete this and re-upload" a guess.
   and team tables rearranged for phones. No page scrolls sideways.
 - The first-login "Set a new password" page moved to the calm admin look (green, Figtree, shadcn
   form controls). Behaviour unchanged.
+- "Set a new password" redone as the same split screen as Login (shared `AuthBrandPanel`).

@@ -1573,10 +1573,12 @@ accent, one big title + one plain subtitle per page, sections headed on the page
   the waves) — with the gold `/medals/trophy.png` centred above it. A minimalist redesign without
   the waves was tried and rejected ("I like the older one that has the animations").
 
-- **Set a new password** (`ChangePassword.jsx`, first login) uses the calm look too: it adds
-  `calm-theme` itself (no AdminLayout there), header strip with the logo, big title + subtitle
-  ("Signed in as <username>"), one card with shadcn `Label` / `PasswordInput` / `Button`. Logic
-  and the InstructionModal afterwards are unchanged.
+- **Set a new password** (`ChangePassword.jsx`, first login) is the SAME two-column screen as Login
+  (Oct 3 2026; a plain one-card version was rejected as "looks bad"): the green animated panel is
+  shared as `components/AuthBrandPanel.jsx` (GradientWaves, trophy + Anton headline, live counts;
+  used by both pages, change it there), the form on the right ("You're signed in as <username>",
+  Temporary / New / Confirm, "Save and continue"). It adds `calm-theme` itself (no AdminLayout).
+  Logic and the InstructionModal afterwards are unchanged.
 - **Phone fixes (Oct 3 2026, every admin page scanned at 390px for sideways overflow: none).** The
   five-step season trackers (`SeasonTracker` in `SeasonStatus.jsx`, `SeasonSteps` on the Super
   Admin Dashboard) hide their step labels below `sm` (they overlapped) and show one line instead,

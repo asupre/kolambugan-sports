@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import InstructionModal from "../components/InstructionModal";
 import { PasswordInput, PasswordMatchHint } from "../components/PasswordInput";
+import { KeyRound } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
+import { Alert, AlertDescription } from "../components/ui/alert";
+import AuthBrandPanel from "../components/AuthBrandPanel";
 
 export default function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -69,32 +72,39 @@ export default function ChangePassword() {
     }
   }
 
+  // Same two-column screen as Login (Oct 2026): the green animated panel on the left (desktop),
+  // the form on the right, so first login reads as one flow.
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b bg-card/60">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-2.5 px-4 sm:px-8">
-          <img src="/logo/ksl-mark-simple.svg" alt="" className="h-9 w-9" />
-          <span className="text-[16px] font-semibold">Kolambugan Sports</span>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background grid lg:grid-cols-2">
+      <AuthBrandPanel />
 
-      <main className="mx-auto flex max-w-md flex-col px-4 py-10 sm:py-16">
-        <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[34px]">Set a new password</h1>
-        <p className="mt-1.5 text-[16px] text-muted-foreground">
-          For your security, replace your temporary password before continuing.
-          {user?.username && <> Signed in as <span className="font-medium text-foreground">{user.username}</span>.</>}
-        </p>
+      <div className="flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-sm">
+          <div className="flex lg:hidden justify-center mb-6">
+            <img src="/logo/ksl-mark-simple.svg" alt="Kolambugan Sports" className="h-12 w-12" />
+          </div>
 
-        <div className="mt-7 rounded-2xl border bg-card p-6 sm:p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="mb-8">
+            <div className="mb-3 hidden lg:inline-flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <KeyRound className="size-5" />
+            </div>
+            <h1 className="text-2xl font-semibold">Set a new password</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Replace your temporary password before you continue.
+              {user?.username && <> You're signed in as <span className="font-medium text-foreground">{user.username}</span>.</>}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="cp-current">Current password</Label>
+              <Label htmlFor="cp-current">Temporary password</Label>
               <PasswordInput
                 id="cp-current"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Your temporary password"
+                placeholder="The password you were given"
                 autoComplete="current-password"
+                autoFocus
               />
             </div>
 
@@ -115,22 +125,28 @@ export default function ChangePassword() {
                 id="cp-confirm"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Re-enter your new password"
+                placeholder="Type it again"
                 autoComplete="new-password"
               />
               <PasswordMatchHint password={newPassword} confirm={confirm} />
             </div>
 
             {error && (
-              <p className="rounded-xl border border-red-500/30 bg-red-500/5 px-3 py-2 text-[14px] text-red-700 dark:text-red-400">{error}</p>
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
-            <Button type="submit" size="lg" disabled={loading} className="w-full">
-              {loading ? "Updating…" : "Update password"}
+            <Button type="submit" disabled={loading} className="w-full h-9">
+              {loading ? "Saving…" : "Save and continue"}
             </Button>
           </form>
+
+          <p className="text-center text-muted-foreground/70 text-xs mt-6">
+            Inter-Barangay Sports League · Municipality of Kolambugan
+          </p>
         </div>
-      </main>
+      </div>
 
       {showIntro && (
         <InstructionModal role={user?.role} onClose={() => navigate(dest)} />

@@ -1262,7 +1262,18 @@ so a bug in one route cannot expose the other.
   `TeamRow`), or every card re-renders on each swipe. (2) Back cards are darkened by a plain black
   overlay's OPACITY, never `filter: brightness()` or `mix-blend-mode` (both repaint every frame).
   `blur` is a filter: keep it 0 on phones. (3) Off-stage cards are `visibility: hidden` and skipped.
-  (4) A drag paints at most once per frame (rAF). Measuring gotcha: with touch emulation on, a
+  (4) A drag paints at most once per frame (rAF).
+  **Taps right after a swipe (Oct 3 2026 bug: "swiped to the next player, tap didn't flip it")**,
+  keep these: (a) pointerdown does NOT cancel the running slide; only a real drag (past the slop)
+  does, rebased to the current position. Cancelling on pointerdown froze the carousel half-way on
+  a plain tap. (b) cards sliding out to the left (`d <= -0.3`) get `pointer-events: none`; they sit
+  nearer in 3D and stole the tap. (c) touch slop 12px (mouse 6). (d) Chrome DROPS the click for
+  some taps that land right after a touch drag (measured: no `click` event at all after pointerup),
+  so on TOUCH the carousel fires `.click()` itself on pointerup (nearest `a, button`) and swallows
+  the browser's own click for 700ms (`synthTapAtRef`). Measured with CDP touch events: a tap
+  0-160ms after a swipe flipped the new card 3/10 times before, 10/10 after; one tap never counts
+  twice; touch arrows move one card; mouse unchanged.
+  Measuring gotcha: with touch emulation on, a
   synthetic mouse click on the sport tab is ignored (you silently measure Badminton's 2-card rows);
   click from page JS and check the subtitle says 520 players.
   **Desktop performance — measured, keep these rules too** (Oct 2 2026, "laggy on desktop, and

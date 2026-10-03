@@ -3660,3 +3660,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
   Players page now flip: tap once to see games played, points and MVP awards this season, tap the
   back to open the team page at that player's row. The team page gained an MVP column. The Players
   and Teams carousels now show their left / right arrows on phones too.
+- **Player / team cards: a tap right after a swipe now always works** (Oct 3 2026 bug report: after
+  flipping one player and swiping to the next, tapping the new card did nothing until you swiped
+  again, on phones and sometimes on desktop). Three causes in the shared carousel: a tap froze the
+  slide animation half-way, the card sliding away still caught the tap, and the phone browser
+  sometimes skipped the tap completely. Tested on an emulated phone: quick taps after a swipe went
+  from 3 in 10 working to 10 in 10.

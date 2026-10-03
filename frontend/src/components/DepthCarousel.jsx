@@ -63,6 +63,7 @@ export default function DepthCarousel({
   const cfgRef = useRef({});
   const dragRef = useRef(null);
   const justDraggedRef = useRef(false);
+  const synthTapAtRef = useRef(-1e9);   // when we last turned a touch tap into a click ourselves
   const wheelTimerRef = useRef(null);
   const reducedRef = useRef(false);
 
@@ -129,7 +130,10 @@ export default function DepthCarousel({
       el.style.transform = `translate3d(-50%, -50%, 0) scale(${sc}) translateX(${tx.toFixed(1)}px) translateZ(${tz.toFixed(1)}px) rotateY(${ry.toFixed(2)}deg)`;
       el.style.opacity = opacity.toFixed(3);
       el.style.zIndex = String(Math.round(2000 - d * 20));
-      el.style.pointerEvents = opacity > 0.05 ? "auto" : "none";
+      // A card sliding OUT to the left (d < 0) sits nearer in 3D and fades slowly, so it
+      // used to catch a tap meant for the new front card mid-slide. Only cards from just
+      // before the front onward take taps.
+      el.style.pointerEvents = opacity > 0.05 && d > -0.3 ? "auto" : "none";
       if (cfg.blur > 0) {
         const blurPx = Math.min(cfg.blur, (back / Math.max(1, cfg.visibleCards)) * cfg.blur);
         el.style.filter = blurPx > 0.05 ? `blur(${blurPx.toFixed(2)}px)` : "none";
@@ -238,10 +242,15 @@ export default function DepthCarousel({
 
   // Drag: the pointer moves set the position directly, painted once per frame.
   const dragRafRef = useRef(0);
+  // Pressing down does NOT stop a running slide: a plain tap must let it finish (Oct 2026 bug:
+  // a tap right after a swipe froze the carousel half-way, so the new card wasn't centred and
+  // didn't take taps until the next swipe). Only an actual drag takes over, from wherever the
+  // slide has got to.
   const onPointerDown = useCallback((e) => {
     if (cfgRef.current.count < 2 || e.button > 0) return;
-    cancelAnimationFrame(rafRef.current);
-    dragRef.current = { x: e.clientX, startPos: posRef.current, lastX: e.clientX, lastT: performance.now(), v: 0, moved: false, id: e.pointerId };
+    dragRef.current = { x: e.clientX, startPos: posRef.current, lastX: e.clientX, lastT: performance.now(), v: 0, moved: false, id: e.pointerId,
+      // A fingertip wobbles more than a mouse: 6px made some phone taps count as swipes.
+      slop: e.pointerType === "touch" ? 12 : 6, type: e.pointerType, t0: performance.now() };
   }, []);
 
   const onPointerMove = useCallback((e) => {
@@ -249,12 +258,18 @@ export default function DepthCarousel({
     if (!drag) return;
     const cfg = cfgRef.current;
     const stepPx = Math.max(cfg.cardWidth * 0.55 * scaleRef.current, 40);
-    const dx = e.clientX - drag.x;
-    if (!drag.moved && Math.abs(dx) > 6) {
+    let dx = e.clientX - drag.x;
+    if (!drag.moved) {
+      if (Math.abs(dx) <= drag.slop) return;
       drag.moved = true;
       rootRef.current?.setPointerCapture(drag.id);
+      cancelAnimationFrame(rafRef.current);
+      // Start from where the card is now, without a jump of the slop distance.
+      drag.startPos = posRef.current;
+      drag.x = e.clientX;
+      drag.lastX = e.clientX;
+      dx = 0;
     }
-    if (!drag.moved) return;
     const now = performance.now();
     drag.v = (e.clientX - drag.lastX) / Math.max(now - drag.lastT, 1);
     drag.lastX = e.clientX;
@@ -269,11 +284,25 @@ export default function DepthCarousel({
     }
   }, [layout]);
 
-  const onPointerEnd = useCallback(() => {
+  const onPointerEnd = useCallback((e) => {
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
-    if (!drag.moved) return;
+    if (!drag.moved) {
+      // Touch TAP: Chrome sometimes drops the click for a tap that lands right after a
+      // swipe (measured: 5 of 10 quick taps never fired a click), so the new front card
+      // "couldn't be tapped" until the next swipe (Oct 2026 report). On touch we fire the
+      // click ourselves and swallow the browser's own one (onClickCapture below), so a tap
+      // always counts exactly once. Mouse clicks are left to the browser.
+      // The nearest button / link (an arrow's icon is an <svg>, which has no .click()).
+      const hit = e?.target instanceof Element ? (e.target.closest("a, button") || e.target) : null;
+      if (e?.type === "pointerup" && drag.type === "touch" && performance.now() - drag.t0 < 600
+        && hit instanceof HTMLElement) {
+        synthTapAtRef.current = performance.now();
+        hit.click();
+      }
+      return;
+    }
     cancelAnimationFrame(dragRafRef.current);
     dragRafRef.current = 0;
     justDraggedRef.current = true;
@@ -330,6 +359,13 @@ export default function DepthCarousel({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerEnd}
       onPointerCancel={onPointerEnd}
+      onClickCapture={(e) => {
+        // The browser's own click for a touch tap we already turned into one (above).
+        if (e.isTrusted && performance.now() - synthTapAtRef.current < 700) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
       onKeyDown={onKeyDown}
     >
       <div className="absolute inset-x-0 top-0 [transform-style:preserve-3d]" style={{ height: cardHeight + 24 }}>

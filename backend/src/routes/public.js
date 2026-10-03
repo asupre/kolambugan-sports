@@ -62,6 +62,18 @@ async function seasonTournaments() {
 // Games played is derived from the TEAM's completed matches. The system records
 // points and fouls, not lineups — there is no per-player attendance to count,
 // so every player on a team shares the team's game count.
+// MVP awards per player: the organizer names one MVP per finished match on the after-match
+// score sheet (Match.mvp). Scoped by the caller's match ids (this season), like the stats.
+async function mvpCountMap(matchIds, playerIds) {
+  const rows = await Match.aggregate([
+    { $match: { _id: { $in: matchIds }, mvp: { $in: playerIds } } },
+    { $group: { _id: '$mvp', n: { $sum: 1 } } },
+  ]);
+  const map = {};
+  rows.forEach((r) => { map[String(r._id)] = r.n; });
+  return map;
+}
+
 async function teamGamesMap(tournamentIds) {
   const done = await Match.find({ tournament: { $in: tournamentIds }, status: 'completed' })
     .select('teamA teamB');
@@ -212,6 +224,7 @@ router.get('/teams/:id', async (req, res) => {
                   rebounds: { $sum: '$rebounds' }, assists: { $sum: '$assists' } } },
     ]);
     const games = (await teamGamesMap(ids))[String(team._id)] || 0;
+    const mvpBy = await mvpCountMap(seasonMatches.map((m) => m._id), players.map((p) => p._id));
     const statBy = {};
     stats.forEach((s) => {
       statBy[String(s._id)] = { points: s.points, fouls: s.fouls, rebounds: s.rebounds, assists: s.assists };
@@ -231,7 +244,8 @@ router.get('/teams/:id', async (req, res) => {
         jerseyNumber: p.jerseyNumber,
         age: p.age,
         hasPhoto: !!p.photo,
-                        stats: { points: 0, fouls: 0, rebounds: 0, assists: 0, ...(statBy[String(p._id)] || {}), games },
+                        stats: { points: 0, fouls: 0, rebounds: 0, assists: 0, ...(statBy[String(p._id)] || {}), games,
+                 mvps: mvpBy[String(p._id)] || 0 },
       })),
     });
   } catch (err) {
@@ -339,6 +353,7 @@ router.get('/players', async (req, res) => {
         rows.forEach((r) => { statBy[String(r._id)] = { points: r.points, fouls: r.fouls }; });
 
     const gamesBy = await teamGamesMap(ids);
+    const mvpBy = await mvpCountMap(seasonMatches.map((m) => m._id), playerIds);
 
     const byTeam = {};
     links.forEach((l) => {
@@ -350,7 +365,8 @@ router.get('/players', async (req, res) => {
         lastName: p.lastName,
         jerseyNumber: p.jerseyNumber,
         hasPhoto: !!p.photo,
-                stats: { points: 0, fouls: 0, ...(statBy[String(p._id)] || {}), games: gamesBy[String(l.team)] || 0 },
+                stats: { points: 0, fouls: 0, ...(statBy[String(p._id)] || {}), games: gamesBy[String(l.team)] || 0,
+                 mvps: mvpBy[String(p._id)] || 0 },
       });
     });
 
@@ -539,6 +555,41 @@ function groupQualifiers(matches) {
 // on it: matches are generated top-to-bottom within each round, and that order
 // is what the admin bracket has always relied on. Sorting by schedule here
 // (as /matches does) would reshuffle the bracket every time a match is dated.
+// The MVP of each finished match, for the bracket's hover card: name, jersey, photo flag,
+// which side they played for and their points in THAT match. Two batched queries for the
+// whole bracket (roster links + that match's stat rows), never one per match.
+async function bracketMvps(matches) {
+  const withMvp = matches.filter((m) => m.mvp && ['completed', 'forfeited'].includes(m.status));
+  if (!withMvp.length) return () => null;
+  const playerIds = withMvp.map((m) => m.mvp._id);
+  const teamIds = withMvp.flatMap((m) => [m.teamA?._id, m.teamB?._id]).filter(Boolean);
+  const [links, stats] = await Promise.all([
+    TeamPlayer.find({ player: { $in: playerIds }, team: { $in: teamIds } }).select('team player').lean(),
+    PlayerMatchStats.find({ match: { $in: withMvp.map((m) => m._id) }, player: { $in: playerIds } })
+      .select('match player points').lean(),
+  ]);
+  const onTeam = new Set(links.map((l) => `${l.team}:${l.player}`));
+  const pts = new Map(stats.map((r) => [`${r.match}:${r.player}`, r.points || 0]));
+  return (m) => {
+    if (!m.mvp || !['completed', 'forfeited'].includes(m.status)) return null;
+    const pid = String(m.mvp._id);
+    const side = m.teamA && onTeam.has(`${m.teamA._id}:${pid}`) ? 'A'
+      : m.teamB && onTeam.has(`${m.teamB._id}:${pid}`) ? 'B' : null;
+    const team = side === 'A' ? m.teamA : side === 'B' ? m.teamB : null;
+    return {
+      id: pid,
+      firstName: m.mvp.firstName,
+      lastName: m.mvp.lastName,
+      jerseyNumber: m.mvp.jerseyNumber ?? null,
+      hasPhoto: !!m.mvp.photo,
+      side,
+      teamId: team ? String(team._id) : null,
+      teamName: team?.teamName || null,
+      points: pts.has(`${m._id}:${pid}`) ? pts.get(`${m._id}:${pid}`) : null,
+    };
+  };
+}
+
 router.get('/bracket', async (req, res) => {
   try {
     const { byId } = await seasonTournaments();
@@ -550,14 +601,17 @@ router.get('/bracket', async (req, res) => {
     const tdoc = await Tournament.findById(tid).select('advancePerGroup');
     const matches = await Match.find({ tournament: tid })
             .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
+      .populate('mvp', 'firstName lastName jerseyNumber photo')
       .sort({ _id: 1 });
 
     const labels = roundLabels(matches);
+    const mvpOf = await bracketMvps(matches);
        const shaped = matches.map((m) => ({
       ...publicMatch(m, t.sport, t.division, labels),
       isTiebreaker: !!m.isTiebreaker,
       // The tree: a match's feeders are the matches pointing at it.
       nextMatchWin: m.nextMatchWin ? String(m.nextMatchWin) : null,
+      mvp: mvpOf(m),
     }));
 
     res.json({

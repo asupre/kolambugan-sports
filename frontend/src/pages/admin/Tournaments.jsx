@@ -23,6 +23,7 @@ import {
 } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { useDragScroll } from "../../hooks/useDragScroll";
+import MvpBadge from "../../components/MvpBadge";
 import { cn } from "../../lib/utils";
 
 const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under15: "U15", under30: "U30" };
@@ -187,6 +188,9 @@ function MatchesView({ tournamentId }) {
         </span>
         <span className={cn("flex-1 min-w-0 truncate", done && !aWin ? "font-semibold" : "text-muted-foreground")}>
           {m.teamB?.teamName || "TBD"}
+        </span>
+        <span className="w-16 shrink-0 flex justify-end">
+          {done && m.mvp && <MvpBadge mvp={m.mvp} tone="admin" />}
         </span>
       </div>
     );
@@ -682,6 +686,12 @@ function MatchBox({ m, innerRef }) {
       <Side name={m.teamA?.teamName} score={aScore} won={aWin} />
       <div className="border-t" />
       <Side name={m.teamB?.teamName} score={bScore} won={bWin} />
+      {/* The organizer's MVP pick: hover / tap for the player. */}
+      {done && m.mvp && (
+        <div className="flex items-center px-2.5 sm:px-3 py-1 border-t">
+          <MvpBadge mvp={m.mvp} tone="admin" />
+        </div>
+      )}
       {live && (
         <div className="px-2.5 sm:px-3 py-0.5 sm:py-1 bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-semibold">
           ● LIVE

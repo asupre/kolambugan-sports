@@ -1,10 +1,15 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { Crest, Panel, PanelSkeleton, Skeleton, PlayerAvatar, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
 
 export default function TeamDetail() {
   const { id } = useParams();
+  // ?player=<id>: arrived from a flipped player card (Players page) or a bracket MVP card.
+  // That player's row is highlighted and scrolled into view once the roster loads.
+  const [params] = useSearchParams();
+  const focusId = params.get("player");
+  const focusRef = useRef(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,6 +24,12 @@ export default function TeamDetail() {
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [id]);
+
+  useEffect(() => {
+    if (loading || !focusId || !focusRef.current) return;
+    // Instant: the public layout runs Lenis, which a native smooth scroll would fight.
+    focusRef.current.scrollIntoView({ block: "center" });
+  }, [loading, focusId]);
 
   if (loading) {
     return (
@@ -54,7 +65,7 @@ export default function TeamDetail() {
   // hidden until something has actually been recorded, so it isn't a wall of zeroes.
   const cols = team.statColumns || [];
   const has = (k) => cols.includes(k);
-  const statsTracked = players.some((p) => cols.some((k) => (p.stats?.[k] || 0) > 0));
+  const statsTracked = players.some((p) => (p.stats?.mvps || 0) > 0 || cols.some((k) => (p.stats?.[k] || 0) > 0));
 
   const roster = [...players].sort((a, b) => {
     const an = Number(a.jerseyNumber), bn = Number(b.jerseyNumber);
@@ -120,7 +131,8 @@ export default function TeamDetail() {
                     {has("points") && <><Th right>PTS</Th><Th right>PPG</Th></>}
                     {has("rebounds") && <Th right>REB</Th>}
                     {has("assists") && <Th right>AST</Th>}
-                    {has("fouls") && <Th right>Fouls</Th>}</>}
+                    {has("fouls") && <Th right>Fouls</Th>}
+                    <Th right>MVP</Th></>}
                 </tr>
               </thead>
               <tbody>
@@ -128,7 +140,8 @@ export default function TeamDetail() {
                   const s = p.stats || { points: 0, fouls: 0, games: 0 };
                   const ppg = s.games > 0 ? (s.points / s.games).toFixed(1) : "—";
                   return (
-                    <tr key={p.id} className="border-b border-white/[0.08] last:border-0">
+                    <tr key={p.id} ref={String(p.id) === focusId ? focusRef : undefined}
+                      className={`border-b border-white/[0.08] last:border-0 ${String(p.id) === focusId ? "bg-[#FACC15]/[0.08] shadow-[inset_3px_0_0_#FACC15]" : ""}`}>
                       <Td dim>{p.jerseyNumber ?? "—"}</Td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3 min-w-0">
@@ -147,6 +160,8 @@ export default function TeamDetail() {
                           {has("rebounds") && <Td right>{s.rebounds || 0}</Td>}
                           {has("assists") && <Td right>{s.assists || 0}</Td>}
                           {has("fouls") && <Td right>{s.fouls || 0}</Td>}
+                          {/* Times named Match MVP on the organizer's after-match score sheet. */}
+                          <Td right>{s.mvps || 0}</Td>
                         </>
                       )}
                     </tr>

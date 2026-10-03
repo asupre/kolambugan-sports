@@ -3654,3 +3654,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
   share the same sidebar). Collapsing or expanding used to make the browser redraw the whole page
   on every frame of the animation; now only the sidebar animates and the page moves over once.
   Measured on a slowed-down PC: about 22 frames with 3 stutters before, 31 frames with 1 after.
+- **Match MVP on the brackets, flip player cards, phone carousel arrows** (Oct 3 2026). Every
+  finished match in the public and admin brackets shows an "MVP" chip; hovering it (or tapping on a
+  phone) shows the MVP's photo, jersey, name, team and points in that match. Player cards on the
+  Players page now flip: tap once to see games played, points and MVP awards this season, tap the
+  back to open the team page at that player's row. The team page gained an MVP column. The Players
+  and Teams carousels now show their left / right arrows on phones too.

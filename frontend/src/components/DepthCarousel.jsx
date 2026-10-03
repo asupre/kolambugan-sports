@@ -313,7 +313,7 @@ export default function DepthCarousel({
     clearTimeout(wheelTimerRef.current);
   }, []);
 
-  const arrow = "absolute top-1/2 z-[3000] grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[#0B1626]/70 text-slate-100 transition hover:border-[#FACC15]/60 hover:text-[#FACC15] active:scale-95 disabled:opacity-30 disabled:pointer-events-none";
+  const arrow = "absolute top-1/2 z-[3000] grid h-9 w-9 sm:h-10 sm:w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[#0B1626]/70 text-slate-100 transition hover:border-[#FACC15]/60 hover:text-[#FACC15] active:scale-95 disabled:opacity-30 disabled:pointer-events-none";
   const atStart = !looping && edgeIdx === 0;
   const atEnd = !looping && edgeIdx === count - 1;
 
@@ -355,10 +355,10 @@ export default function DepthCarousel({
 
       {showControls && count > 1 && (
         <>
-          <button type="button" className={`${arrow} left-2 sm:left-4`} aria-label="Previous" disabled={atStart} onClick={() => navigateBy(-1)}>
+          <button type="button" className={`${arrow} left-0.5 sm:left-4`} aria-label="Previous" disabled={atStart} onClick={() => navigateBy(-1)}>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
-          <button type="button" className={`${arrow} right-2 sm:right-4`} aria-label="Next" disabled={atEnd} onClick={() => navigateBy(1)}>
+          <button type="button" className={`${arrow} right-0.5 sm:right-4`} aria-label="Next" disabled={atEnd} onClick={() => navigateBy(1)}>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
         </>

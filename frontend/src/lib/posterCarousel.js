@@ -1,6 +1,8 @@
 // Shared DepthCarousel settings for the public Players and Teams pages, so the
 // two stay in step. `wide` = min-width 640px. Phone values are the measured,
 // lag-free ones (see CLAUDE.md): full width (no arrow padding), no blur.
+// Phones show the arrows too (Oct 2026, Super Admin request); they sit over the
+// card edges instead of reserving side padding, so the front card stays 250px.
 export function posterCarouselProps(wide) {
   return {
     cardWidth: wide ? 270 : 250,
@@ -11,7 +13,7 @@ export function posterCarouselProps(wide) {
     visibleCards: wide ? 4 : 3,
     blur: 0,
     falloff: 0.13,
-    showControls: wide,
+    showControls: true,
     sidePadding: wide ? 120 : 0,
   };
 }

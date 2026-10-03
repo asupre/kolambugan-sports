@@ -484,7 +484,8 @@ router.get('/by-sport', authenticate, authorize('super_admin'), async (req, res)
 // GET /api/tournaments/:id/matches  — public; fixtures.
 router.get('/:id/matches', async (req, res) => {
   const matches = await Match.find({ tournament: req.params.id })
-    .populate('teamA', 'teamName').populate('teamB', 'teamName').sort({ round: 1, createdAt: 1 });
+    .populate('teamA', 'teamName').populate('teamB', 'teamName')
+    .populate('mvp', 'firstName lastName jerseyNumber').sort({ round: 1, createdAt: 1 });
   res.json({ matches });
 });
 
@@ -833,6 +834,7 @@ router.get('/:id/bracket', async (req, res) => {
   try {
     const matches = await Match.find({ tournament: req.params.id, bracket: { $in: ['winners', 'losers', 'final', 'third', 'knockout', 'ko_final', 'ko_third'] } })
       .populate('teamA', 'teamName').populate('teamB', 'teamName').populate('seriesWinner', 'teamName')
+      .populate('mvp', 'firstName lastName jerseyNumber')
       .sort({ bracket: 1, round: 1, createdAt: 1 });
     res.json({ matches });
   } catch (err) {

@@ -4,6 +4,7 @@ import { Crest, Panel, PanelSkeleton, LiveDot, TabRow, DIVISION_LABEL } from "..
 import { useDragScroll } from "../../hooks/useDragScroll";
 import { useMediaQuery } from "../../lib/useMediaQuery";
 import Reveal from "../../components/Reveal";
+import MvpBadge from "../../components/MvpBadge";
 
 
 // Stage split: group-stage matches carry a `group`, knockout matches don't.
@@ -62,6 +63,12 @@ function MatchCard({ m, innerRef }) {
       <Side team={m.teamA} score={m.scoreA} won={aWin} />
       <div className="border-t border-white/[0.08]" />
       <Side team={m.teamB} score={m.scoreB} won={bWin} />
+      {/* The organizer's MVP pick (after-match score sheet): hover / tap for the player. */}
+      {done && m.mvp && (
+        <div className="flex items-center px-2.5 sm:px-3 py-1 sm:py-1.5 border-t border-white/[0.08]">
+          <MvpBadge mvp={m.mvp} />
+        </div>
+      )}
       {live && (
         <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 bg-red-500/10 text-red-400 text-[12px] font-semibold">
           <LiveDot /> LIVE
@@ -298,6 +305,8 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
         const tone = (won) => (!decided ? "text-slate-400" : won ? "text-emerald-400 font-semibold" : "text-red-400/80");
         return (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.08] last:border-0">
+            {/* Matching empty slot on the left keeps the score centred under the MVP chip's column. */}
+            <span className="hidden sm:block w-16 shrink-0" />
             <span className={`flex-1 min-w-0 truncate text-right text-[15px] ${tone(aWin)}`}>
               {m.teamA?.name || "TBD"}
             </span>
@@ -306,6 +315,9 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
             </span>
             <span className={`flex-1 min-w-0 truncate text-[15px] ${tone(!aWin)}`}>
               {m.teamB?.name || "TBD"}
+            </span>
+            <span className="w-16 shrink-0 flex justify-end">
+              {done && m.mvp && <MvpBadge mvp={m.mvp} />}
             </span>
           </div>
         );

@@ -1219,6 +1219,24 @@ so a bug in one route cannot expose the other.
   `RevealItem`s: 20+ cards animating while their crests decode stuttered), and
   cover crests use `decoding="async"` + `loading="lazy"` with a blank tile (not the
   monogram) while the logo check is pending.
+- **Match MVP on the brackets + flip player cards (Oct 3 2026).** The organizer's MVP pick
+  (`Match.mvp`, after-match score sheet) now shows on every finished match: a "★ MVP" chip
+  (`components/MvpBadge.jsx`, shared) at the bottom of the bracket match card / end of the
+  round-robin fixture row, on the public `Brackets.jsx` (`tone="public"`, yellow) and the admin
+  `Tournaments.jsx` (`MatchBox` + group match rows, `tone="admin"`, amber). Mouse hover opens a
+  small card (photo, #jersey + name, team, that match's points, "Season stats →" to the team page);
+  touch = tap. Data: `/api/public/bracket` adds `mvp` per match via `bracketMvps()` in
+  `routes/public.js` (2 batched queries for the whole bracket: TeamPlayer for the side,
+  PlayerMatchStats for the points); the admin `/:id/matches` and `/:id/bracket` just populate
+  `mvp`. `mvpCountMap()` adds `stats.mvps` (times named MVP this season) to `/api/public/players`
+  and `/teams/:id`; the Team page has an MVP column. **Player cards FLIP** (`PlayerCard` in
+  `Players.jsx`): tap the front card → the back shows games played, points, MVP awards; tap the
+  back → `/teams/:id?player=<id>`, which highlights that roster row (yellow bar) and scrolls to it
+  (instant, not smooth: Lenis). The carousel still swallows taps on SIDE cards, so only the front
+  card flips. The front card lost the "PTS · GP" chip (it's on the back now) and gained a "★ MVP"
+  badge when they have one. Icons on public pages are inline SVG (`StarIcon` exported from
+  MvpBadge), never lucide. Rendered at 1366 / 390 against a proxy over the real API that injected
+  MVPs (the dev DB has none recorded yet).
 - **Players AND Teams pages = a DEPTH CAROUSEL per panel** (Oct 2 2026, Super Admin wanted to try
   React Bits' "Depth Carousel"; replaces the drag-scroll rows below). Players: one per team. Teams
   (same day): one per sport + division, `TeamCard` fills the slide, `renderTeam` is module-level
@@ -1232,7 +1250,9 @@ so a bug in one route cannot expose the other.
   a side card brings it to the front (the front card's link works). Front card faces you, the rest
   stack back to the right, darker (`falloff` 0.13). Desktop 270x360 + arrows, NO blur; phones
   (<640px) 250x333 using the full width (`sidePadding={0}`: the shrink-to-fit used to reserve 120px
-  for arrows phones don't have, so the card came out 172px), spread 34, no arrows, no blur. Dots
+  for arrows phones don't have, so the card came out 172px), spread 34, no blur, and ARROWS since Oct 3 2026 (Super Admin
+  request: `showControls: true` everywhere, 36px, `left-0.5`/`right-0.5`, over the card edges, with
+  `sidePadding` still 0 so the front card stays 250px). Dots
   below. Rendered at 1366 and 390px against the production API.
   **Phone performance — measured, keep these rules** (Oct 2 2026, "laggy on mobile"; 390px, 4x CPU
   throttle, touch swipes on a 10-card Basketball row; script `perf.mjs` was in the session

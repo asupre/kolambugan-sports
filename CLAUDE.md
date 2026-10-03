@@ -1630,6 +1630,13 @@ so a bug in one route cannot expose the other.
   (`rail = railPref && isDesktop`). Before, collapsing at desktop width then narrowing the
   window/rotating a tablet opened the phone menu with every label hidden. The phone menu also
   has an X close button. Never read `railPref` directly for styling.
+- **Sidebar collapse lag FIXED (Oct 3 2026, all three roles share it):** the `<aside>` used to be
+  `lg:sticky` inside the flex row, so its 200ms width animation re-laid out and repainted the WHOLE
+  page every frame (~14ms layout + ~18ms paint per frame at 4x throttle). It is now `fixed` at every
+  width with `[contain:layout]`, and the content column reserves room with `lg:pl-64` / `lg:pl-16`
+  that switches in ONE step (no transition). Measured (80-account Accounts page, 4x CPU, headless
+  Edge + mock API): ~22 frames with 3 stutters per collapse -> ~31 frames with 1 (the single
+  content reflow at the click). Don't put the sidebar back in the flow or transition the padding.
 - **Whole-sidebar collapse** (Sep 2026): `AdminLayout` has a `rail` boolean,
   toggled by an icon-only button (no visible "Collapse" label, just a
   `title` tooltip) inline in the header row beside "Kolambugan Sports" —

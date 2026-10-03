@@ -275,9 +275,14 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
 
   return (
     <div className="min-h-screen bg-background flex print:block print:min-h-0">
+      {/* FIXED at every width, never in the page flow (Oct 2026, "collapsing the sidebar is
+          laggy"). It used to be lg:sticky inside the flex row, so its 200ms width animation
+          re-laid out the WHOLE page (tables, brackets, cards) on every frame. Now only this
+          narrow panel animates (contain: layout keeps its reflow inside it), and the content
+          column's padding below jumps to the new width in ONE step. */}
       <aside
         className={cn(
-          "print:hidden fixed z-(--z-sidebar) inset-y-0 left-0 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-[transform,width] duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-dvh",
+          "print:hidden fixed z-(--z-sidebar) inset-y-0 left-0 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-[transform,width] duration-200 [contain:layout] lg:translate-x-0 lg:h-dvh",
           open ? "translate-x-0" : "-translate-x-full",
           rail ? "w-64 lg:w-16" : "w-64"
         )}
@@ -310,7 +315,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         <nav
           ref={navRef}
           onScroll={(e) => { try { sessionStorage.setItem(NAV_SCROLL_KEY, String(e.currentTarget.scrollTop)); } catch { /* storage blocked */ } }}
-          className={cn("py-3 space-y-1 flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin scroll-shadow-y [--scroll-shadow-bg:var(--sidebar)]", rail ? "lg:px-2 px-3" : "px-3")}
+          className={cn("py-3 space-y-1 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin scroll-shadow-y [--scroll-shadow-bg:var(--sidebar)]", rail ? "lg:px-2 px-3" : "px-3")}
         >
           {grouped
             ? menu.map((group) => (
@@ -348,7 +353,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         <div onClick={() => setOpen(false)} className="fixed inset-0 bg-black/30 z-(--z-sidebar-backdrop) lg:hidden" />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 print:block">
+      {/* Room for the fixed sidebar on desktop. No transition on purpose: one reflow, not 12. */}
+      <div className={cn("flex-1 flex flex-col min-w-0 print:block print:pl-0", rail ? "lg:pl-16" : "lg:pl-64")}>
         {/* Sticky so the menu/profile/theme controls stay reachable without scrolling back
             up — the page (not `main`) is what actually scrolls in this layout, so without
             this the header just scrolled away like any other content. --z-header keeps it

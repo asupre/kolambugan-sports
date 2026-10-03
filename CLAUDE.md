@@ -1513,6 +1513,85 @@ so a bug in one route cannot expose the other.
     `/run-skill-generator` to capture this as a real project skill if visual
     checks keep coming up.
 
+**Calm admin look — ALL THREE ROLES (Oct 3 2026; supersedes the colour / layout notes in the
+shadcn-pass section below where they conflict).** Modeled on a reference the Super Admin liked
+(a species-directory site): warm off-white surfaces, hairline borders, Figtree, a muted green
+accent, one big title + one plain subtitle per page, sections headed on the page.
+- **How it's applied:** `AdminLayout` puts `calm-theme` on `<html>` while any admin page is
+  mounted (removed on unmount; `Login.jsx` does the same), so Dialogs / Popovers / Selects that
+  portal to `<body>` get it too. `:root.calm-theme` (and `:root.calm-theme.dark`) in
+  `index.css` re-point the shadcn tokens (`--background`, `--card`, `--primary` = green
+  `#2F6B4B` / dark `#7CC19A`, `--sidebar`…) and set Figtree (loaded in `index.html`). The
+  public site never gets it. Part 2 of the CSS shapes the shared components by `data-slot`
+  (card titles 18px, pill buttons, 40px inputs/selects, badges, dialog radius, table rows).
+- **Page header:** `AdminLayout` props `subtitle`, `actions` (right-hand buttons) and
+  `pageHeader` (default true; the organizer's LIVE scoring view passes `false` so the score
+  buttons stay on screen). Content sits in one centred `max-w-6xl` column; the small title in
+  the top bar is hidden on desktop. Every page passes its own subtitle; Accounts / Champions /
+  Dashboard put their main buttons in `actions`. Barangay Admin "Team Registration" is now titled
+  **My Teams**.
+- **Sections like the dashboard:** a Card WITH a `CardHeader` is a page section: its header is
+  the section heading on the page (21px) and the card box disappears, so the list/table inside
+  is the box; plain text/forms get one box. **Done with attributes, NOT `:has()`** —
+  `components/ui/card.jsx` stamps `data-section` (card has a header) and `data-bare` (content is
+  already a list/table/grid) once per render, and the CSS matches those. `:has()` made every
+  style recalc re-check the page (measured: profile / dropdown opens 2-4x slower). **Don't
+  reintroduce `:has()` in these rules.** `StatTile` has `data-stat-*` hooks (no tinted icon
+  square, normal-case label under calm).
+- **Super Admin Dashboard** (`AdminDashboard.jsx`) is the reference layout: header, season
+  progress line, "Needs your attention" list (coloured DOTS for meaning: red overdue/urgent,
+  amber to-do, green info), "At a glance" tiles, Registration / Today's games (a list, no
+  carousel) / Competition (green progress bar per division). Extra tokens `--calm-*` on `.calm`.
+- **League Setup is STEP BY STEP** (`SportEditor` in `SportConfig.jsx`): a **Game** dropdown
+  picks the game, then 1 Registration → 2 Scoring → 3 Score sheet → 4 Review & save (summary rows
+  with "Change" links and per-field "changed" tags). Progress line is clickable; amber dot =
+  unsaved changes in that step; changing step scrolls the editor top into view. Nothing saves
+  until step 4, except Type and custom columns (apply at once, as before).
+- **Review Queue:** a **Barangay** dropdown replaces the 26 chips; each option is
+  `BarangayOption` with the old colour code as a pill (red "N pending", green "✓ Cleared", grey
+  "x of N" / "nothing yet"), right-aligned (`*:[span]:last:flex-1` on the SelectItem), plus a
+  "Details" `InfoHint` legend. Teams are three **tables** (`TeamTable`: Waiting for review /
+  Waiting for the barangay to resubmit / Verified), whole row clickable (Enter/Space too), roster
+  opens in a full-width row under it; phones fold Barangay/Sport under the team name.
+- **Sidebar** (`menus.js` + `AdminLayout`): icons are lucide components (were Unicode ▦ ◷ ⛃ ☺);
+  **expanded = text only, collapsed rail = icons only** (label as tooltip).
+- **Every admin page opens at the top:** `AdminLayout` scrolls to 0 on each pathname change.
+- **Login** (`Login.jsx`): the original animated waves panel kept, recoloured GREEN (waves
+  `#05241A / #13603F / #6EE0A6`, green fallback + scrim); headline in Anton capitals like the
+  public hero — "INTER-BARANGAY" white, "SPORTS LEAGUE" yellow-to-gold gradient (mint blended into
+  the waves) — with the gold `/medals/trophy.png` centred above it. A minimalist redesign without
+  the waves was tried and rejected ("I like the older one that has the animations").
+
+**Admin performance (Oct 3 2026, measured: headless Edge, 4x CPU, phone + desktop, prod build
+vs local).** Keep these:
+- No `:has()` in the calm CSS (see above).
+- **Dialogs are NON-modal by default** (`components/ui/dialog.jsx`): a modal Radix dialog
+  aria-hides the page, sets `pointer-events:none` on body and locks scroll as it opens, each a
+  whole-page restyle. Our own backdrop div is drawn instead; **only a tap on THIS dialog's own
+  backdrop closes it** (`onPointerDownOutside` checks the target; `onFocusOutside` is ignored), so
+  a dialog opened over another (Reject confirmation over the player popup) doesn't close the
+  first. Open focus is deferred ~140ms (the instant focus forced a layout in the animation's
+  first frame). Season's move-on dialog on a phone: ~200ms freeze → ~70ms. Pass `modal` to opt
+  back in. Side effect: the mouse wheel can scroll the page behind a dialog.
+- **Radix Select stays** (Super Admin chose it over a native `<select>` that opened ~5x faster);
+  the two long ones (Review Queue Barangay, League Setup Game) use `position="popper"`.
+- **Refresh quietly after an action**: `load({ quiet: true })` (no skeleton, no jump to the
+  top) after closing the roster editor, roster add/remove/import/correct, team create/delete
+  (`BrgyDashboard.jsx`), document upload/delete (`Documents.jsx`) and Review Queue verdicts /
+  reopen (`loadQueue({ quiet: true })`). The full skeleton reload made closing "View roster"
+  look like a browser refresh (page jumped 623px → 54px).
+- **Add a player form is its own component** (`AddPlayerForm` in `BrgyDashboard.jsx`), so a
+  keystroke re-renders 6 fields, not the whole roster window: ~110ms → ~50ms per key at 4x CPU,
+  freezes while typing 5-8 → 0-1.
+
+**Public viewer polish (Oct 3 2026).** One page-header style everywhere (title 32/40px, a
+one-line subtitle; Matches / Standings / Brackets got one), and a real **empty state** built into
+`Panel` (`emptyTitle`, `emptyIcon` ∈ calendar/table/bracket/users/trophy/search, `emptyAction
+{to,label}` → `EmptyState` in `PublicUI.jsx`: yellow icon badge, headline, explanation, link).
+Home's "Games" box uses it per season stage (`NO_GAMES_TITLE` / `NO_GAMES_ACTION`); the three Home
+stat tiles are the same height. Data-heavy pages (Matches / Standings / Brackets with real games)
+not yet re-polished: the live season had no tournaments when this was done.
+
 **Admin pages — shadcn/ui pass COMPLETE, all three roles (Sep 2026):**
 - Barangay Admin (`BrgyDashboard.jsx`, `BrgyMatches.jsx`, `Documents.jsx`),
   the Organizer scoring screen (`OrganizerScoring.jsx`), and all ten Super

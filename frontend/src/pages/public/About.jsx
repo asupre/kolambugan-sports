@@ -34,8 +34,8 @@ export default function About() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-1">About</h1>
-      <p className="text-slate-400 text-[15px] mb-6">
+      <h1 className="text-slate-50 text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight mb-1.5">About</h1>
+      <p className="text-slate-400 text-[16px] sm:text-[17px] mb-8">
         The Inter-Barangay Sports League and how this site works
       </p>
 

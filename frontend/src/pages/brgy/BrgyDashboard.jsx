@@ -430,6 +430,100 @@ function LogoCard() {
   );
 }
 
+// The "Add a player" form, in its own component (Oct 2026, "typing lags in the add player
+// form"): its values used to live in RosterEditor, so every keystroke re-rendered the whole
+// roster window (up to 15 player rows with photos, badges and buttons, the CSV box, the date
+// picker). Now a keystroke re-renders only these fields. Same fields, rules and messages.
+function AddPlayerForm({ team, barangayName, onAdded }) {
+  const showError = useErrorDialog();
+  const blankForm = { firstName: "", middleName: "", lastName: "", birthdate: "", address: barangayName, jerseyNumber: "" };
+  const [form, setForm] = useState(blankForm);
+  const [adding, setAdding] = useState(false);
+
+  const newAge = ageFrom(form.birthdate);
+  const divisionAgeLimit = DIVISION_AGE_LIMIT[team.division];
+  const divisionAgeMin = DIVISION_AGE_MIN[team.division];
+  const overAgeLimit = divisionAgeLimit != null && newAge !== null && newAge > divisionAgeLimit;
+  const underAgeMin = divisionAgeMin != null && newAge !== null && newAge < divisionAgeMin;
+
+  async function addPlayer() {
+    setAdding(true);
+    try {
+      await api(`/api/teams/${team._id}/players`, {
+        method: "POST",
+        body: JSON.stringify({
+          firstName: form.firstName.trim(),
+          middleName: form.middleName.trim() || undefined,
+          lastName: form.lastName.trim(),
+          birthdate: form.birthdate,
+          address: form.address.trim() || undefined,
+          jerseyNumber: form.jerseyNumber !== "" ? Number(form.jerseyNumber) : undefined,
+        }),
+      });
+      setForm(blankForm);
+      await onAdded();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                    <Input placeholder="First name" value={form.firstName}
+                      onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+                    <Input placeholder="Last name" value={form.lastName}
+                      onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+                    <Input placeholder="Middle name" value={form.middleName}
+                      onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
+                    <div className="space-y-1">
+                      <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
+                      <DatePicker value={form.birthdate} captionLayout="dropdown" disableFuture
+                        onChange={(v) => setForm({ ...form, birthdate: v })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Input placeholder="Address" value={form.address}
+                        onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                      <p className={`text-xs ${!form.address.trim() || isBarangayAddress(form.address, barangayName) ? "text-muted-foreground" : "text-destructive"}`}>
+                        Address must be your barangay's name{barangayName ? `: ${barangayName}` : ""}.
+                      </p>
+                    </div>
+                    <Input type="number" placeholder="Jersey # (optional)" value={form.jerseyNumber}
+                      onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
+                  </div>
+
+                  {newAge !== null && newAge <= MINOR_AGE && (
+                    <p className="text-amber-700 dark:text-amber-400 text-xs mb-2">
+                      Age {newAge}: players {MINOR_AGE} and under aren't on the voters' list, so you'll be asked
+                      to attach a birth certificate or parental consent once they're added.
+                    </p>
+                  )}
+
+                  {overAgeLimit && (
+                    <p className="text-destructive text-xs mb-2">
+                      Age {newAge}: this is a {DIVISION_LABEL[team.division]} team, capped at {divisionAgeLimit} and under.
+                    </p>
+                  )}
+
+                  {underAgeMin && (
+                    <p className="text-destructive text-xs mb-2">
+                      Age {newAge}: this is a {DIVISION_LABEL[team.division]} team, {divisionAgeMin} and up.
+                    </p>
+                  )}
+
+                  <Button onClick={addPlayer}
+                    disabled={
+                      adding || !form.firstName.trim() || !form.middleName.trim() || !form.lastName.trim() ||
+                      !form.birthdate || !isBarangayAddress(form.address, barangayName) || overAgeLimit || underAgeMin
+                    }>
+                    {adding ? "Adding…" : "Add player"}
+                  </Button>
+    </>
+  );
+}
+
 function RosterEditor({ team, sports, onClose }) {
   const showError = useErrorDialog();
   const confirm = useConfirm();
@@ -444,8 +538,6 @@ function RosterEditor({ team, sports, onClose }) {
   const [pendingPhoto, setPendingPhoto] = useState(null);
   const [importing, setImporting] = useState(false);
   const barangayName = team.barangayName || "";
-  const blankForm = { firstName: "", middleName: "", lastName: "", birthdate: "", address: barangayName, jerseyNumber: "" };
-  const [form, setForm] = useState(blankForm);
 
   const sport =sports.find((s) => s._id === (team.sport?._id || team.sport));
   const entryFormat = sport?.entryFormat || "team";
@@ -454,8 +546,8 @@ function RosterEditor({ team, sports, onClose }) {
   // Verified by the Super Admin: player details are frozen, photos still editable.
   const verified = team.status === "verified";
 
-  async function load() {
-    setLoading(true);
+  async function load({ quiet = false } = {}) {
+    if (!quiet) setLoading(true);
     try {
       const data = await api(`/api/teams/${team._id}/players`);
       setPlayers(data.players || []);
@@ -468,33 +560,10 @@ function RosterEditor({ team, sports, onClose }) {
 
   useEffect(() => { load(); }, [team._id]);
 
-  async function addPlayer() {
-    setBusy(true);
-    try {
-      await api(`/api/teams/${team._id}/players`, {
-        method: "POST",
-        body: JSON.stringify({
-          firstName: form.firstName.trim(),
-          middleName: form.middleName.trim() || undefined,
-          lastName: form.lastName.trim(),
-          birthdate: form.birthdate,
-          address: form.address.trim() || undefined,
-          jerseyNumber: form.jerseyNumber !== "" ? Number(form.jerseyNumber) : undefined,
-        }),
-      });
-      setForm(blankForm);
-      await load();
-    } catch (e) {
-      showError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function removePlayer(playerId) {
     try {
       await api(`/api/teams/${team._id}/players/${playerId}`, { method: "DELETE" });
-      await load();
+      await load({ quiet: true });
     } catch (e) {
       showError(e.message);
     }
@@ -540,7 +609,7 @@ function RosterEditor({ team, sports, onClose }) {
         throw new Error(data.message || "Import failed.");
       }
 
-      await load();
+      await load({ quiet: true });
       if (data.skippedRows?.length) {
         const lines = data.skippedRows.slice(0, 10).map((s) => `Row ${s.row}: ${s.reason}`);
         if (data.skippedRows.length > 10) lines.push(`…and ${data.skippedRows.length - 10} more.`);
@@ -571,7 +640,7 @@ function RosterEditor({ team, sports, onClose }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Upload failed.");
-      await load();
+      await load({ quiet: true });
     } catch (e) {
       showError(e.message);
     } finally {
@@ -580,12 +649,6 @@ function RosterEditor({ team, sports, onClose }) {
   }
 
   const canSubmit = !locked && players.length >= limits.min && players.length <= limits.max;
-  const newAge = ageFrom(form.birthdate);
-  const divisionAgeLimit = DIVISION_AGE_LIMIT[team.division];
-  const divisionAgeMin = DIVISION_AGE_MIN[team.division];
-  const overAgeLimit = divisionAgeLimit != null && newAge !== null && newAge > divisionAgeLimit;
-  const underAgeMin = divisionAgeMin != null && newAge !== null && newAge < divisionAgeMin;
-
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent showCloseButton={false} className="sm:max-w-2xl! max-h-[85vh] overflow-y-auto scrollbar-thin">
@@ -758,7 +821,7 @@ function RosterEditor({ team, sports, onClose }) {
                                 ? `Updated. Residency re-checked, now "${status}". This team no longer qualifies as verified and has returned to the Review Queue.`
                                 : `Updated. Residency re-checked, now "${status}".`
                           );
-                          load();
+                          load({ quiet: true });
                         }}
                       />
                     )}
@@ -794,55 +857,7 @@ function RosterEditor({ team, sports, onClose }) {
                     your barangay's name. Rows are added up to the roster's limit;
                     anything invalid or over the limit is skipped and reported.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                    <Input placeholder="First name" value={form.firstName}
-                      onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
-                    <Input placeholder="Last name" value={form.lastName}
-                      onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
-                    <Input placeholder="Middle name" value={form.middleName}
-                      onChange={(e) => setForm({ ...form, middleName: e.target.value })} />
-                    <div className="space-y-1">
-                      <Label className="text-xs font-normal text-muted-foreground">Birthdate</Label>
-                      <DatePicker value={form.birthdate} captionLayout="dropdown" disableFuture
-                        onChange={(v) => setForm({ ...form, birthdate: v })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Input placeholder="Address" value={form.address}
-                        onChange={(e) => setForm({ ...form, address: e.target.value })} />
-                      <p className={`text-xs ${!form.address.trim() || isBarangayAddress(form.address, barangayName) ? "text-muted-foreground" : "text-destructive"}`}>
-                        Address must be your barangay's name{barangayName ? `: ${barangayName}` : ""}.
-                      </p>
-                    </div>
-                    <Input type="number" placeholder="Jersey # (optional)" value={form.jerseyNumber}
-                      onChange={(e) => setForm({ ...form, jerseyNumber: e.target.value })} />
-                  </div>
-
-                  {newAge !== null && newAge <= MINOR_AGE && (
-                    <p className="text-amber-700 dark:text-amber-400 text-xs mb-2">
-                      Age {newAge}: players {MINOR_AGE} and under aren't on the voters' list, so you'll be asked
-                      to attach a birth certificate or parental consent once they're added.
-                    </p>
-                  )}
-
-                  {overAgeLimit && (
-                    <p className="text-destructive text-xs mb-2">
-                      Age {newAge}: this is a {DIVISION_LABEL[team.division]} team, capped at {divisionAgeLimit} and under.
-                    </p>
-                  )}
-
-                  {underAgeMin && (
-                    <p className="text-destructive text-xs mb-2">
-                      Age {newAge}: this is a {DIVISION_LABEL[team.division]} team, {divisionAgeMin} and up.
-                    </p>
-                  )}
-
-                  <Button onClick={addPlayer}
-                    disabled={
-                      busy || !form.firstName.trim() || !form.middleName.trim() || !form.lastName.trim() ||
-                      !form.birthdate || !isBarangayAddress(form.address, barangayName) || overAgeLimit || underAgeMin
-                    }>
-                    {busy ? "Adding…" : "Add player"}
-                  </Button>
+                  <AddPlayerForm team={team} barangayName={barangayName} onAdded={() => load({ quiet: true })} />
                 </div>
               </>
             )}
@@ -926,8 +941,11 @@ export default function BrgyDashboard() {
   const [teamName, setTeamName] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function load() {
-    setLoading(true);
+  // `quiet`: refresh the list in place (no skeleton). Closing the roster editor used to
+  // reload with the full-page skeleton, so the page flashed and jumped back to the top
+  // like a browser refresh (Oct 2026 report). The counts / screening badges still update.
+  async function load({ quiet = false } = {}) {
+    if (!quiet) setLoading(true);
     try {
       const [s, t] = await Promise.all([api("/api/sports"), api("/api/teams/mine")]);
       setSports(s.sports || []);
@@ -968,7 +986,7 @@ export default function BrgyDashboard() {
         }),
       });
       setTeamName(""); setSportId(""); setDivision("");
-      await load();
+      await load({ quiet: true });
     } catch (e) {
       showError(e.message);
     } finally {
@@ -985,7 +1003,7 @@ export default function BrgyDashboard() {
     setDeletingId(team._id);
     try {
       await api(`/api/teams/${team._id}`, { method: "DELETE" });
-      await load();
+      await load({ quiet: true });
     } catch (e) {
       showError(e.message);
     } finally {
@@ -994,7 +1012,8 @@ export default function BrgyDashboard() {
   }
 
   return (
-    <AdminLayout title="Team Registration" menu={brgyMenu} enableDarkMode>
+    <AdminLayout title="My Teams" menu={brgyMenu} enableDarkMode
+      subtitle="Register a team, build its roster, then submit it to the SK Federation for verification.">
       {loading ? (
         <div className="space-y-6">
           <Card>
@@ -1195,7 +1214,7 @@ export default function BrgyDashboard() {
 
           {openTeam && (
             <RosterEditor team={openTeam} sports={sports}
-              onClose={() => { setOpenTeam(null); load(); }} />
+              onClose={() => { setOpenTeam(null); load({ quiet: true }); }} />
           )}
         </div>
       )}

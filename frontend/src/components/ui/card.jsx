@@ -1,13 +1,38 @@
 import * as React from "react"
 import { cn } from "cn"
 
+// Calm look (Super Admin): a card WITH a title is a page "section" and its content may or may
+// not already be a list/table. That used to be worked out in CSS with :has(), which made every
+// style recalculation re-check the whole page (measured: opening a dropdown froze ~400ms at 4x
+// CPU). Now each card checks its own direct children once per render and stamps a plain
+// attribute (data-section / data-bare) that the CSS matches cheaply. Same result, no :has().
+function useMergedRef(ref, check) {
+  const local = React.useRef(null)
+  React.useLayoutEffect(() => { if (local.current) check(local.current) })
+  return React.useCallback((node) => {
+    local.current = node
+    if (typeof ref === "function") ref(node)
+    else if (ref) ref.current = node
+  }, [ref])
+}
+
+const markSection = (el) =>
+  el.toggleAttribute("data-section", !!el.querySelector(':scope > [data-slot="card-header"]'))
+
+// "Bare" content is already a box (a list, a table, a grid): it shouldn't get another box.
+const BARE = ':scope > table, :scope > div > table, :scope > .overflow-x-auto, :scope > .divide-y:not([data-slot]), :scope > .rounded-lg.border:not([data-slot]), :scope > .grid:not([data-slot])'
+const markBare = (el) => el.toggleAttribute("data-bare", !!el.querySelector(BARE))
+
 function Card({
   className,
   size = "default",
+  ref,
   ...props
 }) {
+  const setRef = useMergedRef(ref, markSection)
   return (
     <div
+      ref={setRef}
       data-slot="card"
       data-size={size}
       className={cn(
@@ -82,10 +107,13 @@ function CardAction({
 
 function CardContent({
   className,
+  ref,
   ...props
 }) {
+  const setRef = useMergedRef(ref, markBare)
   return (
     <div
+      ref={setRef}
       data-slot="card-content"
       className={cn("px-(--card-spacing)", className)}
       {...props}

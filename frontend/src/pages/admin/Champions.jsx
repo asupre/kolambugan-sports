@@ -125,7 +125,9 @@ export default function Champions() {
   const years = Object.keys(byYear).map(Number).sort((a, b) => b - a);
 
   return (
-    <AdminLayout title="Champions" menu={superAdminMenu} enableDarkMode>
+    <AdminLayout title="Champions" menu={superAdminMenu} enableDarkMode
+      subtitle="Every past winner, including years before this system. Shown on the public Champions page and leaderboard."
+      actions={<Button onClick={() => setEditing({})}><Plus /> Add champion</Button>}>
       <div className="space-y-5">
         {error && (
           <Alert variant="destructive">
@@ -142,21 +144,6 @@ export default function Champions() {
             </AlertDescription>
           </Alert>
         )}
-
-        {/* Header: what the archive holds, and the one thing you do here. */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-2xl font-semibold leading-tight">
-              Champions archive
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Past winners, including years before this system. Shown on the public Champions page.
-            </p>
-          </div>
-          <Button onClick={() => setEditing({})}>
-            <Plus /> Add champion
-          </Button>
-        </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatTile label="Titles recorded" value={champions.length} Icon={Trophy} tone="amber" loading={loading} />

@@ -382,7 +382,8 @@ export default function Brackets() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-4">Brackets</h1>
+      <h1 className="text-slate-50 text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight mb-1.5">Brackets</h1>
+      <p className="text-slate-400 text-[16px] sm:text-[17px] mb-6 max-w-2xl">The road to the title: group brackets, then the knockout, match by match.</p>
 
       <TabRow
         items={tournaments.map((t) => ({ value: t.id, label: `${t.sport} ${DIVISION_LABEL[t.division] || t.division}` }))}
@@ -393,7 +394,8 @@ export default function Brackets() {
       {loading ? (
         <PanelSkeleton rows={6} />
       ) : matches.length === 0 ? (
-        <Panel empty="No bracket drawn yet." />
+        <Panel emptyTitle="No bracket drawn yet" emptyIcon="bracket" emptyAction={{ to: "/teams", label: "See the teams" }}
+          empty="Brackets are drawn once the teams are verified." />
       ) : (
         <>
           {knockoutMain.length > 0 ? (

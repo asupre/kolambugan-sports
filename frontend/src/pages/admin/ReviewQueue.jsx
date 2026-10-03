@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, FileText, FileWarning, ListChecks, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, FileText, FileWarning, ListChecks, RotateCcw, ShieldCheck, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -11,8 +11,8 @@ import { superAdminMenu } from "../../components/menus";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Dialog, DialogContent } from "../../components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
 
@@ -279,31 +279,89 @@ function PlayerRow({ p, onClick }) {
 // verified Chess team and nothing else is NOT cleared), a muted "x/N"
 // progress count if it's partway there with nothing currently pending, or
 // nothing at all if it hasn't submitted anything yet.
-function BarangayChip({ label, count, cleared, completedSlots, requiredSlots, active, onClick }) {
+// One barangay in the dropdown: its name and the old chip's colour-coded status pill.
+const OPTION_TONE = {
+  pending: "bg-red-500 text-white",
+  cleared: "bg-green-500/15 text-green-700 dark:text-green-400",
+  partial: "bg-muted text-muted-foreground",
+  none: "text-muted-foreground",
+};
+function BarangayOption({ name, tone, label }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition",
-        active ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-accent"
-      )}
-    >
-      {label}
-      {count > 0 ? (
-        <span className="min-w-[18px] rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">
-          {count}
-        </span>
-      ) : cleared ? (
-        <span className="flex items-center gap-0.5 text-[11px] font-medium text-green-600 dark:text-green-400">
-          <CheckCircle2 className="size-3.5" /> Cleared
-        </span>
-      ) : completedSlots > 0 ? (
-        <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
-          {completedSlots}/{requiredSlots}
-        </span>
-      ) : null}
-    </button>
+    <span className="flex w-full min-w-0 items-center justify-between gap-3">
+      <span className="truncate">{name}</span>
+      <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none tabular-nums", OPTION_TONE[tone])}>
+        {tone === "cleared" && <span aria-hidden="true">✓ </span>}{label}
+      </span>
+    </span>
+  );
+}
+
+// Teams as a TABLE (Oct 2026, Super Admin request: the big stacked rows were hard to scan).
+// One row per team; the whole row is clickable and opens the roster in a full-width row
+// under it (`detail`). Without `onToggle` / `detail` the rows are read-only. On phones the
+// Barangay and Sport columns fold into a second line under the team name.
+function TeamTable({ teams, openTeam, onToggle, status, detail }) {
+  const clickable = !!onToggle;
+  return (
+    <div className="overflow-hidden rounded-xl border bg-card">
+      <table className="w-full text-left">
+        <thead className="border-b bg-muted/40 text-[13px] text-muted-foreground">
+          <tr>
+            <th className="px-4 py-2.5 font-medium">Team</th>
+            <th className="hidden px-4 py-2.5 font-medium md:table-cell">Barangay</th>
+            <th className="hidden px-4 py-2.5 font-medium md:table-cell">Sport</th>
+            <th className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">Players</th>
+            <th className="px-4 py-2.5 font-medium">Screening</th>
+            {clickable && <th className="w-10 px-2 py-2.5"><span className="sr-only">Open</span></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {teams.map((t) => {
+            const open = clickable && openTeam === t.teamId;
+            return (
+              <Fragment key={t.teamId}>
+                <tr
+                  onClick={clickable ? () => onToggle(t.teamId) : undefined}
+                  onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(t.teamId); } } : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  aria-expanded={clickable ? open : undefined}
+                  className={cn(
+                    "border-b align-middle last:border-0",
+                    clickable && "cursor-pointer transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none",
+                    open && "bg-accent/40"
+                  )}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[15px] font-medium">{t.teamName}</span>
+                      <DivisionBadge division={t.division} />
+                    </div>
+                    <p className="text-[13px] text-muted-foreground md:hidden">
+                      {t.barangay} · {t.sport}{t.playerCount != null ? ` · ${t.playerCount} players` : ""}
+                    </p>
+                  </td>
+                  <td className="hidden px-4 py-3 text-[15px] md:table-cell">{t.barangay}</td>
+                  <td className="hidden px-4 py-3 text-[15px] md:table-cell">{t.sport}</td>
+                  <td className="hidden px-4 py-3 text-right text-[15px] tabular-nums sm:table-cell">{t.playerCount ?? ""}</td>
+                  <td className="px-4 py-3">{status(t)}</td>
+                  {clickable && (
+                    <td className="px-2 py-3 text-muted-foreground">
+                      {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                    </td>
+                  )}
+                </tr>
+                {open && detail && (
+                  <tr className="border-b last:border-0">
+                    <td colSpan={6} className="bg-background/60 px-4 py-4 sm:px-5">{detail(t)}</td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -456,8 +514,9 @@ export default function ReviewQueue() {
   const [msg, setMsg] = useState("");
   const [modalPlayer, setModalPlayer] = useState(null);
 
-  async function loadQueue() {
-    setLoading(true);
+  // quiet: refresh in place after a verdict (no skeleton, no jump to the top; Oct 2026).
+  async function loadQueue({ quiet = false } = {}) {
+    if (!quiet) setLoading(true);
     try {
       const data = await api("/api/review/queue");
       setTeams(data.teams || []);
@@ -505,7 +564,7 @@ export default function ReviewQueue() {
     if (!openTeam) return;
     const data = await api(`/api/review/teams/${openTeam}`);
     setPlayers(data.players || []);
-    loadQueue(); // tallies may have changed
+    loadQueue({ quiet: true }); // tallies may have changed
   }
 
   async function approve(teamId, playerId) {
@@ -551,7 +610,7 @@ export default function ReviewQueue() {
     try {
       const data = await api(`/api/review/teams/${t.teamId}/reopen`, { method: "POST" });
       setMsg(data.message || "Team reopened.");
-      await loadQueue();
+      await loadQueue({ quiet: true });
     } catch (e) { showError(e.message); }
     finally { setBusy(false); }
   }
@@ -571,7 +630,8 @@ export default function ReviewQueue() {
   const reviewOpen = seasonStatus === "verification";
 
   return (
-    <AdminLayout title="Review Queue" menu={superAdminMenu} enableDarkMode>
+    <AdminLayout title="Review Queue" menu={superAdminMenu} enableDarkMode
+      subtitle="Submitted rosters, with each player's photo and documents. Approve, reject, then verify the team.">
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-28 w-full rounded-xl" />
@@ -579,7 +639,7 @@ export default function ReviewQueue() {
           <Skeleton className="h-20 w-full rounded-xl" />
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-8">
           {!reviewOpen && (
             <Alert className="border-amber-500/30 bg-amber-500/5">
               <AlertDescription className="text-amber-700 dark:text-amber-400">
@@ -590,220 +650,154 @@ export default function ReviewQueue() {
             </Alert>
           )}
 
-          {/* Barangay picker — pick one to work through just its teams instead
-              of scrolling every submitted team in the season. */}
-          {barangays.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Barangays</CardTitle>
-                <CardDescription>
-                  <InfoHint summary="Pick a barangay to review just its teams.">
-                    <p><span className="text-red-600 dark:text-red-400 font-medium">Red</span> = still needs a verdict.</p>
-                    <p><span className="text-green-600 dark:text-green-400 font-medium">Green</span> = cleared (a verified team in every sport/division this season).</p>
-                    <p><span className="font-medium text-foreground">Gray</span> = partway there with nothing currently pending.</p>
-                  </InfoHint>
-                </CardDescription>
-              </CardHeader>
-              {/* Horizontally scrollable on phones instead of wrapping into many
-                  rows — 26 barangays + "All" wrapped to a wall of chips on a narrow
-                  screen; a single swipeable row reads cleaner. Wraps normally from
-                  sm up, where there's room. */}
-              <CardContent className="flex gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-1 px-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
-                <BarangayChip
-                  label="All barangays"
-                  count={teams.length}
-                  active={selectedBarangay === null}
-                  onClick={() => setSelectedBarangay(null)}
-                />
-                {barangays.map((b) => (
-                  <BarangayChip
-                    key={b.id}
-                    label={b.name}
-                    count={b.pendingTeams}
-                    cleared={b.cleared}
-                    completedSlots={b.completedSlots}
-                    requiredSlots={b.requiredSlots}
-                    active={selectedBarangay === String(b.id)}
-                    onClick={() => setSelectedBarangay(String(b.id))}
-                  />
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {visibleTeams.length === 0 ? (
-            <Card className="max-w-xl">
-              <CardHeader>
-                <CardTitle>
-                  {selectedBarangayInfo
-                    ? selectedBarangayInfo.cleared ? `Brgy. ${selectedBarangayInfo.name}: cleared` : `Brgy. ${selectedBarangayInfo.name}: nothing pending`
-                    : "Nothing to review"}
-                </CardTitle>
-                <CardDescription>
-                  {selectedBarangayInfo
-                    ? selectedBarangayInfo.cleared
-                      ? `Brgy. ${selectedBarangayInfo.name} has a verified team in every sport/division this season (${selectedBarangayInfo.completedSlots}/${selectedBarangayInfo.requiredSlots}).`
-                      : selectedBarangayInfo.completedSlots > 0
-                        ? `Brgy. ${selectedBarangayInfo.name} has ${selectedBarangayInfo.completedSlots} of ${selectedBarangayInfo.requiredSlots} sport/division slots verified, and nothing currently awaiting review, but still short of the rest.`
-                        : `Brgy. ${selectedBarangayInfo.name} hasn't submitted any teams yet this season.`
-                    : "No submitted teams are awaiting review in the current season. Teams appear here once a Barangay Admin submits their roster."}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {visibleTeams.map((t) => (
-                <Card key={t.teamId} className="overflow-hidden py-0 gap-0">
-                  {/* Team header row — click to expand */}
-                  <button
-                    onClick={() => openTeamDetail(t.teamId)}
-                    className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 hover:bg-accent/50 transition text-left"
-                  >
-                    <div>
-                      <p className="font-semibold flex items-center gap-2 flex-wrap">
-                        {t.teamName}
-                        <DivisionBadge division={t.division} />
-                      </p>
-                      <p className="text-muted-foreground text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {t.tally.flagged > 0 && <Badge className={cn(STATUS_BADGE.flagged, "whitespace-nowrap")}>{t.tally.flagged} flagged</Badge>}
-                      {t.tally.needs_document > 0 && <Badge className={cn(STATUS_BADGE.needs_document, "whitespace-nowrap")}>{t.tally.needs_document} need doc</Badge>}
-                      {t.tally.eligible > 0 && <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>{t.tally.eligible} eligible</Badge>}
-                      {openTeam === t.teamId ? <ChevronUp className="size-4 text-muted-foreground hidden sm:block" /> : <ChevronDown className="size-4 text-muted-foreground hidden sm:block" />}
-                    </div>
-                  </button>
-
-                  {/* Expanded player list */}
-                  {openTeam === t.teamId && (
-                    <div className="border-t px-5 py-4">
-                      {playersLoading ? (
-                        <div className="space-y-2">
-                          <Skeleton className="h-12 w-full" />
-                          <Skeleton className="h-12 w-full" />
-                        </div>
-                      ) : (
-                        <>
-                          {msg && <p className="text-sm mb-3 bg-muted rounded px-3 py-2">{msg}</p>}
-                          <div className="space-y-2">
-                            {players.map((p) => (
-                              <PlayerRow key={p._id} p={p} onClick={() => setModalPlayer(p)} />
-                            ))}
-                          </div>
-
-                          {/* Verify team */}
-                          <div className="mt-4 pt-3 border-t flex items-center justify-between">
-                            <p className="text-xs text-muted-foreground">
-                              {!reviewOpen ? "Verifying opens at the verification stage." : allEligible ? "All players eligible, ready to verify." : "Resolve all flagged / needs-document players to verify."}
-                            </p>
-                            <Button onClick={() => verify(t.teamId)} disabled={busy || !reviewOpen || !allEligible}>
-                              <ShieldCheck /> Verify Team
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </Card>
-              ))}
+          {/* Barangay picker: one dropdown (26 barangays used to be a wall of chips). Each option
+              keeps the old chips' colour code as a pill: red = teams waiting for a verdict,
+              green = cleared, grey = partway / nothing yet. "Details" explains the colours. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-[15px] font-medium">Barangay</span>
+              <Select value={selectedBarangay ?? "all"} onValueChange={(v) => { setSelectedBarangay(v === "all" ? null : v); setOpenTeam(null); }}>
+                <SelectTrigger className="w-full sm:w-80"><SelectValue /></SelectTrigger>
+                {/* popper = opens below the trigger: far less measuring than item-aligned (perf, Oct 2026) */}
+                <SelectContent position="popper" className="max-h-80">
+                  <SelectItem value="all" className="*:[span]:last:flex-1">
+                    <BarangayOption name="All barangays" tone={teams.length > 0 ? "pending" : "none"}
+                      label={teams.length > 0 ? `${teams.length} waiting` : "nothing waiting"} />
+                  </SelectItem>
+                  {barangays.map((b) => (
+                    <SelectItem key={b.id} value={String(b.id)} className="*:[span]:last:flex-1">
+                      <BarangayOption
+                        name={b.name}
+                        tone={b.pendingTeams > 0 ? "pending" : b.cleared ? "cleared" : b.completedSlots > 0 ? "partial" : "none"}
+                        label={b.pendingTeams > 0
+                          ? `${b.pendingTeams} pending`
+                          : b.cleared ? "Cleared"
+                          : b.completedSlots > 0 ? `${b.completedSlots} of ${b.requiredSlots}` : "nothing yet"}
+                      />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <InfoHint summary="" label="Details">
+                <p><span className="font-medium text-red-600 dark:text-red-400">Red</span>: teams waiting for your verdict.</p>
+                <p className="mt-1"><span className="font-medium text-green-600 dark:text-green-400">Green</span>: cleared, a verified team in every sport and division this season.</p>
+                <p className="mt-1"><span className="font-medium text-foreground">Grey</span>: partway there (verified slots out of the total) with nothing pending, or nothing submitted yet.</p>
+              </InfoHint>
             </div>
-          )}
+            <p className="text-[14px] text-muted-foreground">
+              {visibleTeams.length} waiting · {visibleReopened.length} reopened · {visibleVerified.length} verified
+            </p>
+          </div>
+
+          {/* Waiting for review */}
+          <section>
+            <div className="mb-3 flex items-baseline gap-2.5">
+              <h2 className="text-[21px] font-semibold tracking-tight">Waiting for review</h2>
+              <span className="text-[14px] text-muted-foreground">{visibleTeams.length} {visibleTeams.length === 1 ? "team" : "teams"}</span>
+            </div>
+            {visibleTeams.length === 0 ? (
+              <p className="rounded-xl border bg-card px-4 py-4 text-[15px] text-muted-foreground">
+                {selectedBarangayInfo
+                  ? selectedBarangayInfo.cleared
+                    ? `Brgy. ${selectedBarangayInfo.name} is cleared: a verified team in every sport and division this season (${selectedBarangayInfo.completedSlots} of ${selectedBarangayInfo.requiredSlots}).`
+                    : selectedBarangayInfo.completedSlots > 0
+                      ? `Nothing from Brgy. ${selectedBarangayInfo.name} is waiting. ${selectedBarangayInfo.completedSlots} of ${selectedBarangayInfo.requiredSlots} sport/division slots are verified.`
+                      : `Brgy. ${selectedBarangayInfo.name} hasn't submitted any teams yet this season.`
+                  : "No submitted teams are waiting. Teams appear here once a Barangay Admin submits their roster."}
+              </p>
+            ) : (
+              <TeamTable
+                teams={visibleTeams}
+                openTeam={openTeam}
+                onToggle={openTeamDetail}
+                status={(t) => (
+                  <div className="flex flex-wrap gap-1.5">
+                    {t.tally.flagged > 0 && <Badge className={cn(STATUS_BADGE.flagged, "whitespace-nowrap")}>{t.tally.flagged} flagged</Badge>}
+                    {t.tally.needs_document > 0 && <Badge className={cn(STATUS_BADGE.needs_document, "whitespace-nowrap")}>{t.tally.needs_document} need doc</Badge>}
+                    {t.tally.eligible > 0 && <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>{t.tally.eligible} eligible</Badge>}
+                  </div>
+                )}
+                detail={(t) => (
+                  playersLoading ? (
+                    <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+                  ) : (
+                    <>
+                      {msg && <p className="mb-3 rounded-lg bg-muted px-3 py-2 text-sm">{msg}</p>}
+                      <div className="space-y-2">
+                        {players.map((p) => <PlayerRow key={p._id} p={p} onClick={() => setModalPlayer(p)} />)}
+                      </div>
+                      <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-[14px] text-muted-foreground">
+                          {!reviewOpen ? "Verifying opens at the verification stage." : allEligible ? "All players eligible, ready to verify." : "Resolve every flagged / needs-document player to verify."}
+                        </p>
+                        <Button onClick={() => verify(t.teamId)} disabled={busy || !reviewOpen || !allEligible}>
+                          <ShieldCheck /> Verify team
+                        </Button>
+                      </div>
+                    </>
+                  )
+                )}
+              />
+            )}
+          </section>
 
           {/* Teams a player was rejected from (Sep 2026): reopened for their barangay
-              ONLY, to add a replacement and resubmit. They used to vanish from the
-              queue at this point; listed here so they aren't forgotten. */}
+              ONLY, to add a replacement and resubmit. Listed so they aren't forgotten. */}
           {visibleReopened.length > 0 && (
-            <Card className="border-l-4 border-l-amber-500">
-              <CardHeader>
-                <CardTitle>Waiting for the barangay to resubmit</CardTitle>
-                <CardDescription>
-                  A player was rejected, so these teams are reopened for their Barangay Admin only. They
-                  come back to the queue above when resubmitted.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {visibleReopened.map((t) => (
-                  <div key={t.teamId} className="rounded-lg border px-3 py-2">
-                    <p className="text-sm font-medium flex items-center gap-2 flex-wrap">
-                      {t.teamName}
-                      <DivisionBadge division={t.division} />
-                      <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 whitespace-nowrap">Reopened</Badge>
-                    </p>
-                    <p className="text-muted-foreground text-xs">{t.barangay} · {t.sport}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <section>
+              <div className="mb-1 flex items-baseline gap-2.5">
+                <h2 className="text-[21px] font-semibold tracking-tight">Waiting for the barangay to resubmit</h2>
+                <span className="text-[14px] text-muted-foreground">{visibleReopened.length}</span>
+              </div>
+              <p className="mb-3 text-[15px] text-muted-foreground">A player was rejected, so these are reopened for their Barangay Admin. They come back above when resubmitted.</p>
+              <TeamTable
+                teams={visibleReopened}
+                status={() => <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 whitespace-nowrap">Reopened</Badge>}
+              />
+            </section>
           )}
 
-          {/* Verified teams — locked for their Barangay Admin, but always viewable
-              here: open one to see its roster and check each player against the
-              Reference List, the same as a pending team. Shown for "All
-              barangays" too, not just once one is picked. */}
+          {/* Verified teams: locked for their Barangay Admin, but always viewable here. */}
           {visibleVerified.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Verified teams</CardTitle>
-                <CardDescription>
-                  <InfoHint summary="Locked for their Barangay Admin. Open one to view its roster and check players against the Reference List.">
-                    <p>Nothing here can be edited directly. Reopen one (verification stage only) to let the
-                    Barangay Admin correct a player; it returns to the queue above and needs verifying again.</p>
-                    <p className="mt-1.5">A team already in a tournament can't be reopened. Delete the tournament first.</p>
-                  </InfoHint>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {msg && <p className="text-sm bg-muted rounded px-3 py-2">{msg}</p>}
-                {visibleVerified.map((t) => (
-                  <Card key={t.teamId} className="overflow-hidden py-0 gap-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4">
-                      <button
-                        onClick={() => openTeamDetail(t.teamId)}
-                        className="flex-1 min-w-0 text-left hover:opacity-80 transition"
-                      >
-                        <p className="font-semibold flex items-center gap-2 flex-wrap">
-                          {t.teamName}
-                          <DivisionBadge division={t.division} />
-                          <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>Verified</Badge>
-                        </p>
-                        <p className="text-muted-foreground text-sm">{t.barangay} · {t.sport} · {t.playerCount} players</p>
-                      </button>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy || !reviewOpen}
-                          title={!reviewOpen ? "Reopening is only allowed during the verification stage." : undefined}
-                          onClick={() => reopen(t)}
-                        >
-                          <RotateCcw /> Reopen for corrections
-                        </Button>
-                        <button onClick={() => openTeamDetail(t.teamId)} aria-label="Toggle roster" className="text-muted-foreground">
-                          {openTeam === t.teamId ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {openTeam === t.teamId && (
-                      <div className="border-t px-5 py-4">
-                        {playersLoading ? (
-                          <div className="space-y-2">
-                            <Skeleton className="h-12 w-full" />
-                            <Skeleton className="h-12 w-full" />
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {players.map((p) => (
-                              <PlayerRow key={p._id} p={p} onClick={() => setModalPlayer(p)} />
-                            ))}
-                          </div>
-                        )}
+            <section>
+              <div className="mb-1 flex items-baseline gap-2.5">
+                <h2 className="text-[21px] font-semibold tracking-tight">Verified teams</h2>
+                <span className="text-[14px] text-muted-foreground">{visibleVerified.length} {visibleVerified.length === 1 ? "team" : "teams"}</span>
+              </div>
+              <p className="mb-3 text-[15px] text-muted-foreground">
+                <InfoHint summary="Locked for their Barangay Admin. Click a team to view its roster.">
+                  <p>Nothing here can be edited directly. Reopen one (verification stage only) to let the
+                  Barangay Admin correct a player; it returns to the queue above and needs verifying again.</p>
+                  <p className="mt-1.5">A team already in a tournament can't be reopened. Delete the tournament first.</p>
+                </InfoHint>
+              </p>
+              <TeamTable
+                teams={visibleVerified}
+                openTeam={openTeam}
+                onToggle={openTeamDetail}
+                status={() => <Badge className={cn(STATUS_BADGE.eligible, "whitespace-nowrap")}>Verified</Badge>}
+                detail={(t) => (
+                  <>
+                    {msg && <p className="mb-3 rounded-lg bg-muted px-3 py-2 text-sm">{msg}</p>}
+                    {playersLoading ? (
+                      <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+                    ) : (
+                      <div className="space-y-2">
+                        {players.map((p) => <PlayerRow key={p._id} p={p} onClick={() => setModalPlayer(p)} />)}
                       </div>
                     )}
-                  </Card>
-                ))}
-              </CardContent>
-            </Card>
+                    <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-[14px] text-muted-foreground">
+                        {reviewOpen ? "Reopen to let the barangay correct a player." : "Reopening is only allowed during the verification stage."}
+                      </p>
+                      <Button variant="outline" disabled={busy || !reviewOpen} onClick={() => reopen(t)}>
+                        <RotateCcw /> Reopen for corrections
+                      </Button>
+                    </div>
+                  </>
+                )}
+              />
+            </section>
           )}
         </div>
       )}

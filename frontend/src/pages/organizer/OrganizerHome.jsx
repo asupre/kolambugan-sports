@@ -91,7 +91,8 @@ export default function OrganizerHome() {
   const todayRest = (data?.today || []).filter((m) => m.status !== "ongoing");
 
   return (
-    <AdminLayout title="Dashboard" menu={organizerMenu} enableDarkMode>
+    <AdminLayout title="Dashboard" menu={organizerMenu} enableDarkMode
+      subtitle="Your sport's games: today, coming up and finished.">
       <div className="space-y-5">
         {error && (
           <Alert variant="destructive">

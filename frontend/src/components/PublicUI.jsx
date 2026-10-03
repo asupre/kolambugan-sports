@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { Link } from "react-router-dom";
 import { hasTime } from "../lib/dashboardFormat";
 
 export const DIVISION_LABEL = {
@@ -143,7 +144,7 @@ export function PlayerAvatar({ player, size = 40 }) {
 // `blur={false}`: the glass look WITHOUT the desktop backdrop blur (the tint
 // phones already get). Used around the 3D Depth Carousels: a backdrop blur
 // under moving 3D cards cost ~10fps while scrolling (measured, Oct 2026).
-export function Panel({ title, count, children, empty, actions, glass = true, blur = true, className = "" }) {
+export function Panel({ title, count, children, empty, emptyTitle, emptyIcon, emptyAction, actions, glass = true, blur = true, className = "" }) {
   return (
     <section className={(glass
       ? `relative rounded-2xl border border-white/[0.12] bg-white/[0.07] ${blur ? "lg:bg-white/[0.05] lg:backdrop-blur-xl " : ""}shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden`
@@ -157,8 +158,41 @@ export function Panel({ title, count, children, empty, actions, glass = true, bl
           {actions && <div className="flex items-center gap-1.5 shrink-0">{actions}</div>}
         </div>
       )}
-      {children || <p className="px-4 sm:px-5 py-5 text-slate-400 text-[15px] leading-relaxed">{empty}</p>}
+      {children || <EmptyState title={emptyTitle} icon={emptyIcon} action={emptyAction}>{empty}</EmptyState>}
     </section>
+  );
+}
+
+// Empty state (Oct 2026 polish): what a visitor sees when a section has nothing yet, which
+// at the start of a season is most pages. A yellow icon badge, a short headline, the
+// explanation, and optionally a link somewhere useful. Without a headline it's just the
+// centred explanation. Icons are inline SVG (no lucide on the public site).
+const EMPTY_ICONS = {
+  calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
+  table: <><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10" /></>,
+  bracket: <><path d="M4 5h5v6H4M4 13h5v6H4M9 8h4v8H9M13 12h7" /></>,
+  users: <><circle cx="9" cy="8.5" r="3.5" /><path d="M2.5 20c.6-3.4 3.3-5.5 6.5-5.5s5.9 2.1 6.5 5.5M16 5.2a3.5 3.5 0 0 1 0 6.6M18.5 14.8c1.7.8 2.8 2.5 3 5.2" /></>,
+  trophy: <><path d="M8 4h8v6a4 4 0 0 1-8 0zM8 6H4.5a3 3 0 0 0 3.5 4M16 6h3.5a3 3 0 0 1-3.5 4M12 14v3.5M8.5 20.5h7M9.5 17.5h5" /></>,
+  search: <><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></>,
+};
+export function EmptyState({ title, icon = "calendar", action, children }) {
+  return (
+    <div className="flex flex-col items-center px-6 py-10 text-center sm:py-12">
+      {title && (
+        <span className="mb-4 grid size-12 place-items-center rounded-full border border-[#FACC15]/30 bg-[#FACC15]/10 text-[#FACC15]">
+          <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {EMPTY_ICONS[icon] || EMPTY_ICONS.calendar}
+          </svg>
+        </span>
+      )}
+      {title && <p className="text-slate-100 text-[18px] font-semibold tracking-tight">{title}</p>}
+      {children && <p className={`max-w-md text-slate-400 text-[15px] leading-relaxed ${title ? "mt-1.5" : ""}`}>{children}</p>}
+      {action && (
+        <Link to={action.to} className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 text-[14px] font-medium text-slate-100 transition hover:border-[#FACC15]/50 hover:text-[#FACC15]">
+          {action.label} <span aria-hidden="true">→</span>
+        </Link>
+      )}
+    </div>
   );
 }
 

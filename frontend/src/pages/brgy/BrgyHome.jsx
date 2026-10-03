@@ -80,7 +80,8 @@ export default function BrgyHome() {
   const entryPct = entries?.required ? Math.round((entries.verified / entries.required) * 100) : 0;
 
   return (
-    <AdminLayout title="Dashboard" menu={brgyMenu} enableDarkMode>
+    <AdminLayout title="Dashboard" menu={brgyMenu} enableDarkMode
+      subtitle="Your barangay's teams, players and matches this season, at a glance.">
       <div className="space-y-5">
         {error && (
           <Alert variant="destructive">

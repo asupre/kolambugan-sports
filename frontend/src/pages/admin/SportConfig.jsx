@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Building2, Check, Info, Lock, Pencil, Plus, Search, Trash2, Trophy, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Building2, Check, Info, Lock, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -66,7 +66,6 @@ const TYPES = [
   { value: "esports", label: "Esports" },
   { value: "board", label: "Board game" },
 ];
-const TYPE_LABEL = Object.fromEntries(TYPES.map((t) => [t.value, t.label]));
 
 // A small toggle button used for divisions and score sheet columns. Reads as "on" at a glance
 // (tint + tick) without the visual weight of a checkbox list.
@@ -139,6 +138,19 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
   const [name, setName] = useState(sport.name);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState("");
+  // Step-by-step editing (Oct 2026, Super Admin: "everything scattered is confusing").
+  const [step, setStep] = useState(0);
+  // Changing step brings the top of the editor back into view (Next sits at the bottom of a
+  // long step, and the next step would otherwise open scrolled to its end).
+  const editorRef = useRef(null);
+  const firstStep = useRef(true);
+  useEffect(() => {
+    if (firstStep.current) { firstStep.current = false; return; }
+    const el = editorRef.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top;
+    if (top < 80) window.scrollTo({ top: window.scrollY + top - 80 });
+  }, [step]);
 
   // The after-match score sheet: which columns the organizer fills in per player.
   const currentSheet = sport.rules?.sheet || [];
@@ -273,9 +285,53 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
     finally { setBusy(false); }
   }
 
+  // ── Step by step ────────────────────────────────────────────────────────────
+  // One thing at a time: 1 Registration → 2 Scoring → 3 Score sheet → 4 Review & save.
+  // Nothing is saved until step 4 (except the game's type and your own score sheet columns,
+  // which apply at once because they change what the later steps offer). Steps can be
+  // revisited from the progress bar or the review's "Change" links.
+  const STEPS = [
+    { title: "Registration", hint: "Who can enter and how big a team is. Set this before registration opens: teams are built against it." },
+    { title: "Scoring", hint: "How the organizer keeps score during a live match." },
+    { title: "Score sheet", hint: "What the organizer fills in for each player after the match. Tick none for no player form." },
+    { title: "Review & save", hint: "Check everything, then save. Nothing in steps 1 to 3 is saved until you do." },
+  ];
+  const last = STEPS.length - 1;
+  const changed = [configDirty && 0, rulesDirty && 1, sheetDirty && 2].filter((x) => x !== false);
+  // Per row on the review step, so only what really changed is tagged.
+  const fieldChanged = {
+    divisions: JSON.stringify([...divisions].sort()) !== JSON.stringify([...savedDivisions].sort()),
+    format: format !== sport.entryFormat,
+    knockout: isRoundRobin && koSize !== savedKo,
+    scoring: rulesDirty,
+    sheet: sheetDirty,
+  };
+  const divisionText = divisions.map((d) => DIVISIONS.find((x) => x.value === d)?.label || d).join(", ") || "None";
+  const formatInfo = FORMATS.find((f) => f.value === format);
+  const typeText = TYPES.find((t) => t.value === sport.category)?.label || sport.category;
+  const sheetText = sheet.length
+    ? sheet.map((k) => sheetOptions.find((o) => o.key === k)?.label || k).join(", ")
+    : "No player form";
+  const scoringText = gamesWon
+    ? `Games won · best of ${rulesForm.periodOptions || "1, 3, 5"}`
+    : `Point buttons ${rulesForm.pointValues || "1"} · ${rulesForm.periodOptions || "?"} ${rulesForm.periodLabel || "period"}(s)`;
+
+  const reviewRow = (label, value, to, field) => (
+    <div key={label} className="flex flex-col gap-1 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4">
+      <span className="w-40 shrink-0 text-[14px] text-muted-foreground">{label}</span>
+      <span className="min-w-0 flex-1 text-[15px]">
+        {value}
+        {fieldChanged[field] && <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[12px] text-amber-700 dark:text-amber-400">changed</span>}
+      </span>
+      <button type="button" onClick={() => setStep(to)} className="self-start text-[14px] font-medium text-primary hover:underline sm:self-auto">
+        Change
+      </button>
+    </div>
+  );
+
   return (
-    <Card className="border-l-4 border-l-blue-500">
-      <CardContent className="space-y-6">
+    <Card ref={editorRef}>
+      <CardContent className="space-y-7">
         {/* Header: name, type, rename / remove */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {renaming ? (
@@ -288,9 +344,8 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
             </div>
           ) : (
             <div className="flex items-center gap-2.5">
-              <Trophy className="size-5 text-blue-500" />
-              <h3 className="text-lg font-semibold leading-none">{sport.name}</h3>
-              <Badge variant="secondary">{TYPE_LABEL[sport.category] || sport.category}</Badge>
+              <h3 className="text-[22px] font-semibold leading-none tracking-tight">{sport.name}</h3>
+              <Badge variant="secondary">{typeText}</Badge>
               <button onClick={() => setRenaming(true)} title="Rename"
                 className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
                 <Pencil className="size-3.5" />
@@ -303,39 +358,65 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-x-10 gap-y-6 lg:grid-cols-2">
-          {/* Registration */}
-          <Section title="Registration" hint="Set before registration opens. Teams are built against these.">
-            <Label className="mb-2">Divisions</Label>
-            <div className="flex flex-wrap gap-2">
-              {DIVISIONS.map((d) => (
-                <Chip key={d.value} on={divisions.includes(d.value)} title={d.hint}
-                  onClick={() => toggleDivision(d.value)}>{d.label}</Chip>
-              ))}
-            </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">Each division runs its own bracket. “Open” is one bracket for everyone.</p>
+        {/* Progress: the dashboard's season line, but each step is a button. */}
+        <ol className="grid grid-cols-4 gap-2">
+          {STEPS.map((st, i) => (
+            <li key={st.title} className="min-w-0">
+              <button type="button" onClick={() => setStep(i)} className="group block w-full text-left">
+                <span className={cn("block h-1 rounded-full transition-colors", i <= step ? "bg-primary" : "bg-muted group-hover:bg-muted-foreground/30")} />
+                <span className={cn("mt-2 block truncate text-[12px] sm:text-[14px]",
+                  i === step ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                  <span className="tabular-nums">{i + 1}.</span> <span className="hidden sm:inline">{st.title}</span>
+                  {changed.includes(i) && <span className="ml-1.5 inline-block size-1.5 rounded-full bg-amber-500 align-middle" title="Unsaved change" />}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
 
-            <Label className="mb-2 mt-5">Entry format</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {FORMATS.map((f) => (
-                <button key={f.value} type="button" aria-pressed={format === f.value}
-                  onClick={() => { touch(); setFormat(f.value); }}
-                  className={cn(
-                    "rounded-lg border px-3 py-2 text-left transition",
-                    format === f.value ? "border-primary bg-primary/10" : "hover:bg-accent"
-                  )}>
-                  <span className="block text-sm font-medium">{f.label}</span>
-                  <span className="block text-[11px] text-muted-foreground">
-                    {sport.category === "esports" && f.esportsHint ? f.esportsHint : f.hint}
-                  </span>
-                </button>
-              ))}
+        <div>
+          <p className="text-[13px] text-muted-foreground">Step {step + 1} of {STEPS.length}</p>
+          <h4 className="mt-0.5 text-[20px] font-semibold tracking-tight">{STEPS[step].title}</h4>
+          <p className="mt-1 text-[15px] text-muted-foreground">{STEPS[step].hint}</p>
+        </div>
+
+        {/* Step 1: Registration */}
+        {step === 0 && (
+          <div className="space-y-6">
+            <div>
+              <Label className="mb-2">Divisions</Label>
+              <div className="flex flex-wrap gap-2">
+                {DIVISIONS.map((d) => (
+                  <Chip key={d.value} on={divisions.includes(d.value)} title={d.hint}
+                    onClick={() => toggleDivision(d.value)}>{d.label}</Chip>
+                ))}
+              </div>
+              <p className="mt-2 text-[14px] text-muted-foreground">Each division runs its own bracket. “Open” is one bracket for everyone.</p>
+            </div>
+
+            <div>
+              <Label className="mb-2">Entry format</Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {FORMATS.map((f) => (
+                  <button key={f.value} type="button" aria-pressed={format === f.value}
+                    onClick={() => { touch(); setFormat(f.value); }}
+                    className={cn(
+                      "rounded-xl border px-4 py-3 text-left transition",
+                      format === f.value ? "border-primary bg-primary/10" : "bg-card hover:bg-accent"
+                    )}>
+                    <span className="block text-[15px] font-medium">{f.label}</span>
+                    <span className="block text-[13px] text-muted-foreground">
+                      {sport.category === "esports" && f.esportsHint ? f.esportsHint : f.hint}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {isRoundRobin && (
-              <>
-                <Label className="mb-2 mt-5">Knockout size</Label>
-                <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="mb-2">Knockout size</Label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {[
                     { n: 8, hint: "1 team per barangay" },
                     { n: 16, hint: "Up to 2 teams per barangay" },
@@ -343,124 +424,148 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
                     <button key={n} type="button" aria-pressed={koSize === n}
                       onClick={() => { touch(); setKoSize(n); }}
                       className={cn(
-                        "rounded-lg border px-3 py-2 text-left transition",
-                        koSize === n ? "border-primary bg-primary/10" : "hover:bg-accent"
+                        "rounded-xl border px-4 py-3 text-left transition",
+                        koSize === n ? "border-primary bg-primary/10" : "bg-card hover:bg-accent"
                       )}>
-                      <span className="block text-sm font-medium">Top {n}</span>
-                      <span className="block text-[11px] text-muted-foreground">{hint}</span>
+                      <span className="block text-[15px] font-medium">Top {n}</span>
+                      <span className="block text-[13px] text-muted-foreground">{hint}</span>
                     </button>
                   ))}
                 </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
+                <p className="mt-2 text-[14px] text-muted-foreground">
                   8 groups play round-robin, then the Top {koSize} go to the knockout. Barangay Admins see
                   this limit when they register. Can't switch to Top 8 while a barangay has two teams.
                 </p>
-              </>
+              </div>
             )}
-          </Section>
+          </div>
+        )}
 
-          {/* Scoring */}
-          <Section title="Scoring" hint="How the live score works.">
-            <Label className="mb-2">Type</Label>
-            <Select value={sport.category} onValueChange={changeType} disabled={busy}>
-              <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              Decides how it is scored and which score sheet columns are on offer. Applies right away.
-            </p>
+        {/* Step 2: Scoring */}
+        {step === 1 && (
+          <div className="space-y-6">
+            <div>
+              <Label className="mb-2">Type</Label>
+              <Select value={sport.category} onValueChange={changeType} disabled={busy}>
+                <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="mt-2 text-[14px] text-muted-foreground">
+                Decides how it is scored and which score sheet columns are offered. Applies right away.
+              </p>
+            </div>
 
             {gamesWon ? (
-              <>
-                <p className="mt-4 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+              <div>
+                <p className="rounded-xl border bg-card p-4 text-[14px] text-muted-foreground">
                   Scored by <span className="font-medium text-foreground">games won</span>: the organizer taps who won
                   each game, as a best-of series, and the match ends once a side has won the majority.
                 </p>
-                <div className="mt-3 space-y-1.5 sm:w-56">
+                <div className="mt-4 space-y-1.5 sm:w-64">
                   <Label>Series lengths</Label>
                   <Input value={rulesForm.periodOptions} onChange={setRule("periodOptions")} placeholder="1, 3, 5" />
-                  <p className="text-[11px] text-muted-foreground">Best-of choices at match start: 1, 3, 5 or 7</p>
+                  <p className="text-[13px] text-muted-foreground">Best-of choices at match start: 1, 3, 5 or 7</p>
                 </div>
                 {hasSavedRules && (
                   <button onClick={resetRules} disabled={busy}
-                    className="mt-2 text-xs text-muted-foreground hover:text-foreground">Use the default (1, 3, 5)</button>
+                    className="mt-2 text-[13px] text-muted-foreground hover:text-foreground">Use the default (1, 3, 5)</button>
                 )}
-              </>
+              </div>
             ) : (
-              <>
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="space-y-1.5">
                     <Label>Point values</Label>
                     <Input value={rulesForm.pointValues} onChange={setRule("pointValues")} placeholder="1, 2, 3" />
-                    <p className="text-[11px] text-muted-foreground">One tap button each</p>
+                    <p className="text-[13px] text-muted-foreground">One tap button each</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Period name</Label>
                     <Input value={rulesForm.periodLabel} onChange={setRule("periodLabel")} placeholder="quarter, set" />
-                    <p className="text-[11px] text-muted-foreground">What one period is called</p>
+                    <p className="text-[13px] text-muted-foreground">What one period is called</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Period counts</Label>
                     <Input value={rulesForm.periodOptions} onChange={setRule("periodOptions")} placeholder="1, 3, 5" />
-                    <p className="text-[11px] text-muted-foreground">From 1, 2, 3, 4, 5 or 7</p>
+                    <p className="text-[13px] text-muted-foreground">From 1, 2, 3, 4, 5 or 7</p>
                   </div>
                 </div>
                 {hasSavedRules && (
                   <button onClick={resetRules} disabled={busy}
-                    className="mt-2 text-xs text-muted-foreground hover:text-foreground">Use the default scoring rules</button>
+                    className="mt-3 text-[13px] text-muted-foreground hover:text-foreground">Use the default scoring rules</button>
                 )}
-              </>
-            )}
-          </Section>
-        </div>
-
-        {/* Score sheet */}
-        <Section title="After-match score sheet"
-          hint="What the organizer fills in for each player once a match is finished. Tick the columns you want; tick none for no player form.">
-          <div className="flex flex-wrap gap-2">
-            {sheetOptions.map((o) => (
-              <Chip key={o.key} on={sheet.includes(o.key)}
-                onClick={() => { touch(); setSheet(sheet.includes(o.key) ? sheet.filter((k) => k !== o.key) : [...sheet, o.key]); }}>
-                {o.label}
-                {o.custom && (
-                  <span role="button" tabIndex={0} title="Remove this column"
-                    onClick={(e) => { e.stopPropagation(); removeColumn(o.label); }}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); removeColumn(o.label); } }}
-                    className="-mr-1 rounded p-0.5 hover:bg-destructive/10 hover:text-destructive">
-                    <X className="size-3" />
-                  </span>
-                )}
-              </Chip>
-            ))}
-            {sheetOptions.length === 0 && <p className="text-xs text-muted-foreground">This type has no built-in columns. Add your own below.</p>}
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Input value={newCol} maxLength={24} className="h-8 w-full sm:w-64"
-              onChange={(e) => setNewCol(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColumn(); } }}
-              placeholder='Add your own, e.g. "Spikes"' />
-            <Button size="sm" variant="secondary" onClick={addColumn} disabled={busy || !newCol.trim()}>
-              <Plus className="size-3.5" /> Add column
-            </Button>
-            {!sport.sheetIsDefault && (
-              <button onClick={resetSheet} disabled={busy}
-                className="text-xs text-muted-foreground hover:text-foreground">Use the default columns</button>
+              </div>
             )}
           </div>
-        </Section>
+        )}
 
-        {/* One save for the whole game */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-          <p className={cn("text-xs", dirty ? "text-amber-600 dark:text-amber-400" : saved ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
-            {dirty ? "You have unsaved changes." : saved ? "All changes saved." : "No changes."}
+        {/* Step 3: Score sheet */}
+        {step === 2 && (
+          <div>
+            <div className="flex flex-wrap gap-2">
+              {sheetOptions.map((o) => (
+                <Chip key={o.key} on={sheet.includes(o.key)}
+                  onClick={() => { touch(); setSheet(sheet.includes(o.key) ? sheet.filter((k) => k !== o.key) : [...sheet, o.key]); }}>
+                  {o.label}
+                  {o.custom && (
+                    <span role="button" tabIndex={0} title="Remove this column"
+                      onClick={(e) => { e.stopPropagation(); removeColumn(o.label); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); removeColumn(o.label); } }}
+                      className="-mr-1 rounded p-0.5 hover:bg-destructive/10 hover:text-destructive">
+                      <X className="size-3" />
+                    </span>
+                  )}
+                </Chip>
+              ))}
+              {sheetOptions.length === 0 && <p className="text-[14px] text-muted-foreground">This type has no built-in columns. Add your own below.</p>}
+            </div>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <Input value={newCol} maxLength={24} className="w-full sm:w-72"
+                onChange={(e) => setNewCol(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColumn(); } }}
+                placeholder='Add your own column, e.g. "Spikes"' />
+              <Button variant="secondary" onClick={addColumn} disabled={busy || !newCol.trim()}>
+                <Plus className="size-3.5" /> Add column
+              </Button>
+              {!sport.sheetIsDefault && (
+                <button onClick={resetSheet} disabled={busy}
+                  className="text-[13px] text-muted-foreground hover:text-foreground">Use the default columns</button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Review & save */}
+        {step === last && (
+          <div className="divide-y rounded-lg border">
+            {reviewRow("Divisions", divisionText, 0, "divisions")}
+            {reviewRow("Entry format", `${formatInfo?.label || format} · ${formatInfo?.hint || ""}`, 0, "format")}
+            {isRoundRobin && reviewRow("Knockout", `Top ${koSize} · ${koSize === 8 ? "1 team" : "up to 2 teams"} per barangay`, 0, "knockout")}
+            {reviewRow("Type", typeText, 1, "type")}
+            {reviewRow("Scoring", scoringText, 1, "scoring")}
+            {reviewRow("Score sheet", sheetText, 2, "sheet")}
+          </div>
+        )}
+
+        {/* Footer: where you are, and the way forward */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
+          <p className={cn("text-[14px]", dirty ? "text-amber-700 dark:text-amber-400" : saved ? "text-green-700 dark:text-green-400" : "text-muted-foreground")}>
+            {dirty ? "You have unsaved changes." : saved ? "All changes saved." : "No changes yet."}
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={discard} disabled={busy || !dirty}>Discard</Button>
-            <Button onClick={saveAll} disabled={busy || !dirty || divisions.length === 0}>
-              {busy ? "Saving…" : "Save changes"}
-            </Button>
+            {dirty && <Button variant="ghost" onClick={() => { discard(); setStep(0); }} disabled={busy}>Discard</Button>}
+            {step > 0 && <Button variant="outline" onClick={() => setStep(step - 1)} disabled={busy}>Back</Button>}
+            {step < last ? (
+              <Button onClick={() => setStep(step + 1)} disabled={busy || (step === 0 && divisions.length === 0)}>
+                Next: {STEPS[step + 1].title}
+              </Button>
+            ) : (
+              <Button onClick={saveAll} disabled={busy || !dirty || divisions.length === 0}>
+                {busy ? "Saving…" : "Save changes"}
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>
@@ -856,16 +961,9 @@ export default function SportConfig() {
   const selected = sports.find((s) => s._id === selectedId) || sports[0] || null;
 
   return (
-    <AdminLayout title="League Setup" menu={superAdminMenu} enableDarkMode>
+    <AdminLayout title="League Setup" menu={superAdminMenu} enableDarkMode
+      subtitle="Games, divisions and scoring rules. Set them before registration opens: rosters are built against them.">
       <div className="space-y-5">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">League Setup</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Divisions decide how many tournaments a game runs, and the entry format decides how many players a
-            barangay registers. Set them <span className="font-medium text-foreground">before registration opens</span>.
-            Once teams sign up, changing them would invalidate rosters built against the old settings.
-          </p>
-        </div>
 
         {error && (
           <Alert variant="destructive">
@@ -900,28 +998,30 @@ export default function SportConfig() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Pick a game; the editor below is for that one game. */}
-            <div className="flex flex-wrap items-center gap-2">
-              {sports.map((s) => (
-                <button key={s._id} onClick={() => { setSelectedId(s._id); setAdding(false); }}
-                  className={cn(
-                    "rounded-full border px-3.5 py-1.5 text-sm transition",
-                    !adding && selected?._id === s._id
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "hover:bg-accent"
-                  )}>
-                  {s.name}
-                </button>
-              ))}
-              <button onClick={() => setAdding(true)} disabled={locked} title={locked ? LOCK_TITLE : undefined}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border border-dashed px-3.5 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
-                  adding ? "border-primary text-foreground" : "text-muted-foreground enabled:hover:border-foreground/30 enabled:hover:text-foreground"
-                )}>
+            {/* Pick a game; the editor below is for that one game. A dropdown (Oct 2026, Super
+                Admin request) instead of a row of pills: one clear "which game am I editing". */}
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[15px] font-medium">Game</span>
+              <Select
+                value={adding ? "" : selected?._id || ""}
+                onValueChange={(v) => { setSelectedId(v); setAdding(false); }}
+              >
+                <SelectTrigger className="w-full sm:w-72">
+                  <SelectValue placeholder={adding ? "Adding a new game…" : "Pick a game"} />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {sports.map((sp) => (
+                    <SelectItem key={sp._id} value={sp._id}>
+                      {sp.name} · {TYPES.find((t) => t.value === sp.category)?.label || sp.category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => setAdding(true)} disabled={locked || adding} title={locked ? LOCK_TITLE : undefined}>
                 {locked ? <Lock className="size-3.5" /> : <Plus className="size-3.5" />} Add a game
-              </button>
+              </Button>
               <button onClick={() => setShowTypes(!showTypes)}
-                className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground sm:ml-auto">
                 <Info className="size-3.5" /> How each type is scored
               </button>
             </div>

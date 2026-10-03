@@ -106,8 +106,8 @@ export default function Teams() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-1">Teams</h1>
-      <p className="text-slate-400 text-[15px] mb-4">
+      <h1 className="text-slate-50 text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight mb-1.5">Teams</h1>
+      <p className="text-slate-400 text-[16px] sm:text-[17px] mb-6">
         {loading
           ? "\u00A0"
           : needle
@@ -124,7 +124,8 @@ export default function Teams() {
           <TileGridSkeleton tiles={3} cols="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
         </>
             ) : visible.length === 0 ? (
-        <Panel empty={q ? `No teams match "${q}".` : "No verified teams yet. Teams appear here once residency review is complete."} />
+        <Panel emptyTitle={q ? "No matching teams" : "No verified teams yet"} emptyIcon={q ? "search" : "users"}
+          empty={q ? `Nothing matches "${q}". Try a barangay name.` : "Teams appear here once the SK Federation verifies their rosters."} />
       ) : (
         keys.map((key) => {
           const [sportName, division] = key.split("||");

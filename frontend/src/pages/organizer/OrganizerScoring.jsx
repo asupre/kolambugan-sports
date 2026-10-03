@@ -872,7 +872,8 @@ export default function OrganizerScoring() {
 
   if (loading) {
     return (
-      <AdminLayout title="Matches" menu={organizerMenu} enableDarkMode seasonStrip={false}>
+      <AdminLayout title="Matches" menu={organizerMenu} enableDarkMode seasonStrip={false}
+        subtitle="Pick a match to start scoring it.">
         <ListSkeleton />
       </AdminLayout>
     );
@@ -918,7 +919,7 @@ export default function OrganizerScoring() {
     // Instant theme swap here only: a View Transition freezes input ~0.75s and would
     // swallow score taps mid-match. The match list and dashboard animate normally.
     return (
-      <AdminLayout title={feed.sport} menu={organizerMenu} enableDarkMode animateTheme={false} seasonStrip={false}>
+      <AdminLayout title={feed.sport} menu={organizerMenu} enableDarkMode animateTheme={false} seasonStrip={false} pageHeader={false}>
         <ScoringView matchId={openId} onBack={() => { setOpenId(null); load(); }} />
       </AdminLayout>
     );
@@ -1005,7 +1006,8 @@ export default function OrganizerScoring() {
   };
 
   return (
-    <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode seasonStrip={false}>
+    <AdminLayout title={feed.sport || "Matches"} menu={organizerMenu} enableDarkMode seasonStrip={false}
+      subtitle="Pick a match to start scoring it. Today's games are first.">
       <div className="space-y-6">
         {error && (
           <Alert variant="destructive">

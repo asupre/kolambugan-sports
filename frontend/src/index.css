@@ -311,3 +311,234 @@
   .marquee-fade { display: none; }
   .marquee-track li:last-child > span:last-child { display: none; }
 }
+
+/* "Calm" look (Oct 2026 PREVIEW, whole Super Admin, LOCAL ONLY until approved): warm
+   off-white surfaces, hairline borders, Figtree, a muted green accent. Modeled on a
+   reference the Super Admin liked (a species directory site).
+   How it's applied: AdminLayout puts `calm-theme` on <html> while a Super Admin page is
+   open (removed on unmount), so these overrides reach dialogs / popovers / selects that
+   portal to <body> too. Barangay Admin, Organizer and the public site never get it.
+   `:root.calm-theme` (0,2,0) beats `.dark` (0,1,0), hence `:root.calm-theme.dark`. */
+:root.calm-theme {
+  --background: #F5F3EC;
+  --foreground: #1E2721;
+  --card: #FBFAF6;
+  --card-foreground: #1E2721;
+  --popover: #FDFCF8;
+  --popover-foreground: #1E2721;
+  --primary: #2F6B4B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #ECE9E0;
+  --secondary-foreground: #1E2721;
+  --muted: #ECE9E0;
+  --muted-foreground: #5E6862;
+  --accent: #E9EFE7;
+  --accent-foreground: #1E2721;
+  --border: #E2DED2;
+  --input: #D8D3C5;
+  --ring: #4E8A68;
+  --sidebar: #EFECE3;
+  --sidebar-foreground: #1E2721;
+  --sidebar-primary: #2F6B4B;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E4E8DF;
+  --sidebar-accent-foreground: #1E2721;
+  --sidebar-border: #E2DED2;
+  --sidebar-ring: #4E8A68;
+}
+:root.calm-theme.dark {
+  --background: #1C1E1B;
+  --foreground: #EEF0EA;
+  --card: #232622;
+  --card-foreground: #EEF0EA;
+  --popover: #262925;
+  --popover-foreground: #EEF0EA;
+  --primary: #7CC19A;
+  --primary-foreground: #10241A;
+  --secondary: #2C302B;
+  --secondary-foreground: #EEF0EA;
+  --muted: #2C302B;
+  --muted-foreground: #B2B8B0;
+  --accent: #2B3A30;
+  --accent-foreground: #EEF0EA;
+  --border: #363A34;
+  --input: #41463F;
+  --ring: #7CC19A;
+  --sidebar: #20231F;
+  --sidebar-foreground: #EEF0EA;
+  --sidebar-primary: #7CC19A;
+  --sidebar-primary-foreground: #10241A;
+  --sidebar-accent: #2B3A30;
+  --sidebar-accent-foreground: #EEF0EA;
+  --sidebar-border: #363A34;
+  --sidebar-ring: #7CC19A;
+}
+:root.calm-theme body {
+  font-family: 'Figtree', 'Inter', system-ui, sans-serif;
+}
+/* The coloured 4px left stripes on some cards read as decoration in this look: hairline
+   instead. (Preview shortcut; if approved, remove the border-l-4 classes in the pages.) */
+:root.calm-theme .border-l-4 {
+  border-left-width: 1px !important;
+  border-left-color: var(--border) !important;
+}
+
+/* Extra tokens used only by the redesigned dashboard (AdminDashboard.jsx). */
+.calm {
+  --calm-bg: var(--background);
+  --calm-card: var(--card);
+  --calm-card-hover: #F2F0E8;
+  --calm-border: var(--border);
+  --calm-ink: var(--foreground);
+  --calm-muted: var(--muted-foreground);
+  --calm-faint: #8A928C;
+  --calm-accent: var(--primary);
+  --calm-accent-soft: #DCE8DF;
+  --calm-track: #E8E5DC;
+  font-family: 'Figtree', 'Inter', system-ui, sans-serif;
+  color: var(--calm-ink);
+}
+.dark .calm {
+  --calm-card-hover: #2A2E29;
+  --calm-faint: #858C84;
+  --calm-accent-soft: #2B3A30;
+  --calm-track: #30342E;
+}
+
+/* Calm look, part 2: the SHAPE of the shared shadcn components on Super Admin pages
+   (they all carry data-slot / data-size). Selectors are (0,3,0)+, so they beat the
+   components' own utility classes without !important. Bigger, calmer type; roomier
+   cards; pill buttons; hairline card borders; icons in card titles go quiet. */
+:root.calm-theme main [data-slot="card"] {
+  --card-spacing: 1.25rem;
+  --tw-ring-color: var(--border);
+  border-radius: 14px;
+  font-size: 15px;
+}
+:root.calm-theme [data-slot="card-title"] {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+:root.calm-theme [data-slot="card-title"] svg {
+  color: var(--muted-foreground);
+}
+:root.calm-theme [data-slot="card-description"] {
+  font-size: 14.5px;
+}
+:root.calm-theme [data-slot="button"] {
+  border-radius: 9999px;
+}
+:root.calm-theme [data-slot="button"][data-size="default"],
+:root.calm-theme [data-slot="button"][data-size="lg"] {
+  height: 2.25rem;
+  padding-inline: 1rem;
+  font-size: 14px;
+}
+:root.calm-theme [data-slot="button"][data-size="sm"] {
+  height: 2rem;
+  padding-inline: 0.85rem;
+  font-size: 13.5px;
+}
+:root.calm-theme [data-slot="badge"] {
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+:root.calm-theme [data-slot="input"],
+:root.calm-theme [data-slot="select-trigger"] {
+  min-height: 2.5rem;
+  border-radius: 10px;
+  background-color: var(--card);
+  font-size: 15px;
+}
+:root.calm-theme [data-slot="label"] {
+  font-size: 14px;
+}
+:root.calm-theme main [data-slot="alert"] {
+  border-radius: 12px;
+  font-size: 14.5px;
+}
+:root.calm-theme [data-slot="dialog-content"],
+:root.calm-theme [data-slot="popover-content"] {
+  border-radius: 16px;
+}
+:root.calm-theme [data-slot="dialog-title"] {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* Plain tables in pages: quieter headers, roomier rows. */
+:root.calm-theme main table th {
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+:root.calm-theme main table td {
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+}
+/* StatTile (DashboardBits) in the calm look: like the dashboard's "At a glance" cards:
+   no tinted icon square, a normal-case label, a bigger number. */
+:root.calm-theme [data-stat-icon] { display: none; }
+:root.calm-theme [data-stat-label] {
+  font-size: 15px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+:root.calm-theme [data-stat-tile] [data-stat-sub] { font-size: 14px; margin-top: 2px; }
+:root.calm-theme [data-stat-tile] p[style] { --stat-size: 1.65rem !important; margin-top: 4px; }
+
+/* Calm look, part 3: SECTIONS like the dashboard. A Card that has a title (card-header) is
+   a page section: its header becomes the section heading ON the page (21px, like
+   "Needs your attention"), and the card's own box disappears, so what's inside (a list,
+   a table, a grid) is the box, exactly like the dashboard. Cards with no header
+   (stat tiles, editors, notices) stay boxed. */
+:root.calm-theme main [data-slot="card"][data-section] {
+  background: transparent;
+  --tw-ring-color: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  overflow: visible;
+  padding-block: 0;
+  gap: 0.85rem;
+}
+:root.calm-theme main [data-slot="card"][data-section] > [data-slot="card-header"],
+:root.calm-theme main [data-slot="card"][data-section] > [data-slot="card-content"],
+:root.calm-theme main [data-slot="card"][data-section] > [data-slot="card-footer"] {
+  padding-inline: 0;
+}
+:root.calm-theme main [data-slot="card"][data-section] > [data-slot="card-header"] [data-slot="card-title"] {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+:root.calm-theme main [data-slot="card"][data-section] > [data-slot="card-header"] [data-slot="card-description"] {
+  font-size: 15px;
+}
+/* Sections stacked in a column get the dashboard's breathing room between them. */
+:root.calm-theme main [data-slot="card"][data-section] + [data-slot="card"],
+:root.calm-theme main [data-slot="card"] + [data-slot="card"][data-section] {
+  margin-top: 1.75rem;
+}
+/* The bordered lists inside sections ARE the boxes now: card surface, dashboard corners. */
+:root.calm-theme main .divide-y.rounded-lg.border,
+:root.calm-theme main .rounded-lg.border.divide-y {
+  background: var(--card);
+  border-radius: 14px;
+}
+:root.calm-theme main .divide-y > * {
+  border-color: var(--border);
+}
+/* A section card that had a coloured stripe: no border at all now (it isn't a box). */
+:root.calm-theme main [data-slot="card"].border-l-4[data-section] {
+  border-width: 0 !important;
+}
+/* Section content that isn't itself a list / table / grid (plain text, a form) gets the
+   dashboard's card box, so nothing floats loose on the page. */
+:root.calm-theme main [data-slot="card"][data-section] > [data-slot="card-content"]:not([data-bare]) {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+}

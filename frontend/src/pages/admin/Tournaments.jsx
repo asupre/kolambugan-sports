@@ -1350,7 +1350,8 @@ export default function Tournaments() {
   }
 
   return (
-    <AdminLayout title={selectedSport?.name || "Tournaments"} menu={superAdminMenu} enableDarkMode>
+    <AdminLayout title={selectedSport?.name || "Tournaments"} menu={superAdminMenu} enableDarkMode
+      subtitle="Brackets, standings and the match schedule for this sport.">
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-10 w-64" />

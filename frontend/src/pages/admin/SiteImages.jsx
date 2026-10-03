@@ -142,7 +142,8 @@ export default function SiteImages() {
   useEffect(() => { load(); }, []);
 
   return (
-    <AdminLayout title="Site Images" menu={superAdminMenu} enableDarkMode>
+    <AdminLayout title="Site Images" menu={superAdminMenu} enableDarkMode
+      subtitle="The photos on the public site. Anything uploaded here is public.">
       <div className="space-y-6">
         {error && (
           <Alert variant="destructive">

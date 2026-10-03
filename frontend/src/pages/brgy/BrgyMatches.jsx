@@ -146,7 +146,8 @@ export default function BrgyMatches() {
   const wins = done.filter((m) => m.winner && myTeamIds.has(String(m.winner))).length;
 
   return (
-    <AdminLayout title="Matches" menu={brgyMenu} enableDarkMode>
+    <AdminLayout title="Matches" menu={brgyMenu} enableDarkMode
+      subtitle="Your barangay's games: when and where, live scores and results.">
       {loading ? (
         <div className="space-y-5">
           <Card>

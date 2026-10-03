@@ -111,8 +111,9 @@ export default function Documents() {
   const [deletingId, setDeletingId] = useState(null);   // docId being deleted
   const [previewDoc, setPreviewDoc] = useState(null);   // { p, doc } currently open in the preview dialog
 
-  async function load() {
-    setLoading(true);
+  // quiet: refresh in place after an upload / delete (no skeleton, no jump to the top; Oct 2026).
+  async function load({ quiet = false } = {}) {
+    if (!quiet) setLoading(true);
     try {
       const data = await api("/api/teams/needs-documents");
       setPlayers(data.players || []);
@@ -142,7 +143,7 @@ export default function Documents() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Upload failed.");
-      await load();
+      await load({ quiet: true });
     } catch (e) {
       showError(e.message);
     } finally {
@@ -155,7 +156,7 @@ export default function Documents() {
     setDeletingId(doc._id);
     try {
       await api(`/api/teams/${p.teamId}/players/${p.playerId}/documents/${doc._id}`, { method: "DELETE" });
-      await load();
+      await load({ quiet: true });
     } catch (e) {
       showError(e.message);
     } finally {
@@ -164,7 +165,8 @@ export default function Documents() {
   }
 
   return (
-    <AdminLayout title="Verification Status" menu={brgyMenu} enableDarkMode>
+    <AdminLayout title="Verification Status" menu={brgyMenu} enableDarkMode
+      subtitle="Which players still need a document, and what the SK Federation decided.">
       {loading ? (
         <div className="space-y-4">
           <Card>

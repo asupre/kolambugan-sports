@@ -195,7 +195,8 @@ export default function Matches() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-4">Matches</h1>
+      <h1 className="text-slate-50 text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight mb-1.5">Matches</h1>
+      <p className="text-slate-400 text-[16px] sm:text-[17px] mb-6 max-w-2xl">Every game this season: live now, coming up, and final scores.</p>
 
       {/* Flip to the skeleton in the SAME render as the tab click, so the old list
           is never redrawn first (that made the skeleton appear ~2s late on a phone). */}
@@ -204,7 +205,8 @@ export default function Matches() {
       {loading ? (
         <VsMatchSkeleton rows={5} />
       ) : real.length === 0 ? (
-        <Panel empty="No games scheduled yet. The schedule appears here once teams are verified and the brackets are drawn." />
+        <Panel emptyTitle="No games scheduled yet" emptyIcon="calendar" emptyAction={{ to: "/teams", label: "See the teams" }}
+          empty="The schedule appears here once teams are verified and the brackets are drawn." />
       ) : (
         <>
           <Tabs tabs={tabs} value={current} onChange={pickTab} />
@@ -216,7 +218,7 @@ export default function Matches() {
           {current === "upcoming" && (
             <>
               {upcoming.length === 0 && undated.length === 0 && overdue.length === 0 && (
-                <Panel empty="No games coming up." />
+                <Panel emptyTitle="Nothing coming up" emptyIcon="calendar" empty="New games show up here as soon as they are dated." />
               )}
               {paged([
                 ...byDay(upcoming).map(([day, list]) => (
@@ -237,7 +239,7 @@ export default function Matches() {
 
           {current === "results" && (
             done.length === 0 ? (
-              <Panel empty="No results yet." />
+              <Panel emptyTitle="No results yet" emptyIcon="trophy" empty="Final scores appear here as games finish." />
             ) : (
               <>
                 {/* Most recent day first — a results feed reads backwards. */}

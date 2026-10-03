@@ -361,7 +361,8 @@ export default function Season() {
   const warnings = readiness.filter((r) => r.state === "warn");
 
   return (
-    <AdminLayout title="Season" menu={superAdminMenu} enableDarkMode>
+    <AdminLayout title="Season" menu={superAdminMenu} enableDarkMode
+      subtitle="Where the season stands, what moving it on changes, and the seasons before it.">
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-40 w-full rounded-xl" />

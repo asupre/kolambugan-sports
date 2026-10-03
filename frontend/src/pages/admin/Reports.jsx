@@ -167,7 +167,8 @@ export default function Reports() {
   });
 
   return (
-    <AdminLayout title="Reports" menu={superAdminMenu} enableDarkMode>
+    <AdminLayout title="Reports" menu={superAdminMenu} enableDarkMode
+      subtitle="The season's records, to read here or print for the SK Federation.">
       {/* Tabs are for reading. The printout is the WHOLE season — a records
           report handed to the SK Federation shouldn't depend on which tab
           happened to be open. */}

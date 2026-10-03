@@ -217,8 +217,8 @@ export default function Players() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-1">Players</h1>
-      <p className="text-slate-400 text-[15px] mb-4">
+      <h1 className="text-slate-50 text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight mb-1.5">Players</h1>
+      <p className="text-slate-400 text-[16px] sm:text-[17px] mb-6">
         {loading ? " "
           : `${total} ${total === 1 ? "player" : "players"} across ${teams.length} ${teams.length === 1 ? "team" : "teams"}`}
       </p>
@@ -229,7 +229,8 @@ export default function Players() {
       {loading ? (
         <TileGridSkeleton tiles={10} cols="grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" />
       ) : visibleTeams.length === 0 ? (
-        <Panel empty={`No verified ${sport || ""} teams yet.`} />
+        <Panel emptyTitle="No players yet" emptyIcon="users" emptyAction={{ to: "/teams", label: "See the teams" }}
+          empty={`Players appear here once ${sport ? `${sport} teams are` : "teams are"} verified.`} />
       ) : (
         visibleTeams.map((t) => <TeamRow key={t.id} t={t} />)
       )}

@@ -434,7 +434,8 @@ export default function ReferenceList() {
   }
 
   return (
-    <AdminLayout title="Reference List" menu={superAdminMenu} enableDarkMode>
+    <AdminLayout title="Reference List" menu={superAdminMenu} enableDarkMode
+      subtitle="The residents every player is checked against. Upload this season's list or search it.">
       <div className="space-y-6">
         {/* Current status */}
         <Card className="border-l-4 border-l-blue-500">

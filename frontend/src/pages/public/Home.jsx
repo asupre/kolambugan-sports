@@ -17,7 +17,7 @@ import { VsMatchList } from "../../components/VsMatch";
 function StatTile({ icon, value, label, live }) {
   return (
     <div className={`rounded-2xl border ${live ? "border-red-500/35" : "border-white/[0.12]"} bg-white/[0.05] lg:backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] px-2.5 py-4 text-center`}>
-      <div className="flex justify-center mb-2">{icon}</div>
+      <div className="flex h-[18px] items-center justify-center mb-2">{icon}</div>
       <div className="text-slate-50 text-[30px] font-extrabold leading-none tabular-nums">{value}</div>
       <div className={`text-[11px] tracking-wide uppercase mt-2 font-semibold ${live ? "text-red-400" : "text-slate-500"}`}>
         {label}
@@ -43,6 +43,22 @@ const SportIcon = () => (
     <circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 010 18M3 12h18" />
   </svg>
 );
+
+// Headline + next step for the "no games yet" state (Oct 2026 polish).
+const NO_GAMES_TITLE = {
+  setup: "The season is being set up",
+  registration_open: "Registration is open",
+  verification: "Teams are being verified",
+  ongoing: "No games right now",
+  completed: "The season is complete",
+};
+const NO_GAMES_ACTION = {
+  setup: { to: "/about", label: "About the league" },
+  registration_open: { to: "/teams", label: "See the teams" },
+  verification: { to: "/teams", label: "See the teams" },
+  ongoing: { to: "/matches", label: "Full schedule" },
+  completed: { to: "/champions", label: "See the champions" },
+};
 
 // Before any game is dated the Home page used to show nothing about games at
 // all, which read as broken. Say what stage the league is at instead.
@@ -213,11 +229,13 @@ export default function Home() {
       )}
 
       {nothingOn && (
-        <Panel title="Games">
-          <p className="px-4 sm:px-5 py-5 text-slate-400 text-[15px] leading-relaxed">
-            {NO_GAMES[data?.season?.status] || NO_GAMES.ongoing}
-          </p>
-        </Panel>
+        <Panel
+          title="Games"
+          emptyTitle={(NO_GAMES_TITLE[data?.season?.status] || NO_GAMES_TITLE.ongoing)}
+          emptyIcon={data?.season?.status === "completed" ? "trophy" : "calendar"}
+          emptyAction={NO_GAMES_ACTION[data?.season?.status] || NO_GAMES_ACTION.ongoing}
+          empty={NO_GAMES[data?.season?.status] || NO_GAMES.ongoing}
+        />
       )}
 
       {/* About the league */}

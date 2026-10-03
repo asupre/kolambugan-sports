@@ -11,52 +11,60 @@
 // built. organizerMenu/brgyMenu stay flat (a header would be overkill for 1-3
 // items) — AdminLayout supports both shapes.
 
+import {
+  Award, CalendarDays, CalendarRange, ClipboardList, FileChartColumn, FileCheck2, Images,
+  LayoutDashboard, ShieldCheck, SlidersHorizontal, Swords, Trophy, Users, UsersRound,
+} from "lucide-react";
+
+// `icon` is a lucide-react component (Oct 2026: they used to be Unicode symbols like
+// ▦ ◷ ⛃, which looked unfinished). The sidebar shows ONLY the icons when collapsed to
+// the rail, and ONLY the labels when expanded.
 export const superAdminMenu = [
   {
     header: "Overview",
     items: [
-      { label: "Dashboard", path: "/admin", icon: "▦" },
+      { label: "Dashboard", path: "/admin", icon: LayoutDashboard },
     ],
   },
   {
     header: "Season & Verification",
     items: [
-      { label: "Season", path: "/admin/season", icon: "◷" },
-      { label: "Reference List", path: "/admin/reference", icon: "☑" },
-      { label: "Review Queue", path: "/admin/review", icon: "⚑", badge: "reviewPending" },
+      { label: "Season", path: "/admin/season", icon: CalendarRange },
+      { label: "Reference List", path: "/admin/reference", icon: ClipboardList },
+      { label: "Review Queue", path: "/admin/review", icon: ShieldCheck, badge: "reviewPending" },
     ],
   },
   {
     header: "Competition",
     items: [
-      { label: "League Setup", path: "/admin/config", icon: "⚙" },
-      { label: "Tournaments", path: "/admin/tournaments", icon: "⛃", dynamic: "sports" },
+      { label: "League Setup", path: "/admin/config", icon: SlidersHorizontal },
+      { label: "Tournaments", path: "/admin/tournaments", icon: Trophy, dynamic: "sports" },
     ],
   },
   {
     header: "Content",
     items: [
-      { label: "Champions", path: "/admin/champions", icon: "★" },
-      { label: "Reports", path: "/admin/reports", icon: "▤" },
-      { label: "Site Images", path: "/admin/site-images", icon: "▣" },
+      { label: "Champions", path: "/admin/champions", icon: Award },
+      { label: "Reports", path: "/admin/reports", icon: FileChartColumn },
+      { label: "Site Images", path: "/admin/site-images", icon: Images },
     ],
   },
   {
     header: "Administration",
     items: [
-      { label: "Accounts", path: "/admin/accounts", icon: "☺" },
+      { label: "Accounts", path: "/admin/accounts", icon: UsersRound },
     ],
   },
 ];
 
 export const organizerMenu = [
-  { label: "Dashboard", path: "/organizer/dashboard", icon: "▦" },
-  { label: "Matches", path: "/organizer", icon: "⛃" },
+  { label: "Dashboard", path: "/organizer/dashboard", icon: LayoutDashboard },
+  { label: "Matches", path: "/organizer", icon: Swords },
 ];
 
 export const brgyMenu = [
-  { label: "Dashboard", path: "/brgy/dashboard", icon: "▦" },
-  { label: "My Teams", path: "/brgy", icon: "⛃" },
-  { label: "Verification Status", path: "/brgy/documents", icon: "🗎" },
-  { label: "Matches", path: "/brgy/matches", icon: "◷" },
+  { label: "Dashboard", path: "/brgy/dashboard", icon: LayoutDashboard },
+  { label: "My Teams", path: "/brgy", icon: Users },
+  { label: "Verification Status", path: "/brgy/documents", icon: FileCheck2 },
+  { label: "Matches", path: "/brgy/matches", icon: CalendarDays },
 ];

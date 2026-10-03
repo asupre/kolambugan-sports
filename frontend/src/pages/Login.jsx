@@ -157,6 +157,12 @@ export default function Login() {
   // Legends-style esport), so a fixed "26 barangays · 7 sports" goes stale
   // the moment that happens.
   useEffect(() => {
+    const el = document.documentElement;
+    el.classList.add("calm-theme");
+    return () => el.classList.remove("calm-theme");
+  }, []);
+
+  useEffect(() => {
     api("/api/public/overview")
       .then((d) => setCounts(d.counts || null))
       .catch(() => {});
@@ -205,17 +211,17 @@ export default function Login() {
     <div className="min-h-screen bg-background grid lg:grid-cols-2">
       {/* Brand panel — hidden on phones, this is the one screen that gets to be a
           little more decorative since every role lands here first. */}
-      <div className="hidden lg:flex relative flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-primary to-[oklch(0.34_0.19_290)] p-12 text-primary-foreground">
-        {/* Layers, bottom to top: the purple gradient (fallback) -> React Bits
+      <div className="hidden lg:flex relative flex-col justify-between overflow-hidden bg-gradient-to-br from-[#174A31] via-[#1D5A3C] to-[#0A2A1B] p-12 text-white">
+        {/* Layers, bottom to top (green since Oct 2026, was purple): the green gradient (fallback) -> React Bits
             GradientWaves (animated, desktop only; frozen under
             prefers-reduced-motion via speed 0) -> one scrim for text legibility. */}
         {wide && (
           <div className="absolute inset-0" aria-hidden="true">
             <Suspense fallback={null}>
               <GradientWaves
-                horizonColor="#170844"
-                waveColor="#2b1382"
-                crestColor="#8b5cff"
+                horizonColor="#05241A"
+                waveColor="#13603F"
+                crestColor="#6EE0A6"
                 fogDepth={60}
                 amplitude={3}
                 speed={reduceMotion ? 0 : 0.35}
@@ -227,7 +233,7 @@ export default function Login() {
         )}
         <div
           className="pointer-events-none absolute inset-0"
-          style={{ background: "linear-gradient(180deg, rgba(20,8,48,0.55) 0%, rgba(20,8,48,0.25) 40%, rgba(20,8,48,0.88) 100%)" }}
+          style={{ background: "linear-gradient(180deg, rgba(4,28,18,0.55) 0%, rgba(4,28,18,0.35) 45%, rgba(4,28,18,0.88) 100%)" }}
         />
 
         <Link
@@ -240,15 +246,24 @@ export default function Login() {
         </Link>
 
         <div className="relative space-y-6 max-w-md">
-          <Trophy className="size-10 opacity-90" />
-          <h1 className="text-3xl font-semibold leading-tight">
-            Inter-Barangay Sports League, run without the paper trail.
-          </h1>
-          <p className="text-primary-foreground/80 text-sm leading-relaxed">
+          <div className="inline-flex flex-col items-center gap-4">
+            {/* The gold trophy from the Champions leaderboard (public/medals). */}
+            <img src="/medals/trophy.png" alt="" className="h-16 w-16 object-contain drop-shadow-[0_6px_18px_rgba(250,204,21,0.35)]" />
+            {/* Same lettering as the public Home hero (Anton, capitals): line 1 white, line 2 in
+                a yellow-to-gold gradient (mint blended into the waves). */}
+            <h1 className="font-['Anton'] font-normal uppercase leading-[0.92] tracking-tight drop-shadow-[0_2px_16px_rgba(0,0,0,0.45)]">
+              <span className="block text-white text-[54px] xl:text-[68px]">Inter-Barangay</span>
+              <span className="block bg-gradient-to-r from-[#FDE68A] via-[#FACC15] to-[#F5A524] bg-clip-text text-transparent text-[54px] xl:text-[68px]">
+                Sports League
+              </span>
+            </h1>
+          </div>
+          <p className="text-[22px] font-semibold text-white/90 drop-shadow-[0_1px_8px_rgba(0,0,0,0.4)]">Run without the paper trail.</p>
+          <p className="text-white/80 text-[15px] leading-relaxed">
             Residency verification, live scoring, and standings for every
             barangay and every sport, all in one place, all season long.
           </p>
-          <div className="flex flex-wrap gap-x-6 gap-y-3 pt-2 text-sm text-primary-foreground/80">
+          <div className="flex flex-wrap gap-x-6 gap-y-3 pt-2 text-sm text-white/85">
             <span className="flex items-center gap-1.5">
               <Users2 className="size-4" /> {counts?.barangays ?? "–"} barangays
             </span>
@@ -259,7 +274,7 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="relative text-primary-foreground/60 text-xs">
+        <p className="relative text-white/60 text-xs">
           Municipality of Kolambugan, Lanao del Norte
         </p>
       </div>
@@ -311,7 +326,7 @@ export default function Login() {
                   onClick={() => setShowPassword((s) => !s)}
                   tabIndex={-1}
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-0 top-0 h-8 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  className="absolute inset-y-0 right-0 w-10 flex items-center justify-center text-muted-foreground hover:text-foreground"
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>

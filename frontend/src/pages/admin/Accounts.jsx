@@ -322,7 +322,22 @@ export default function Accounts() {
   ];
 
   return (
-    <AdminLayout title="Accounts" menu={superAdminMenu} enableDarkMode>
+    <AdminLayout
+      title="Accounts"
+      menu={superAdminMenu}
+      enableDarkMode
+      subtitle={loading ? " " : `${accounts.length} accounts · ${needsChange > 0 ? `${needsChange} still on a temporary password` : "everyone has set their own password"}`}
+      actions={
+        <>
+          <Button variant="outline" onClick={() => setAddOpen(true)}>
+            <UserPlus /> Add account
+          </Button>
+          <Button onClick={provisionAll} disabled={busy}>
+            <Wand2 /> {busy ? "Provisioning…" : "Provision all"}
+          </Button>
+        </>
+      }
+    >
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full rounded-xl" />
@@ -336,28 +351,7 @@ export default function Accounts() {
             </Alert>
           )}
 
-          {/* Header: what there is, and the two things you can do about it. */}
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-2xl font-semibold leading-tight">
-                {accounts.length} <span className="text-base font-normal text-muted-foreground">accounts</span>
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {needsChange > 0
-                  ? `${needsChange} still on a temporary password`
-                  : "Everyone has set their own password"}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => setAddOpen(true)}>
-                <UserPlus /> Add account
-              </Button>
-              <Button onClick={provisionAll} disabled={busy}>
-                <Wand2 /> {busy ? "Provisioning…" : "Provision all"}
-              </Button>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground max-w-prose -mt-2">
+          <p className="text-sm text-muted-foreground max-w-prose">
             <span className="font-medium text-foreground">Provision all</span> creates any missing barangay
             admin (one per barangay) and organizer (one per sport) account with a random temporary password.
             It's safe to run any time. Anything that already has an account is skipped.

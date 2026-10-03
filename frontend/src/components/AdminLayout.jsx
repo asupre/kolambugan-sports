@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { HelpCircle, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { ChevronDown, HelpCircle, LogOut, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { api } from "../api";
 import InstructionModal from "./InstructionModal";
 import LoadingScreen from "./LoadingScreen";
@@ -55,7 +55,9 @@ function HeaderAvatar({ user, v }) {
 // Only the live scoring view (an open match) sets it; the organizer's match list animates.
 // `seasonStrip` — the slim season bar under the header on phones. The header pill
 // (desktop) costs no space, but the strip does, so the courtside scoring screen turns it off.
-export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true, seasonStrip = true }) {
+// subtitle / actions / pageHeader: the calm page header (Super Admin only for now): a big
+// title, one plain sentence under it, and the page's main buttons on the right.
+export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true, seasonStrip = true, subtitle, actions, pageHeader = true }) {
   const [open, setOpen] = useState(false);          // mobile: sidebar shown as an overlay
   // Desktop: the user's choice to collapse the whole sidebar to an icon rail. It only
   // TAKES EFFECT at desktop width (`rail` below) — the rail toggle is hidden on
@@ -69,6 +71,17 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   // its ~0.75s. Touch screens get an instant swap (the sun/moon icon still animates).
   const finePointer = useMediaQuery("(hover: hover) and (pointer: fine)");
   const rail = railPref && isDesktop;
+  // The "calm" look (Oct 2026) for every admin page, all three roles. A class on
+  // <html>, so dialogs / popovers that portal to <body> get it too; see :root.calm-theme in
+  // index.css. Removed on unmount, so other roles and the public site never see it.
+  // All three roles since Oct 2026 (was Super Admin only).
+  const calm = true;
+  useEffect(() => {
+    if (!calm) return undefined;
+    const el = document.documentElement;
+    el.classList.add("calm-theme");
+    return () => el.classList.remove("calm-theme");
+  }, [calm]);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showHelp, setShowHelp] = useState(false);   // on-demand reopen of the orientation modal
   const [showProfile, setShowProfile] = useState(false);
@@ -84,6 +97,13 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme(user?.id) : "light"));
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Every page opens at the TOP (Oct 2026 bug: scroll to the bottom of one page, click another
+  // in the menu, and the new page opened scrolled to the bottom too). The browser keeps the
+  // window scroll across client-side route changes, so reset it on each new path, before paint.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   const grouped = menu[0]?.header !== undefined;
   const items = flattenItems(menu);
@@ -171,7 +191,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const itemClass = (active) =>
     cn(
       "w-full flex items-center gap-3 rounded-lg text-sm font-medium transition",
-      rail ? "justify-center px-0 py-2" : "px-3 py-2",
+      rail ? "justify-center px-0 py-2.5" : "px-3 py-2",
       active ? "bg-primary/10 text-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
     );
 
@@ -203,11 +223,12 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             className={itemClass(inside && location.pathname === item.path)}
             title={rail ? item.label : undefined}
           >
-            <span className="text-base">{item.icon}</span>
-            {!rail && (
+            {rail ? (
+              <item.icon className="size-[19px]" strokeWidth={1.75} aria-hidden="true" />
+            ) : (
               <>
                 <span className="flex-1 text-left">{item.label}</span>
-                <span className="text-sidebar-foreground/40 text-xs">{isOpen ? "▾" : "▸"}</span>
+                <ChevronDown className={cn("size-4 text-sidebar-foreground/40 transition-transform", !isOpen && "-rotate-90")} aria-hidden="true" />
               </>
             )}
           </button>
@@ -251,12 +272,14 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         className={itemClass(active)}
         title={rail ? (showBadge ? `${item.label} (${reviewPending} pending)` : item.label) : undefined}
       >
-        <span className="text-base relative">
-          {item.icon}
-          {showBadge && rail && (
-            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-sidebar" />
-          )}
-        </span>
+        {rail && (
+          <span className="relative">
+            <item.icon className="size-[19px]" strokeWidth={1.75} aria-hidden="true" />
+            {showBadge && (
+              <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-sidebar" />
+            )}
+          </span>
+        )}
         {!rail && (
           <>
             <span className="flex-1 text-left">{item.label}</span>
@@ -343,8 +366,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             )}
             title={rail ? "Sign out" : undefined}
           >
-            <span className="text-base">⎋</span>
-            {!rail && "Sign out"}
+            {rail ? <LogOut className="size-[19px]" strokeWidth={1.75} aria-hidden="true" /> : "Sign out"}
           </button>
         </div>
       </aside>
@@ -364,7 +386,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             <button onClick={() => setOpen(true)} className="lg:hidden text-foreground" aria-label="Open menu">
               <PanelLeftOpen className="size-5" />
             </button>
-            <h1 className="text-foreground font-semibold">{title}</h1>
+            {/* Calm pages show the title big in the page itself; the bar stays quiet. */}
+            <h1 className={cn("text-foreground font-semibold", calm && "lg:hidden")}>{title}</h1>
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <button
@@ -399,7 +422,23 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         {/* `isolate` = its own stacking context: whatever z-index a page uses inside (the
             Season stepper's circles, bracket columns) stays BELOW the sticky header instead
             of tying with it and painting on top because it comes later in the DOM. */}
-        <main className="isolate flex-1 p-4 lg:p-6 bg-background print:p-0">{children}</main>
+        <main className="isolate flex-1 p-4 lg:p-6 bg-background print:p-0">
+          {calm ? (
+            // Calm look: one centred column, like the dashboard and the reference site.
+            <div className="mx-auto max-w-6xl pb-12 pt-2 sm:px-2 lg:pt-4 print:max-w-none print:p-0">
+              {pageHeader && (
+                <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between print:hidden">
+                  <div className="min-w-0">
+                    <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[36px]">{title}</h1>
+                    {subtitle && <p className="mt-1.5 text-[16px] text-muted-foreground sm:text-[17px]">{subtitle}</p>}
+                  </div>
+                  {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+                </div>
+              )}
+              {children}
+            </div>
+          ) : children}
+        </main>
       </div>
 
       {showHelp && (

@@ -32,13 +32,13 @@ function fitFontSize(value) {
 
 export function StatTile({ label, value, sub, Icon, tone, loading }) {
   return (
-    <Card>
+    <Card data-stat-tile>
       <CardContent className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <div className={cn("flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-lg", TONE_ICON[tone] || "bg-muted text-muted-foreground")}>
+        <div data-stat-icon className={cn("flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-lg", TONE_ICON[tone] || "bg-muted text-muted-foreground")}>
           <Icon className="size-5" />
         </div>
         <div className="@container w-full min-w-0 sm:flex-1">
-          <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide leading-tight">{label}</p>
+          <p data-stat-label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide leading-tight">{label}</p>
           {loading ? (
             <Skeleton className="mt-1 h-6 w-12" />
           ) : (
@@ -49,7 +49,7 @@ export function StatTile({ label, value, sub, Icon, tone, loading }) {
               {value}
             </p>
           )}
-          {sub && <p className="text-muted-foreground text-xs leading-snug">{sub}</p>}
+          {sub && <p data-stat-sub className="text-muted-foreground text-xs leading-snug">{sub}</p>}
         </div>
       </CardContent>
     </Card>

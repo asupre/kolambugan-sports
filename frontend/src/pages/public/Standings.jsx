@@ -68,7 +68,8 @@ export default function Standings() {
   return (
     <>
       <div>
-      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-4">Standings</h1>
+      <h1 className="text-slate-50 text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight mb-1.5">Standings</h1>
+      <p className="text-slate-400 text-[16px] sm:text-[17px] mb-6 max-w-2xl">Group tables for every sport and division, updated as games finish.</p>
 
       <TabRow
         items={tournaments.map((t) => ({ value: t.id, label: `${t.sport} ${DIVISION_LABEL[t.division] || t.division}` }))}
@@ -82,7 +83,8 @@ export default function Standings() {
           <PanelSkeleton rows={5} />
         </div>
       ) : groups.length === 0 ? (
-        <Panel glass empty="No group matches drawn yet." />
+        <Panel glass emptyTitle="No standings yet" emptyIcon="table" emptyAction={{ to: "/matches", label: "View the schedule" }}
+          empty="Tables appear once the group matches are drawn." />
       ) : (
         <>
           <p className="text-slate-400 text-[15px] leading-relaxed mb-4">

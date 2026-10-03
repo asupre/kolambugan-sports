@@ -3684,3 +3684,19 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - **CLAUDE.md repaired** (Oct 3 2026): a scripted edit in the NoSQL-injection commit accidentally
   copied the first ~950 lines of the file in twice (a "$" in the inserted text was read as a
   special code). Rebuilt from the last good version with only the intended notes added.
+- **New look for every admin page, all three roles** (Oct 3 2026). A calmer, more professional
+  design based on a reference the Super Admin liked: warm off-white background, a big page title
+  with a one-line explanation, sections headed like the new Dashboard, pill buttons, and a green
+  accent (a matching dark mode too). The Super Admin Dashboard was rebuilt around it. League Setup
+  edits a game step by step (Registration, Scoring, Score sheet, then Review and save). The Review
+  Queue picks a barangay from a dropdown with the old colour code (red pending, green cleared,
+  grey partway) and lists teams in clickable tables. The sidebar shows only text when open and
+  only clean icons when collapsed. Every page opens at the top.
+- **Login: green waves, bold headline, gold trophy** (Oct 3 2026). The animated panel is now
+  green, the headline uses the public site lettering (white and gold), with the Champions trophy
+  centred above it.
+- **Faster admin pages** (Oct 3 2026). Popups open about twice as fast on a phone, the new layout
+  no longer slows down clicks, closing a roster or uploading a document no longer reloads the whole
+  page, and typing in the Add a player form no longer lags.
+- **Public site polish** (Oct 3 2026). The same strong page header on every page, and empty pages
+  now explain what will appear there and link somewhere useful, instead of a grey line of text.

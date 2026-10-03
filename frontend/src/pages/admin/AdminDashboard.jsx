@@ -1,171 +1,183 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  Building2,
-  ChevronLeft,
-  ChevronRight,
-  Circle,
-  CalendarClock,
-  CircleCheck,
-  ClipboardCheck,
-  FileWarning,
-  KeyRound,
-  MapPin,
-  ShieldAlert,
-  ShieldCheck,
-  Trophy,
-  TriangleAlert,
-  UserPlus,
-  Users2,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
-import { SeasonTracker } from "../../components/SeasonStatus";
-import { Empty, StatTile } from "../../components/DashboardBits";
+import { SEASON_STAGES } from "../../lib/season";
 import { divisionLabel } from "../../lib/dashboardFormat";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
-import { Carousel, CarouselContent, CarouselItem, useCarousel } from "../../components/ui/carousel";
-import { Progress } from "../../components/ui/progress";
-import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import { Button } from "../../components/ui/button";
+
+// Super Admin dashboard, "calm" look (Oct 2026 PREVIEW). Modeled on a reference the Super
+// Admin liked: warm off-white page, one big title + a plain subtitle, sections headed like
+// "Animals 29,713 species", thin-bordered cards with no shadows or icon blobs, numbers as
+// plain text joined with " · ", and a muted green accent used sparingly. Colour only
+// carries meaning (small dots: red = overdue / live, amber = to do). Tokens: `.calm` in
+// index.css. Data and the attention rules are unchanged from the previous dashboard.
 
 const STAGE_LABEL = { group_stage: "Group stage", elimination: "Knockout", completed: "Completed" };
-
-// Color on the ICON only (soft tint in a square) — never a border or the number
-// itself; see the note in CLAUDE.md on why the dashboard avoids colored borders.
-const TONE = {
-  red: "bg-red-500/10 text-red-600 dark:text-red-400",
-  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  slate: "bg-muted text-muted-foreground",
+// How the subtitle describes the season stage ("… is underway.").
+const STAGE_PHRASE = {
+  setup: "is being set up",
+  registration_open: "is open for registration",
+  verification: "is in verification",
+  ongoing: "is underway",
+  completed: "is complete",
 };
+const fmt = (n) => (n ?? 0).toLocaleString();
 
-// What the Super Admin should do, in order of importance. Only real items appear —
+// What the Super Admin should do, in order of importance. Only real items appear;
 // an empty list is a good thing and says so. Each row links to where it's fixed.
 function buildAttention(s) {
   if (!s) return [];
   const items = [];
-  const add = (tone, Icon, text, to, cta) => items.push({ tone, Icon, text, to, cta });
+  const add = (tone, text, to, cta) => items.push({ tone, text, to, cta });
   const status = s.season?.status;
 
   if (!s.season) {
-    add("red", CalendarClock, "No season has been created yet.", "/admin/season", "Create a season");
+    add("red", "No season has been created yet.", "/admin/season", "Create a season");
     return items;
   }
   if (s.referenceList?.count === 0) {
-    add("red", FileWarning, "No reference list is uploaded, so nobody can be checked automatically.", "/admin/reference", "Upload list");
+    add("red", "No reference list is uploaded, so nobody can be checked automatically.", "/admin/reference", "Upload list");
   }
   if (s.accounts?.missingBarangayAdmins > 0) {
     const n = s.accounts.missingBarangayAdmins;
-    add("amber", UserPlus, `${n} barangay${n === 1 ? " has" : "s have"} no admin account.`, "/admin/accounts", "Provision accounts");
+    add("amber", `${n} barangay${n === 1 ? " has" : "s have"} no admin account.`, "/admin/accounts", "Provision accounts");
   }
   if (s.accounts?.missingOrganizers > 0) {
     const n = s.accounts.missingOrganizers;
-    add("amber", UserPlus, `${n} sport${n === 1 ? " has" : "s have"} no organizer account.`, "/admin/accounts", "Provision accounts");
+    add("amber", `${n} sport${n === 1 ? " has" : "s have"} no organizer account.`, "/admin/accounts", "Provision accounts");
   }
   if (s.teamsByState?.review > 0) {
     const n = s.teamsByState.review;
-    add("blue", ClipboardCheck, `${n} team${n === 1 ? " is" : "s are"} waiting for your review.`, "/admin/review", "Open Review Queue");
+    add("accent", `${n} team${n === 1 ? " is" : "s are"} waiting for your review.`, "/admin/review", "Open Review Queue");
   }
   if (s.playersToReview > 0) {
     const n = s.playersToReview;
-    add("amber", ShieldAlert, `${n} player${n === 1 ? " is" : "s are"} flagged or missing a document.`, "/admin/review", "Review players");
+    add("amber", `${n} player${n === 1 ? " is" : "s are"} flagged or missing a document.`, "/admin/review", "Review players");
   }
   if (status === "verification" || status === "ongoing") {
     const undrawn = (s.sportsProgress || []).flatMap((sp) => sp.divisions.filter((d) => d.verifiedTeams > 0 && !d.tournament).map((d) => `${sp.name} ${divisionLabel(d.division)}`.trim()));
     if (undrawn.length) {
-      add("amber", Trophy, `${undrawn.length} sport division${undrawn.length === 1 ? " has" : "s have"} verified teams but no bracket yet (${undrawn.slice(0, 3).join(", ")}${undrawn.length > 3 ? "…" : ""}).`, "/admin/tournaments", "Generate brackets");
+      add("amber", `${undrawn.length} sport division${undrawn.length === 1 ? " has" : "s have"} verified teams but no bracket yet (${undrawn.slice(0, 3).join(", ")}${undrawn.length > 3 ? "…" : ""}).`, "/admin/tournaments", "Generate brackets");
     }
   }
   if (status === "ongoing") {
     if (s.matches?.overdue > 0) {
       const n = s.matches.overdue;
-      add("red", CalendarClock, `${n} match${n === 1 ? " was" : "es were"} dated for a past day but never played.`, "/admin/tournaments", "Open Tournaments");
+      add("red", `${n} match${n === 1 ? " was" : "es were"} dated for a past day but never played.`, "/admin/tournaments", "Open Tournaments");
     }
     if (s.matches?.undated > 0) {
       const n = s.matches.undated;
-      add("amber", CalendarClock, `${n} ready match${n === 1 ? " has" : "es have"} no date yet.`, "/admin/tournaments", "Set dates");
+      add("amber", `${n} ready match${n === 1 ? " has" : "es have"} no date yet.`, "/admin/tournaments", "Set dates");
     }
   }
   if (status === "verification" && s.teamsByState?.review === 0 && s.teamsByState?.draft === 0 && s.teamsByState?.verified > 0) {
-    add("blue", CircleCheck, "Every team is verified. You can generate brackets and move the season on.", "/admin/season", "Manage season");
+    add("accent", "Every team is verified. You can generate brackets and move the season on.", "/admin/season", "Manage season");
   }
   if (s.accounts?.tempPassword > 0) {
     const n = s.accounts.tempPassword;
-    add("slate", KeyRound, `${n} account${n === 1 ? " is" : "s are"} still on a temporary password.`, "/admin/accounts", "View accounts");
+    add("faint", `${n} account${n === 1 ? " is" : "s are"} still on a temporary password.`, "/admin/accounts", "View accounts");
   }
   return items;
 }
 
-function CarouselNav() {
-  const { scrollPrev, scrollNext, canScrollPrev, canScrollNext } = useCarousel();
-  return (
-    <div className="flex gap-1 shrink-0">
-      <Button size="icon-sm" variant="outline" onClick={scrollPrev} disabled={!canScrollPrev}>
-        <ChevronLeft />
-      </Button>
-      <Button size="icon-sm" variant="outline" onClick={scrollNext} disabled={!canScrollNext}>
-        <ChevronRight />
-      </Button>
-    </div>
-  );
-}
+const DOT = {
+  red: "bg-red-500",
+  amber: "bg-amber-500",
+  accent: "bg-[var(--calm-accent)]",
+  faint: "bg-[var(--calm-faint)]",
+};
 
 const timeOf = (d) =>
   new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
 
-function GameSlide({ m }) {
-  const live = m.status === "ongoing";
-  const done = m.status === "completed" || m.status === "forfeited";
+// ── Small building blocks ────────────────────────────────────────────────────
+
+function Section({ title, count, children, className }) {
   return (
-    <div className="rounded-lg border p-4 h-full flex flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="secondary">{m.sport}</Badge>
-        {live ? (
-          <span className="flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-medium">
-            <Circle className="size-2 fill-current" /> Live
-          </span>
-        ) : done ? (
-          <span className="text-muted-foreground text-xs font-medium">Final</span>
-        ) : (
-          <span className="text-muted-foreground text-xs">{timeOf(m.schedule)}</span>
-        )}
+    <section className={cn("mt-10", className)}>
+      <div className="mb-3 flex items-baseline gap-2.5">
+        <h2 className="text-[21px] font-semibold tracking-tight">{title}</h2>
+        {count != null && <span className="text-[14px] text-[var(--calm-muted)]">{count}</span>}
       </div>
-
-      <p className="font-medium text-sm break-words">
-        {m.teamA} <span className="text-muted-foreground font-normal">vs</span> {m.teamB}
-      </p>
-
-      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Users2 className="size-4 shrink-0" />
-        {m.players} player{m.players === 1 ? "" : "s"} playing
-      </div>
-
-      {m.venue && (
-        <p className="flex items-center gap-1 text-xs text-muted-foreground mt-auto">
-          <MapPin className="size-3 shrink-0" /> {m.venue}
-        </p>
-      )}
-    </div>
+      {children}
+    </section>
   );
 }
 
-// One stacked bar split into segments (draft / under review / verified).
-function StackedBar({ parts }) {
-  const total = parts.reduce((n, p) => n + p.value, 0);
-  if (!total) return <div className="h-2 rounded-full bg-muted" />;
+function CalmCard({ children, onClick, className }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-      {parts.filter((p) => p.value > 0).map((p) => (
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={cn(
+        "block w-full rounded-xl border border-[var(--calm-border)] bg-[var(--calm-card)] p-4 text-left",
+        // A <button> centres its content vertically; cards in a row must read top-down.
+        onClick && "flex flex-col justify-start transition-colors hover:bg-[var(--calm-card-hover)] focus-visible:outline-2 focus-visible:outline-[var(--calm-accent)]",
+        className
+      )}
+    >
+      {children}
+    </Tag>
+  );
+}
+
+function GoLink({ children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[14px] font-medium text-[var(--calm-accent)] transition-colors hover:bg-[var(--calm-accent-soft)]"
+    >
+      {children} <ArrowRight className="size-3.5" />
+    </button>
+  );
+}
+
+function Bone({ className }) {
+  return <div className={cn("animate-pulse rounded-lg bg-[var(--calm-track)]", className)} />;
+}
+
+// A thin bar split into parts. Shades of the one accent, never a rainbow.
+function Bar({ parts }) {
+  const total = parts.reduce((n, p) => n + p.value, 0);
+  return (
+    <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-[var(--calm-track)]">
+      {total > 0 && parts.filter((p) => p.value > 0).map((p) => (
         <div key={p.label} className={p.cls} style={{ width: `${(p.value / total) * 100}%` }} title={`${p.label}: ${p.value}`} />
       ))}
     </div>
   );
 }
+
+function SeasonSteps({ status }) {
+  const at = SEASON_STAGES.findIndex((s) => s.key === status);
+  return (
+    <ol className="grid grid-cols-5 gap-1.5 sm:gap-2">
+      {SEASON_STAGES.map((st, i) => {
+        const done = i < at;
+        const now = i === at;
+        return (
+          <li key={st.key} className="min-w-0">
+            <div className={cn("h-1 rounded-full", done || now ? "bg-[var(--calm-accent)]" : "bg-[var(--calm-track)]")} />
+            <p className={cn(
+              "mt-2 truncate text-[12px] sm:text-[14px]",
+              now ? "font-semibold text-[var(--calm-ink)]" : done ? "text-[var(--calm-muted)]" : "text-[var(--calm-faint)]"
+            )}>
+              {st.label}
+            </p>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -192,213 +204,204 @@ export default function AdminDashboard() {
   const m = s?.matches;
   const players = s?.players;
 
-  return (
-    <AdminLayout title="Dashboard" menu={superAdminMenu} enableDarkMode>
-      <div className="space-y-5">
-        {/* Where the season is, and what moves it along */}
-        <Card>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-28 w-full" />
-            ) : s?.season ? (
-              <div className="space-y-3">
-                <SeasonTracker status={s.season.status} name={s.season.name} role="super_admin" />
-                <Button size="sm" variant="outline" onClick={() => navigate("/admin/season")}>
-                  Manage season <ArrowRight />
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">No season has been created yet.</p>
-                <Button size="sm" onClick={() => navigate("/admin/season")}>Create a season <ArrowRight /></Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+  const tiles = [
+    { label: "Teams verified", value: ts && `${fmt(ts.verified)} of ${fmt(s.teams)}`, meta: ts && `${fmt(ts.review)} under review · ${fmt(ts.draft)} draft`, to: "/admin/review" },
+    { label: "Players eligible", value: players && `${fmt(players.eligible)} of ${fmt(players.total)}`, meta: "roster entries", to: "/admin/review" },
+    { label: "Barangays cleared", value: bp && `${fmt(bp.cleared)} of ${fmt(bp.total)}`, meta: "verified in every sport", to: "/admin/review" },
+    { label: "Matches played", value: m && `${fmt(m.completed)} of ${fmt(m.total)}`, meta: m && `${fmt(m.live)} live now`, to: "/admin/tournaments" },
+  ];
 
-        {/* What needs doing */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {loading || attention.length === 0
-                ? <CircleCheck className="size-4 text-green-600 dark:text-green-400" />
-                : <TriangleAlert className="size-4 text-amber-600 dark:text-amber-400" />}
-              Needs your attention
-              {!loading && attention.length > 0 && (
-                <span className="font-normal text-sm text-muted-foreground">({attention.length})</span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+  return (
+    <AdminLayout
+      title="Dashboard"
+      menu={superAdminMenu}
+      enableDarkMode
+      subtitle={loading ? " " : s?.season
+        ? `${s.season.name} ${STAGE_PHRASE[s.season.status] || "is running"}. Here is what needs doing and how the league is going.`
+        : "No season yet. Create one to open registration."}
+      actions={
+        <Button variant="outline" onClick={() => navigate("/admin/season")}>
+          {s?.season ? "Manage season" : "Create a season"}
+        </Button>
+      }
+    >
+      {/* The page header and centred column come from AdminLayout (calm look). */}
+      <div className="calm">
+        <div>
+          {/* Season progress */}
+          <div>
+            {loading ? <Bone className="h-10" /> : s?.season && <SeasonSteps status={s.season.status} />}
+          </div>
+
+          {/* Needs your attention */}
+          <Section title="Needs your attention" count={!loading && attention.length ? `${attention.length} ${attention.length === 1 ? "item" : "items"}` : null}>
             {loading ? (
-              <Skeleton className="h-20 w-full" />
+              <Bone className="h-28" />
             ) : attention.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing needs your attention right now.</p>
+              <CalmCard className="flex items-center gap-3">
+                <span className="size-2 shrink-0 rounded-full bg-[var(--calm-accent)]" />
+                <span className="text-[15px] text-[var(--calm-muted)]">Nothing needs your attention right now.</span>
+              </CalmCard>
             ) : (
-              <div className="divide-y rounded-lg border">
+              <div className="divide-y divide-[var(--calm-border)] overflow-hidden rounded-xl border border-[var(--calm-border)] bg-[var(--calm-card)]">
                 {attention.map((a, i) => (
-                  <div key={i} className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3">
+                  <div key={i} className="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4">
                     <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <span className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md", TONE[a.tone])}>
-                        <a.Icon className="size-4" />
-                      </span>
-                      <p className="text-sm">{a.text}</p>
+                      <span className={cn("mt-[7px] size-2 shrink-0 rounded-full", DOT[a.tone])} />
+                      <p className="text-[15px] leading-snug">{a.text}</p>
                     </div>
-                    <Button size="sm" variant="outline" className="self-start sm:self-auto" onClick={() => navigate(a.to)}>
-                      {a.cta} <ArrowRight />
-                    </Button>
+                    <div className="pl-5 sm:pl-0">
+                      <GoLink onClick={() => navigate(a.to)}>{a.cta}</GoLink>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </Section>
 
-        {/* The four numbers that actually move */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile loading={loading} label="Teams verified" value={ts ? `${ts.verified}/${s.teams}` : ""} sub={ts ? `${ts.review} under review · ${ts.draft} draft` : ""} Icon={ShieldCheck} tone="green" />
-          <StatTile loading={loading} label="Players eligible" value={players ? `${players.eligible}/${players.total}` : ""} sub="roster entries" Icon={Users2} tone="blue" />
-          <StatTile loading={loading} label="Barangays cleared" value={bp ? `${bp.cleared}/${bp.total}` : ""} sub="verified in every sport" Icon={Building2} tone="violet" />
-          <StatTile loading={loading} label="Matches played" value={m ? `${m.completed}/${m.total}` : ""} sub={m ? `${m.live} live now` : ""} Icon={Trophy} tone="amber" />
-        </div>
+          {/* At a glance */}
+          <Section title="At a glance" count={s?.season ? "this season" : null}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {tiles.map((t) => (
+                loading ? <Bone key={t.label} className="h-[104px]" /> : (
+                  <CalmCard key={t.label} onClick={() => navigate(t.to)}>
+                    <p className="text-[15px] font-medium text-[var(--calm-muted)]">{t.label}</p>
+                    <p className="mt-1 text-[26px] font-semibold leading-tight tracking-tight tabular-nums">{t.value || "0"}</p>
+                    <p className="mt-1 text-[14px] text-[var(--calm-muted)]">{t.meta || " "}</p>
+                  </CalmCard>
+                )
+              ))}
+            </div>
+          </Section>
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          {/* Left: where registration stands, then today's games */}
-          <div className="space-y-5 min-w-0">
           {/* Registration */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Registration</CardTitle>
-              <CardDescription>How far teams and barangays have got.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {loading ? (
-                <Skeleton className="h-32 w-full" />
-              ) : !s?.season ? (
-                <Empty>No season yet.</Empty>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Teams · {s.teams} registered</p>
-                    <StackedBar parts={[
-                      { label: "Verified", value: ts.verified, cls: "bg-green-500" },
-                      { label: "Under review", value: ts.review, cls: "bg-blue-500" },
-                      { label: "Draft", value: ts.draft, cls: "bg-amber-400" },
-                    ]} />
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span><span className="mr-1 inline-block size-2 rounded-full bg-green-500" />{ts.verified} verified</span>
-                      <span><span className="mr-1 inline-block size-2 rounded-full bg-blue-500" />{ts.review} under review</span>
-                      <span><span className="mr-1 inline-block size-2 rounded-full bg-amber-400" />{ts.draft} draft</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Barangays · {bp.total} in the league</p>
-                    <StackedBar parts={[
-                      { label: "Cleared", value: bp.cleared, cls: "bg-green-500" },
-                      { label: "In progress", value: bp.inProgress, cls: "bg-blue-500" },
-                    ]} />
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span><span className="mr-1 inline-block size-2 rounded-full bg-green-500" />{bp.cleared} cleared</span>
-                      <span><span className="mr-1 inline-block size-2 rounded-full bg-blue-500" />{bp.inProgress} in progress</span>
-                      <span><span className="mr-1 inline-block size-2 rounded-full bg-muted-foreground/40" />{bp.notStarted} not started</span>
-                    </div>
-                    {bp.notStarted > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">Not started:</span>{" "}
-                        {bp.notStartedNames.join(", ")}
-                        {bp.notStarted > bp.notStartedNames.length ? ` and ${bp.notStarted - bp.notStartedNames.length} more` : ""}
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <Section title="Registration" count={!loading && s?.season ? `${fmt(s.teams)} teams · ${fmt(bp?.total)} barangays` : null}>
+            {loading ? (
+              <div className="grid gap-3 md:grid-cols-2"><Bone className="h-32" /><Bone className="h-32" /></div>
+            ) : !s?.season ? (
+              <p className="text-[15px] text-[var(--calm-muted)]">No season yet.</p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                <CalmCard>
+                  <p className="text-[17px] font-semibold">Teams</p>
+                  <p className="text-[14px] italic text-[var(--calm-muted)]">{fmt(s.teams)} registered</p>
+                  <Bar parts={[
+                    { label: "Verified", value: ts.verified, cls: "bg-[var(--calm-accent)]" },
+                    { label: "Under review", value: ts.review, cls: "bg-[var(--calm-accent)]/45" },
+                    { label: "Draft", value: ts.draft, cls: "bg-[var(--calm-faint)]/50" },
+                  ]} />
+                  <p className="mt-3 text-[15px]">
+                    {fmt(ts.verified)} verified <span className="text-[var(--calm-faint)]">·</span> {fmt(ts.review)} under review{" "}
+                    <span className="text-[var(--calm-faint)]">·</span> {fmt(ts.draft)} draft
+                  </p>
+                </CalmCard>
+                <CalmCard>
+                  <p className="text-[17px] font-semibold">Barangays</p>
+                  <p className="text-[14px] italic text-[var(--calm-muted)]">{fmt(bp.total)} in the league</p>
+                  <Bar parts={[
+                    { label: "Cleared", value: bp.cleared, cls: "bg-[var(--calm-accent)]" },
+                    { label: "In progress", value: bp.inProgress, cls: "bg-[var(--calm-accent)]/45" },
+                  ]} />
+                  <p className="mt-3 text-[15px]">
+                    {fmt(bp.cleared)} cleared <span className="text-[var(--calm-faint)]">·</span> {fmt(bp.inProgress)} in progress{" "}
+                    <span className="text-[var(--calm-faint)]">·</span> {fmt(bp.notStarted)} not started
+                  </p>
+                  {bp.notStarted > 0 && (
+                    <p className="mt-1.5 text-[14px] text-[var(--calm-muted)]">
+                      Not started: {bp.notStartedNames.join(", ")}
+                      {bp.notStarted > bp.notStartedNames.length ? ` and ${bp.notStarted - bp.notStartedNames.length} more` : ""}
+                    </p>
+                  )}
+                </CalmCard>
+              </div>
+            )}
+          </Section>
 
           {/* Today's games */}
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Today's games
-                {!loading && <span className="font-normal text-sm text-muted-foreground ml-1.5">({todayMatches.length})</span>}
-              </CardTitle>
-              <CardDescription>Player headcount across the league today.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className="h-40 w-full rounded-lg" />
-              ) : todayMatches.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Nothing scheduled for today.</p>
-              ) : (
-                <Carousel opts={{ align: "start" }}>
-                  <div className="flex justify-end mb-2">
-                    <CarouselNav />
-                  </div>
-                  <CarouselContent>
-                    {todayMatches.map((g) => (
-                      <CarouselItem key={g.id} className="sm:basis-1/2">
-                        <GameSlide m={g} />
-                      </CarouselItem>
-                    ))}
-                  </CarouselContent>
-                </Carousel>
-              )}
-            </CardContent>
-          </Card>
-          </div>
+          <Section title="Today's games" count={!loading ? `${todayMatches.length} ${todayMatches.length === 1 ? "game" : "games"}` : null}>
+            {loading ? (
+              <Bone className="h-32" />
+            ) : todayMatches.length === 0 ? (
+              <p className="text-[15px] text-[var(--calm-muted)]">Nothing scheduled for today.</p>
+            ) : (
+              <div className="divide-y divide-[var(--calm-border)] overflow-hidden rounded-xl border border-[var(--calm-border)] bg-[var(--calm-card)]">
+                {todayMatches.map((g) => {
+                  const live = g.status === "ongoing";
+                  const done = g.status === "completed" || g.status === "forfeited";
+                  return (
+                    <div key={g.id} className="grid grid-cols-[4.5rem_1fr] items-center gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[5.5rem_1fr_auto]">
+                      <span className="text-[15px] font-medium tabular-nums">
+                        {live ? (
+                          <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
+                            <span className="size-1.5 rounded-full bg-current" /> Live
+                          </span>
+                        ) : done ? <span className="text-[var(--calm-muted)]">Final</span> : timeOf(g.schedule)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-[15px] font-medium">
+                          {g.teamA} <span className="font-normal text-[var(--calm-faint)]">vs</span> {g.teamB}
+                        </p>
+                        <p className="truncate text-[13px] text-[var(--calm-muted)]">
+                          {[g.sport, g.venue].filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                      <span className="col-start-2 text-[13px] text-[var(--calm-muted)] sm:col-start-auto sm:text-right">
+                        {fmt(g.players)} player{g.players === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
 
           {/* Competition */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Competition</CardTitle>
-              <CardDescription>Verified teams and bracket progress, by sport.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className="h-32 w-full" />
-              ) : !s?.sportsProgress?.length ? (
-                <Empty>No sports configured yet.</Empty>
-              ) : (
-                <div className="divide-y rounded-lg border">
-                  {s.sportsProgress.map((sp) => (
-                    <div key={sp.id} className="space-y-1.5 px-3 py-2.5">
-                      <p className="text-sm font-medium">{sp.name}</p>
+          <Section title="Competition" count={!loading && s?.sportsProgress?.length ? `${s.sportsProgress.length} sports` : null}>
+            {loading ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Bone className="h-36" /><Bone className="h-36" /><Bone className="h-36" /></div>
+            ) : !s?.sportsProgress?.length ? (
+              <p className="text-[15px] text-[var(--calm-muted)]">No sports configured yet.</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {s.sportsProgress.map((sp) => (
+                  <CalmCard key={sp.id} onClick={() => navigate(`/admin/tournaments/${sp.id}`)}>
+                    <p className="text-[17px] font-semibold">{sp.name}</p>
+                    <div className="mt-2 space-y-2.5">
                       {sp.divisions.map((d) => {
-                        const pct = d.tournament?.total ? Math.round((d.tournament.completed / d.tournament.total) * 100) : 0;
+                        const t = d.tournament;
+                        const pct = t?.total ? Math.round((t.completed / t.total) * 100) : 0;
                         return (
-                          <div key={d.division} className="grid grid-cols-[5.5rem_1fr] items-center gap-x-3 gap-y-0.5 text-xs sm:grid-cols-[6.5rem_1fr]">
-                            <span className="text-muted-foreground">{divisionLabel(d.division) || "Open"}</span>
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-                                <span>{d.verifiedTeams} verified team{d.verifiedTeams === 1 ? "" : "s"}</span>
-                                <span className="text-muted-foreground">
-                                  {d.tournament
-                                    ? `${STAGE_LABEL[d.tournament.stage] || d.tournament.stage} · ${d.tournament.completed}/${d.tournament.total}`
-                                    : "No bracket yet"}
-                                </span>
+                          <div key={d.division}>
+                            <p className="text-[14px] italic text-[var(--calm-muted)]">{divisionLabel(d.division) || "Open"}</p>
+                            <p className="text-[15px]">
+                              {fmt(d.verifiedTeams)} team{d.verifiedTeams === 1 ? "" : "s"}{" "}
+                              <span className="text-[var(--calm-faint)]">·</span>{" "}
+                              {t ? `${STAGE_LABEL[t.stage] || t.stage}, ${fmt(t.completed)} of ${fmt(t.total)} played` : <span className="text-[var(--calm-muted)]">no bracket yet</span>}
+                            </p>
+                            {t && (
+                              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--calm-track)]">
+                                <div className="h-full rounded-full bg-[var(--calm-accent)]" style={{ width: `${pct}%` }} />
                               </div>
-                              {d.tournament && <Progress className="mt-1" value={pct} />}
-                            </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                  </CalmCard>
+                ))}
+              </div>
+            )}
+          </Section>
 
-        {/* The counts that rarely change, kept small */}
-        {!loading && s && (
-          <p className="text-xs text-muted-foreground">
-            {s.barangays} barangays · {s.sports} sports · {s.accounts?.barangayAdmins} barangay admins ·{" "}
-            {s.accounts?.organizers} organizers
-            {s.referenceList ? ` · ${s.referenceList.count.toLocaleString()} residents on the reference list` : ""}
-          </p>
-        )}
+          {/* The counts that rarely change, kept small */}
+          {!loading && s && (
+            <p className="mt-10 border-t border-[var(--calm-border)] pt-4 text-[13px] text-[var(--calm-faint)]">
+              {fmt(s.barangays)} barangays · {fmt(s.sports)} sports · {fmt(s.accounts?.barangayAdmins)} barangay admins ·{" "}
+              {fmt(s.accounts?.organizers)} organizers
+              {s.referenceList ? ` · ${fmt(s.referenceList.count)} residents on the reference list` : ""}
+            </p>
+          )}
+        </div>
       </div>
     </AdminLayout>
   );

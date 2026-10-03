@@ -93,8 +93,8 @@ export default function Champions() {
 
   return (
     <>
-      <h1 className="text-slate-100 text-[28px] font-semibold tracking-tight mb-1">Champions</h1>
-      <p className="text-slate-400 text-[15px] mb-4">
+      <h1 className="text-slate-50 text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight mb-1.5">Champions</h1>
+      <p className="text-slate-400 text-[16px] sm:text-[17px] mb-6">
         {loading ? " " : "Which barangay has won the most? Tap a name to see its titles."}
       </p>
 
@@ -105,7 +105,7 @@ export default function Champions() {
       {loading ? (
         <PhotoRowSkeleton rows={2} />
       ) : shown.length === 0 ? (
-        <Panel empty="No champions recorded yet." />
+        <Panel emptyTitle="No champions recorded yet" emptyIcon="trophy" empty="Past winners appear here once the SK Federation records them." />
       ) : (
         <>
           <Reveal>

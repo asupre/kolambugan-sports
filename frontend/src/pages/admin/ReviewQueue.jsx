@@ -312,7 +312,7 @@ function TeamTable({ teams, openTeam, onToggle, status, detail }) {
             <th className="hidden px-4 py-2.5 font-medium md:table-cell">Barangay</th>
             <th className="hidden px-4 py-2.5 font-medium md:table-cell">Sport</th>
             <th className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">Players</th>
-            <th className="px-4 py-2.5 font-medium">Screening</th>
+            <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Screening</th>
             {clickable && <th className="w-10 px-2 py-2.5"><span className="sr-only">Open</span></th>}
           </tr>
         </thead>
@@ -340,11 +340,12 @@ function TeamTable({ teams, openTeam, onToggle, status, detail }) {
                     <p className="text-[13px] text-muted-foreground md:hidden">
                       {t.barangay} · {t.sport}{t.playerCount != null ? ` · ${t.playerCount} players` : ""}
                     </p>
+                    <div className="mt-2 sm:hidden">{status(t)}</div>
                   </td>
                   <td className="hidden px-4 py-3 text-[15px] md:table-cell">{t.barangay}</td>
                   <td className="hidden px-4 py-3 text-[15px] md:table-cell">{t.sport}</td>
                   <td className="hidden px-4 py-3 text-right text-[15px] tabular-nums sm:table-cell">{t.playerCount ?? ""}</td>
-                  <td className="px-4 py-3">{status(t)}</td>
+                  <td className="hidden px-4 py-3 sm:table-cell">{status(t)}</td>
                   {clickable && (
                     <td className="px-2 py-3 text-muted-foreground">
                       {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
@@ -654,10 +655,10 @@ export default function ReviewQueue() {
               keeps the old chips' colour code as a pill: red = teams waiting for a verdict,
               green = cleared, grey = partway / nothing yet. "Details" explains the colours. */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-[15px] font-medium">Barangay</span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="order-1 text-[15px] font-medium">Barangay</span>
               <Select value={selectedBarangay ?? "all"} onValueChange={(v) => { setSelectedBarangay(v === "all" ? null : v); setOpenTeam(null); }}>
-                <SelectTrigger className="w-full sm:w-80"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="order-3 w-full basis-full sm:order-2 sm:w-80 sm:basis-auto"><SelectValue /></SelectTrigger>
                 {/* Always opens BELOW the box (Oct 2026: with collision flipping it often opened upward on a
                     laptop screen); the list shrinks to the room left below and scrolls inside. */}
                 <SelectContent position="popper" side="bottom" avoidCollisions={false} className="max-h-[min(20rem,var(--radix-select-content-available-height))]">
@@ -679,7 +680,7 @@ export default function ReviewQueue() {
                   ))}
                 </SelectContent>
               </Select>
-              <InfoHint summary="" label="Details">
+              <InfoHint summary="" label="Details" className="order-2 ml-auto sm:order-3 sm:ml-0">
                 <p><span className="font-medium text-red-600 dark:text-red-400">Red</span>: teams waiting for your verdict.</p>
                 <p className="mt-1"><span className="font-medium text-green-600 dark:text-green-400">Green</span>: cleared, a verified team in every sport and division this season.</p>
                 <p className="mt-1"><span className="font-medium text-foreground">Grey</span>: partway there (verified slots out of the total) with nothing pending, or nothing submitted yet.</p>

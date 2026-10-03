@@ -1573,6 +1573,17 @@ accent, one big title + one plain subtitle per page, sections headed on the page
   the waves) — with the gold `/medals/trophy.png` centred above it. A minimalist redesign without
   the waves was tried and rejected ("I like the older one that has the animations").
 
+- **Set a new password** (`ChangePassword.jsx`, first login) uses the calm look too: it adds
+  `calm-theme` itself (no AdminLayout there), header strip with the logo, big title + subtitle
+  ("Signed in as <username>"), one card with shadcn `Label` / `PasswordInput` / `Button`. Logic
+  and the InstructionModal afterwards are unchanged.
+- **Phone fixes (Oct 3 2026, every admin page scanned at 390px for sideways overflow: none).** The
+  five-step season trackers (`SeasonTracker` in `SeasonStatus.jsx`, `SeasonSteps` on the Super
+  Admin Dashboard) hide their step labels below `sm` (they overlapped) and show one line instead,
+  "Step N of 5 · Label". Review Queue: the Barangay dropdown takes the full width on phones with
+  "Details" above it, and the team tables drop the Screening column below `sm` (status shown under
+  the team name).
+
 **Admin performance (Oct 3 2026, measured: headless Edge, 4x CPU, phone + desktop, prod build
 vs local).** Keep these:
 - No `:has()` in the calm CSS (see above).

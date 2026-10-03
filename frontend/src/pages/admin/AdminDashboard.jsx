@@ -165,7 +165,7 @@ function SeasonSteps({ status }) {
           <li key={st.key} className="min-w-0">
             <div className={cn("h-1 rounded-full", done || now ? "bg-[var(--calm-accent)]" : "bg-[var(--calm-track)]")} />
             <p className={cn(
-              "mt-2 truncate text-[12px] sm:text-[14px]",
+              "mt-2 hidden truncate text-[14px] sm:block",
               now ? "font-semibold text-[var(--calm-ink)]" : done ? "text-[var(--calm-muted)]" : "text-[var(--calm-faint)]"
             )}>
               {st.label}
@@ -174,6 +174,17 @@ function SeasonSteps({ status }) {
         );
       })}
     </ol>
+  );
+}
+
+// Phones: the five labels are cut off ("Registrati…"), so one line under the bar instead.
+function SeasonStepLine({ status }) {
+  const at = SEASON_STAGES.findIndex((s) => s.key === status);
+  if (at < 0) return null;
+  return (
+    <p className="mt-2 text-[14px] font-semibold sm:hidden">
+      Step {at + 1} of {SEASON_STAGES.length} · {SEASON_STAGES[at].label}
+    </p>
   );
 }
 
@@ -230,7 +241,7 @@ export default function AdminDashboard() {
         <div>
           {/* Season progress */}
           <div>
-            {loading ? <Bone className="h-10" /> : s?.season && <SeasonSteps status={s.season.status} />}
+            {loading ? <Bone className="h-10" /> : s?.season && <><SeasonSteps status={s.season.status} /><SeasonStepLine status={s.season.status} /></>}
           </div>
 
           {/* Needs your attention */}

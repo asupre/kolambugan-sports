@@ -3706,3 +3706,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   get that choice; every other game is one team per barangay per division. League Setup can now
   change a game's draw format (step 2), registering a team asks for the division explicitly, and
   the server refuses a division the sport doesn't run.
+
+## 2026-10-03 — Session: phone fixes, calm Set-a-new-password page
+
+- Mobile pass over all admin pages at 390px: season step labels replaced by a "Step N of 5" line
+  on phones (Barangay Admin / Organizer tracker and Super Admin Dashboard); Review Queue toolbar
+  and team tables rearranged for phones. No page scrolls sideways.
+- The first-login "Set a new password" page moved to the calm admin look (green, Figtree, shadcn
+  form controls). Behaviour unchanged.

@@ -88,13 +88,18 @@ export function SeasonTracker({ status, role, name }) {
               >
                 {done ? <Check className="size-3.5" /> : i + 1}
               </span>
-              <span className={cn("text-[11px] leading-tight sm:text-xs", current ? "font-semibold text-foreground" : "text-muted-foreground")}>
+              {/* Phones: five labels don't fit (they ran together, "RegistrationVerification"), so
+                  only the circles show there and one "Step N of 5" line follows the tracker. */}
+              <span className={cn("hidden text-xs leading-tight sm:block", current ? "font-semibold text-foreground" : "text-muted-foreground")}>
                 {s.label}
               </span>
             </li>
           );
         })}
       </ol>
+      <p className="text-[13px] font-semibold sm:hidden">
+        Step {at + 1} of {SEASON_STAGES.length} · {stage.label}
+      </p>
 
       <p className="text-sm text-muted-foreground">{GUIDE[role]?.[status] || stage.short}</p>
     </div>

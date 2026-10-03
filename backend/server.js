@@ -14,6 +14,7 @@ app.set('trust proxy', 1);
 // Middleware
 app.use(cors());               // allows the React frontend to call this API
 app.use(express.json());       // lets the server read JSON request bodies
+app.use(require('./src/middleware/noInjection').noInjection);  // refuses "$" / dotted keys (NoSQL injection)
 app.use('/api/auth', require('./src/routes/auth'));   // ✓ not './routes/auth'
 app.use('/api/seasons', require('./src/routes/season'));
 app.use('/api/teams', require('./src/routes/team'));

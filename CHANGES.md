@@ -3666,3 +3666,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
   slide animation half-way, the card sliding away still caught the tap, and the phone browser
   sometimes skipped the tap completely. Tested on an emulated phone: quick taps after a swipe went
   from 3 in 10 working to 10 in 10.
+- **NoSQL injection is now blocked on purpose** (Oct 3 2026). A small check runs before every
+  API route and refuses any request whose field names try to smuggle a database operator (a
+  name starting with "$" or containing "."), e.g. a login with `{"username": {"$ne": null}}`.
+  Before, these attacks failed only because of how individual routes happened to be written.
+  Normal input is unaffected: names like "Sto. Niño" are values, not field names. Tested against
+  every request the app sends.

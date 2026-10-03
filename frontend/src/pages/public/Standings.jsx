@@ -178,10 +178,10 @@ export default function Standings() {
                       <div
                         key={r.teamId}
                         className={`flex items-center px-4 py-3 border-b border-white/[0.07] last:border-0 ${
-                                                    marked ? "bg-[#FACC15]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : ""
+                                                    marked ? "bg-[#4ADE80]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : ""
                         }`}
                       >
-                        <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#FACC15]" : "text-slate-600"}`}>
+                        <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#4ADE80]" : "text-slate-600"}`}>
                           {seed ?? i + 1}
                         </span>
                         <div className="flex-1 min-w-0 flex items-center gap-2.5">

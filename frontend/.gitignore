@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local-only banner preview image (copyrighted art, never ship)
+public/banner.jpg

@@ -19,7 +19,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 const power3Out = (t) => 1 - Math.pow(1 - t, 3);
-const DOT_ON = "w-5 bg-[#FACC15]";
+const DOT_ON = "w-5 bg-[#4ADE80]";
 const DOT_OFF = "w-[7px] bg-white/30 hover:bg-white/60";
 
 export default function DepthCarousel({
@@ -342,14 +342,14 @@ export default function DepthCarousel({
     clearTimeout(wheelTimerRef.current);
   }, []);
 
-  const arrow = "absolute top-1/2 z-[3000] grid h-9 w-9 sm:h-10 sm:w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[#0B1626]/70 text-slate-100 transition hover:border-[#FACC15]/60 hover:text-[#FACC15] active:scale-95 disabled:opacity-30 disabled:pointer-events-none";
+  const arrow = "absolute top-1/2 z-[3000] grid h-9 w-9 sm:h-10 sm:w-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[#0A0C0B]/70 text-slate-100 transition hover:border-[#4ADE80]/60 hover:text-[#4ADE80] active:scale-95 disabled:opacity-30 disabled:pointer-events-none";
   const atStart = !looping && edgeIdx === 0;
   const atEnd = !looping && edgeIdx === count - 1;
 
   return (
     <div
       ref={rootRef}
-      className={`relative w-full cursor-grab touch-pan-y select-none outline-none active:cursor-grabbing focus-visible:rounded-xl focus-visible:outline-2 focus-visible:outline-[#FACC15]/60 ${className}`.trim()}
+      className={`relative w-full cursor-grab touch-pan-y select-none outline-none active:cursor-grabbing focus-visible:rounded-xl focus-visible:outline-2 focus-visible:outline-[#4ADE80]/60 ${className}`.trim()}
       style={{ perspective: `${perspective}px`, height: cardHeight + (showIndicators && count > 1 ? 56 : 24) }}
       role="group"
       aria-roledescription="carousel"
@@ -373,7 +373,7 @@ export default function DepthCarousel({
           <div
             key={getKey(item, i)}
             ref={(el) => { cardRefs.current[i] = el; }}
-            className={`absolute left-1/2 top-1/2 overflow-hidden bg-[#0B1626] [transform-origin:center]`}
+            className={`absolute left-1/2 top-1/2 overflow-hidden bg-[#0A0C0B] [transform-origin:center]`}
             style={{ width: cardWidth, height: cardHeight, borderRadius: radius, transform: "translate3d(-50%,-50%,0)" }}
             aria-roledescription="slide"
             aria-label={`${i + 1} of ${count}`}

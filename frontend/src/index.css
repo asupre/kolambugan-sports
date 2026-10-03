@@ -250,11 +250,11 @@
     background: transparent;
   }
   .scrollbar-public::-webkit-scrollbar-thumb {
-    background-color: #2E4466;
+    background-color: #303A34;
     border-radius: 9999px;
   }
   .scrollbar-public::-webkit-scrollbar-thumb:hover {
-    background-color: #FACC15;
+    background-color: #4ADE80;
   }
   /* Swipeable tab rows on the public site: still scrolls, no bar. */
   .scrollbar-none {
@@ -542,3 +542,26 @@
   border-radius: 14px;
   padding: 1.25rem;
 }
+
+/* BANNER look (Oct 3 2026 preview; Super Admin pages only: AdminLayout adds .calm-fit to <html>).
+   From a fitness-dashboard reference: a white sidebar with icons, the current page as a solid
+   green pill, and the Dashboard's picture banner. Colours otherwise = the calm look. */
+:root.calm-fit:not(.dark) {
+  /* Page, cards and green stay the calm look's (the pale-green / slate version was "too pale"). */
+  --sidebar: #FFFFFF;
+  --sidebar-accent: #F1EFE8;
+  --sidebar-border: #E8E4DA;
+}
+/* The current page in the sidebar: a solid green pill, white text. */
+:root.calm-fit:not(.dark) aside [aria-current="page"] {
+  background: var(--primary);
+  color: #FFFFFF;
+}
+/* Fields read as white boxes on the page, like the reference. */
+:root.calm-fit:not(.dark) main [data-slot="input"],
+:root.calm-fit:not(.dark) main [data-slot="select-trigger"],
+:root.calm-fit:not(.dark) main textarea {
+  background: #FFFFFF;
+}
+/* The menu's scroll-edge fade must fade into the white sidebar, not the page colour. */
+:root.calm-fit aside .scroll-shadow-y { --scroll-shadow-bg: var(--sidebar); }

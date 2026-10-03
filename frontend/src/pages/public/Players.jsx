@@ -58,10 +58,10 @@ function PlayerCard({ p, teamId }) {
         onClick={onClick}
         draggable={false}
         aria-label={flipped ? `${name}: open full stats on the team page` : `${name}: show season stats`}
-        className={`group relative block h-full w-full rounded-[14px] text-left outline-none [transform-style:preserve-3d] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] focus-visible:ring-2 focus-visible:ring-[#FACC15]/60 ${flipped ? "[transform:rotateY(180deg)]" : ""}`}
+        className={`group relative block h-full w-full rounded-[14px] text-left outline-none [transform-style:preserve-3d] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] focus-visible:ring-2 focus-visible:ring-[#4ADE80]/60 ${flipped ? "[transform:rotateY(180deg)]" : ""}`}
       >
         {/* FRONT */}
-        <div className={`${FACE} border border-white/[0.12] group-hover:border-[#FACC15]/50 transition-colors`}>
+        <div className={`${FACE} border border-white/[0.12] group-hover:border-[#4ADE80]/50 transition-colors`}>
           {show ? (
             <img
               src={playerPhotoUrl(p.id)}
@@ -70,24 +70,24 @@ function PlayerCard({ p, teamId }) {
               decoding="async"
               draggable={false}
               onError={() => setFailed(true)}
-              className="absolute inset-0 h-full w-full object-cover bg-[#22344F]"
+              className="absolute inset-0 h-full w-full object-cover bg-[#242C27]"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center pb-20 bg-gradient-to-br from-[#1E3A5F] via-[#172840] to-[#0E2340]">
+            <div className="absolute inset-0 flex items-center justify-center pb-20 bg-gradient-to-br from-[#1E3A5F] via-[#161B18] to-[#0C1A12]">
               <span className="text-white/25 text-[64px] font-bold tracking-tight" style={ANTON}>
                 {initials(name) || "?"}
               </span>
             </div>
           )}
           {mvps > 0 && (
-            <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full border border-[#FACC15]/50 bg-black/55 px-2 py-0.5 text-[12px] font-bold text-[#FACC15]">
+            <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full border border-[#4ADE80]/50 bg-black/55 px-2 py-0.5 text-[12px] font-bold text-[#4ADE80]">
               <StarIcon /> {mvps > 1 ? `MVP ×${mvps}` : "MVP"}
             </span>
           )}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3.5 pt-14 pb-3.5">
             <div className="flex items-baseline gap-2 min-w-0">
               {p.jerseyNumber != null && (
-                <span className="text-[#FACC15] text-[22px] leading-none tabular-nums shrink-0" style={ANTON}>
+                <span className="text-[#4ADE80] text-[22px] leading-none tabular-nums shrink-0" style={ANTON}>
                   {p.jerseyNumber}
                 </span>
               )}
@@ -105,23 +105,23 @@ function PlayerCard({ p, teamId }) {
         </div>
 
         {/* BACK */}
-        <div className={`${FACE} [transform:rotateY(180deg)] flex flex-col border border-[#FACC15]/40 bg-gradient-to-b from-[#1A2E4C] via-[#122036] to-[#0B1626] p-4`}>
+        <div className={`${FACE} [transform:rotateY(180deg)] flex flex-col border border-[#4ADE80]/40 bg-gradient-to-b from-[#1A2E4C] via-[#111513] to-[#0A0C0B] p-4`}>
           <div className="flex items-baseline gap-2 min-w-0">
             {p.jerseyNumber != null && (
-              <span className="text-[#FACC15] text-[26px] leading-none tabular-nums shrink-0" style={ANTON}>{p.jerseyNumber}</span>
+              <span className="text-[#4ADE80] text-[26px] leading-none tabular-nums shrink-0" style={ANTON}>{p.jerseyNumber}</span>
             )}
             <div className="min-w-0">
               <div className="text-white text-[19px] font-bold uppercase leading-tight truncate">{p.lastName}</div>
               <div className="text-slate-300 text-[14px] truncate">{p.firstName}</div>
             </div>
           </div>
-          <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-[#FACC15]">This season</p>
+          <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-[#4ADE80]">This season</p>
           <div className="mt-2 grid grid-cols-1 gap-2">
             <StatBlock value={games} label="Games played" />
             <StatBlock value={points} label="Points" />
             <StatBlock value={mvps} label={mvps === 1 ? "MVP award" : "MVP awards"} />
           </div>
-          <span className="mt-auto pt-3 text-center text-[13px] font-medium text-[#FACC15]">
+          <span className="mt-auto pt-3 text-center text-[13px] font-medium text-[#4ADE80]">
             Tap for full stats →
           </span>
         </div>
@@ -156,7 +156,7 @@ function TeamRow({ t }) {
             />
           </Reveal>
           <div className="px-4 sm:px-5 py-3.5 border-t border-white/[0.08]">
-            <Link to={`/teams/${t.id}`} className="text-[#FACC15] text-[14px] font-medium hover:underline">
+            <Link to={`/teams/${t.id}`} className="text-[#4ADE80] text-[14px] font-medium hover:underline">
               Team page →
             </Link>
           </div>

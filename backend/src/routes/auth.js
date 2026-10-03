@@ -118,7 +118,7 @@ router.post('/change-password', authenticate, async (req, res) => {
 // set yet" and prompt Super Admins who haven't made one.
 router.get('/profile', authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('username role recoveryCodeSetAt photo');
+    const user = await User.findById(req.user.id).select('username role recoveryCodeSetAt photo banner');
     if (!user) return res.status(404).json({ message: 'Account not found.' });
     res.json({
       username: user.username,
@@ -126,6 +126,7 @@ router.get('/profile', authenticate, async (req, res) => {
       hasRecoveryCode: !!user.recoveryCodeSetAt,
       recoveryCodeSetAt: user.recoveryCodeSetAt,
       hasPhoto: !!user.photo,
+      hasBanner: !!user.banner,
     });
   } catch (err) {
     console.error('Profile error:', err);
@@ -187,6 +188,52 @@ router.get('/users/:id/photo', async (req, res) => {
     await sendFile('photos', user.photo, res);
   } catch (err) {
     console.error('Profile photo fetch error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// Dashboard banner picture (Oct 2026): the "Hello" banner on each role's own Dashboard.
+// Upload / replace / remove your OWN; served publicly like a profile picture (it's decoration,
+// nothing private). Same 'photos' bucket and upload limits as the profile picture.
+router.post('/profile/banner', authenticate, uploadPhoto.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No picture uploaded.' });
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    const old = user.banner;
+    user.banner = await putFile('photos', req.file.buffer, `banner-${user._id}`, req.file.mimetype, { user: String(user._id), kind: 'banner' });
+    await user.save();
+    if (old) await deleteFile('photos', old);
+    res.status(201).json({ message: 'Banner picture saved.' });
+  } catch (err) {
+    console.error('Banner upload error:', err);
+    res.status(400).json({ message: err.message || 'Could not upload the picture.' });
+  }
+});
+
+router.delete('/profile/banner', authenticate, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    if (user.banner) {
+      await deleteFile('photos', user.banner);
+      user.banner = null;
+      await user.save();
+    }
+    res.json({ message: 'Banner picture removed.' });
+  } catch (err) {
+    console.error('Banner delete error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+router.get('/users/:id/banner', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('banner');
+    if (!user || !user.banner) return res.status(404).json({ message: 'No banner.' });
+    await sendFile('photos', user.banner, res);
+  } catch (err) {
+    console.error('Banner fetch error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

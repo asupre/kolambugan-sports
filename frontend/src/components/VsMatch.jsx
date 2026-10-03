@@ -27,12 +27,12 @@ function Banner({ team, side, tone, info }) {
   const empty = !team;
   const lose = tone === "lose";
   const bg = empty
-    ? "bg-[#172840]"
+    ? "bg-[#161B18]"
     : lose
     ? "bg-gradient-to-r from-[#334155] to-[#283447]"
     : right
-    ? "bg-gradient-to-l from-[#1D4ED8] to-[#3B82F6]"
-    : "bg-gradient-to-r from-[#1D4ED8] to-[#3B82F6]";
+    ? "bg-gradient-to-l from-[#15803D] to-[#22C55E]"
+    : "bg-gradient-to-r from-[#15803D] to-[#22C55E]";
   return (
     <div className="flex-1 min-w-0" style={{ clipPath: CLIP[side] }}>
       <div className={`${bg} ${right ? "pl-4 sm:pl-6 pr-2 sm:pr-3 text-right" : "pl-2 sm:pl-3 pr-4 sm:pr-6"} py-2 sm:py-2.5`}>
@@ -43,7 +43,7 @@ function Banner({ team, side, tone, info }) {
         </div>
       </div>
       <div className={`${right ? "pl-6 pr-3 text-right" : "pl-3 pr-6"} h-1 sm:h-auto sm:py-0.5 text-[0px] sm:text-[10px] font-bold uppercase tracking-wider truncate ${
-        empty ? "bg-[#22344F] text-slate-500" : lose ? "bg-slate-500/50 text-slate-200" : "bg-slate-100 text-[#0B1626]"
+        empty ? "bg-[#242C27] text-slate-500" : lose ? "bg-slate-500/50 text-slate-200" : "bg-slate-100 text-[#0A0C0B]"
       }`}>
         {info || " "}
       </div>
@@ -62,10 +62,10 @@ function Side({ team, side, tone, info }) {
             <Crest name={team.name} barangayId={team.barangayId} variant="cover" coverText={14} />
           </div>
         ) : (
-          <span className="block size-[38px] sm:size-[56px] rounded-lg border border-dashed border-[#2E4466]" />
+          <span className="block size-[38px] sm:size-[56px] rounded-lg border border-dashed border-[#303A34]" />
         )}
         {tone === "win" && (
-          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded px-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-[#0B1626]">
+          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded px-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-[#0A0C0B]">
             Won
           </span>
         )}
@@ -126,14 +126,14 @@ function VsMatchRowImpl({ m, showDate = true }) {
               {m.status === "forfeited" ? "Forfeit" : "Final"}{showDate && date ? ` · ${date}` : ""}
             </span>
           ) : (
-            <span className="text-[#FACC15]">{showDate && date ? date : "VS"}</span>
+            <span className="text-[#4ADE80]">{showDate && date ? date : "VS"}</span>
           )}
         </div>
         {/* Venue under the VS (Super Admin request, Oct 2026). */}
         {/* Bold + a yellow pin so it reads at a glance (Super Admin, Oct 2026). */}
         {m.venue && (
           <div className="mt-1.5 flex items-start justify-center gap-1 max-w-[92px] sm:max-w-[170px] text-[11px] sm:text-[13px] font-bold leading-snug text-slate-100">
-            <svg aria-hidden="true" viewBox="0 0 24 24" className="mt-[1px] size-3 sm:size-3.5 shrink-0 fill-[#FACC15]">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="mt-[1px] size-3 sm:size-3.5 shrink-0 fill-[#4ADE80]">
               <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
             </svg>
             <span className="line-clamp-2 break-words">{m.venue}</span>

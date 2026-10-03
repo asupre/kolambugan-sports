@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Camera, Check, Copy, KeyRound, Loader2, ShieldAlert, Trash2, UserRound } from "lucide-react";
+import { Camera, Check, Copy, ImageIcon, KeyRound, Loader2, ShieldAlert, Trash2, UserRound } from "lucide-react";
 import { api } from "../api";
 import ImageCropDialog from "./ImageCropDialog";
 import { useConfirm } from "./ConfirmDialog";
@@ -297,6 +297,80 @@ function AvatarUpload({ userId, hasPhoto, onChanged }) {
   );
 }
 
+// "Dashboard banner" (Oct 2026): the picture behind "Hello, <name>" on this account's Dashboard.
+// Same upload / crop / remove pattern as the profile picture, cropped wide.
+function BannerUpload({ userId, hasBanner, onChanged }) {
+  const confirm = useConfirm();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [v, setV] = useState(Date.now());
+  const [pending, setPending] = useState(null);
+  const [imgError, setImgError] = useState(false);
+
+  async function uploadBlob(blob) {
+    setBusy(true); setError("");
+    try {
+      const fd = new FormData();
+      fd.append("photo", blob, "banner.jpg");
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/auth/profile/banner", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Upload failed.");
+      setPending(null); setImgError(false); setV(Date.now()); onChanged(true);
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function remove() {
+    if (!(await confirm("Remove your dashboard banner picture? The drawn landscape will show instead.", { danger: true, confirmLabel: "Remove" }))) return;
+    setBusy(true); setError("");
+    try {
+      await api("/api/auth/profile/banner", { method: "DELETE" });
+      setV(Date.now()); onChanged(false);
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  const showPic = hasBanner && !imgError;
+  return (
+    <div className="space-y-2.5">
+      <div>
+        <p className="flex items-center gap-2 font-medium"><ImageIcon className="size-4" /> Dashboard banner</p>
+        <p className="text-sm text-muted-foreground">The picture behind "Hello" on your Dashboard.</p>
+      </div>
+      <label className={cn("group relative block aspect-[4/1] w-full overflow-hidden rounded-xl border bg-muted", busy ? "cursor-wait" : "cursor-pointer")}>
+        {showPic ? (
+          <img src={`/api/auth/users/${userId}/banner?rev=${v}`} alt="" decoding="async" className="h-full w-full object-cover" onError={() => setImgError(true)} />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">No picture yet</div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/55 text-sm font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <><Camera className="size-4" /> {showPic ? "Change picture" : "Upload a picture"}</>}
+        </div>
+        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={busy}
+          onChange={(e) => { const f = e.target.files[0]; if (f) setPending(f); e.target.value = ""; }} />
+      </label>
+      {showPic && (
+        <Button size="sm" variant="outline" onClick={remove} disabled={busy} className="text-destructive hover:text-destructive">
+          <Trash2 /> Remove picture
+        </Button>
+      )}
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {pending && (
+        <ImageCropDialog
+          file={pending}
+          aspect={4}
+          maxWidth={1920}
+          title="Position your banner"
+          description="Drag to move, and use the slider to zoom. The left side sits behind the greeting."
+          onCancel={() => setPending(null)}
+          onSave={uploadBlob}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function ProfilePanel({ open, onOpenChange }) {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [profile, setProfile] = useState(null);
@@ -360,6 +434,13 @@ export default function ProfilePanel({ open, onOpenChange }) {
         </div>
 
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+
+        <Separator />
+        <BannerUpload
+          userId={user?.id}
+          hasBanner={!!profile?.hasBanner}
+          onChanged={(hasBanner) => setProfile((p) => ({ ...p, hasBanner }))}
+        />
 
         <Separator />
         <ChangePasswordSection />

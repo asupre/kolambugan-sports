@@ -54,7 +54,7 @@ function CompetitionBlock({ comp, list, showDate = false, initial = 4 }) {
       {list.length > initial && (
         <button
           onClick={() => setOpen(!open)}
-          className="mt-2.5 text-[14px] font-medium text-[#FACC15] hover:text-[#FDE047] transition"
+          className="mt-2.5 text-[14px] font-medium text-[#4ADE80] hover:text-[#86EFAC] transition"
         >
           {open ? "Show less" : `Show all ${list.length} games`}
         </button>
@@ -92,12 +92,12 @@ function Tabs({ tabs, value, onChange }) {
             aria-selected={on}
             onClick={() => onChange(t.value)}
             className={`flex items-center gap-2 shrink-0 rounded-md px-4 py-2 text-[15px] font-medium transition ${
-              on ? "bg-[#22344F] text-slate-50" : "text-slate-400 hover:text-slate-200"
+              on ? "bg-[#242C27] text-slate-50" : "text-slate-400 hover:text-slate-200"
             }`}
           >
             {t.live && <LiveDot />}
             {t.label}
-            <span className={`tabular-nums text-[13px] ${on ? "text-[#FACC15]" : "text-slate-500"}`}>{t.count}</span>
+            <span className={`tabular-nums text-[13px] ${on ? "text-[#4ADE80]" : "text-slate-500"}`}>{t.count}</span>
           </button>
         );
       })}
@@ -180,7 +180,7 @@ export default function Matches() {
       {blocks.length > daysShown && (
         <button
           onClick={() => setDaysShown((n) => n + DAYS_STEP)}
-          className="w-full rounded-xl border border-white/[0.12] bg-white/[0.05] py-3.5 text-[15px] font-semibold text-[#FACC15] hover:bg-white/[0.08] transition"
+          className="w-full rounded-xl border border-white/[0.12] bg-white/[0.05] py-3.5 text-[15px] font-semibold text-[#4ADE80] hover:bg-white/[0.08] transition"
         >
           Show more days ({blocks.length - daysShown} more)
         </button>

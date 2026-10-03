@@ -86,7 +86,7 @@ export function Crest({ name, barangayId, size = 40, variant = "icon", coverText
   // blank tile rather than the monogram, so a card doesn't flash initials and
   // then swap to the photo a moment later.
   if (cover && has === null) {
-    return <div className="absolute inset-0 bg-[#22344F]" />;
+    return <div className="absolute inset-0 bg-[#242C27]" />;
   }
   if (has && !failed) {
     return (
@@ -98,7 +98,7 @@ export function Crest({ name, barangayId, size = 40, variant = "icon", coverText
         decoding="async"
         loading={cover ? "lazy" : undefined}
         onError={() => setFailed(true)}
-        className={cover ? "absolute inset-0 h-full w-full object-cover bg-[#22344F]" : "rounded object-cover bg-[#22344F] shrink-0"}
+        className={cover ? "absolute inset-0 h-full w-full object-cover bg-[#242C27]" : "rounded object-cover bg-[#242C27] shrink-0"}
         style={cover ? undefined : { width: size, height: size }}
       />
     );
@@ -106,8 +106,8 @@ export function Crest({ name, barangayId, size = 40, variant = "icon", coverText
   return (
     <div
       className={cover
-        ? "absolute inset-0 flex items-center justify-center bg-[#22344F] text-slate-500 font-semibold"
-        : "rounded bg-[#22344F] text-slate-400 font-semibold flex items-center justify-center shrink-0"}
+        ? "absolute inset-0 flex items-center justify-center bg-[#242C27] text-slate-500 font-semibold"
+        : "rounded bg-[#242C27] text-slate-400 font-semibold flex items-center justify-center shrink-0"}
       style={cover ? { fontSize: coverText } : { width: size, height: size, fontSize: size * 0.3 }}
     >
       {initials(name) || "—"}
@@ -128,7 +128,7 @@ export function PlayerAvatar({ player, size = 40 }) {
       src={playerPhotoUrl(player.id)}
       alt=""
       onError={() => setFailed(true)}
-      className="rounded object-cover bg-[#22344F] shrink-0"
+      className="rounded object-cover bg-[#242C27] shrink-0"
       style={{ width: size, height: size }}
     />
   );
@@ -148,7 +148,7 @@ export function Panel({ title, count, children, empty, emptyTitle, emptyIcon, em
   return (
     <section className={(glass
       ? `relative rounded-2xl border border-white/[0.12] bg-white/[0.07] ${blur ? "lg:bg-white/[0.05] lg:backdrop-blur-xl " : ""}shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.35)] mb-5 overflow-hidden`
-      : "rounded-lg border border-white/[0.08] bg-[#122036] mb-5 overflow-hidden") + (className ? " " + className : "")}>
+      : "rounded-lg border border-white/[0.08] bg-[#111513] mb-5 overflow-hidden") + (className ? " " + className : "")}>
       {title && (
         <div className={`px-4 sm:px-5 py-3.5 border-b ${glass ? "border-white/[0.08] bg-white/[0.03]" : "border-white/[0.08]"} flex items-center justify-between gap-2.5`}>
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 min-w-0">
@@ -179,7 +179,7 @@ export function EmptyState({ title, icon = "calendar", action, children }) {
   return (
     <div className="flex flex-col items-center px-6 py-10 text-center sm:py-12">
       {title && (
-        <span className="mb-4 grid size-12 place-items-center rounded-full border border-[#FACC15]/30 bg-[#FACC15]/10 text-[#FACC15]">
+        <span className="mb-4 grid size-12 place-items-center rounded-full border border-[#4ADE80]/30 bg-[#4ADE80]/10 text-[#4ADE80]">
           <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             {EMPTY_ICONS[icon] || EMPTY_ICONS.calendar}
           </svg>
@@ -188,7 +188,7 @@ export function EmptyState({ title, icon = "calendar", action, children }) {
       {title && <p className="text-slate-100 text-[18px] font-semibold tracking-tight">{title}</p>}
       {children && <p className={`max-w-md text-slate-400 text-[15px] leading-relaxed ${title ? "mt-1.5" : ""}`}>{children}</p>}
       {action && (
-        <Link to={action.to} className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 text-[14px] font-medium text-slate-100 transition hover:border-[#FACC15]/50 hover:text-[#FACC15]">
+        <Link to={action.to} className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 text-[14px] font-medium text-slate-100 transition hover:border-[#4ADE80]/50 hover:text-[#4ADE80]">
           {action.label} <span aria-hidden="true">→</span>
         </Link>
       )}
@@ -207,9 +207,9 @@ export function GlassBackdrop() {
       className="pointer-events-none fixed inset-0 z-0"
       style={{
         background: [
-          "radial-gradient(38rem 32rem at 0% 0%, rgba(37,99,235,0.30), transparent 70%)",
-          "radial-gradient(40rem 34rem at 100% 45%, rgba(250,204,21,0.13), transparent 70%)",
-          "radial-gradient(36rem 30rem at 30% 105%, rgba(14,165,233,0.20), transparent 70%)",
+          "radial-gradient(38rem 32rem at 0% 0%, rgba(34,197,94,0.13), transparent 70%)",
+          "radial-gradient(40rem 34rem at 100% 45%, rgba(74,222,128,0.06), transparent 70%)",
+          "radial-gradient(36rem 30rem at 30% 105%, rgba(21,128,61,0.16), transparent 70%)",
         ].join(","),
       }}
     />
@@ -335,7 +335,7 @@ export function CarouselArrow({ dir, onClick, disabled }) {
       onClick={onClick}
       disabled={disabled}
       aria-label={dir === "prev" ? "Scroll left" : "Scroll right"}
-      className="w-7 h-7 rounded-full border border-white/[0.08] flex items-center justify-center text-slate-400 hover:text-slate-100 hover:border-[#2E4466] disabled:opacity-30 disabled:pointer-events-none transition"
+      className="w-7 h-7 rounded-full border border-white/[0.08] flex items-center justify-center text-slate-400 hover:text-slate-100 hover:border-[#303A34] disabled:opacity-30 disabled:pointer-events-none transition"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
         <path d={dir === "prev" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} strokeLinecap="round" strokeLinejoin="round" />
@@ -429,7 +429,7 @@ export function TabRow({ items, value, onChange }) {
               onClick={() => onChange(it.value)}
               className={`shrink-0 px-3 py-2.5 text-[15px] font-medium whitespace-nowrap border-b-2 transition ${
                 value === it.value
-                  ? "text-[#FACC15] border-[#FACC15]"
+                  ? "text-[#4ADE80] border-[#4ADE80]"
                   : "text-slate-400 border-transparent hover:text-slate-200"
               }`}
             >
@@ -438,10 +438,10 @@ export function TabRow({ items, value, onChange }) {
           ))}
         </div>
         {edge.left && (
-          <div className="pointer-events-none absolute left-0 top-0 bottom-2 w-8 bg-gradient-to-r from-[#0B1626] to-transparent" />
+          <div className="pointer-events-none absolute left-0 top-0 bottom-2 w-8 bg-gradient-to-r from-[#0A0C0B] to-transparent" />
         )}
         {edge.right && (
-          <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-[#0B1626] to-transparent" />
+          <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-[#0A0C0B] to-transparent" />
         )}
       </div>
       {overflow && (
@@ -456,7 +456,7 @@ export function TabRow({ items, value, onChange }) {
 
 export function Tag({ children }) {
   return (
-    <span className="px-2.5 py-1 rounded bg-[#22344F] text-slate-300 text-[13px] font-medium whitespace-nowrap">
+    <span className="px-2.5 py-1 rounded bg-[#242C27] text-slate-300 text-[13px] font-medium whitespace-nowrap">
       {children}
     </span>
   );
@@ -514,7 +514,7 @@ export function SiteImage({ slot, label, className = "", hideOnFail = false, onL
 // These mimic the real panel shapes so the page doesn't "jump" once data lands.
 
 export function Skeleton({ className = "" }) {
-  return <div className={`animate-pulse rounded bg-[#22344F] ${className}`} />;
+  return <div className={`animate-pulse rounded bg-[#242C27] ${className}`} />;
 }
 
 // Generic list-row panel — stands in for Matches, Standings, and any other
@@ -547,7 +547,7 @@ export function TileGridSkeleton({ tiles = 6, cols = "grid-cols-2 sm:grid-cols-3
       <div className="px-5 py-3.5 border-b border-white/[0.08]">
         <Skeleton className="h-4 w-32" />
       </div>
-      <div className={`grid ${cols} gap-px bg-[#22344F]`}>
+      <div className={`grid ${cols} gap-px bg-[#242C27]`}>
         {Array.from({ length: tiles }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-5 py-4">
             <Skeleton className="h-10 w-10 rounded shrink-0" />
@@ -599,7 +599,7 @@ export function LiveDot({ className = "" }) {
 // clear button both animate with Motion — the clear button was a plain
 // `{value && <button>}` that just popped in/out with no transition, and the
 // focus state had almost no visible feedback (`border-white/[0.08]` to
-// `border-[#2E4466]` is barely a shade apart). Gold matches the rest of the
+// `border-[#303A34]` is barely a shade apart). Gold matches the rest of the
 // site's one accent color, so "the search bar is active" reads the same way
 // "this nav link is active" or "this is live" already do everywhere else.
 export function SearchInput({ value, onChange, placeholder = "Search…" }) {
@@ -616,7 +616,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…" }) {
         viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
         className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
         initial={false}
-        animate={{ color: focused ? "#FACC15" : "#475569" }}
+        animate={{ color: focused ? "#4ADE80" : "#475569" }}
         transition={{ duration: 0.2 }}
       >
         <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" />
@@ -627,7 +627,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…" }) {
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.05] lg:backdrop-blur-md text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#FACC15]/50 transition-colors"
+        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.05] lg:backdrop-blur-md text-slate-200 placeholder:text-slate-600 text-[14px] pl-9 pr-9 py-2.5 outline-none focus:border-[#4ADE80]/50 transition-colors"
       />
       <AnimatePresence>
         {value && (

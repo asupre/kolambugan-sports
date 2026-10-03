@@ -10,7 +10,7 @@ import Reveal from "../../components/Reveal";
 function Step({ n, title, children }) {
   return (
     <div className="flex gap-4 px-4 sm:px-5 py-4 border-b border-white/[0.08] last:border-0">
-      <div className="w-7 h-7 rounded-full bg-[#22344F] text-[#FACC15] text-[13px] font-semibold flex items-center justify-center shrink-0">
+      <div className="w-7 h-7 rounded-full bg-[#242C27] text-[#4ADE80] text-[13px] font-semibold flex items-center justify-center shrink-0">
         {n}
       </div>
       <div className="min-w-0">
@@ -85,7 +85,7 @@ export default function About() {
           </Step>
           <Step n="5" title="Champions">
             The bracket decides the title. Past winners are recorded in the{" "}
-            <Link to="/champions" className="text-[#FACC15] hover:underline">Champions</Link>{" "}
+            <Link to="/champions" className="text-[#4ADE80] hover:underline">Champions</Link>{" "}
             archive.
           </Step>
         </div>
@@ -104,7 +104,7 @@ export default function About() {
             ["Champions", "/champions", "Past winners by year and sport."],
           ].map(([label, to, desc]) => (
             <div key={to} className="flex gap-3">
-              <Link to={to} className="text-[#FACC15] text-[15px] font-medium w-24 shrink-0 hover:underline">
+              <Link to={to} className="text-[#4ADE80] text-[15px] font-medium w-24 shrink-0 hover:underline">
                 {label}
               </Link>
               <span className="text-slate-400 text-[15px]">{desc}</span>

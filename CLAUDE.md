@@ -1052,7 +1052,21 @@ so a bug in one route cannot expose the other.
 ## Design system (two looks, one product)
 
 **Public Viewer — DARK, "ESPN structure" (decided Aug 2026):**
-- **CURRENT PALETTE = steel-blue navy + YELLOW accent (Oct 1 2026, Super Admin's "new UI
+- **CURRENT PALETTE = NEAR-BLACK + GREEN (Oct 3 2026, Super Admin, from a game-hosting landing
+  page reference; supersedes the navy + yellow below).** Same structure, values swapped in every
+  public file: page `#0A0C0B`, footer `#060807`, panel `#111513`, bar/chip `#161B18`, border
+  `#242C27`, strong border `#303A34`, hero fallback `#0C1A12`, accent GREEN `#4ADE80` (hover
+  `#86EFAC`, pressed `#22C55E`), green buttons carry dark `#0A0C0B` text; VS-row banners
+  `#15803D`→`#22C55E`; `GlassBackdrop` glows are greens; `PUBLIC_CHROME`, `index.html`'s
+  pre-React colour and `.scrollbar-public` follow. The MVP chip (`MvpBadge`) stays yellow and
+  medal gold `#F5A524` is unchanged. **Home was redesigned** (`Home.jsx`): the hero photo
+  melts into the page (left + bottom scrims), a small green caps label, a bold **Outfit** headline
+  (loaded in `index.html`; "Every barangay. Every game. Followed live."), green "View matches" +
+  outlined "Standings", the numbers in ONE strip (`StripStat`: Barangays / Sports / Live now,
+  icons hidden on phones), then the games on the left and an aside on the right (About the
+  league, "Why follow the league?" `WHY` list with inline SVGs, Kolambugan), and a big closing
+  line with key words in green. The other public pages only changed colour.
+- (Superseded by the line above.) **steel-blue navy + YELLOW accent (Oct 1 2026, Super Admin's "new UI
   sample for web" — an esports dashboard). Supersedes the navy/gold hex values in the bullets
   below (kept as history).** Same day, a purple/indigo + violet version (from a "UI color sample")
   shipped first and was rejected as "looks bad" — don't bring it back. Values used across every
@@ -1593,6 +1607,24 @@ accent, one big title + one plain subtitle per page, sections headed on the page
   "Step N of 5 · Label". Review Queue: the Barangay dropdown takes the full width on phones with
   "Details" above it, and the team tables drop the Screening column below `sm` (status shown under
   the team name).
+
+**Admin "banner" look, ALL THREE ROLES (Oct 3 2026, from a fitness-dashboard reference; on top of
+the calm look above).** `AdminLayout` adds `calm-fit` to <html> (CSS `:root.calm-fit`, light
+mode only for the sidebar tokens):
+- **Sidebar:** white, a lucide icon BESIDE each label when expanded (reverses "expanded = text
+  only"), the current page as a solid green pill (`aside [aria-current=page]`), and the account
+  (avatar, name, role) above Sign out: that button is how Profile opens. Avatars in the top bar /
+  banner are plain pictures, not buttons.
+- **Dashboard banner** (`LandscapeBanner`), only on each role's Dashboard (`DASHBOARD_PATHS`:
+  /admin, /brgy/dashboard, /organizer/dashboard): rounded, "Hello, <username>" + the season name,
+  the help / theme buttons and avatar on the right (desktop; on those pages the top bar is
+  phone-only). Picture order: the account's own (`User.banner`, Profile > "Dashboard banner",
+  cropped 4:1, `POST/DELETE /api/auth/profile/banner`, public `GET /api/auth/users/:id/banner`,
+  'photos' bucket, any role) → `/banner.jpg` (a LOCAL preview file, gitignored in
+  `frontend/.gitignore`, never shipped) → a drawn SVG landscape (Mount Bucas, Panguil Bay, pines).
+- Colours = the calm look (warm page, green #2F6B4B). A pale-green + dark-slate version was tried
+  and rejected ("too pale"); so were an icon-chip/gradient "rich" layer ("AI slop"), a dark green
+  sidebar, and Anton page titles (that one is kept in `git stash` "league-identity").
 
 **Admin performance (Oct 3 2026, measured: headless Edge, 4x CPU, phone + desktop, prod build
 vs local).** Keep these:

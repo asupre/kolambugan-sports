@@ -4,27 +4,42 @@ import { api } from "../../api";
 import {
   Panel, SiteImage, LiveDot, DateBar, matchDateLabel,
 } from "../../components/PublicUI";
-import Reveal, { RevealGroup, RevealItem } from "../../components/Reveal";
+import Reveal from "../../components/Reveal";
 import SportsMarquee from "../../components/SportsMarquee";
 import HeroImage from "../../components/HeroImage";
 import { VsMatchList } from "../../components/VsMatch";
 
 
 
-// Individually-bordered tile (rather than one shared row) so each fact reads
-// on its own — the "live" tile tints red only while something's actually
-// ongoing, same "color means something" rule as LiveDot elsewhere.
-function StatTile({ icon, value, label, live }) {
+// Near-black + green Home (Oct 3 2026 preview, from a game-hosting landing page the Super Admin
+// shared): the hero photo melts into the page, a small green label, a bold Outfit headline, one
+// green button, the league's numbers in ONE strip; then the games on the left and "why follow"
+// on the right; a big closing line with the key words in green.
+
+// One fact in the hero strip. "Live now" turns red only while a game is actually on.
+function StripStat({ icon, value, label, live }) {
   return (
-    <div className={`rounded-2xl border ${live ? "border-red-500/35" : "border-white/[0.12]"} bg-white/[0.05] lg:backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] px-2.5 py-4 text-center`}>
-      <div className="flex h-[18px] items-center justify-center mb-2">{icon}</div>
-      <div className="text-slate-50 text-[30px] font-extrabold leading-none tabular-nums">{value}</div>
-      <div className={`text-[11px] tracking-wide uppercase mt-2 font-semibold ${live ? "text-red-400" : "text-slate-500"}`}>
-        {label}
+    <div className="flex min-w-0 items-center gap-3 px-4 py-3.5 sm:px-5">
+      <span className="hidden shrink-0 sm:block">{icon}</span>
+      <div className="min-w-0">
+        <div className={`font-['Outfit'] text-[22px] font-bold leading-none tabular-nums ${live ? "text-red-400" : "text-white"}`}>{value}</div>
+        <div className="mt-1 truncate text-[12px] text-slate-400">{label}</div>
       </div>
     </div>
   );
 }
+
+// "Why follow the league" rows (right column). Inline SVGs: no icon library on public pages.
+const WHY = [
+  { title: "Live scores", text: "Every point entered courtside, on your phone within seconds.",
+    icon: <path d="M13 2 4 14h7l-1 8 9-12h-7z" /> },
+  { title: "Verified residents", text: "Players are checked against the barangay list. No dayo.",
+    icon: <><path d="M12 3 5 6v6c0 4 3 7.5 7 9 4-1.5 7-5 7-9V6z" /><path d="m9 12 2 2 4-4" /></> },
+  { title: "Brackets and standings", text: "Every group, every knockout, updated after each game.",
+    icon: <><path d="M4 5h5v5H4zM4 14h5v5H4z" /><path d="M9 7.5h3v9H9M12 12h4M16 9.5h4v5h-4z" /></> },
+  { title: "Champions archive", text: "Every title, every barangay, kept season after season.",
+    icon: <><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4" /><path d="M12 13v4M8 21h8M10 17h4" /></> },
+];
 
 const ArrowIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -33,13 +48,13 @@ const ArrowIcon = () => (
 );
 
 const BarangayIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FACC15" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1" />
   </svg>
 );
 
 const SportIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FACC15" strokeWidth="1.8" strokeLinecap="round">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="1.8" strokeLinecap="round">
     <circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 010 18M3 12h18" />
   </svg>
 );
@@ -102,99 +117,14 @@ export default function Home() {
   const recent = data?.recent || [];
   const counts = data?.counts || {};
 
-  return (
+  const games = (
     <>
-      {/* Hero (Super Admin's spec, Sep 2026, third revision). Layers:
-          1. the Site Images "hero" slot — full opacity, full colour,
-             object-cover, full-bleed. With nothing uploaded `hideOnFail`
-             makes SiteImage render nothing and the section's own solid
-             #0E2340 shows instead. Upload/crop/focal are untouched;
-          2. ONE gradient scrim (the exact stops below) — nothing else tints
-             the photo, and it's drawn even with no photo so the fallback
-             looks the same;
-          3. content in normal flow, bottom-anchored (the scrim is darkest
-             at the bottom): a left-aligned two-line Anton headline running
-             nearly the full container width, then the copy block 28px
-             (`mt-7`) below it. Nothing overlaps the headline (the optional
-             /hero-player.png cut-out layer was removed for that reason —
-             re-add it deliberately if a subject PNG is ever supplied).
-          Headline size: clamp on viewport width AND height. "INTER-BARANGAY"
-          in Anton is ~5.8em wide, so 15vw fills ~87% of the width at any
-          screen size; the 28svh term keeps it from outgrowing short screens.
-          KEEP: no viewport-edge full-bleed (w-screen / -50vw) — 100vw
-          includes the scrollbar in Chromium and clipped content on mobile
-          (screenshot-confirmed). `-mx-4 lg:-mx-8` cancels <main>'s padding;
-          `-mt-6` cancels its py-6 so the hero sits flush under the nav. The
-          min-heights subtract the nav's real height (~72px at lg, ~116-120px
-          where the nav wraps/icons) so the hero fills the first screen and
-          the stat tiles start below the fold. The headline and copy are NOT
-          animated; the PHOTO is (HeroImage: load-triggered fade + settle,
-          slow drift, scroll parallax — the last two honour reduced motion). */}
-      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#0E2340] -mx-4 lg:-mx-8 -mt-6 mb-6 flex flex-col justify-end min-h-[calc(100svh-7.5rem)] lg:min-h-[calc(100svh-4.5rem)]">
-        <HeroImage containerRef={heroRef} />
-        <div
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{ background: "linear-gradient(180deg, rgba(11,22,38,0.55) 0%, rgba(11,22,38,0.30) 45%, rgba(11,22,38,0.88) 100%)" }}
-        />
-
-        <div className="relative px-5 pt-10 pb-8 sm:px-8 lg:px-12 lg:pb-12">
-          <h1 className="text-left font-['Anton'] font-normal uppercase leading-[0.82] tracking-tight text-[length:clamp(2.5rem,min(15vw,28svh),14rem)]">
-            <span className="block text-white">Inter-Barangay</span>
-            <span className="block text-[#FACC15]">Sports League</span>
-          </h1>
-
-          <div className="mt-7">
-            <h2 className="text-white text-[28px] font-semibold leading-tight">
-              Follow &amp; cheer on<br />every barangay, every match.
-            </h2>
-            {/* SAMPLE COPY — replace before deployment. */}
-            <p className="mt-3 text-[15px] text-white/70 md:whitespace-nowrap">
-              Live scores, brackets and standings for all 26 barangays.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2.5">
-              <Link to="/matches" className="flex items-center gap-2 rounded-full bg-[#FACC15] py-2 pl-6 pr-2 text-sm font-bold text-[#0B1626] transition hover:bg-[#EAB308]">
-                View matches
-                <span className="flex size-8 items-center justify-center rounded-full bg-[#0B1626] text-[#FACC15]"><ArrowIcon /></span>
-              </Link>
-              <Link to="/standings" className="rounded-full border-[1.5px] border-white/40 px-6 py-3 text-sm font-semibold text-white transition hover:border-white">
-                Standings
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* League at a glance. The two static tiles reveal one after another;
-          the LIVE NOW tile is deliberately NOT wrapped — its counter changes
-          mid-match and must never animate. (Plain child of the group: it
-          just sits there.) */}
-      <RevealGroup className="grid grid-cols-3 gap-3 mb-6">
-        <RevealItem>
-          <StatTile icon={<BarangayIcon />} value={counts.barangays ?? "—"} label="Barangays" />
-        </RevealItem>
-        <RevealItem>
-          <StatTile icon={<SportIcon />} value={counts.sports ?? "—"} label="Sports" />
-        </RevealItem>
-        <div>
-          <StatTile
-            icon={<LiveDot />}
-            value={counts.liveNow ?? 0}
-            label="Live now"
-            live={(counts.liveNow ?? 0) > 0}
-          />
-        </div>
-      </RevealGroup>
-
-      {/* Live now: NOT wrapped — in-progress matches update mid-game. */}
+      {/* Live now: NOT wrapped. In-progress matches update mid-game. */}
       {live.length > 0 && (
         <Panel title="Live now" count={`${live.length}`}>
           <div className="px-3 sm:px-5 py-5"><VsMatchList matches={live} showDate={false} /></div>
         </Panel>
       )}
-
-      {/* Sports marquee — constant CSS loop, so NOT wrapped in Reveal. Renders
-          nothing if /api/sports fails or is empty. */}
-      <SportsMarquee />
 
       {today.length > 0 && (
         <Reveal>
@@ -204,7 +134,6 @@ export default function Home() {
         </Reveal>
       )}
 
-      {/* The next dated games after today, grouped by day. */}
       {upcoming.length > 0 && (
         <Reveal>
           <Panel title="Coming up" count={`next ${upcoming.length}`}>
@@ -222,7 +151,7 @@ export default function Home() {
               ))}
             </div>
             <div className="px-4 py-3.5 border-t border-white/[0.08]">
-              <Link to="/matches" className="text-[#FACC15] text-[14px] font-medium hover:underline">Full schedule →</Link>
+              <Link to="/matches" className="text-[#4ADE80] text-[14px] font-medium hover:underline">Full schedule →</Link>
             </div>
           </Panel>
         </Reveal>
@@ -238,58 +167,129 @@ export default function Home() {
         />
       )}
 
-      {/* About the league */}
-      <Reveal>
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-          <SiteImage slot="league" label="league photo" className="w-full h-52 rounded-lg border border-white/[0.08]" />
-          <div className="flex flex-col justify-center">
-            <h2 className="text-slate-100 text-xl font-semibold mb-2">About the league</h2>
-            {/* SAMPLE COPY — replace before deployment. */}
-            <p className="text-slate-300 text-[16px] leading-relaxed mb-3">
-              The Inter-Barangay Sports League brings together every barangay in the
-              municipality for a single competitive season, organised by the
-              Sangguniang Kabataan Federation. Teams register through their barangay,
-              players are verified as residents, and every result is recorded as it
-              happens.
-            </p>
-            <p className="text-slate-400 text-[15px] leading-relaxed">
-              Competition runs across basketball, volleyball, badminton, pickleball,
-              billiards, chess, and Mobile Legends, with divisions set each season.
-            </p>
-          </div>
-        </section>
-      </Reveal>
-
-      {/* About Kolambugan */}
-      <Reveal>
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-          <div className="flex flex-col justify-center md:order-1 order-2">
-            <h2 className="text-slate-100 text-xl font-semibold mb-2">Kolambugan</h2>
-            {/* SAMPLE COPY — replace before deployment. */}
-            <p className="text-slate-300 text-[16px] leading-relaxed mb-3">
-              A coastal municipality in Lanao del Norte, Kolambugan is made up of
-              barangays that each field their own teams. The league is as much about
-              the barangays as the sport. Every entry carries a community's name.
-            </p>
-            <Link to="/teams" className="text-[#FACC15] text-[15px] font-medium hover:underline">
-              Browse the teams →
-            </Link>
-          </div>
-          <SiteImage slot="barangay" label="municipality photo" className="w-full h-52 rounded-lg border border-white/[0.08] md:order-2 order-1" />
-        </section>
-      </Reveal>
-
-      {/* Recent results */}
       {recent.length > 0 && (
         <Reveal>
           <Panel title="Recent results" count={`${recent.length}`}>
             <div className="px-3 sm:px-5 py-5"><VsMatchList matches={recent.slice(0, 5)} /></div>
             <div className="px-4 py-3.5 border-t border-white/[0.08]">
-              <Link to="/matches" className="text-[#FACC15] text-[14px] font-medium hover:underline">All results →</Link>
+              <Link to="/matches?tab=results" className="text-[#4ADE80] text-[14px] font-medium hover:underline">All results →</Link>
             </div>
           </Panel>
         </Reveal>
       )}
+    </>
+  );
+
+  return (
+    <>
+      {/* Hero. The Site Images "hero" photo (HeroImage: fade-in, slow drift, parallax) melts into the
+          page: dark on the left behind the words, fully page-black at the bottom. Content is
+          left-aligned in a readable column, like the reference. KEEP: no viewport-edge full-bleed
+          (w-screen / -50vw clipped content on phones); -mx-4 lg:-mx-8 cancels <main>'s padding and
+          -mt-6 its top padding, so the hero sits flush under the nav. */}
+      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#0C1A12] -mx-4 lg:-mx-8 -mt-6 mb-8 flex flex-col justify-end min-h-[calc(88svh-7.5rem)] lg:min-h-[calc(88svh-4.5rem)]">
+        <HeroImage containerRef={heroRef} />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{ background: "linear-gradient(90deg, rgba(10,12,11,0.88) 0%, rgba(10,12,11,0.55) 45%, rgba(10,12,11,0.25) 100%), linear-gradient(180deg, rgba(10,12,11,0.35) 0%, rgba(10,12,11,0) 35%, rgba(10,12,11,0.85) 82%, #0A0C0B 100%)" }}
+        />
+
+        <div className="relative px-5 pt-14 pb-10 sm:px-8 lg:px-12 lg:pb-14">
+          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#4ADE80]">
+            <span aria-hidden="true">✦</span> Live scores · Standings · {counts.barangays ?? 26} barangays
+          </p>
+          <h1 className="mt-4 max-w-3xl font-['Outfit'] text-[length:clamp(2.6rem,6.2vw,5.4rem)] font-extrabold leading-[1.02] tracking-[-0.02em] text-white">
+            Every barangay.<br />Every game.<br /><span className="text-[#4ADE80]">Followed live.</span>
+          </h1>
+          {/* SAMPLE COPY — replace before deployment. */}
+          <p className="mt-5 max-w-xl text-[16px] leading-relaxed text-slate-300">
+            The Kolambugan Inter-Barangay Sports League: live scores, brackets and standings
+            for every sport, all season long.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link to="/matches" className="inline-flex items-center gap-2 rounded-lg bg-[#4ADE80] px-5 py-3 text-[14px] font-bold uppercase tracking-wide text-[#0A0C0B] transition hover:bg-[#86EFAC]">
+              View matches <ArrowIcon />
+            </Link>
+            <Link to="/standings" className="rounded-lg border border-white/25 px-5 py-3 text-[14px] font-semibold uppercase tracking-wide text-white transition hover:border-white/60">
+              Standings
+            </Link>
+          </div>
+
+          {/* The league's numbers in one strip. Live now is not animated (it changes mid-game). */}
+          <div className="mt-9 grid max-w-2xl grid-cols-3 divide-x divide-white/10 rounded-xl border border-white/10 bg-black/45">
+            <StripStat icon={<BarangayIcon />} value={counts.barangays ?? "–"} label="Barangays" />
+            <StripStat icon={<SportIcon />} value={counts.sports ?? "–"} label="Sports" />
+            <StripStat icon={<LiveDot />} value={counts.liveNow ?? 0} label="Live now" live={(counts.liveNow ?? 0) > 0} />
+          </div>
+        </div>
+      </section>
+
+      {/* Sports marquee: a constant CSS loop, so NOT wrapped in Reveal. */}
+      <SportsMarquee />
+
+      {/* Games on the left, "why follow" on the right (stacked on phones). */}
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0">{games}</div>
+
+        <aside className="space-y-6">
+          <Reveal>
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+              <SiteImage slot="league" label="league photo" className="h-40 w-full" />
+              <div className="p-5">
+                <h2 className="font-['Outfit'] text-[20px] font-bold text-white">About the league</h2>
+                {/* SAMPLE COPY — replace before deployment. */}
+                <p className="mt-2 text-[15px] leading-relaxed text-slate-400">
+                  Organised by the SK Federation: every barangay in the municipality, one
+                  competitive season, every result recorded as it happens.
+                </p>
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal>
+            <div>
+              <h2 className="font-['Outfit'] text-[20px] font-bold text-white">Why follow the league?</h2>
+              <ul className="mt-4 space-y-4">
+                {WHY.map((w) => (
+                  <li key={w.title} className="flex gap-3">
+                    <svg aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[#4ADE80]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{w.icon}</svg>
+                    <div>
+                      <p className="text-[15px] font-semibold text-slate-100">{w.title}</p>
+                      <p className="text-[14px] leading-snug text-slate-400">{w.text}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Reveal>
+
+          <Reveal>
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+              <SiteImage slot="barangay" label="municipality photo" className="h-36 w-full" />
+              <div className="p-5">
+                <h2 className="font-['Outfit'] text-[20px] font-bold text-white">Kolambugan</h2>
+                <p className="mt-2 text-[15px] leading-relaxed text-slate-400">
+                  A coastal municipality in Lanao del Norte. Every entry carries a community's name.
+                </p>
+                <Link to="/teams" className="mt-3 inline-block text-[14px] font-medium text-[#4ADE80] hover:underline">Browse the teams →</Link>
+              </div>
+            </div>
+          </Reveal>
+        </aside>
+      </div>
+
+      {/* Closing line, the key words in green (like the reference's big statement). */}
+      <Reveal>
+        <section className="mt-14 border-t border-white/10 pt-12 pb-4">
+          <p className="max-w-4xl font-['Outfit'] text-[length:clamp(1.7rem,3.6vw,2.9rem)] font-bold leading-[1.15] tracking-[-0.015em] text-slate-500">
+            {counts.barangays ?? 26} barangays, {counts.sports ?? 7} sports, <span className="text-white">one season.</span>{" "}
+            <span className="text-[#4ADE80]">Follow every game live</span> and cheer your barangay on to the title.
+          </p>
+          <Link to="/matches" className="mt-7 inline-flex items-center gap-2 rounded-lg bg-[#4ADE80] px-5 py-3 text-[14px] font-bold uppercase tracking-wide text-[#0A0C0B] transition hover:bg-[#86EFAC]">
+            See today's games <ArrowIcon />
+          </Link>
+        </section>
+      </Reveal>
     </>
   );
 }

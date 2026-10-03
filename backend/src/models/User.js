@@ -62,6 +62,12 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    // Dashboard banner picture (Oct 2026): the "Hello" banner on the account's own Dashboard.
+    // Each account picks its own from the profile panel. GridFS id in the `photos` bucket.
+    banner: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
   },
   {
     timestamps: true,

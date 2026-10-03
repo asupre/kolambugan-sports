@@ -130,11 +130,11 @@ export default function Champions() {
             <Reveal key={y}>
               <section className="mb-7">
                 <div className="flex items-center gap-3 mb-3">
-                  <h3 className="text-[#FACC15] text-[26px] font-bold tabular-nums leading-none" style={ANTON}>{y}</h3>
+                  <h3 className="text-[#4ADE80] text-[26px] font-bold tabular-nums leading-none" style={ANTON}>{y}</h3>
                   <span className="text-slate-500 text-[13px]">
                     {byYear[y].length} {byYear[y].length === 1 ? "title" : "titles"}
                   </span>
-                  <div className="h-px flex-1 bg-[#22344F]" />
+                  <div className="h-px flex-1 bg-[#242C27]" />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {byYear[y].map((c) => (
@@ -199,7 +199,7 @@ function LeaderRow({ r, barangayId, onOpen }) {
       <button
         type="button"
         onClick={onOpen}
-        className={`group flex w-full items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 text-left transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-[#FACC15]/60 ${
+        className={`group flex w-full items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 text-left transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-[#4ADE80]/60 ${
           r.rank === 1 ? "bg-[#F5A524]/[0.06]" : ""
         }`}
       >
@@ -212,7 +212,7 @@ function LeaderRow({ r, barangayId, onOpen }) {
         </span>
         <Crest name={r.name} barangayId={barangayId} size={44} />
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-[17px] font-semibold group-hover:text-[#FACC15] group-hover:underline underline-offset-4 ${r.rank === 1 ? "text-[#F5A524]" : "text-slate-100"}`}>
+          <span className={`block truncate text-[17px] font-semibold group-hover:text-[#4ADE80] group-hover:underline underline-offset-4 ${r.rank === 1 ? "text-[#F5A524]" : "text-slate-100"}`}>
             {r.name}
           </span>
           <span className="mt-1 flex flex-wrap gap-1.5">
@@ -272,7 +272,7 @@ function BarangayCabinet({ row, barangayId, onClose, okPhoto, onPhotoError, onOp
               <div className="overflow-y-auto overscroll-contain scrollbar-public px-5 py-5 sm:px-6">
                 <div className="mb-5 flex flex-wrap gap-2">
                   {row.sportList.map(([s, n]) => (
-                    <span key={s} className="rounded-full border border-[#FACC15]/30 bg-[#FACC15]/[0.08] px-3 py-1 text-[13px] font-medium text-[#FACC15]">
+                    <span key={s} className="rounded-full border border-[#4ADE80]/30 bg-[#4ADE80]/[0.08] px-3 py-1 text-[13px] font-medium text-[#4ADE80]">
                       {s} · {n} {n === 1 ? "title" : "titles"}
                     </span>
                   ))}
@@ -306,7 +306,7 @@ function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError, onOpenBarangay,
         <button
           type="button"
           onClick={onOpenPhoto}
-          className="group relative block aspect-video w-full overflow-hidden bg-[#22344F] cursor-zoom-in"
+          className="group relative block aspect-video w-full overflow-hidden bg-[#242C27] cursor-zoom-in"
           aria-label={`View photo: ${titleOf(c)}`}
         >
           <img
@@ -333,7 +333,7 @@ function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError, onOpenBarangay,
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-center gap-2 mb-1">
           {showYear && <span className="text-slate-100 text-[13px] font-bold tabular-nums">{c.year}</span>}
-          <span className="text-[#FACC15] text-[13px] font-semibold uppercase tracking-wide">{c.sport}</span>
+          <span className="text-[#4ADE80] text-[13px] font-semibold uppercase tracking-wide">{c.sport}</span>
           {c.division && <span className="text-slate-500 text-[13px]">· {c.division}</span>}
         </div>
 
@@ -342,7 +342,7 @@ function ChampionCard({ c, showPhoto, onOpenPhoto, onPhotoError, onOpenBarangay,
           <button
             type="button"
             onClick={onOpenBarangay}
-            className="self-start text-left text-[#FACC15] text-[14px] mt-0.5 hover:underline underline-offset-4"
+            className="self-start text-left text-[#4ADE80] text-[14px] mt-0.5 hover:underline underline-offset-4"
           >
             Barangay {c.barangay} →
           </button>

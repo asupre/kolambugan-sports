@@ -57,6 +57,70 @@ function HeaderAvatar({ user, v }) {
 // (desktop) costs no space, but the strip does, so the courtside scoring screen turns it off.
 // subtitle / actions / pageHeader: the calm page header (Super Admin only for now): a big
 // title, one plain sentence under it, and the page's main buttons on the right.
+// The banner at the top of every Super Admin page (banner look): a flat landscape drawn in the
+// league's greens (Mount Bucas, Panguil Bay, the sunrise from the logo, pines on the right), the
+// greeting on the left, the round buttons on the right (desktop; phones keep them in the top bar).
+// One inline SVG, no images or blur, so it costs nothing to paint.
+// The picture: the account's own (Profile > Dashboard banner), else /banner.jpg (frontend/public,
+// gitignored: a LOCAL preview only), else the drawn landscape underneath.
+const BANNER_PHOTO = "/banner.jpg";
+const DASHBOARD_PATHS = ["/admin", "/brgy/dashboard", "/organizer/dashboard"];
+const ROLE_LABEL = { super_admin: "Super Admin", barangay_admin: "Barangay Admin", organizer: "Organizer" };
+function LandscapeBanner({ userId, v, name, line, buttons }) {
+  // Tried in order; a failed one moves to the next, past the end = the drawn landscape.
+  // The account's own picture is set from Profile ("Dashboard banner"); v changes when the
+  // profile panel closes, so a just-uploaded picture shows at once.
+  const sources = [userId && `/api/auth/users/${userId}/banner?rev=${v}`, BANNER_PHOTO].filter(Boolean);
+  const [at, setAt] = useState(0);
+  useEffect(() => { setAt(0); }, [v]);
+  const photo = at < sources.length;
+  return (
+    <div className="relative mb-7 h-28 overflow-hidden rounded-2xl bg-[#3B6A62] sm:h-36 print:hidden">
+      {photo && (
+        <>
+          <img key={sources[at]} src={sources[at]} alt="" decoding="async" onError={() => setAt((i) => i + 1)}
+            className="absolute inset-0 z-[1] size-full object-cover object-[50%_42%]" />
+          {/* Dark on the left behind the greeting, clear on the right. */}
+          <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-r from-black/70 via-black/35 to-black/10" />
+        </>
+      )}
+      <svg aria-hidden="true" viewBox="0 0 1200 160" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 size-full">
+        <defs>
+          <linearGradient id="bn-sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#557F70" />
+            <stop offset="1" stopColor="#9DBFB0" />
+          </linearGradient>
+        </defs>
+        <rect width="1200" height="160" fill="url(#bn-sky)" />
+        <circle cx="760" cy="92" r="34" fill="#F1E2B4" opacity="0.55" />
+        {/* far range */}
+        <path d="M0 112 L90 84 L170 100 L260 70 L350 96 L430 78 L520 102 L600 88 L690 104 L780 74 L880 98 L980 80 L1080 100 L1200 86 L1200 160 L0 160Z" fill="#88AE9D" opacity="0.8" />
+        {/* Mount Bucas */}
+        <path d="M480 160 L640 58 L668 72 L700 50 L860 160Z" fill="#5F8C79" />
+        {/* near hills */}
+        <path d="M0 128 C120 108 240 132 360 118 C480 104 560 130 700 122 C820 114 900 134 1040 120 L1200 116 L1200 160 L0 160Z" fill="#46705F" />
+        {/* the bay */}
+        <path d="M0 140 L1200 136 L1200 160 L0 160Z" fill="#3B6A62" />
+        <g stroke="#CFE6DE" strokeWidth="2" strokeLinecap="round" opacity="0.45">
+          <line x1="560" y1="146" x2="620" y2="146" /><line x1="680" y1="150" x2="760" y2="150" /><line x1="820" y1="145" x2="870" y2="145" />
+        </g>
+        {/* pines, right */}
+        <g fill="#24433A">
+          <path d="M960 160 L985 80 L1010 160Z" /><path d="M1000 160 L1030 60 L1060 160Z" /><path d="M1050 160 L1072 94 L1094 160Z" />
+          <path d="M1085 160 L1115 52 L1145 160Z" /><path d="M1135 160 L1158 88 L1181 160Z" /><path d="M1170 160 L1195 70 L1220 160Z" />
+        </g>
+      </svg>
+      <div className="relative z-[2] flex h-full items-center justify-between gap-4 px-5 sm:px-7">
+        <div className="min-w-0 text-white [text-shadow:0_1px_8px_rgba(20,40,32,0.35)]">
+          <p className="truncate text-[22px] font-semibold leading-tight sm:text-[26px]">Hello, {name}</p>
+          <p className="mt-0.5 truncate text-[14px] text-white/85 sm:text-[15px]">{line}</p>
+        </div>
+        <div className="hidden shrink-0 items-center gap-2.5 lg:flex">{buttons}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true, seasonStrip = true, subtitle, actions, pageHeader = true }) {
   const [open, setOpen] = useState(false);          // mobile: sidebar shown as an overlay
   // Desktop: the user's choice to collapse the whole sidebar to an icon rail. It only
@@ -90,6 +154,17 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
   const [reviewPending, setReviewPending] = useState(0);
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  // "Banner" look (Oct 2026, from a fitness-dashboard reference the Super Admin liked), ALL three
+  // roles: a white sidebar with icons beside the labels, the current page as a solid green pill,
+  // the account (name + role, opens Profile) above Sign out, and on each role's Dashboard a rounded
+  // picture banner with the greeting and the round buttons. CSS: :root.calm-fit in index.css.
+  const fit = true;
+  useEffect(() => {
+    if (!fit) return undefined;
+    const el = document.documentElement;
+    el.classList.add("calm-fit");
+    return () => el.classList.remove("calm-fit");
+  }, [fit]);
   // The season stage, shown to the two admin roles on every page so they always
   // know whether registration is open, rosters are being verified, or play is on.
   const showSeason = user?.role === "barangay_admin" || user?.role === "organizer";
@@ -97,6 +172,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const [theme, setTheme] = useState(() => (enableDarkMode ? getStoredTheme(user?.id) : "light"));
   const navigate = useNavigate();
   const location = useLocation();
+  // The "Hello" picture banner is the Dashboard's only (Super Admin request); other pages keep the top bar.
+  const showBanner = fit && DASHBOARD_PATHS.includes(location.pathname);
 
   // Every page opens at the TOP (Oct 2026 bug: scroll to the bottom of one page, click another
   // in the menu, and the new page opened scrolled to the bottom too). The browser keeps the
@@ -236,6 +313,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
               <item.icon className="size-[19px]" strokeWidth={1.75} aria-hidden="true" />
             ) : (
               <>
+                {fit && <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden="true" />}
                 <span className="flex-1 text-left">{item.label}</span>
                 <ChevronDown className={cn("size-4 text-sidebar-foreground/40 transition-transform", !isOpen && "-rotate-90")} aria-hidden="true" />
               </>
@@ -291,6 +369,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         )}
         {!rail && (
           <>
+            {fit && <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden="true" />}
             <span className="flex-1 text-left">{item.label}</span>
             {showBadge && (
               <span className="min-w-[18px] rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">
@@ -366,7 +445,19 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             : items.map((item) => renderItem(item))}
         </nav>
 
-        <div className="p-3 border-t border-sidebar-border shrink-0">
+        <div className="p-3 border-t border-sidebar-border shrink-0 space-y-1">
+          {fit && !rail && (
+            <button
+              onClick={() => setShowProfile(true)}
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-sidebar-accent"
+            >
+              <HeaderAvatar user={user} v={avatarV} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-sidebar-foreground">{user?.username}</span>
+                <span className="block text-[12px] text-sidebar-foreground/55">{ROLE_LABEL[user?.role] || user?.role}</span>
+              </span>
+            </button>
+          )}
           <button
             onClick={logout}
             className={cn(
@@ -375,7 +466,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             )}
             title={rail ? "Sign out" : undefined}
           >
-            {rail ? <LogOut className="size-[19px]" strokeWidth={1.75} aria-hidden="true" /> : "Sign out"}
+            {rail ? <LogOut className="size-[19px]" strokeWidth={1.75} aria-hidden="true" /> : fit ? <><LogOut className="size-[18px]" strokeWidth={1.75} aria-hidden="true" /> Sign out</> : "Sign out"}
           </button>
         </div>
       </aside>
@@ -390,7 +481,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             up — the page (not `main`) is what actually scrolls in this layout, so without
             this the header just scrolled away like any other content. --z-header keeps it
             under the phone menu and its backdrop, and above page content (see <main>). */}
-        <header className="print:hidden sticky top-0 z-(--z-header) h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
+        <header className={cn("print:hidden sticky top-0 z-(--z-header) h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6", showBanner && "lg:hidden")}>
           <div className="flex items-center gap-3">
             <button onClick={() => setOpen(true)} className="lg:hidden text-foreground" aria-label="Open menu">
               <PanelLeftOpen className="size-5" />
@@ -410,14 +501,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             {enableDarkMode && <ThemeToggle theme={theme} onThemeChange={handleThemeChange} animate={animateTheme && finePointer} />}
             {showSeason && season && <SeasonBadge status={season.status} name={season.name} className="hidden sm:inline-flex" />}
             <span className="hidden sm:inline">{user?.username}</span>
-            <button
-              onClick={() => setShowProfile(true)}
-              aria-label="Profile"
-              title="Profile"
-              className="rounded-full transition hover:ring-2 hover:ring-primary/40 hover:ring-offset-2 hover:ring-offset-card"
-            >
-              <HeaderAvatar user={user} v={avatarV} />
-            </button>
+            {/* Just a picture: the profile opens from the account above Sign out in the sidebar. */}
+            <HeaderAvatar user={user} v={avatarV} />
           </div>
         </header>
 
@@ -435,6 +520,30 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
           {calm ? (
             // Calm look: one centred column, like the dashboard and the reference site.
             <div className="mx-auto max-w-6xl pb-12 pt-2 sm:px-2 lg:pt-4 print:max-w-none print:p-0">
+              {showBanner && (
+                <LandscapeBanner
+                  userId={user?.id}
+                  v={avatarV}
+                  name={user?.username}
+                  line={season ? season.name : "Inter-Barangay Sports League"}
+                  buttons={
+                    <>
+                      <button onClick={() => setShowHelp(true)} aria-label="How this works" title="How this works"
+                        className="flex size-9 items-center justify-center rounded-full bg-white/90 text-[#2E413B] shadow-sm transition hover:bg-white">
+                        <HelpCircle className="size-[18px]" />
+                      </button>
+                      {enableDarkMode && (
+                        <span className="flex size-9 items-center justify-center rounded-full bg-white/90 text-[#2E413B] shadow-sm [&_button]:text-[#2E413B] [&_button:hover]:bg-transparent">
+                          <ThemeToggle theme={theme} onThemeChange={handleThemeChange} animate={animateTheme && finePointer} />
+                        </span>
+                      )}
+                      <span className="rounded-full ring-2 ring-white/90 shadow-sm">
+                        <HeaderAvatar user={user} v={avatarV} />
+                      </span>
+                    </>
+                  }
+                />
+              )}
               {pageHeader && (
                 <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between print:hidden">
                   <div className="min-w-0">

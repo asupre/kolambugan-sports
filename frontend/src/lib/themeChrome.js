@@ -4,7 +4,7 @@
 // the oklch tokens in index.css; update both together.
 export const LIGHT_CHROME = "#f7f8fa";
 export const DARK_CHROME = "#393a41";
-export const PUBLIC_CHROME = "#0B1626";   // the public site is dark-only
+export const PUBLIC_CHROME = "#0A0C0B";   // the public site is dark-only
 
 export function setThemeColor(color) {
   if (typeof document === "undefined") return;

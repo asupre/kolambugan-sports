@@ -204,7 +204,7 @@ function BracketSection({ title, matches, labelFor, winner, runnerUp }) {
       <div ref={dragRef} className="overflow-x-auto pb-2 cursor-grab">
         <div ref={stageRef} className={`relative flex gap-5 sm:gap-10 min-w-min ${grandFinal && rounds.length < 3 ? "pb-24 sm:pb-28" : ""}`}>
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
-            {wires.map((d, i) => <path key={i} d={d} stroke="#22344F" strokeWidth="2" fill="none" />)}
+            {wires.map((d, i) => <path key={i} d={d} stroke="#242C27" strokeWidth="2" fill="none" />)}
           </svg>
           {rounds.map((r, i) => (
             <div key={r} className="relative z-10 flex flex-col">
@@ -273,9 +273,9 @@ function RoundRobinGroup({ rows, matches, advance, qual }) {
         return (
           <div key={r.teamId}
             className={`flex items-center px-4 py-3 border-b border-white/[0.08] ${
-              isThrough ? "bg-[#FACC15]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : provisional ? "bg-[#FACC15]/[0.03]" : ""
+              isThrough ? "bg-[#4ADE80]/[0.06]" : isContested ? "bg-slate-500/[0.06]" : provisional ? "bg-[#4ADE80]/[0.03]" : ""
             }`}>
-            <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#FACC15]" : "text-slate-600"}`}>
+            <span className={`w-6 text-[15px] tabular-nums ${marked ? "text-[#4ADE80]" : "text-slate-600"}`}>
               {i + 1}
             </span>
             <div className="flex-1 min-w-0 flex items-center gap-2.5">

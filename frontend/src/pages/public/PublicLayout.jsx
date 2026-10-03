@@ -105,11 +105,11 @@ export default function PublicLayout() {
 
   const linkClass = ({ isActive }) =>
     `whitespace-nowrap border-b-2 transition ${
-      isActive ? "text-[#FACC15] border-[#FACC15]" : "text-slate-400 border-transparent hover:text-slate-200"
+      isActive ? "text-[#4ADE80] border-[#4ADE80]" : "text-slate-400 border-transparent hover:text-slate-200"
     }`;
 
   return (
-        <div className="min-h-screen bg-[#0B1626] bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(37,99,235,0.16),transparent_70%),radial-gradient(ellipse_60%_40%_at_100%_60%,rgba(56,189,248,0.06),transparent_70%)] bg-no-repeat text-slate-200 flex flex-col overflow-x-clip">
+        <div className="min-h-screen bg-[#0A0C0B] bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(37,99,235,0.16),transparent_70%),radial-gradient(ellipse_60%_40%_at_100%_60%,rgba(56,189,248,0.06),transparent_70%)] bg-no-repeat text-slate-200 flex flex-col overflow-x-clip">
       {/* overflow-x-CLIP, not -hidden: `hidden` silently makes this div a scroll
       container (overflow-y becomes auto), which made the sticky header
       below stick to THIS div instead of the page — so it never stuck.
@@ -125,7 +125,7 @@ export default function PublicLayout() {
       {/* Glassmorphism (Oct 2026): fixed coloured glows behind every public page, for
           the frosted panels to blur. main/footer sit above it (relative z-10). */}
       <GlassBackdrop />
-      <header className="bg-[#0B1626]/85 backdrop-blur-sm lg:bg-[#0B1626]/70 lg:backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-30">
+      <header className="bg-[#0A0C0B]/85 backdrop-blur-sm lg:bg-[#0A0C0B]/70 lg:backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-30">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
           {/* Header row layout (Sep 2026, from the Super Admin's sketch):
               logo, nav (centered at lg+), season-name pill at the far right —
@@ -153,13 +153,13 @@ export default function PublicLayout() {
                     <>
                       <span className={cn(
                         "transition-colors duration-200",
-                        isActive ? "text-[#FACC15]" : "text-slate-400 group-hover:text-slate-100"
+                        isActive ? "text-[#4ADE80]" : "text-slate-400 group-hover:text-slate-100"
                       )}>
                         {n.label}
                       </span>
                       <span
                         className={cn(
-                          "absolute inset-x-0 -bottom-px h-[2px] origin-left bg-[#FACC15] transition-transform duration-300 ease-out",
+                          "absolute inset-x-0 -bottom-px h-[2px] origin-left bg-[#4ADE80] transition-transform duration-300 ease-out",
                           isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
                         )}
                       />
@@ -176,7 +176,7 @@ export default function PublicLayout() {
                 </span>
               )}
               {meta?.season?.name && (
-                <span className="text-[#FACC15] text-[10px] sm:text-[13px] font-bold tracking-wide bg-[#FACC15]/15 sm:bg-transparent sm:border sm:border-[#FACC15]/40 px-2 py-1 sm:px-4 sm:py-2 rounded sm:rounded-full truncate max-w-[120px] sm:max-w-[220px]">
+                <span className="text-[#4ADE80] text-[10px] sm:text-[13px] font-bold tracking-wide bg-[#4ADE80]/15 sm:bg-transparent sm:border sm:border-[#4ADE80]/40 px-2 py-1 sm:px-4 sm:py-2 rounded sm:rounded-full truncate max-w-[120px] sm:max-w-[220px]">
                   {meta.season.name.toUpperCase()}
                 </span>
               )}
@@ -208,7 +208,7 @@ export default function PublicLayout() {
           stacked into one long column, all the height of NAV plus no
           visual organisation — becomes a tidy 2-column block instead.
           Both collapse back to the original compact desktop sizing at sm:. */}
-      <footer className="relative z-10 bg-[#070F1C]/90 border-t border-white/[0.08] mt-8">
+      <footer className="relative z-10 bg-[#060807]/90 border-t border-white/[0.08] mt-8">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-10 sm:py-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-6">
             <div className="text-center sm:text-left">

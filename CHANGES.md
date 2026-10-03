@@ -3717,3 +3717,13 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - "Set a new password" redone as the same split screen as Login (shared `AuthBrandPanel`).
 - First-login guide now opens over the user's dashboard (not the password page).
 - League Setup: games are a table; each game's step-by-step editor, and "Add a game", open in a modal.
+
+## 2026-10-03 — Session: admin banner look, public near-black + green
+
+- Admin (all roles): white sidebar with icons, green current-page pill, account above Sign out
+  (opens Profile; avatars elsewhere no longer clickable), and a "Hello" picture banner on each
+  role's Dashboard. Each account can upload its own banner picture from Profile (new
+  `User.banner` field and /api/auth/profile/banner routes).
+- Public viewer: palette changed from navy + yellow to near-black + green; Home redesigned
+  (photo hero fading into the page, Outfit headline, stats strip, games + "why follow" columns,
+  closing statement).

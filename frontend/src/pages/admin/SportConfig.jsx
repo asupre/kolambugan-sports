@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, Check, Info, Pencil, Plus, Search, Trash2, Trophy, X } from "lucide-react";
+import { Building2, Check, Info, Lock, Pencil, Plus, Search, Trash2, Trophy, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -30,6 +30,11 @@ import {
 } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import { useSeason } from "../../lib/season";
+
+// Mirrors lockedWhileOngoing() in backend/src/routes/reference.js: once the season is ongoing,
+// games can't be added or deleted and barangays can't be added, renamed, removed or re-ticked.
+const LOCK_TITLE = "Locked while the season is ongoing";
 
 const DIVISIONS = [
   { value: "open", label: "Open", hint: "One bracket, everyone together" },
@@ -118,7 +123,7 @@ function RulesByType() {
 // One game's editor. Everything you change here (divisions, entry format, scoring rules, score
 // sheet ticks) is saved together with ONE button; the type and your own score sheet columns apply
 // immediately because they change what the rest of the form offers.
-function SportEditor({ sport, onSaved, onRemoved, onError }) {
+function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
   const confirm = useConfirm();
   const savedDivisions = sport.divisions?.length ? sport.divisions : ["open"];
   const [divisions, setDivisions] = useState(savedDivisions);
@@ -292,9 +297,9 @@ function SportEditor({ sport, onSaved, onRemoved, onError }) {
               </button>
             </div>
           )}
-          <button onClick={remove} disabled={busy}
-            className="inline-flex items-center gap-1 text-xs text-destructive hover:underline disabled:opacity-50">
-            <Trash2 className="size-3.5" /> Remove game
+          <button onClick={remove} disabled={busy || locked} title={locked ? LOCK_TITLE : undefined}
+            className="inline-flex items-center gap-1 text-xs text-destructive hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:no-underline">
+            {locked ? <Lock className="size-3.5" /> : <Trash2 className="size-3.5" />} Remove game
           </button>
         </div>
 
@@ -634,7 +639,7 @@ function AddSport({ onAdded, onCancel, onError }) {
 
 // Barangays and their cross-barangay permission in one place — both are facts
 // about a barangay, and splitting them across two cards made no sense.
-function BarangayCard({ onError, onNotice }) {
+function BarangayCard({ onError, onNotice, locked }) {
   const confirm = useConfirm();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -743,9 +748,9 @@ function BarangayCard({ onError, onNotice }) {
                   className={cn("flex items-center gap-2.5 rounded-lg border px-3 py-2", b.allowsCrossBarangay && "border-amber-500/40 bg-amber-500/5")}>
                   <Checkbox
                     checked={!!b.allowsCrossBarangay}
-                    disabled={busyId === b._id}
+                    disabled={busyId === b._id || locked}
                     onCheckedChange={() => toggleCross(b)}
-                    title="Allows cross-barangay players"
+                    title={locked ? LOCK_TITLE : "Allows cross-barangay players"}
                   />
 
                   {editingId === b._id ? (
@@ -761,14 +766,18 @@ function BarangayCard({ onError, onNotice }) {
                     <>
                       <span className="min-w-0 flex-1 truncate text-sm">{b.name}</span>
                       {b.hasLogo && <span className="shrink-0 text-[10px] text-muted-foreground">logo</span>}
-                      <button onClick={() => { setEditingId(b._id); setDraft(b.name); }} title="Rename"
-                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
-                        <Pencil className="size-3.5" />
-                      </button>
-                      <button onClick={() => remove(b)} disabled={busyId === b._id} title="Remove"
-                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                        <Trash2 className="size-3.5" />
-                      </button>
+                      {!locked && (
+                        <>
+                          <button onClick={() => { setEditingId(b._id); setDraft(b.name); }} title="Rename"
+                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+                            <Pencil className="size-3.5" />
+                          </button>
+                          <button onClick={() => remove(b)} disabled={busyId === b._id} title="Remove"
+                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -776,7 +785,7 @@ function BarangayCard({ onError, onNotice }) {
               {shown.length === 0 && <p className="text-sm text-muted-foreground">No barangay matches “{query}”.</p>}
             </div>
 
-            {adding ? (
+            {locked ? null : adding ? (
               <div className="mt-4 flex items-center gap-2">
                 <Input value={newName} onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && newName.trim()) add(); }}
@@ -792,9 +801,9 @@ function BarangayCard({ onError, onNotice }) {
               </button>
             )}
 
-            <p className="mt-3 text-xs text-muted-foreground">
+            {!locked && <p className="mt-3 text-xs text-muted-foreground">
               A new barangay needs an admin account. Use Provision all on the Accounts page.
-            </p>
+            </p>}
           </>
         )}
       </CardContent>
@@ -830,6 +839,8 @@ export default function SportConfig() {
   const [selectedId, setSelectedId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [showTypes, setShowTypes] = useState(false);
+  const { season } = useSeason();
+  const locked = season?.status === "ongoing";
 
   async function load() {
     try {
@@ -867,11 +878,21 @@ export default function SportConfig() {
           </Alert>
         )}
 
+        {locked && (
+          <Alert className="border-amber-500/30 bg-amber-500/5">
+            <Lock className="size-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-amber-700 dark:text-amber-400">
+              The season is ongoing, so games can't be added or deleted and barangays can't be added, renamed,
+              removed or have their cross-barangay setting changed. This unlocks once the season is completed.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <TabBar value={tab} onChange={setTab}
           tabs={[{ value: "games", label: "Games", count: loading ? null : sports.length }, { value: "barangays", label: "Barangays" }]} />
 
         {tab === "barangays" ? (
-          <BarangayCard onError={showError} onNotice={setNotice} />
+          <BarangayCard onError={showError} onNotice={setNotice} locked={locked} />
         ) : loading ? (
           <div className="space-y-3">
             <Skeleton className="h-10 w-full rounded-xl" />
@@ -892,12 +913,12 @@ export default function SportConfig() {
                   {s.name}
                 </button>
               ))}
-              <button onClick={() => setAdding(true)}
+              <button onClick={() => setAdding(true)} disabled={locked} title={locked ? LOCK_TITLE : undefined}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full border border-dashed px-3.5 py-1.5 text-sm transition",
-                  adding ? "border-primary text-foreground" : "text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                  "inline-flex items-center gap-1 rounded-full border border-dashed px-3.5 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
+                  adding ? "border-primary text-foreground" : "text-muted-foreground enabled:hover:border-foreground/30 enabled:hover:text-foreground"
                 )}>
-                <Plus className="size-3.5" /> Add a game
+                {locked ? <Lock className="size-3.5" /> : <Plus className="size-3.5" />} Add a game
               </button>
               <button onClick={() => setShowTypes(!showTypes)}
                 className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
@@ -907,7 +928,7 @@ export default function SportConfig() {
 
             {showTypes && <RulesByType />}
 
-            {adding ? (
+            {adding && !locked ? (
               <AddSport
                 onCancel={() => setAdding(false)}
                 onError={showError}
@@ -925,6 +946,7 @@ export default function SportConfig() {
                 onSaved={(updated) => setSports((prev) => prev.map((x) => (x._id === updated._id ? updated : x)))}
                 onRemoved={(id) => setSports((prev) => prev.filter((x) => x._id !== id))}
                 onError={showError}
+                locked={locked}
               />
             ) : (
               <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">

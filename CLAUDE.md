@@ -260,7 +260,8 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   15 or under can never be on the list, so re-screening one can only ever produce `needs_document`
   — i.e. it could only wipe the Super Admin's document approval (and reopen a verified team).
   Players who are `eligible` and 15 or under are skipped. This also covers the other caller, the
-  cross-barangay toggle (`allowsCrossBarangay`), which is NOT locked by season stage. (Reported:
+  cross-barangay toggle (`allowsCrossBarangay`), which is locked only while the season is `ongoing`
+  (see "League structure is frozen" below), so it can still run during `verification`. (Reported:
   "U15 players go back to needs document when I re-upload the list".)
 - **`MINOR_AGE` cutoff corrected to INCLUSIVE (Sep 2026)** — `services/prescreen.js` used
   `age < 15`, so a 15-year-old was screened as an adult against the reference list (and could be
@@ -843,6 +844,15 @@ so a bug in one route cannot expose the other.
   photos), tournaments, matches, PlayerMatchStats, organizer account(s), then the sport.
   Champions untouched (free text). Refused while a CURRENT-season match of it is `ongoing`
   (a past-season match stuck `ongoing` is abandoned and ignored). Irreversible.
+- **League structure is frozen while the season is `ongoing`** (Oct 3 2026, Super Admin report:
+  Mobile Legends, with results, was purged mid-tournament). `lockedWhileOngoing()` in
+  `routes/reference.js` returns 409 on: add a game (`POST /api/sports`), delete a game (`DELETE
+  /api/sports/:id` AND `/purge`), add / rename / delete a barangay, and the cross-barangay toggle
+  (`/barangays/:id/cross` and `allowsCrossBarangay` on `PATCH /barangays/:id`). Registration and
+  verification are finished by then; the toggle re-screens every player and could reopen verified
+  teams mid-tournament. League Setup (`SportConfig.jsx`, `useSeason`) shows an amber lock notice
+  and disables / hides those controls. Unlocks at `completed` (or a new season). Editing a game's
+  scoring rules, score sheet or name, and barangay logos, are NOT locked.
 - **Everything a role works in is CURRENT-SEASON scoped** (`getCurrentSeason()`), and a new
   season must look empty to every role. `GET /api/organizer/matches` was missing it until
   Sep 2026 (showed last season's matches after a new season). Any new list of teams /

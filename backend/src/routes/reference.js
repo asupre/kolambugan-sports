@@ -19,6 +19,20 @@ const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, isRoundRobinSpo
 
 // League Setup needs to know a sport's BUILT-IN scoring mode: which fields matter (point
 // buttons, periods, stats…) depends on it, and a blank "Scoring" means "use the default".
+// Once the season is ONGOING, registration and verification are over and games are being
+// played, so the league's structure is frozen (Super Admin report, Oct 2026): no adding or
+// deleting games, no adding / renaming / deleting barangays, and no cross-barangay toggle
+// (it re-screens every player and could reopen verified teams mid-tournament).
+// Returns true (and sends the 409) when the action must be refused.
+async function lockedWhileOngoing(res, what) {
+  const season = await getCurrentSeason();
+  if (season?.status !== 'ongoing') return false;
+  res.status(409).json({
+    message: `The season is ongoing, so ${what} is locked until it is completed. Registration and verification are already finished.`,
+  });
+  return true;
+}
+
 const withDefaults = (s) => ({
   ...s.toObject(),
   defaultScoringMode: rulesFor(s).scoringMode,
@@ -235,6 +249,7 @@ router.delete('/barangays/:id/logo', authenticate,
 // editing the database, which meant the league couldn't run without a developer.
 router.patch('/barangays/:id/cross', authenticate, authorize('super_admin'), async (req, res) => {
   try {
+    if (await lockedWhileOngoing(res, 'changing cross-barangay settings')) return;
     const allowed = req.body.allowsCrossBarangay;
     if (typeof allowed !== 'boolean') {
       return res.status(400).json({ message: 'allowsCrossBarangay must be true or false.' });
@@ -332,6 +347,7 @@ function customStatsFromBody(list) {
 
 router.post('/sports', authenticate, authorize('super_admin'), async (req, res) => {
   try {
+    if (await lockedWhileOngoing(res, 'adding a game')) return;
     const name = String(req.body.name || '').trim();
     if (!name) return res.status(400).json({ message: 'Sport name is required.' });
     if (await Sport.findOne({ name })) {
@@ -453,6 +469,7 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
 
 router.delete('/sports/:id', authenticate, authorize('super_admin'), async (req, res) => {
   try {
+    if (await lockedWhileOngoing(res, 'deleting a game')) return;
     const sport = await Sport.findById(req.params.id);
     if (!sport) return res.status(404).json({ message: 'Sport not found.' });
 
@@ -544,6 +561,7 @@ router.get('/sports/:id/history', authenticate, authorize('super_admin'), async 
 // POST /api/sports/:id/purge — body { confirm: "<exact sport name>" }.
 router.post('/sports/:id/purge', authenticate, authorize('super_admin'), async (req, res) => {
   try {
+    if (await lockedWhileOngoing(res, 'deleting a game')) return;
     const sport = await Sport.findById(req.params.id);
     if (!sport) return res.status(404).json({ message: 'Sport not found.' });
     if (String(req.body.confirm || '').trim() !== sport.name) {
@@ -597,6 +615,7 @@ router.post('/sports/:id/purge', authenticate, authorize('super_admin'), async (
 
 router.post('/barangays', authenticate, authorize('super_admin'), async (req, res) => {
   try {
+    if (await lockedWhileOngoing(res, 'adding a barangay')) return;
     const name = String(req.body.name || '').trim();
     if (!name) return res.status(400).json({ message: 'Barangay name is required.' });
     if (await Barangay.findOne({ name })) {
@@ -618,6 +637,7 @@ router.post('/barangays', authenticate, authorize('super_admin'), async (req, re
 
 router.patch('/barangays/:id', authenticate, authorize('super_admin'), async (req, res) => {
   try {
+    if (await lockedWhileOngoing(res, 'editing barangays')) return;
     const b = await Barangay.findById(req.params.id);
     if (!b) return res.status(404).json({ message: 'Barangay not found.' });
 
@@ -663,6 +683,7 @@ router.patch('/barangays/:id', authenticate, authorize('super_admin'), async (re
 
 router.delete('/barangays/:id', authenticate, authorize('super_admin'), async (req, res) => {
   try {
+    if (await lockedWhileOngoing(res, 'removing a barangay')) return;
     const b = await Barangay.findById(req.params.id);
     if (!b) return res.status(404).json({ message: 'Barangay not found.' });
 

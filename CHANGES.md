@@ -3643,3 +3643,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
   behind these panels, the darkening layer no longer repaints the card each frame, hidden cards give
   their GPU layer back, far-back cards don't load their images until they get close, and the cards
   lost their heavy shadow. Measured page scrolling: about 22-34fps before, 45-55fps after.
+- **League Setup is locked while the season is ongoing** (Oct 3 2026, bug report: a game with
+  recorded results could be deleted mid-tournament). While the season is `ongoing` the server now
+  refuses adding or deleting a game (including "Delete with its history"), adding, renaming or
+  removing a barangay, and ticking / unticking cross-barangay. Registration and verification are
+  over by then, and the cross-barangay switch re-checks every player, which could reopen verified
+  teams in the middle of the tournament. The League Setup page shows a lock notice and disables
+  those buttons. Everything unlocks once the season is completed.

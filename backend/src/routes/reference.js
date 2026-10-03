@@ -15,7 +15,7 @@ const Document = require('../models/Document');
 const Match = require('../models/Match');
 const PlayerMatchStats = require('../models/PlayerMatchStats');
 const { rescreenSeason } = require('../services/prescreen');
-const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, teamsAllowedFor } = require('../lib/sportRules');
+const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, knockoutChoiceOf, hasKnockoutChoice, teamsAllowedFor } = require('../lib/sportRules');
 
 // League Setup needs to know a sport's BUILT-IN scoring mode: which fields matter (point
 // buttons, periods, stats…) depends on it, and a blank "Scoring" means "use the default".
@@ -42,7 +42,7 @@ const withDefaults = (s) => ({
   sheetIsDefault: !Array.isArray(s.scoreSheet),
   // What's IN EFFECT: the round-robin knockout size (null for double-elim) and how many
   // teams one barangay may register per division — the team-registration form shows it.
-  knockoutSize: knockoutSizeOf(s),
+  knockoutSize: knockoutChoiceOf(s),
   teamsAllowed: teamsAllowedFor(s),
 });
 
@@ -127,8 +127,8 @@ router.patch('/sports/:id/config', authenticate, authorize('super_admin'), async
     // new one-team limit), and nothing changes once this season's bracket exists.
     if (req.body.knockoutSize !== undefined && req.body.knockoutSize !== null) {
       const ko = Number(req.body.knockoutSize);
-      if (!isRoundRobinSport(sport)) {
-        return res.status(400).json({ message: `${sport.name} isn't an esport or round-robin game. Its knockout is always a Top 8.` });
+      if (!hasKnockoutChoice(sport)) {
+        return res.status(400).json({ message: `Only esports choose a knockout size. ${sport.name} is always a Top 8, one team per barangay per division.` });
       }
       if (!KNOCKOUT_SIZES.includes(ko)) {
         return res.status(400).json({ message: 'Knockout size must be Top 8 or Top 16.' });
@@ -433,8 +433,17 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
       }
     }
     if (req.body.tournamentFormat) {
+      if (!['double_elimination', 'round_robin'].includes(req.body.tournamentFormat)) {
+        return res.status(400).json({ message: 'Draw format must be double elimination or round-robin.' });
+      }
       if (sport.category === 'esports' && req.body.tournamentFormat !== 'round_robin') {
         return res.status(400).json({ message: 'Esports always use round-robin groups and a Top 8 / Top 16 knockout.' });
+      }
+      if (req.body.tournamentFormat !== sport.tournamentFormat) {
+        const season = await getCurrentSeason();
+        if (season && await Tournament.exists({ sport: sport._id, season: season._id })) {
+          return res.status(409).json({ message: `${sport.name} already has a bracket this season, so its draw format can't change. Delete the tournament first.` });
+        }
       }
       sport.tournamentFormat = req.body.tournamentFormat;
     }

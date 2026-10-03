@@ -3700,3 +3700,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
   page, and typing in the Add a player form no longer lags.
 - **Public site polish** (Oct 3 2026). The same strong page header on every page, and empty pages
   now explain what will appear there and link somewhere useful, instead of a grey line of text.
+- **One team per barangay per division, except esports** (Oct 3 2026, bug report: Mukas could
+  register a second Badminton Girls team). Badminton had been set to a round-robin draw, which
+  wrongly gave it the esports-only Top 8 / Top 16 choice and two teams per barangay. Now only esports
+  get that choice; every other game is one team per barangay per division. League Setup can now
+  change a game's draw format (step 2), registering a team asks for the division explicitly, and
+  the server refuses a division the sport doesn't run.

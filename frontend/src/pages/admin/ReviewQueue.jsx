@@ -658,8 +658,9 @@ export default function ReviewQueue() {
               <span className="text-[15px] font-medium">Barangay</span>
               <Select value={selectedBarangay ?? "all"} onValueChange={(v) => { setSelectedBarangay(v === "all" ? null : v); setOpenTeam(null); }}>
                 <SelectTrigger className="w-full sm:w-80"><SelectValue /></SelectTrigger>
-                {/* popper = opens below the trigger: far less measuring than item-aligned (perf, Oct 2026) */}
-                <SelectContent position="popper" className="max-h-80">
+                {/* Always opens BELOW the box (Oct 2026: with collision flipping it often opened upward on a
+                    laptop screen); the list shrinks to the room left below and scrolls inside. */}
+                <SelectContent position="popper" side="bottom" avoidCollisions={false} className="max-h-[min(20rem,var(--radix-select-content-available-height))]">
                   <SelectItem value="all" className="*:[span]:last:flex-1">
                     <BarangayOption name="All barangays" tone={teams.length > 0 ? "pending" : "none"}
                       label={teams.length > 0 ? `${teams.length} waiting` : "nothing waiting"} />

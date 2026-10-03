@@ -487,6 +487,17 @@ TWO formats, both ending in a single-elimination knockout.
   `teamsAllowedFor()` in `lib/sportRules.js` — unset = Top 16, the old default).
   Applies to any `round_robin` sport; every double-elim sport is 1 team per
   division. Why: Barangay Admins need to know how many teams to register.
+  - **ONLY ESPORTS choose Top 8 / Top 16 (Oct 3 2026, Super Admin rule, supersedes "any round_robin
+    sport" below).** `hasKnockoutChoice` / `knockoutChoiceOf` in `lib/sportRules.js`: a non-esport set
+    to a round-robin draw is always a Top 8 (`knockoutSizeOf` returns 8, so /generate works) and
+    always ONE team per barangay per division (`teamsAllowedFor`). Found because prod Badminton was
+    set to round_robin, showed the Top 8/16 control, and (at Top 16) let Mukas register a second
+    Badminton Girls team. League Setup step 2 now has a **Draw format** select for non-esports
+    (`PATCH /api/sports/:id` `tournamentFormat`, 409 once this season has a bracket; there was no
+    way to change it before). `POST /api/teams` also refuses a division the sport doesn't run, and
+    Register a team makes the division an explicit choice when there is more than one (it used to
+    default to the first, so a second "Badminton" quietly became Boys). The Review Queue / League
+    Setup Game dropdowns are pinned to open below the box (`side="bottom" avoidCollisions={false}`).
   - **Applies to EVERY esport, not just ML (Sep 2026).** Esports are always
     round-robin: a `pre('validate')` hook on the Sport model forces
     `tournamentFormat: 'round_robin'` whenever `category === 'esports'` (a new

@@ -161,15 +161,29 @@ const KNOCKOUT_SIZES = [8, 16];
 function isRoundRobinSport(sport) {
   return sport?.tournamentFormat === 'round_robin' || sport?.category === 'esports';
 }
+// ESPORTS ONLY choose Top 8 / Top 16 (Oct 2026, Super Admin rule: "those choices should only be
+// in the esports"). A non-esport that is set to a round-robin draw is always a Top 8 and always
+// one team per barangay per division. (Before, any round-robin game got the choice, so a physical
+// sport switched to round-robin defaulted to Top 16 = TWO teams per barangay per division: how
+// Mukas registered a second Badminton Girls team.)
+function hasKnockoutChoice(sport) {
+  return sport?.category === 'esports';
+}
 function knockoutSizeOf(sport) {
   if (!isRoundRobinSport(sport)) return null;
+  if (!hasKnockoutChoice(sport)) return 8;
   return KNOCKOUT_SIZES.includes(sport.knockoutSize) ? sport.knockoutSize : 16;
 }
+// The knockout size the Super Admin CHOSE (esports), else null: what League Setup and the
+// team-registration form show.
+function knockoutChoiceOf(sport) {
+  return hasKnockoutChoice(sport) ? knockoutSizeOf(sport) : null;
+}
 
-// How many teams ONE barangay may register for this sport in one division. A round-robin
-// sport follows its knockout size (above); every other sport is one team per division.
+// How many teams ONE barangay may register for this sport in one division: an esport follows
+// its knockout size (Top 8 = 1, Top 16 = 2); every other game is one team per division.
 function teamsAllowedFor(sport) {
-  const ko = knockoutSizeOf(sport);
+  const ko = knockoutChoiceOf(sport);
   if (ko) return ko === 8 ? 1 : 2;
   return 1;
 }
@@ -177,5 +191,5 @@ function teamsAllowedFor(sport) {
 module.exports = {
   SCORING_MODE, PERIOD_LABEL, PERIOD_OPTIONS, POINT_VALUES, STAT_CATALOG, SHEET_BY_CATEGORY,
   DEFAULT_SHEET, LEGACY_STAT_COLUMNS, rolesFor, sheetOptionsFor, rulesFor,
-  KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, teamsAllowedFor,
+  KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, knockoutChoiceOf, hasKnockoutChoice, teamsAllowedFor,
 };

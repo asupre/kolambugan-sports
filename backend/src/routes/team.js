@@ -8,7 +8,7 @@ const Sport = require('../models/Sport');
 const Document = require('../models/Document');
 const Match = require('../models/Match');
 const Barangay = require('../models/Barangay');
-const { knockoutSizeOf, teamsAllowedFor } = require('../lib/sportRules');
+const { knockoutChoiceOf, teamsAllowedFor } = require('../lib/sportRules');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
 const { prescreenTeam,  prescreenPlayer, decidePlayer, norm, looseRegex } = require('../services/prescreen');
@@ -297,12 +297,17 @@ router.post('/', authenticate, authorize('barangay_admin'),
 
         const division = req.body.division || 'open';
     const format = req.body.format || sport.entryFormat || 'team';
+    // Only a division this sport actually runs this season (Oct 2026: anything was accepted).
+    const runs = sport.divisions?.length ? sport.divisions : ['open'];
+    if (!runs.includes(division)) {
+      return res.status(400).json({ message: `${sport.name} doesn't run a "${division}" division this season. Pick one of: ${runs.join(', ')}.` });
+    }
 
     // One team per barangay PER DIVISION (so a barangay can enter both u15 and u30),
     // except a round-robin sport (Mobile Legends), which follows the knockout size the
     // Super Admin set in League Setup: Top 8 = 1 team, Top 16 = 2 (Sep 2026).
     const maxTeams = teamsAllowedFor(sport);
-    const ko = knockoutSizeOf(sport);
+    const ko = knockoutChoiceOf(sport);
     const existing = await Team.find({
       barangay: req.user.barangay,
       sport: sportId,

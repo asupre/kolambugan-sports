@@ -966,7 +966,9 @@ export default function BrgyDashboard() {
   // How many teams this barangay may enter for the picked sport + division — from the
   // server (teamsAllowedFor in lib/sportRules.js). For Mobile Legends it follows the
   // knockout size the Super Admin set in League Setup: Top 8 = 1 team, Top 16 = 2.
-  const activeDivision = division || divisions[0];
+  // No silent default when there is a choice (Oct 2026): the first division used to be picked
+  // for you, so a second "Badminton" registration quietly became Boys.
+  const activeDivision = division || (divisions.length === 1 ? divisions[0] : "");
   const maxTeams = selectedSport?.teamsAllowed ?? 1;
   const koSize = selectedSport?.knockoutSize || null;
   const registeredHere = selectedSport
@@ -982,7 +984,7 @@ export default function BrgyDashboard() {
         body: JSON.stringify({
           teamName: teamName.trim(),
           sportId,
-          division: division || divisions[0],
+          division: activeDivision,
         }),
       });
       setTeamName(""); setSportId(""); setDivision("");
@@ -1087,13 +1089,14 @@ export default function BrgyDashboard() {
                         key={d}
                         type="button"
                         size="sm"
-                        variant={(division || divisions[0]) === d ? "default" : "secondary"}
+                        variant={division === d ? "default" : "secondary"}
                         onClick={() => setDivision(d)}
                       >
                         {DIVISION_LABEL[d] || d}
                       </Button>
                     ))}
                   </div>
+                  {!division && <p className="text-xs text-muted-foreground">Pick which division this team plays in.</p>}
                 </div>
               )}
 
@@ -1107,7 +1110,7 @@ export default function BrgyDashboard() {
                 </p>
               )}
 
-              {selectedSport && (
+              {selectedSport && activeDivision && (
                 <div
                   className={cn(
                     "rounded-md border px-3 py-2 text-xs space-y-1",
@@ -1138,7 +1141,7 @@ export default function BrgyDashboard() {
                   placeholder="e.g. Baybay Warriors" />
               </div>
 
-              <Button onClick={createTeam} disabled={busy || !sportId || !teamName.trim() || slotsFull}>
+              <Button onClick={createTeam} disabled={busy || !sportId || !activeDivision || !teamName.trim() || slotsFull}>
                 {busy ? "Creating…" : "Create team"}
               </Button>
             </CardContent>

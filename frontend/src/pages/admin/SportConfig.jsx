@@ -457,6 +457,25 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
               </p>
             </div>
 
+            {/* Draw format (Oct 2026): there was no way to change it for an existing game, so a
+                sport switched to round-robin stayed that way. Esports are always round-robin. */}
+            {sport.category !== "esports" && (
+              <div>
+                <Label className="mb-2">Draw format</Label>
+                <Select value={sport.tournamentFormat || "double_elimination"} onValueChange={(v) => patchSport({ tournamentFormat: v })} disabled={busy}>
+                  <SelectTrigger className="w-full sm:w-80"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="double_elimination">4 groups, double elimination, then Top 8</SelectItem>
+                    <SelectItem value="round_robin">Round-robin groups, then Top 8</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-2 text-[14px] text-muted-foreground">
+                  Sports normally use double elimination. Either way it is one team per barangay per division;
+                  only esports choose Top 8 / Top 16. Can't change once this season's bracket is drawn. Applies right away.
+                </p>
+              </div>
+            )}
+
             {gamesWon ? (
               <div>
                 <p className="rounded-xl border bg-card p-4 text-[14px] text-muted-foreground">
@@ -544,6 +563,7 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked }) {
             {reviewRow("Entry format", `${formatInfo?.label || format} · ${formatInfo?.hint || ""}`, 0, "format")}
             {isRoundRobin && reviewRow("Knockout", `Top ${koSize} · ${koSize === 8 ? "1 team" : "up to 2 teams"} per barangay`, 0, "knockout")}
             {reviewRow("Type", typeText, 1, "type")}
+            {sport.category !== "esports" && reviewRow("Draw format", sport.tournamentFormat === "round_robin" ? "Round-robin groups, then Top 8" : "4 groups, double elimination, then Top 8", 1, "format_draw")}
             {reviewRow("Scoring", scoringText, 1, "scoring")}
             {reviewRow("Score sheet", sheetText, 2, "sheet")}
           </div>
@@ -1009,7 +1029,7 @@ export default function SportConfig() {
                 <SelectTrigger className="w-full sm:w-72">
                   <SelectValue placeholder={adding ? "Adding a new game…" : "Pick a game"} />
                 </SelectTrigger>
-                <SelectContent position="popper">
+                <SelectContent position="popper" side="bottom" avoidCollisions={false} className="max-h-[min(20rem,var(--radix-select-content-available-height))]">
                   {sports.map((sp) => (
                     <SelectItem key={sp._id} value={sp._id}>
                       {sp.name} · {TYPES.find((t) => t.value === sp.category)?.label || sp.category}

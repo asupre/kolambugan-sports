@@ -3727,3 +3727,4 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - Public viewer: palette changed from navy + yellow to near-black + green; Home redesigned
   (photo hero fading into the page, Outfit headline, stats strip, games + "why follow" columns,
   closing statement).
+- Admin light mode: pale green-tinted page with white sidebar and cards (from the reference), green accent kept.

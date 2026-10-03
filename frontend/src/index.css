@@ -547,10 +547,19 @@
    From a fitness-dashboard reference: a white sidebar with icons, the current page as a solid
    green pill, and the Dashboard's picture banner. Colours otherwise = the calm look. */
 :root.calm-fit:not(.dark) {
-  /* Page, cards and green stay the calm look's (the pale-green / slate version was "too pale"). */
+  /* The reference's light, airy surfaces: a pale green-tinted page, WHITE cards / sidebar /
+     popovers, soft borders. The accent stays the calm green #2F6B4B (a slate accent was rejected). */
+  --background: #EDF4EF;
+  --card: #FFFFFF;
+  --popover: #FFFFFF;
+  --secondary: #E6EFE9;
+  --muted: #E6EFE9;
+  --accent: #E4EEE8;
+  --border: #DFE9E2;
+  --input: #D5E1D9;
   --sidebar: #FFFFFF;
-  --sidebar-accent: #F1EFE8;
-  --sidebar-border: #E8E4DA;
+  --sidebar-accent: #EEF4EF;
+  --sidebar-border: #E4ECE6;
 }
 /* The current page in the sidebar: a solid green pill, white text. */
 :root.calm-fit:not(.dark) aside [aria-current="page"] {
@@ -565,3 +574,5 @@
 }
 /* The menu's scroll-edge fade must fade into the white sidebar, not the page colour. */
 :root.calm-fit aside .scroll-shadow-y { --scroll-shadow-bg: var(--sidebar); }
+/* The dashboard's own hover / bar-track tones, retuned from warm beige to the pale green page. */
+:root.calm-fit:not(.dark) .calm { --calm-card-hover: #F3F8F4; --calm-track: #E3ECE6; }

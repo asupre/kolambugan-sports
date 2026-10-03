@@ -134,6 +134,14 @@ const matchSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // The scorer's username, copied here when their account is deleted (Oct 2026: an
+    // organizer from a finished season may be deleted), so the audit trail still names
+    // who entered the result after enteredBy no longer resolves.
+    enteredByName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
   },
   {
     timestamps: true,

@@ -3676,3 +3676,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   they have won (gold, silver and bronze icons for the top three), with the sports they won in.
   Tapping a barangay opens its own page of titles: every championship with its photo, year, sport,
   team, MVP and prize, and the photos can be zoomed. The year-by-year list of titles is still below.
+- **Organizer accounts from a finished season can be deleted** (Oct 3 2026). Before, an account that
+  had ever entered a match result could never be deleted, so after a new season the old organizers
+  were stuck. Now: an account that never scored can be deleted any time; one that scored can be
+  deleted once that season is completed or a new season has started, and its name stays on those
+  results so it is still known who entered them. During a running season it is still refused.
+- **CLAUDE.md repaired** (Oct 3 2026): a scripted edit in the NoSQL-injection commit accidentally
+  copied the first ~950 lines of the file in twice (a "$" in the inserted text was read as a
+  special code). Rebuilt from the last good version with only the intended notes added.

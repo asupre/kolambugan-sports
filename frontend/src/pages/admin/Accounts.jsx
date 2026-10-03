@@ -285,7 +285,7 @@ export default function Accounts() {
   }
 
   async function deleteAccount(acc) {
-    if (!(await confirm(`Delete ${acc.username}? This can't be undone.`, { danger: true, confirmLabel: "Delete" }))) return;
+    if (!(await confirm(`Delete ${acc.username}? This can't be undone. Any results it entered in past seasons keep its name.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       await api(`/api/accounts/${acc._id}`, { method: "DELETE" });
       await load();

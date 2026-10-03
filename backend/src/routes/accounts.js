@@ -5,6 +5,8 @@ const Barangay = require('../models/Barangay');
 const Sport = require('../models/Sport');
 const { hashPassword } = require('../config/password');
 const { authenticate, authorize } = require('../middleware/auth');
+const Tournament = require('../models/Tournament');
+const { getCurrentSeason } = require('../middleware/season');
 
 const router = express.Router();
 
@@ -207,16 +209,33 @@ router.delete('/:id', async (req, res) => {
       if (supers <= 1) return res.status(409).json({ message: 'Cannot delete the last super admin.' });
     }
 
-    // Protect the audit trail: refuse if this account entered any match result.
-    const scored = await Match.countDocuments({ enteredBy: user._id });
-    if (scored > 0) {
+    // Audit trail (revised Oct 2026, Super Admin rule). Results this account entered in the
+    // CURRENT season, while that season is still running, are live: no delete (reset its
+    // password to hand the sport to someone else). Once the season is completed, or a newer
+    // season exists, it can be deleted.
+    // Results from PAST seasons don't block it any more (an organizer from a finished season
+    // used to be undeletable forever): their username is copied onto those matches first,
+    // so every result still names who entered it.
+    const season = await getCurrentSeason();
+    const running = season && season.status !== 'completed';
+    const currentT = running ? await Tournament.find({ season: season._id }).distinct('_id') : [];
+    const scoredNow = await Match.countDocuments({ enteredBy: user._id, tournament: { $in: currentT } });
+    if (scoredNow > 0) {
       return res.status(409).json({
-        message: `This account has scored ${scored} match(es) and can't be deleted. Its results would lose their audit trail.`,
+        message: `${user.username} has entered ${scoredNow} result(s) this season, so it can't be deleted until the season is over. To give the sport to someone else, use Reset password instead.`,
       });
     }
 
+    const kept = await Match.updateMany(
+      { enteredBy: user._id },
+      { $set: { enteredByName: user.username } }
+    );
     await User.deleteOne({ _id: user._id });
-    res.json({ message: `Account "${user.username}" deleted.` });
+    res.json({
+      message: `Account "${user.username}" deleted.` + (kept.modifiedCount
+        ? ` Its ${kept.modifiedCount} result(s) from past seasons still show "${user.username}" as who entered them.`
+        : ''),
+    });
   } catch (err) {
     console.error('Delete account error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

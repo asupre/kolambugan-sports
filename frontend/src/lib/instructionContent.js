@@ -212,3 +212,26 @@ export const INSTRUCTION_STEPS = Object.fromEntries(
     })),
   ])
 );
+
+// Which guide step a page belongs to (Oct 2026): "How this works" and the "?" open the guide AT
+// that step (e.g. Season opens on "Start a season", step 2), not always on the welcome step.
+// Indexes into RAW_STEPS above: keep in step if steps are added or reordered. Longest path wins.
+const STEP_FOR_PATH = {
+  super_admin: {
+    "/admin/season": 1, "/admin/reference": 2, "/admin/review": 3, "/admin/config": 4,
+    "/admin/tournaments": 5, "/admin/accounts": 6,
+    "/admin/champions": 7, "/admin/reports": 7, "/admin/site-images": 7,
+  },
+  barangay_admin: { "/brgy": 1, "/brgy/documents": 2, "/brgy/matches": 4 },
+  organizer: { "/organizer": 1 },
+};
+
+export function stepForPath(role, pathname) {
+  const map = STEP_FOR_PATH[role] || {};
+  const key = Object.keys(map)
+    .filter((k) => pathname === k || pathname.startsWith(k + "/"))
+    .sort((a, b) => b.length - a.length)[0];
+  // Dashboards ("/brgy/dashboard" would otherwise match "/brgy") start at the welcome step.
+  if (!key || /\/dashboard$/.test(pathname)) return 0;
+  return map[key];
+}

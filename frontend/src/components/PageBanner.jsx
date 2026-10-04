@@ -1,11 +1,13 @@
 import { HelpCircle } from "lucide-react";
 
 // Page banners (Oct 2026, from the Super Admin's banner.webp reference: promo-style cards).
-// Every admin page except the Dashboards (which have the "Hello" picture banner) opens with a
+// Every admin page except the Dashboards and Season (removed Oct 2026: its photo season card is
+// enough) (which have the "Hello" picture banner) opens with a
 // rounded gradient card: the page name small on top, one bold line, a pill button, and a drawn
 // illustration on the right. All inline SVG (no images to load, nothing uploaded), one colour
 // per page so each tab is recognisable at a glance. Config by path in BANNERS below; a page
-// with no entry keeps the plain title + subtitle header.
+// with no entry keeps the plain title + subtitle header. "How this works" opens the guide on THIS
+// page's step (stepForPath).
 
 const TONES = {
   violet: "from-[#6D4AE8] to-[#8F7CF5]",
@@ -24,7 +26,6 @@ const TONES = {
 
 // Longest matching path prefix wins (so /admin/tournaments/:sportId uses /admin/tournaments).
 export const BANNERS = {
-  "/admin/season": { tone: "violet", art: "calendar", headline: "Run the season, one step at a time" },
   "/admin/reference": { tone: "sky", art: "clipboard", headline: "Every player checked against the list" },
   "/admin/review": { tone: "teal", art: "shield", headline: "Give the official verdict" },
   "/admin/config": { tone: "amber", art: "sliders", headline: "Set up the games and barangays" },

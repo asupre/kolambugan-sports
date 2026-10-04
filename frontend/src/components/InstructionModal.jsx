@@ -102,8 +102,9 @@ function StepShots({ shots, icon: Icon, title }) {
 // current step, so every Next resized it and, being centred, it jumped up and
 // down. Every screenshot for the role is preloaded on open so switching steps
 // doesn't flash an empty box either.
-export default function InstructionModal({ role, onClose }) {
-  const [step, setStep] = useState(0);
+export default function InstructionModal({ role, onClose, initialStep = 0 }) {
+  // initialStep: open on the step for the current page (stepForPath in lib/instructionContent.js).
+  const [step, setStep] = useState(initialStep);
   const steps = INSTRUCTION_STEPS[role] || [];
 
   useEffect(() => {

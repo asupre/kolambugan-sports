@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ChevronDown, HelpCircle, LogOut, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { api } from "../api";
 import InstructionModal from "./InstructionModal";
+import { stepForPath } from "../lib/instructionContent";
 import LoadingScreen from "./LoadingScreen";
 import ProfilePanel from "./ProfilePanel";
 import BannerBackdrop from "./BannerBackdrop";
@@ -535,7 +536,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       </div>
 
       {showHelp && (
-        <InstructionModal role={user?.role} onClose={() => setShowHelp(false)} />
+        <InstructionModal role={user?.role} initialStep={stepForPath(user?.role, location.pathname)} onClose={() => setShowHelp(false)} />
       )}
       <ProfilePanel
         open={showProfile}

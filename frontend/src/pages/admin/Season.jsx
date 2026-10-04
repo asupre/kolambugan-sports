@@ -385,28 +385,31 @@ export default function Season() {
       ) : (
         <div className="space-y-5">
           {/* Which season, where it is in its life, and what that stage means */}
-          {/* The Dashboard banner's picture as this card's header (same picture, its own layout). */}
-          <Card className="overflow-hidden pt-0">
-            <div className="relative h-32 bg-[#3B6A62] sm:h-36 print:hidden">
-              <BannerBackdrop userId={me?.id} position="50% 55%" />
-              <div className="relative z-[2] flex h-full items-end justify-between gap-3 px-5 pb-4 sm:px-6">
+          {/* The Dashboard banner's picture fills this whole card: the season name on top, the stage
+              cards over the picture, the guide line in white under them. A plain div, not a Card, so
+              the calm Card padding rules don't leave a strip around the picture. */}
+          <div className="relative overflow-hidden rounded-[14px] bg-[#3B6A62] print:bg-transparent">
+            <div className="print:hidden"><BannerBackdrop userId={me?.id} position="50% 60%" /></div>
+            {/* Extra shade at the bottom so the white guide line reads on any picture. */}
+            <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+            <div className="relative z-[2] space-y-4 p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 text-white [text-shadow:0_1px_8px_rgba(20,40,32,0.45)]">
-                  <p className="flex items-center gap-1.5 text-[13px] text-white/85">
+                  <p className="flex items-center gap-1.5 text-[12px] text-white/85">
                     <CalendarClock className="size-3.5" /> Current season
                   </p>
-                  <h2 className="truncate text-[22px] font-semibold leading-tight sm:text-[26px]">{season.name}</h2>
+                  <h2 className="line-clamp-2 break-words text-[20px] font-semibold leading-tight sm:text-[22px]">{season.name}</h2>
                   <p className="text-[12px] text-white/80">
                     Opened {fmtDate(season.openedAt)}
                     {season.closedAt ? ` · Closed ${fmtDate(season.closedAt)}` : ""}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-white/95 shadow-sm"><SeasonBadge status={season.status} /></span>
+                {/* Fixed light pill on the picture: the badge's own dark-mode text was light-on-white. */}
+                <SeasonBadge status={season.status} className="shrink-0 bg-white/95 text-slate-800 shadow-sm dark:bg-white/95 dark:text-slate-800" />
               </div>
+              <SeasonTracker status={season.status} role="super_admin" onPicture />
             </div>
-            <CardContent className="space-y-4">
-              <SeasonTracker status={season.status} role="super_admin" />
-            </CardContent>
-          </Card>
+          </div>
 
           {/* The decision: is it ready, and what will moving on do */}
           {next ? (

@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, CirclePlay, ClipboardList, Settings2, ShieldCheck, Trophy } from "lucide-react";
 import { SEASON_STAGES } from "../lib/season";
 import { cn } from "../lib/utils";
 
@@ -55,44 +55,58 @@ export function SeasonBadge({ status, name, className }) {
   );
 }
 
-// The five stages as a segmented bar with the current one marked, plus what it
-// means for this role. Finished stages get a check; upcoming ones stay muted.
-export function SeasonTracker({ status, role, name }) {
+// One icon per stage for the tracker's cards.
+const STAGE_ICON = { setup: Settings2, registration_open: ClipboardList, verification: ShieldCheck, ongoing: CirclePlay, completed: Trophy };
+
+// The five stages as a row of ICON CARDS (Oct 2026, "option 2"), plus what the current one means
+// for this role. Finished: green icon + a tick badge. Current: green border + "Now". Upcoming: faded text
+// (never opacity on the card itself: on the Season banner the picture would show through).
+// Phones: five cards of ~64px only fit the icon, so labels hide and a "Step N of 5" line follows.
+// onPicture: the tracker sits on the Season card's banner picture, so the text below the cards is white.
+export function SeasonTracker({ status, role, name, onPicture = false }) {
   const at = SEASON_STAGES.findIndex((s) => s.key === status);
   if (at < 0) return null;
   const stage = SEASON_STAGES[at];
   return (
     <div className="space-y-3">
-      {/* The stage itself is shown by the header pill and the highlighted step
+      {/* The stage itself is shown by the header pill and the highlighted card
           below, so this just names the season (no third copy of the badge). */}
       {name && <p className="text-sm font-semibold">{name}</p>}
 
-      {/* Segmented bar (Oct 2026): one thick segment per stage, solid green up to the current one,
-          which is a lighter green with a ring and a "Now" tag. Phones show only the bar, plus the
-          "Step N of 5" line below (five labels don't fit). */}
       <ol className="grid grid-cols-5 gap-1.5 sm:gap-2" aria-label="Season stages">
         {SEASON_STAGES.map((s, i) => {
           const done = i < at;
           const current = i === at;
+          const Icon = STAGE_ICON[s.key];
           return (
-            <li key={s.key} aria-current={current ? "step" : undefined} className="min-w-0">
-              <div
-                className={cn(
-                  "h-2.5 rounded-full",
-                  done && "bg-primary",
-                  current && "bg-primary/45 ring-2 ring-primary ring-offset-2 ring-offset-card",
-                  !done && !current && "bg-muted"
-                )}
-              />
-              <p className={cn(
-                "mt-2.5 hidden items-center gap-1 truncate text-[13px] leading-tight sm:flex",
+            <li
+              key={s.key}
+              aria-current={current ? "step" : undefined}
+              title={s.label}
+              className={cn(
+                "relative flex min-w-0 flex-col items-center gap-1.5 rounded-xl border bg-card px-1 py-2.5 text-center sm:items-start sm:px-3 sm:py-3 sm:text-left",
+                current ? "border-primary ring-1 ring-primary" : "border-border"
+              )}
+            >
+              <span className={cn(
+                "flex size-8 items-center justify-center rounded-lg",
+                done || current ? "bg-primary/12 text-primary" : "bg-muted text-muted-foreground/60"
+              )}>
+                <Icon className="size-[18px]" strokeWidth={1.9} aria-hidden="true" />
+              </span>
+              {done && (
+                <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <Check className="size-3" strokeWidth={3} aria-label="done" />
+                </span>
+              )}
+              <span className={cn(
+                "hidden w-full truncate text-[13px] leading-tight sm:block",
                 current ? "font-semibold text-foreground" : done ? "text-muted-foreground" : "text-muted-foreground/60"
               )}>
-                {done && <Check className="size-3.5 shrink-0 text-primary" strokeWidth={2.5} />}
-                <span className="truncate">{s.label}</span>
-              </p>
+                {s.label}
+              </span>
               {current && (
-                <span className="mt-1 hidden w-fit rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary sm:inline-block">
+                <span className="hidden rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground sm:inline-block">
                   Now
                 </span>
               )}
@@ -100,11 +114,13 @@ export function SeasonTracker({ status, role, name }) {
           );
         })}
       </ol>
-      <p className="text-[13px] font-semibold sm:hidden">
+      <p className={cn("text-[13px] font-semibold sm:hidden", onPicture && "text-white")}>
         Step {at + 1} of {SEASON_STAGES.length} · {stage.label}
       </p>
 
-      <p className="text-sm text-muted-foreground">{GUIDE[role]?.[status] || stage.short}</p>
+      <p className={cn("text-sm", onPicture ? "text-white/90 [text-shadow:0_1px_6px_rgba(0,0,0,0.45)]" : "text-muted-foreground")}>
+        {GUIDE[role]?.[status] || stage.short}
+      </p>
     </div>
   );
 }

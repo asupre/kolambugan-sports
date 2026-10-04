@@ -251,6 +251,7 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   changing at all — so it calls the same `rescreenSeason()`. The upload
   response reports how many players changed and how many verified teams
   reopened, same shape as the cross-barangay toggle.
+- **Upload speed (Oct 4 2026, "why does it take too long"):** the upload inserts with `insertMany(docs, { lean: true, ordered: false })` (no per-row Mongoose casting / validation: ~1s of CPU for 17k rows on a dev PC, several times that on Render's free tier), so the route builds rows in their STORED types itself (ObjectIds, Dates, createdAt/updatedAt, and no undefined / empty-birthdate fields). `rescreenSeason(seasonId, refs?)` is batched: one query each for teams, barangays and roster links (+players), ONE `Player.bulkWrite`, one `Team.updateMany` for reopened teams, and it reuses the uploaded rows instead of re-downloading the list. Proven identical to the old per-team version on 200 generated seasons (statuses, reasons, team statuses, counts). Not yet timed against Atlas.
 - **The reference list is LOCKED from verification until the season ends (Sep 2026).** `POST
   /api/reference-list` returns 409 unless the season is `setup` or `registration_open` (the Reference
   List page disables the upload and says why; the list stays viewable/searchable). Reason: replacing

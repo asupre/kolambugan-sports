@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const multer = require('multer');
 const { parse } = require('csv-parse/sync');
 const ReferenceList = require('../models/ReferenceList');
@@ -51,16 +52,22 @@ router.post('/', authenticate, authorize('super_admin'), upload.single('file'), 
 
     const docs = [];
     const skipped = [];
+    // Written with insertMany({ lean: true }) below, which skips Mongoose's per-row casting, so
+    // the values must already be the stored types: ObjectIds, Dates, and the timestamps.
+    const uploader = new mongoose.Types.ObjectId(String(req.user.id));
+    const now = new Date();
     rows.forEach((row, i) => {
-      const rec = { season: season._id, uploadedBy: req.user.id };
+      const rec = { season: season._id, uploadedBy: uploader, createdAt: now, updatedAt: now };
       for (const [h, v] of Object.entries(row)) {
         const key = canonicalKey(h);
         if (key) rec[key] = v;
       }
       if (!rec.firstName || !rec.lastName) { skipped.push(i + 2); return; } // +2 = header + 1-based
-      if (rec.birthdate) {
+      if (!rec.birthdate) delete rec.birthdate;   // an empty cell: no field at all
+      else {
         const d = new Date(rec.birthdate);
-        rec.birthdate = isNaN(d.getTime()) ? undefined : d;
+        if (isNaN(d.getTime())) delete rec.birthdate;   // no undefined fields: a lean insert would store them as null
+        else rec.birthdate = d;
       }
       docs.push(rec);
     });
@@ -70,8 +77,11 @@ router.post('/', authenticate, authorize('super_admin'), upload.single('file'), 
     }
 
     // Snapshot semantics: replace this season's list entirely.
+    // lean: no per-row Mongoose document / validation (the rows are built and checked above);
+    // ordered:false lets the server take the batches in any order. ~17k rows: the slow part was
+    // Mongoose preparing each row, not the database.
     await ReferenceList.deleteMany({ season: season._id });
-    await ReferenceList.insertMany(docs);
+    await ReferenceList.insertMany(docs, { lean: true, ordered: false });
 
     // Matching now REQUIRES middle name + birthdate to agree (Sep 2026 —
     // name alone was no longer accurate enough, see prescreen.js) — a row
@@ -91,7 +101,7 @@ router.post('/', authenticate, authorize('super_admin'), upload.single('file'), 
     // now matched them — because nothing had re-run their decision since
     // the old (no-middle-name) list was still in effect when they were
     // last screened. Same helper, same shape, as reference.js's toggle.
-    const rescreen = await rescreenSeason(season._id);
+    const rescreen = await rescreenSeason(season._id, docs);   // rows already in memory: no re-download
 
     res.status(201).json({
       message: 'Reference list uploaded.'

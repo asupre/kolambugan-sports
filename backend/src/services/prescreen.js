@@ -204,56 +204,79 @@ async function prescreenPlayer(player, team) {
 // else would ever trigger a re-screen for them otherwise. Fetches the
 // season's reference list ONCE and reuses it
 // across every team, same tradeoff as prescreenTeam.
-async function rescreenSeason(seasonId) {
-  const teams = await Team.find({ season: seasonId });
+// Batched (Oct 2026, "uploading the reference list takes too long"): it used to query per team
+// (barangay, roster links + players) and write per player, and re-download the whole list. Over
+// Atlas each trip costs ~50-150ms, so a season of teams added up to many seconds. Now it's a fixed
+// handful of queries plus ONE bulkWrite, whatever the size. Same decisions, same counts.
+// `refs`: the list rows, when the caller already has them in memory (the upload route), so the
+// ~17k rows aren't fetched back from the database.
+async function rescreenSeason(seasonId, refs = null) {
+  const teams = await Team.find({ season: seasonId }).select('_id barangay status').lean();
   if (!teams.length) return { screened: 0, changed: 0, reopened: 0 };
 
-  const refs = await ReferenceList.find({ season: seasonId }).lean();
+  const [rows, barangays, links] = await Promise.all([
+    refs ? Promise.resolve(refs) : ReferenceList.find({ season: seasonId }).lean(),
+    Barangay.find({ _id: { $in: [...new Set(teams.map((t) => String(t.barangay)))] } }).lean(),
+    TeamPlayer.find({ team: { $in: teams.map((t) => t._id) } }).populate('player').lean(),
+  ]);
+
   const refIndex = new Map();
-  for (const r of refs) {
+  for (const r of rows) {
     const key = `${norm(r.lastName)}|${norm(r.firstName)}`;
     if (!refIndex.has(key)) refIndex.set(key, []);
     refIndex.get(key).push(r);
   }
-  const barangayCache = new Map();
+  const barangayById = new Map(barangays.map((b) => [String(b._id), b]));
+  const playersByTeam = new Map();
+  for (const l of links) {
+    if (!l.player) continue;
+    const k = String(l.team);
+    if (!playersByTeam.has(k)) playersByTeam.set(k, []);
+    playersByTeam.get(k).push(l.player);
+  }
 
-  let screened = 0, changed = 0, reopened = 0;
+  // A player linked to two teams is decided per team, in order, and the last decision is the one
+  // saved (as before, when each write happened straight away). `current` tracks what is stored.
+  const current = new Map();   // player id -> { status, reason }
+  const finalWrite = new Map(); // player id -> { status, reason }
+  const reopenIds = [];
+  let screened = 0, changed = 0;
   for (const team of teams) {
-    const bId = String(team.barangay);
-    if (!barangayCache.has(bId)) barangayCache.set(bId, await Barangay.findById(team.barangay));
-    const teamBarangay = barangayCache.get(bId);
-
-    const links = await TeamPlayer.find({ team: team._id }).populate('player');
-    const players = links.map((l) => l.player).filter(Boolean);
-
+    const teamBarangay = barangayById.get(String(team.barangay)) || null;
     let anyNonEligible = false;
-    for (const p of players) {
+    for (const p of playersByTeam.get(String(team._id)) || []) {
+      const id = String(p._id);
+      const now = current.get(id) || { status: p.eligibilityStatus, reason: p.flagReason };
       // An under-15 can never be on the list, so re-screening one can only ever produce
       // "needs document" — i.e. it could only UNDO the Super Admin's approval (their document
       // review) and, on a verified team, reopen it. Approved minors are left as they are.
       const age = ageFrom(p.birthdate);
-      if (p.eligibilityStatus === 'eligible' && age !== null && age <= MINOR_AGE) { screened++; continue; }
+      if (now.status === 'eligible' && age !== null && age <= MINOR_AGE) { screened++; continue; }
 
       const candidates = refIndex.get(`${norm(p.lastName)}|${norm(p.firstName)}`) || [];
       const { status, reason } = decideFromCandidates(p, teamBarangay, candidates);
       screened++;
-      if (p.eligibilityStatus !== status || p.flagReason !== reason) {
-        await Player.updateOne({ _id: p._id }, { $set: { eligibilityStatus: status, flagReason: reason } });
+      if (now.status !== status || now.reason !== reason) {
+        current.set(id, { status, reason });
+        finalWrite.set(id, { status, reason });
         changed++;
       }
       if (status !== 'eligible') anyNonEligible = true;
     }
-
     // Same safeguard as the "correct this player" route: a verified team
     // must never silently sit with a non-eligible player on it.
-    if (team.status === 'verified' && anyNonEligible) {
-      team.status = 'pending';
-      await team.save();
-      reopened++;
-    }
+    if (team.status === 'verified' && anyNonEligible) reopenIds.push(team._id);
   }
 
-  return { screened, changed, reopened };
+  const ops = [...finalWrite].map(([id, v]) => ({
+    updateOne: { filter: { _id: id }, update: { $set: { eligibilityStatus: v.status, flagReason: v.reason } } },
+  }));
+  await Promise.all([
+    ops.length ? Player.bulkWrite(ops, { ordered: false }) : null,
+    reopenIds.length ? Team.updateMany({ _id: { $in: reopenIds } }, { $set: { status: 'pending' } }) : null,
+  ]);
+
+  return { screened, changed, reopened: reopenIds.length };
 }
 
 module.exports = {

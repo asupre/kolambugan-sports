@@ -186,8 +186,9 @@ export default function Home() {
           page: dark on the left behind the words, fully page-black at the bottom. Content is
           left-aligned in a readable column, like the reference. KEEP: no viewport-edge full-bleed
           (w-screen / -50vw clipped content on phones); -mx-4 lg:-mx-8 cancels <main>'s padding and
-          -mt-6 its top padding, so the hero sits flush under the nav. */}
-      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#0C1A12] -mx-4 lg:-mx-8 -mt-6 mb-8 flex flex-col justify-end min-h-[calc(88svh-7.5rem)] lg:min-h-[calc(88svh-4.5rem)]">
+          -mt-6 its top padding, so the hero sits flush under the nav (desktop: also the 72px header, so
+          the photo runs up BEHIND the transparent header and the two blend). */}
+      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#0C1A12] -mx-4 lg:-mx-8 -mt-6 lg:-mt-[calc(1.5rem+72px)] mb-8 flex flex-col justify-end min-h-[calc(88svh-7.5rem)] lg:min-h-[88svh]">
         <HeroImage containerRef={heroRef} />
         <div
           className="pointer-events-none absolute inset-0 -z-10"

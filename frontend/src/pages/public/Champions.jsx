@@ -281,6 +281,7 @@ function BarangayCabinet({ row, barangayId, onClose, okPhoto, onPhotoError, onOp
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-(--z-overlay) bg-black/60" />
         <DialogPrimitive.Content
+          data-lenis-prevent
           aria-describedby={undefined}
           className="fixed left-1/2 top-1/2 z-(--z-overlay) flex max-h-[90dvh] overscroll-contain w-[calc(100vw-24px)] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0E1B2E] text-slate-100 shadow-2xl shadow-black/60 outline-none"
         >

@@ -19,20 +19,22 @@ const NAV = [
   { to: "/about", label: "About", icon: "about" },
 ];
 
+// Phone nav icons (Oct 2026 redraw): one consistent 24px line set (lucide-style geometry,
+// inlined: public pages don't import lucide), 1.75 stroke, round caps.
 const PATHS = {
-  home: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H4a1 1 0 0 1-1-1z" />,
-  matches: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M12 5v14" /></>,
-  standings: <path d="M4 7h16M4 12h16M4 17h10" />,
-  brackets: <path d="M4 6h5v5h4M4 18h5v-5M13 11v2M13 12h7" />,
-  teams: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5" /><circle cx="17.5" cy="9.5" r="2.5" /><path d="M17.5 14c2.5 0 3.5 2 3.5 4" /></>,
-  players: <><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.9 3.1-6 7-6s7 2.1 7 6" /></>,
-  champions: <><path d="M8 4h8v5a4 4 0 0 1-8 0z" /><path d="M8 6H5a3 3 0 0 0 3 3M16 6h3a3 3 0 0 1-3 3" /><path d="M12 13v3M9 20h6" /></>,
-  about: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>,
+  home: <><path d="M3 10a2 2 0 0 1 .7-1.5l7-6a2 2 0 0 1 2.6 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 21v-7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v7" /></>,
+  matches: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 2v4M16 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></>,
+  standings: <path d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />,
+  brackets: <><path d="M3 5h6v6M3 17h6v-6M9 11h5" /><circle cx="17.5" cy="11" r="3" /></>,
+  teams: <path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z" />,
+  players: <><circle cx="12" cy="7" r="4" /><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /></>,
+  champions: <><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16" /><path d="M10 14.7V17c0 .6-.5 1-1 1.2C7.9 18.8 7 20.2 7 22M14 14.7V17c0 .6.5 1 1 1.2 1.1.6 2 2 2 3.8" /><path d="M18 2H6v7a6 6 0 0 0 12 0z" /></>,
+  about: <><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></>,
 };
 
 function Icon({ name, className = "" }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"
       strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
       {PATHS[name]}
     </svg>
@@ -64,6 +66,21 @@ function ScrollToTop({ lenisRef }) {
 //    IntersectionObserver-based Motion reveals, hash links and browser
 //    find-in-page all keep working untouched;
 //  - destroyed on unmount, which also removes the classes it put on <html>.
+// True once the page has scrolled past the very top. The desktop header is transparent (it
+// blends into the page / Home hero) until then, and turns into a frosted bar after.
+function useScrolled() {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const check = () => { raf = 0; setScrolled(window.scrollY > 8); };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
+  }, []);
+  return scrolled;
+}
+
 function useLenis(lenisRef) {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -97,6 +114,7 @@ export default function PublicLayout() {
   const [meta, setMeta] = useState(null);
   const lenisRef = useRef(null);
   useLenis(lenisRef);
+  const scrolled = useScrolled();
 
   useEffect(() => {
     api("/api/public/overview")
@@ -106,10 +124,9 @@ export default function PublicLayout() {
 
   const liveNow = meta?.counts?.liveNow || 0;
 
+  // Phone icon bar: the active item gets a soft green pill behind its icon (no underline).
   const linkClass = ({ isActive }) =>
-    `whitespace-nowrap border-b-2 transition ${
-      isActive ? "text-[#4ADE80] border-[#4ADE80]" : "text-slate-400 border-transparent hover:text-slate-200"
-    }`;
+    `group whitespace-nowrap transition-colors ${isActive ? "is-active text-[#4ADE80]" : "text-slate-400 hover:text-slate-200"}`;
 
   return (
         <div className="min-h-screen bg-[#0A0C0B] bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(37,99,235,0.16),transparent_70%),radial-gradient(ellipse_60%_40%_at_100%_60%,rgba(56,189,248,0.06),transparent_70%)] bg-no-repeat text-slate-200 flex flex-col overflow-x-clip">
@@ -128,15 +145,28 @@ export default function PublicLayout() {
       {/* Glassmorphism (Oct 2026): fixed coloured glows behind every public page, for
           the frosted panels to blur. main/footer sit above it (relative z-10). */}
       <GlassBackdrop />
-      <header className="bg-[#0A0C0B]/85 backdrop-blur-sm lg:bg-[#0A0C0B]/70 lg:backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-30">
-        <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
+      {/* Desktop (lg+): BLENDS in at the top of the page (no fill, no border; on Home the hero
+          photo runs up behind it), a soft top shade keeps the links readable, and once scrolled it
+          becomes a frosted bar. Phones keep the solid bar with the icon nav. */}
+      <header className={cn(
+        "sticky top-0 z-30 border-b bg-[#0A0C0B]/85 backdrop-blur-sm transition-[background-color,border-color] duration-300",
+        scrolled
+          ? "border-white/[0.06] lg:bg-[#0A0C0B]/70 lg:backdrop-blur-xl"
+          : "border-white/[0.06] lg:border-transparent lg:bg-transparent lg:backdrop-blur-none"
+      )}>
+        {/* The shade that keeps the links readable over a photo: taller than the header and fading
+            out below it, so it ends without a visible edge (a 72px gradient left a faint line). */}
+        {!scrolled && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 hidden h-40 bg-gradient-to-b from-[#0A0C0B]/60 via-[#0A0C0B]/25 to-transparent lg:block" />
+        )}
+        <div className="relative max-w-[1400px] mx-auto px-4 lg:px-8">
           {/* Header row layout (Sep 2026, from the Super Admin's sketch):
               logo, nav (centered at lg+), season-name pill at the far right —
               at lg+. Below lg there isn't room for the lockup + 8 links +
               season on one line, so the (single) desktop nav wraps onto its
               own row via `basis-full order-last`, as before. Phones use the
               separate icon nav below. */}
-          <div className="flex flex-wrap items-center gap-x-8 py-3 lg:flex-nowrap">
+          <div className="flex flex-wrap items-center gap-x-8 py-3 lg:h-[72px] lg:flex-nowrap lg:py-0">
             <Link to="/" className="flex items-center min-w-0">
               <img
                 src="/logo/ksl-lockup-horizontal-dark.svg"
@@ -191,9 +221,11 @@ export default function PublicLayout() {
                     <nav className="flex sm:hidden [&>a]:flex-1 [&>a]:min-w-0">
             {NAV.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} className={linkClass}>
-                <span className="flex flex-col items-center gap-1 py-2 w-full">
-                  <Icon name={n.icon} className="w-[22px] h-[22px]" />
-                  <span className="text-[9px] leading-none truncate max-w-full">{n.short || n.label}</span>
+                <span className="flex flex-col items-center gap-1 py-1.5 w-full">
+                  <span className="flex h-7 w-11 items-center justify-center rounded-full transition-colors group-[.is-active]:bg-[#4ADE80]/15">
+                    <Icon name={n.icon} className="w-[22px] h-[22px]" />
+                  </span>
+                  <span className="text-[9px] leading-none truncate max-w-full group-[.is-active]:font-semibold">{n.short || n.label}</span>
                 </span>
               </NavLink>
             ))}

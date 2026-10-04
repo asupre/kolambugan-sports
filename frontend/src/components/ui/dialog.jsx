@@ -104,6 +104,8 @@ function DialogContent({
       />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        // Public pages: Lenis is paused while a dialog is open and would swallow the wheel inside it.
+        data-lenis-prevent
         onOpenAutoFocus={deferredOpenFocus(onOpenAutoFocus)}
         onPointerDownOutside={onPointerDownOutside}
         onFocusOutside={(e) => e.preventDefault()}

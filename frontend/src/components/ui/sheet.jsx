@@ -74,6 +74,7 @@ function SheetContent({
       )}
       <SheetPrimitive.Content
         data-slot="sheet-content"
+        data-lenis-prevent
         className={cn(
           "fixed inset-y-0 right-0 z-(--z-overlay) flex h-full w-full max-w-sm flex-col border-l bg-popover text-sm text-popover-foreground shadow-lg outline-none duration-200 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right",
           className

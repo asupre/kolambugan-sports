@@ -1053,6 +1053,7 @@ so a bug in one route cannot expose the other.
 ## Design system (two looks, one product)
 
 **Public Viewer — DARK, "ESPN structure" (decided Aug 2026):**
+- **Public header BLENDS on desktop (Oct 4 2026, Super Admin's `blend.png`):** at `lg+` and at the top of the page the header has no fill, no border and no blur (`useScrolled()` in `PublicLayout.jsx`); a 160px shade (`h-40`, fading below the header so it leaves no edge) keeps the links readable; past 8px of scroll it is the frosted bar again. The desktop header row is a fixed 72px (`lg:h-[72px]`), and Home's hero is pulled up by exactly that (`lg:-mt-[calc(1.5rem+72px)]`) so the photo runs behind it. Phones unchanged (solid bar), except the icon bar: redrawn line icons (house, calendar, numbered list, bracket-to-winner, shield, person, trophy, info; 1.75 stroke) and a soft green pill behind the active icon instead of an underline. Icon / caption sizes unchanged (22px / 9px).
 - **CURRENT PALETTE = NEAR-BLACK + GREEN (Oct 3 2026, Super Admin, from a game-hosting landing
   page reference; supersedes the navy + yellow below).** Same structure, values swapped in every
   public file: page `#0A0C0B`, footer `#060807`, panel `#111513`, bar/chip `#161B18`, border
@@ -1644,6 +1645,7 @@ vs local).** Keep these:
   first. Open focus is deferred ~140ms (the instant focus forced a layout in the animation's
   first frame). Season's move-on dialog on a phone: ~200ms freeze → ~70ms. Pass `modal` to opt
   back in. **The page behind does NOT scroll (Oct 4 2026 fix):** `lib/scrollLock.js` (`<ScrollLock />` rendered inside every `DialogContent` / `SheetContent` / the public Champions cabinet, `useScrollLock(open)` for the phone menu) sets `overflow:hidden` on <html> with the scrollbar width put back as padding, counted for stacked dialogs, and pauses Lenis on public pages (`registerLenis` in `PublicLayout`). Tested: wheel over an open dialog moves the page 0px (admin and public), scrolling works again after closing.
+  Every dialog / sheet content (and the Champions cabinet) carries `data-lenis-prevent`: a STOPPED Lenis cancels every wheel event, so without it the popup itself couldn't scroll on public pages (bug right after the lock shipped).
 - **Account pictures refresh at once (Oct 4 2026):** `lib/profileImages.js` keeps one version per picture (`photo`, `banner`) in localStorage; Profile calls `bumpImageRev()` after an upload / removal and every `HeaderAvatar`, `BannerBackdrop` and the profile previews re-render with the new `?rev=` (they used to use `?rev=0` per page, so the browser showed its cached old picture until a manual refresh). The old "bump on panel close" counter is gone.
 - **Radix Select stays** (Super Admin chose it over a native `<select>` that opened ~5x faster);
   the two long ones (Review Queue Barangay, League Setup Game) use `position="popper"`.

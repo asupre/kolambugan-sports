@@ -5,6 +5,7 @@ import { Panel, PhotoRowSkeleton, Crest, SportTabs } from "../../components/Publ
 import { Lightbox } from "../../components/DocumentViewer";
 import Reveal from "../../components/Reveal";
 import { formatPrize } from "../../lib/peso";
+import { ScrollLock } from "../../lib/scrollLock";
 
 // Champions (Oct 2026 redesign): a LEADERBOARD of barangays ranked by titles comes first;
 // tapping a barangay's name opens its trophy cabinet (every title, with photos, MVP, prize).
@@ -281,8 +282,9 @@ function BarangayCabinet({ row, barangayId, onClose, okPhoto, onPhotoError, onOp
         <DialogPrimitive.Overlay className="fixed inset-0 z-(--z-overlay) bg-black/60" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-(--z-overlay) flex max-h-[90dvh] w-[calc(100vw-24px)] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0E1B2E] text-slate-100 shadow-2xl shadow-black/60 outline-none"
+          className="fixed left-1/2 top-1/2 z-(--z-overlay) flex max-h-[90dvh] overscroll-contain w-[calc(100vw-24px)] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0E1B2E] text-slate-100 shadow-2xl shadow-black/60 outline-none"
         >
+          <ScrollLock />
           {row && (
             <>
               <div className="flex items-center gap-4 border-b border-white/[0.08] px-5 py-4 sm:px-6">

@@ -3,6 +3,7 @@ import { Dialog as SheetPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
+import { ScrollLock } from "@/lib/scrollLock"
 
 function Sheet({
   ...props
@@ -79,6 +80,7 @@ function SheetContent({
         )}
         {...props}
       >
+        <ScrollLock />
         {/* Scrolls on its own — the close button below stays pinned to the panel
             itself, not to this scrolling body (a taller-than-viewport panel, e.g.
             after revealing a recovery code, used to push content below the fold

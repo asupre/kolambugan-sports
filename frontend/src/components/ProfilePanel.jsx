@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Camera, Check, Copy, ImageIcon, KeyRound, Loader2, ShieldAlert, Trash2, UserRound } from "lucide-react";
 import { api } from "../api";
+import { bumpImageRev, useImageRev } from "../lib/profileImages";
 import ImageCropDialog from "./ImageCropDialog";
 import { useConfirm } from "./ConfirmDialog";
 import {
@@ -197,7 +198,8 @@ function AvatarUpload({ userId, hasPhoto, onChanged }) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [v, setV] = useState(Date.now());   // cache-buster after a change
+  // Shared cache-buster (lib/profileImages.js): bumping it refreshes every copy of the picture.
+  const v = useImageRev("photo", userId);
   const [pending, setPending] = useState(null);   // file awaiting crop
   const [imgError, setImgError] = useState(false);
 
@@ -216,7 +218,7 @@ function AvatarUpload({ userId, hasPhoto, onChanged }) {
       if (!res.ok) throw new Error(data.message || "Upload failed.");
       setPending(null);
       setImgError(false);
-      setV(Date.now());
+      bumpImageRev("photo", userId);
       onChanged(true);
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
@@ -227,7 +229,7 @@ function AvatarUpload({ userId, hasPhoto, onChanged }) {
     setBusy(true); setError("");
     try {
       await api("/api/auth/profile/photo", { method: "DELETE" });
-      setV(Date.now());
+      bumpImageRev("photo", userId);
       onChanged(false);
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
@@ -303,7 +305,7 @@ function BannerUpload({ userId, hasBanner, onChanged }) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [v, setV] = useState(Date.now());
+  const v = useImageRev("banner", userId);
   const [pending, setPending] = useState(null);
   const [imgError, setImgError] = useState(false);
 
@@ -316,7 +318,7 @@ function BannerUpload({ userId, hasBanner, onChanged }) {
       const res = await fetch("/api/auth/profile/banner", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Upload failed.");
-      setPending(null); setImgError(false); setV(Date.now()); onChanged(true);
+      setPending(null); setImgError(false); bumpImageRev("banner", userId); onChanged(true);
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
@@ -326,7 +328,7 @@ function BannerUpload({ userId, hasBanner, onChanged }) {
     setBusy(true); setError("");
     try {
       await api("/api/auth/profile/banner", { method: "DELETE" });
-      setV(Date.now()); onChanged(false);
+      bumpImageRev("banner", userId); onChanged(false);
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }

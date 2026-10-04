@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Lenis from "lenis";
 import "lenis/dist/lenis.css";
+import { registerLenis } from "../../lib/scrollLock";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import { LiveDot, GlassBackdrop } from "../../components/PublicUI";
@@ -74,7 +75,9 @@ function useLenis(lenisRef) {
       autoRaf: true,
     });
     lenisRef.current = lenis;
+    registerLenis(lenis);   // so an open dialog can pause it (lib/scrollLock.js)
     return () => {
+      registerLenis(null);
       lenis.destroy();
       lenisRef.current = null;
     };

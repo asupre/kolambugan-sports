@@ -1643,7 +1643,8 @@ vs local).** Keep these:
   a dialog opened over another (Reject confirmation over the player popup) doesn't close the
   first. Open focus is deferred ~140ms (the instant focus forced a layout in the animation's
   first frame). Season's move-on dialog on a phone: ~200ms freeze → ~70ms. Pass `modal` to opt
-  back in. Side effect: the mouse wheel can scroll the page behind a dialog.
+  back in. **The page behind does NOT scroll (Oct 4 2026 fix):** `lib/scrollLock.js` (`<ScrollLock />` rendered inside every `DialogContent` / `SheetContent` / the public Champions cabinet, `useScrollLock(open)` for the phone menu) sets `overflow:hidden` on <html> with the scrollbar width put back as padding, counted for stacked dialogs, and pauses Lenis on public pages (`registerLenis` in `PublicLayout`). Tested: wheel over an open dialog moves the page 0px (admin and public), scrolling works again after closing.
+- **Account pictures refresh at once (Oct 4 2026):** `lib/profileImages.js` keeps one version per picture (`photo`, `banner`) in localStorage; Profile calls `bumpImageRev()` after an upload / removal and every `HeaderAvatar`, `BannerBackdrop` and the profile previews re-render with the new `?rev=` (they used to use `?rev=0` per page, so the browser showed its cached old picture until a manual refresh). The old "bump on panel close" counter is gone.
 - **Radix Select stays** (Super Admin chose it over a native `<select>` that opened ~5x faster);
   the two long ones (Review Queue Barangay, League Setup Game) use `position="popper"`.
 - **Refresh quietly after an action**: `load({ quiet: true })` (no skeleton, no jump to the

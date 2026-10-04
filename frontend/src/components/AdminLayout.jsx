@@ -6,6 +6,8 @@ import InstructionModal from "./InstructionModal";
 import LoadingScreen from "./LoadingScreen";
 import ProfilePanel from "./ProfilePanel";
 import BannerBackdrop from "./BannerBackdrop";
+import { useScrollLock } from "../lib/scrollLock";
+import { useImageRev } from "../lib/profileImages";
 import { getStoredTheme, storeTheme } from "../lib/theme";
 import ThemeToggle from "./ThemeToggle";
 import { SeasonBadge } from "./SeasonStatus";
@@ -26,9 +28,10 @@ function flattenItems(menu) {
 
 // Header avatar: tries the account's profile photo, falls back to initials
 // on a 404 (no photo set) — same "image is the upload control" avatar the
-// profile panel uses, just read-only here. `v` bumps after the panel closes
-// so a just-changed photo shows up without a full page reload.
-function HeaderAvatar({ user, v }) {
+// profile panel uses, just read-only here.
+function HeaderAvatar({ user }) {
+  // Shared version (lib/profileImages.js): a photo changed in Profile shows everywhere at once.
+  const v = useImageRev("photo", user?.id);
   const [imgError, setImgError] = useState(false);
   useEffect(() => { setImgError(false); }, [v]);   // give a just-uploaded photo another chance to load
   if (!user?.id || imgError) {
@@ -65,10 +68,10 @@ function HeaderAvatar({ user, v }) {
 // The picture: BannerBackdrop (the account's own, else /banner.jpg, else the drawn landscape).
 const DASHBOARD_PATHS = ["/admin", "/brgy/dashboard", "/organizer/dashboard"];
 const ROLE_LABEL = { super_admin: "Super Admin", barangay_admin: "Barangay Admin", organizer: "Organizer" };
-function LandscapeBanner({ userId, v, name, line, buttons }) {
+function LandscapeBanner({ userId, name, line, buttons }) {
   return (
     <div className="relative mb-7 h-28 overflow-hidden rounded-2xl bg-[#3B6A62] sm:h-36 print:hidden">
-      <BannerBackdrop userId={userId} v={v} />
+      <BannerBackdrop userId={userId} />
       <div className="relative z-[2] flex h-full items-center justify-between gap-4 px-5 sm:px-7">
         <div className="min-w-0 text-white [text-shadow:0_1px_8px_rgba(20,40,32,0.35)]">
           <p className="truncate text-[22px] font-semibold leading-tight sm:text-[26px]">Hello, {name}</p>
@@ -94,6 +97,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   // its ~0.75s. Touch screens get an instant swap (the sun/moon icon still animates).
   const finePointer = useMediaQuery("(hover: hover) and (pointer: fine)");
   const rail = railPref && isDesktop;
+  // The phone menu is an overlay: the page behind it shouldn't scroll.
+  useScrollLock(open && !isDesktop);
   // The "calm" look (Oct 2026) for every admin page, all three roles. A class on
   // <html>, so dialogs / popovers that portal to <body> get it too; see :root.calm-theme in
   // index.css. Removed on unmount, so other roles and the public site never see it.
@@ -108,7 +113,6 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const [loggingOut, setLoggingOut] = useState(false);
   const [showHelp, setShowHelp] = useState(false);   // on-demand reopen of the orientation modal
   const [showProfile, setShowProfile] = useState(false);
-  const [avatarV, setAvatarV] = useState(0);   // bumped when the profile panel closes, to refresh a just-changed photo
   const [sports, setSports] = useState([]);
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
   const [reviewPending, setReviewPending] = useState(0);
@@ -410,7 +414,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
               onClick={() => setShowProfile(true)}
               className="hidden lg:flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-sidebar-accent"
             >
-              <HeaderAvatar user={user} v={avatarV} />
+              <HeaderAvatar user={user} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-sidebar-foreground">{user?.username}</span>
                 <span className="block text-[12px] text-sidebar-foreground/55">{ROLE_LABEL[user?.role] || user?.role}</span>
@@ -462,7 +466,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             <span className="hidden sm:inline">{user?.username}</span>
             {/* Opens Profile. On phones this is the only way in (the sidebar account is desktop-only). */}
             <button onClick={() => setShowProfile(true)} aria-label="Profile" title="Profile" className="rounded-full transition hover:opacity-85">
-              <HeaderAvatar user={user} v={avatarV} />
+              <HeaderAvatar user={user} />
             </button>
           </div>
         </header>
@@ -484,7 +488,6 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
               {showBanner && (
                 <LandscapeBanner
                   userId={user?.id}
-                  v={avatarV}
                   name={user?.username}
                   line={season ? season.name : "Inter-Barangay Sports League"}
                   buttons={
@@ -499,7 +502,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
                         </span>
                       )}
                       <span className="rounded-full ring-2 ring-white/90 shadow-sm">
-                        <HeaderAvatar user={user} v={avatarV} />
+                        <HeaderAvatar user={user} />
                       </span>
                     </>
                   }
@@ -525,7 +528,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
       )}
       <ProfilePanel
         open={showProfile}
-        onOpenChange={(o) => { setShowProfile(o); if (!o) setAvatarV((n) => n + 1); }}
+        onOpenChange={setShowProfile}
       />
     </div>
   );

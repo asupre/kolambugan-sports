@@ -4,6 +4,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
+import { ScrollLock } from "@/lib/scrollLock"
 
 // NON-modal by default (Oct 2026, phone lag): a modal Radix dialog, as it opens, aria-hides
 // the whole page, sets pointer-events:none on <body> and locks scrolling; each of those
@@ -112,6 +113,7 @@ function DialogContent({
         )}
         {...props}
       >
+        <ScrollLock />{/* page behind doesn't scroll while open, see lib/scrollLock.js */}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>

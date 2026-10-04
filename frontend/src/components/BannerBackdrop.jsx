@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useImageRev } from "../lib/profileImages";
 
 // The picture behind the Dashboard "Hello" banner, shared so other pages can reuse it in their own
 // way (e.g. the Season page's current-season card). Fills its positioned parent (absolute inset-0).
@@ -7,10 +8,12 @@ import { useEffect, useState } from "react";
 // (Mount Bucas, Panguil Bay, the sunrise from the logo, pines on the right). One inline SVG, no blur.
 const BANNER_PHOTO = "/banner.jpg";
 
-export default function BannerBackdrop({ userId, v = 0, position = "50% 42%" }) {
-  const sources = [userId && `/api/auth/users/${userId}/banner?rev=${v}`, BANNER_PHOTO].filter(Boolean);
+// The version comes from lib/profileImages.js, so a banner changed in Profile shows here at once.
+export default function BannerBackdrop({ userId, position = "50% 42%" }) {
+  const rev = useImageRev("banner", userId);
+  const sources = [userId && `/api/auth/users/${userId}/banner?rev=${rev}`, BANNER_PHOTO].filter(Boolean);
   const [at, setAt] = useState(0);
-  useEffect(() => { setAt(0); }, [v]);
+  useEffect(() => { setAt(0); }, [rev]);
   const photo = at < sources.length;
   return (
     <>

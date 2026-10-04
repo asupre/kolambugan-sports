@@ -57,7 +57,9 @@ export function SeasonBadge({ status, name, className }) {
 
 // The five stages as a row of steps with the current one marked, plus what it
 // means for this role. Finished stages get a check; upcoming ones stay muted.
-export function SeasonTracker({ status, role, name }) {
+// onPicture: drawn over the Season card's banner picture, so circles get a solid fill and the
+// labels / guide line turn white (muted grey text was unreadable on a photo).
+export function SeasonTracker({ status, role, name, onPicture = false }) {
   const at = SEASON_STAGES.findIndex((s) => s.key === status);
   if (at < 0) return null;
   const stage = SEASON_STAGES[at];
@@ -75,33 +77,34 @@ export function SeasonTracker({ status, role, name }) {
             <li key={s.key} className="relative flex flex-1 flex-col items-center gap-1.5 text-center">
               {/* connector to the previous step */}
               {i > 0 && (
-                <span className={cn("absolute right-1/2 top-3 h-0.5 w-full -translate-y-1/2", i <= at ? "bg-primary/40" : "bg-border")} />
+                <span className={cn("absolute right-1/2 top-3 h-0.5 w-full -translate-y-1/2", i <= at ? (onPicture ? "bg-primary" : "bg-primary/40") : (onPicture ? "bg-white/45" : "bg-border"))} />
               )}
               <span
                 aria-current={current ? "step" : undefined}
                 className={cn(
                   "relative z-10 flex size-6 items-center justify-center rounded-full border-2 text-[10px] font-semibold",
                   done && "border-primary bg-primary text-primary-foreground",
-                  current && cn("text-foreground", TONE[status].ring),
-                  !done && !current && "border-border bg-card text-muted-foreground"
+                  current && cn("text-foreground", TONE[status].ring, onPicture && "bg-white text-slate-800"),
+                  !done && !current && (onPicture ? "border-white/60 bg-white/90 text-slate-500" : "border-border bg-card text-muted-foreground")
                 )}
               >
                 {done ? <Check className="size-3.5" /> : i + 1}
               </span>
               {/* Phones: five labels don't fit (they ran together, "RegistrationVerification"), so
                   only the circles show there and one "Step N of 5" line follows the tracker. */}
-              <span className={cn("hidden text-xs leading-tight sm:block", current ? "font-semibold text-foreground" : "text-muted-foreground")}>
+              <span className={cn("hidden text-xs leading-tight sm:block", onPicture ? (current ? "font-semibold text-white" : "text-white/80") : current ? "font-semibold text-foreground" : "text-muted-foreground",
+                onPicture && "[text-shadow:0_1px_6px_rgba(0,0,0,0.5)]")}>
                 {s.label}
               </span>
             </li>
           );
         })}
       </ol>
-      <p className="text-[13px] font-semibold sm:hidden">
+      <p className={cn("text-[13px] font-semibold sm:hidden", onPicture && "text-white")}>
         Step {at + 1} of {SEASON_STAGES.length} · {stage.label}
       </p>
 
-      <p className="text-sm text-muted-foreground">{GUIDE[role]?.[status] || stage.short}</p>
+      <p className={cn("text-sm", onPicture ? "text-white/90 [text-shadow:0_1px_6px_rgba(0,0,0,0.45)]" : "text-muted-foreground")}>{GUIDE[role]?.[status] || stage.short}</p>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { SEASON_STAGES } from "../../lib/season";
 import { CONSEQUENCES, NEXT_LABEL, buildReadiness } from "../../lib/seasonReadiness";
 import { fmtDate } from "../../lib/dashboardFormat";
 import InfoHint from "../../components/InfoHint";
+import BannerBackdrop from "../../components/BannerBackdrop";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
@@ -295,6 +296,7 @@ function CleanupDialog({ season, onClose, onDone }) {
 
 export default function Season() {
   const navigate = useNavigate();
+  const me = JSON.parse(localStorage.getItem("user") || "null");
   const [season, setSeason] = useState(null);
   const [stats, setStats] = useState(null);       // the dashboard payload — the readiness checks read it
   const [history, setHistory] = useState([]);
@@ -383,21 +385,25 @@ export default function Season() {
       ) : (
         <div className="space-y-5">
           {/* Which season, where it is in its life, and what that stage means */}
-          <Card>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          {/* The Dashboard banner's picture as this card's header (same picture, its own layout). */}
+          <Card className="overflow-hidden pt-0">
+            <div className="relative h-32 bg-[#3B6A62] sm:h-36 print:hidden">
+              <BannerBackdrop userId={me?.id} position="50% 55%" />
+              <div className="relative z-[2] flex h-full items-end justify-between gap-3 px-5 pb-4 sm:px-6">
+                <div className="min-w-0 text-white [text-shadow:0_1px_8px_rgba(20,40,32,0.45)]">
+                  <p className="flex items-center gap-1.5 text-[13px] text-white/85">
                     <CalendarClock className="size-3.5" /> Current season
                   </p>
-                  <h2 className="text-xl font-semibold break-words">{season.name}</h2>
-                  <p className="text-xs text-muted-foreground">
+                  <h2 className="truncate text-[22px] font-semibold leading-tight sm:text-[26px]">{season.name}</h2>
+                  <p className="text-[12px] text-white/80">
                     Opened {fmtDate(season.openedAt)}
                     {season.closedAt ? ` · Closed ${fmtDate(season.closedAt)}` : ""}
                   </p>
                 </div>
-                <SeasonBadge status={season.status} />
+                <span className="shrink-0 rounded-full bg-white/95 shadow-sm"><SeasonBadge status={season.status} /></span>
               </div>
+            </div>
+            <CardContent className="space-y-4">
               <SeasonTracker status={season.status} role="super_admin" />
             </CardContent>
           </Card>

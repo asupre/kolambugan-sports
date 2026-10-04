@@ -19,6 +19,11 @@ const championSchema = new mongoose.Schema(
     prize: { type: String, trim: true, default: '' },
     notes: { type: String, trim: true, default: '' },
 
+    // The season this title counts for on the SEASONAL leaderboard (Oct 2026): set to the current
+    // season when the Super Admin ticks 'This season'. null = history only (titles from before the
+    // system, or a deleted season). Every champion is on the all-time leaderboard either way.
+    season: { type: mongoose.Schema.Types.ObjectId, ref: 'Season', default: null },
+
     // Proof of the win — a team photo, trophy shot, or certificate. PUBLIC.
     photo: { type: mongoose.Schema.Types.ObjectId, default: null },
 

@@ -8,7 +8,10 @@ import { formatPrize } from "../../lib/peso";
 
 // Champions (Oct 2026 redesign): a LEADERBOARD of barangays ranked by titles comes first;
 // tapping a barangay's name opens its trophy cabinet (every title, with photos, MVP, prize).
-// The year-by-year archive stays underneath. The sport tabs filter both.
+// The year-by-year archive stays underneath. The sport tabs filter all of it.
+// TWO leaderboards (Oct 2026): THIS SEASON (titles the Super Admin ticked "This season", so the
+// public sees who is the overall champion of the current season) and ALL-TIME (every title,
+// so past champions stay visible after a season ends).
 //
 // Champions are free text (no Team / Barangay link, see models/Champion.js), so a barangay
 // is matched to its crest by NAME against /api/barangays (case / spacing tolerant).
@@ -46,6 +49,7 @@ function buildBoard(list) {
 
 export default function Champions() {
   const [champions, setChampions] = useState([]);
+  const [season, setSeason] = useState(null);           // { name, status } of the current season
   const [brgyIds, setBrgyIds] = useState({});          // normalised name -> barangay id (crests)
   const [sport, setSport] = useState("");
   const [loading, setLoading] = useState(true);
@@ -56,7 +60,7 @@ export default function Champions() {
   useEffect(() => {
     let alive = true;
     api("/api/champions")
-      .then((d) => { if (alive) setChampions(d.champions || []); })
+      .then((d) => { if (alive) { setChampions(d.champions || []); setSeason(d.currentSeason || null); } })
       .catch(() => { if (alive) setChampions([]); })
       .finally(() => { if (alive) setLoading(false); });
     api("/api/barangays")
@@ -73,6 +77,11 @@ export default function Champions() {
   const sports = [...new Set(champions.map((c) => c.sport))].sort();
   const shown = sport ? champions.filter((c) => c.sport === sport) : champions;
   const board = useMemo(() => buildBoard(shown), [shown]);
+  const seasonShown = shown.filter((c) => c.thisSeason);
+  const seasonBoard = buildBoard(seasonShown);
+  // Overall champion = the barangay alone at the top of this season's board (a tie names nobody).
+  const leaderCount = seasonBoard.filter((r) => r.rank === 1).length;
+  const seasonDone = season?.status === "completed";
 
   const byYear = {};
   shown.forEach((c) => { (byYear[c.year] = byYear[c.year] || []).push(c); });
@@ -108,19 +117,42 @@ export default function Champions() {
         <Panel emptyTitle="No champions recorded yet" emptyIcon="trophy" empty="Past winners appear here once the SK Federation records them." />
       ) : (
         <>
-          <Reveal>
-            <Panel
-              title="Leaderboard"
-              count={`${board.length} ${board.length === 1 ? "barangay" : "barangays"} · ${shown.length} ${shown.length === 1 ? "title" : "titles"}${sport ? ` in ${sport}` : ""}`}
-              className="mb-8"
-            >
-              <ol>
-                {board.map((r) => (
-                  <LeaderRow key={norm(r.name)} r={r} barangayId={idOf(r.name)} onOpen={() => setCabinet(r.name)} />
-                ))}
-              </ol>
-            </Panel>
-          </Reveal>
+          <div className="mb-8 grid gap-5 lg:grid-cols-2 lg:items-start">
+            <Reveal>
+              <Panel
+                title={season ? `${season.name} leaderboard` : "This season"}
+                count={seasonShown.length
+                  ? `${seasonDone ? "Final" : "So far"} · ${seasonShown.length} ${seasonShown.length === 1 ? "title" : "titles"}`
+                  : "This season"}
+                emptyTitle={seasonShown.length ? undefined : "No champions crowned yet this season"}
+                emptyIcon="trophy"
+                empty={seasonShown.length ? undefined : "As each division finishes, its champion is added here and the barangays are ranked."}
+
+              >
+                {seasonShown.length > 0 && (
+                  <ol>
+                    {seasonBoard.map((r) => (
+                      <LeaderRow key={norm(r.name)} r={r} barangayId={idOf(r.name)} onOpen={() => setCabinet(r.name)}
+                        overall={r.rank === 1 && leaderCount === 1 ? (seasonDone ? "Overall champion" : "Leading the season") : null} />
+                    ))}
+                  </ol>
+                )}
+              </Panel>
+            </Reveal>
+            <Reveal delay={0.08}>
+              <Panel
+                title="All-time leaderboard"
+                count={`${board.length} ${board.length === 1 ? "barangay" : "barangays"} · ${shown.length} ${shown.length === 1 ? "title" : "titles"}${sport ? ` in ${sport}` : ""}`}
+
+              >
+                <ol>
+                  {board.map((r) => (
+                    <LeaderRow key={norm(r.name)} r={r} barangayId={idOf(r.name)} onOpen={() => setCabinet(r.name)} />
+                  ))}
+                </ol>
+              </Panel>
+            </Reveal>
+          </div>
 
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-slate-100 text-[20px] font-semibold tracking-tight">Every title</h2>
@@ -192,7 +224,7 @@ function GalleryViewer({ gallery, setGallery }) {
 
 // One leaderboard row. The barangay NAME is the button (the user asked for "names of brgy
 // clickable"); the whole row is a big tap target on phones too.
-function LeaderRow({ r, barangayId, onOpen }) {
+function LeaderRow({ r, barangayId, onOpen, overall = null }) {
   const top = r.rank <= 3;
   return (
     <li className="border-b border-white/[0.08] last:border-0">
@@ -215,6 +247,11 @@ function LeaderRow({ r, barangayId, onOpen }) {
           <span className={`block truncate text-[17px] font-semibold group-hover:text-[#4ADE80] group-hover:underline underline-offset-4 ${r.rank === 1 ? "text-[#F5A524]" : "text-slate-100"}`}>
             {r.name}
           </span>
+          {overall && (
+            <span className="mt-1 inline-block rounded-full bg-[#F5A524]/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-[#F5A524]">
+              {overall}
+            </span>
+          )}
           <span className="mt-1 flex flex-wrap gap-1.5">
             {r.sportList.map(([s, n]) => (
               <span key={s} className="rounded-full border border-white/[0.12] bg-white/[0.04] px-2 py-0.5 text-[12px] text-slate-300">

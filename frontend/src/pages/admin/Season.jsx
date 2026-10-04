@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarClock, CircleCheck, Info, Plus, Settings2, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleCheck, Eraser, Info, Plus, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
@@ -202,6 +202,65 @@ const fmtMB = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
 // Frees storage from a finished season: its residency documents and reference
 // list, and (only if ticked) its player photos. Results, rosters, stats and
 // champions stay. Irreversible, so the dialog shows exactly what goes first.
+// Delete a PAST season and everything in it (DELETE /api/seasons/:id). Champions stay on the
+// all-time leaderboard. Typing the exact name is the guard, as with deleting a game.
+function DeleteSeasonDialog({ season, onClose, onDone }) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => { setTyped(""); setError(""); }, [season]);
+
+  async function run() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/seasons/${season._id}`, { method: "DELETE", body: JSON.stringify({ confirm: typed.trim() }) });
+      onClose();
+      onDone();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!season} onOpenChange={(o) => !o && !busy && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Delete {season?.name}?</DialogTitle>
+          <DialogDescription>This removes the season for good. It can't be undone.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Deleted</p>
+            <p className="text-sm">
+              Its {season?.teams || 0} team{season?.teams === 1 ? "" : "s"}, rosters, players (and their documents and photos),
+              brackets, match results, player stats and reference list.
+            </p>
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Kept</p>
+            <p className="text-sm">Champions: they stay on the all-time leaderboard.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="delete-season-name">Type <span className="font-semibold">{season?.name}</span> to confirm</Label>
+            <Input id="delete-season-name" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="destructive" onClick={run} disabled={busy || typed.trim() !== season?.name}>
+            {busy ? "Deleting…" : "Delete season"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CleanupDialog({ season, onClose, onDone }) {
   const [preview, setPreview] = useState(null);
   const [withPhotos, setWithPhotos] = useState(false);
@@ -306,6 +365,7 @@ export default function Season() {
   const [createOpen, setCreateOpen] = useState(false);
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [cleanupSeason, setCleanupSeason] = useState(null);
+  const [deleteSeason, setDeleteSeason] = useState(null);
 
   async function load() {
     try {
@@ -493,10 +553,18 @@ export default function Season() {
                         <span className="text-xs text-muted-foreground sm:w-28 sm:text-right">Cleaned up {fmtDate(h.cleanedAt)}</span>
                       ) : h.status === "completed" && String(h._id) !== String(season._id) ? (
                         <Button size="sm" variant="outline" className="self-start sm:w-28 sm:self-auto" onClick={() => setCleanupSeason(h)}>
-                          <Trash2 /> Clean up
+                          <Eraser /> Clean up
                         </Button>
                       ) : (
                         <span className="hidden sm:block sm:w-28" />
+                      )}
+                      {String(h._id) !== String(season._id) ? (
+                        <Button size="icon-sm" variant="destructive" className="self-start sm:self-auto" aria-label={`Delete ${h.name}`}
+                          title="Delete this season" onClick={() => setDeleteSeason(h)}>
+                          <Trash2 />
+                        </Button>
+                      ) : (
+                        <span className="hidden sm:block sm:w-8" />
                       )}
                     </div>
                   ))}
@@ -519,6 +587,7 @@ export default function Season() {
       <CreateSeasonModal open={createOpen} onClose={() => setCreateOpen(false)}
         onCreate={createSeason} busy={busy} error={error} />
       <CleanupDialog season={cleanupSeason} onClose={() => setCleanupSeason(null)} onDone={load} />
+      <DeleteSeasonDialog season={deleteSeason} onClose={() => setDeleteSeason(null)} onDone={load} />
     </AdminLayout>
   );
 }

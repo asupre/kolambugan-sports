@@ -847,6 +847,7 @@ so a bug in one route cannot expose the other.
   teams, rosters, results, stats, champions. Irreversible. Files are what fill the quota
   (dev: 24 documents = 12 MB; all non-file data < 1 MB), so this is the lever — not
   deleting seasons, which still has no route (and would orphan data, see GOTCHAS).
+- **Deleting a season (Oct 4 2026)**: Season history has a red trash button on every season except the current one (`DELETE /api/seasons/:id`, body `{confirm: <exact name>}`, `DeleteSeasonDialog` in `Season.jsx`; "Clean up" now has an eraser icon). Cascades so nothing is orphaned: teams + roster links, players on no other season's team (+ documents, photos), tournaments, matches, PlayerMatchStats, reference list. Champions are KEPT (their `season` link is cleared). The current season can never be deleted (409). Not tested against a real database yet.
 - **Deleting a game (Sep 2026)**: `DELETE /api/sports/:id` still refuses while any
   team / tournament / organizer references it in ANY season. League Setup's "Remove game"
   checks `GET /api/sports/:id/history` first and, if anything is attached, offers
@@ -1360,6 +1361,7 @@ so a bug in one route cannot expose the other.
   6. Glass cost: `GlassBackdrop` is radial gradients (no `blur()` filters); panel / card blur is
      `lg:` only (phones get a slightly stronger tint — over a soft gradient the blur was nearly
      invisible anyway); header blur is light below lg; footer has none.
+- **Champions has TWO leaderboards (Oct 4 2026)**, side by side from `lg`, stacked on phones: "<season name> leaderboard" (titles with `Champion.season` = the current season; the top barangay, if alone, is tagged "Leading the season", or "Overall champion" once the season is completed) and "All-time leaderboard" (every title, so past champions stay visible after a season ends). `Champion.season` is set by the "Counts for this season" tick in the admin champion form (ticked by default for a new champion; an unchanged tick on edit isn't sent, so old records keep their link). `GET /api/champions` returns `currentSeason` and `thisSeason` per champion. A new season starts with an empty seasonal board. Existing champions have no season until edited and ticked.
 - **Public Champions = LEADERBOARD first (Oct 3 2026)**, `pages/public/Champions.jsx`: barangays ranked
   by titles (ties share a rank, 1-1-3; within a tie the more recent winner first), medal icons for
   ranks 1-3, crest, per-sport chips, "Last won", title count. The sport tabs filter it. Tapping a

@@ -5,6 +5,7 @@
 
 const express = require('express');
 const Champion = require('../models/Champion');
+const { getCurrentSeason } = require('../middleware/season');
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadPhoto, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
@@ -18,6 +19,8 @@ function readFields(body) {
     if (body[k] !== undefined) out[k] = String(body[k]).trim();
   });
   if (body.year !== undefined) out.year = Number(body.year);
+  // 'This season' tick (JSON boolean or multipart string). Turned into a season id in applySeason().
+  if (body.thisSeason !== undefined) out.thisSeason = body.thisSeason === true || body.thisSeason === 'true';
   return out;
 }
 
@@ -36,6 +39,16 @@ function validate(fields, { partial = false } = {}) {
   return null;
 }
 
+// thisSeason true = counts for the current season's leaderboard; false = history only.
+async function applySeason(champion, fields) {
+  if (fields.thisSeason === undefined) return;
+  const flag = fields.thisSeason;
+  delete fields.thisSeason;
+  if (!flag) { champion.season = null; return; }
+  const current = await getCurrentSeason();
+  champion.season = current ? current._id : null;
+}
+
 // GET /api/champions — PUBLIC. Optional ?sport= and ?year= filters.
 router.get('/', async (req, res) => {
   try {
@@ -43,8 +56,14 @@ router.get('/', async (req, res) => {
     if (req.query.sport) filter.sport = req.query.sport;
     if (req.query.year) filter.year = Number(req.query.year);
 
-    const champions = await Champion.find(filter).sort({ year: -1, sport: 1 });
+    const [champions, current] = await Promise.all([
+      Champion.find(filter).sort({ year: -1, sport: 1 }),
+      getCurrentSeason(),
+    ]);
+    const cur = current ? String(current._id) : null;
     res.json({
+      // The season the 'This season' leaderboard is about (the newest season, completed or not).
+      currentSeason: current ? { name: current.name, status: current.status } : null,
       champions: champions.map((c) => ({
         id: c._id,
         year: c.year,
@@ -55,6 +74,7 @@ router.get('/', async (req, res) => {
         mvp: c.mvp,
         prize: c.prize,
         notes: c.notes,
+        thisSeason: !!cur && String(c.season) === cur,
         hasPhoto: !!c.photo,
         // The photo's GridFS file id: a replaced photo is a NEW file, so the
         // pages put this in the image URL and the browser fetches the new one
@@ -88,7 +108,10 @@ router.post('/', authenticate, authorize('super_admin'), uploadPhoto.single('pho
     const bad = validate(fields);
     if (bad) return res.status(400).json({ message: bad });
 
-    const champion = await Champion.create({ ...fields, addedBy: req.user.id });
+    const champion = new Champion({ addedBy: req.user.id });
+    await applySeason(champion, fields);
+    Object.assign(champion, fields);
+    await champion.save();
 
     if (req.file) {
       champion.photo = await putFile(
@@ -114,6 +137,7 @@ router.patch('/:id', authenticate, authorize('super_admin'), uploadPhoto.single(
     const fields = readFields(req.body);
     const bad = validate(fields, { partial: true });
     if (bad) return res.status(400).json({ message: bad });
+    await applySeason(champion, fields);
     Object.assign(champion, fields);
 
     if (req.file) {

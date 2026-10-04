@@ -6,6 +6,10 @@ const TeamPlayer = require('../models/TeamPlayer');
 const Player = require('../models/Player');
 const Document = require('../models/Document');
 const ReferenceList = require('../models/ReferenceList');
+const Tournament = require('../models/Tournament');
+const Match = require('../models/Match');
+const PlayerMatchStats = require('../models/PlayerMatchStats');
+const Champion = require('../models/Champion');
 const { deleteFile } = require('../config/gridfs');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
@@ -241,6 +245,68 @@ router.post('/:id/cleanup', authenticate, authorize('super_admin'), async (req, 
     });
   } catch (err) {
     console.error('Cleanup error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// ── Delete a past season ─────────────────────────────────────────────────
+// DELETE /api/seasons/:id — body { confirm: "<exact season name>" }. Irreversible.
+// Only a season that is NOT the current one (the newest), which also means it is completed:
+// deleting the current season would silently make the previous one current again.
+// Removes EVERYTHING that points at it, so nothing is left orphaned (see GOTCHAS: a season
+// deleted straight in the DB left teams, tournaments and a 17k-row reference list behind):
+// its teams + roster links, players on no other season's team (+ documents, photos),
+// tournaments, matches, player stats and reference list. Champions are KEPT: they are the
+// historical record (free text), and only lose their link to this season.
+router.delete('/:id', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const season = await Season.findById(req.params.id);
+    if (!season) return res.status(404).json({ message: 'Season not found.' });
+    const current = await getCurrentSeason();
+    if (current && String(current._id) === String(season._id)) {
+      return res.status(409).json({ message: "This is the current season and can't be deleted." });
+    }
+    // An ongoing match of a past season is abandoned data, not live play, so no "being scored" check.
+    if (String((req.body && req.body.confirm) || '').trim() !== season.name) {
+      return res.status(400).json({ message: `Type "${season.name}" exactly to confirm.` });
+    }
+
+    const teamIds = (await Team.find({ season: season._id }).select('_id').lean()).map((t) => t._id);
+    const links = await TeamPlayer.find({ team: { $in: teamIds } }).select('player').lean();
+    const playerIds = [...new Set(links.map((l) => String(l.player)))];
+    // A player linked to a team outside this season stays.
+    const shared = new Set((await TeamPlayer.find({ player: { $in: playerIds }, team: { $nin: teamIds } })
+      .select('player').lean()).map((l) => String(l.player)));
+    const ownPlayers = playerIds.filter((id) => !shared.has(id));
+
+    const tIds = (await Tournament.find({ season: season._id }).select('_id').lean()).map((t) => t._id);
+    const matchIds = (await Match.find({ tournament: { $in: tIds } }).select('_id').lean()).map((m) => m._id);
+
+    await PlayerMatchStats.deleteMany({ match: { $in: matchIds } });
+    await Match.deleteMany({ _id: { $in: matchIds } });
+    await Tournament.deleteMany({ _id: { $in: tIds } });
+
+    const docs = await Document.find({ player: { $in: ownPlayers } }).select('file').lean();
+    const photos = await Player.find({ _id: { $in: ownPlayers }, photo: { $ne: null } }).select('photo').lean();
+    await deleteFiles('documents', docs.map((d) => d.file));
+    await deleteFiles('photos', photos.map((p) => p.photo));
+    await Document.deleteMany({ player: { $in: ownPlayers } });
+    await Player.deleteMany({ _id: { $in: ownPlayers } });
+    await TeamPlayer.deleteMany({ team: { $in: teamIds } });
+    await Team.deleteMany({ _id: { $in: teamIds } });
+    await ReferenceList.deleteMany({ season: season._id });
+    await Champion.updateMany({ season: season._id }, { $set: { season: null } });
+    await Season.deleteOne({ _id: season._id });
+
+    res.json({
+      message: `${season.name} was deleted.`,
+      teams: teamIds.length,
+      players: ownPlayers.length,
+      tournaments: tIds.length,
+      matches: matchIds.length,
+    });
+  } catch (err) {
+    console.error('Delete season error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

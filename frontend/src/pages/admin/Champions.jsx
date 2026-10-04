@@ -9,6 +9,7 @@ import { StatTile } from "../../components/DashboardBits";
 import { Lightbox } from "../../components/DocumentViewer";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
+import { Checkbox } from "../../components/ui/checkbox";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../components/ui/dialog";
@@ -39,6 +40,7 @@ export default function Champions() {
   const showError = useErrorDialog();
   const confirm = useConfirm();
   const [champions, setChampions] = useState([]);
+  const [currentSeason, setCurrentSeason] = useState(null);   // { name, status }: the "This season" leaderboard's season
   const [sports, setSports] = useState([]);
   const [barangays, setBarangays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +59,7 @@ export default function Champions() {
     try {
       const d = await api("/api/champions");
       setChampions(d.champions || []);
+      setCurrentSeason(d.currentSeason || null);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -268,6 +271,7 @@ export default function Champions() {
           champion={editing.id ? editing : null}
           sports={sports}
           barangays={barangays}
+          currentSeason={currentSeason}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
         />
@@ -302,6 +306,7 @@ function ChampionCard({ c, onView, onEdit, onDelete }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">{c.sport}</Badge>
           {c.division && <Badge variant="outline">{c.division}</Badge>}
+          {c.thisSeason && <Badge className="bg-primary/12 text-primary" title="Counts on this season's leaderboard">This season</Badge>}
         </div>
         <div className="min-w-0">
           <p className="truncate text-base font-semibold leading-tight">{c.barangay}</p>
@@ -329,12 +334,14 @@ function ChampionCard({ c, onView, onEdit, onDelete }) {
 
 // Add / edit form. "Other" lets in sports and barangays that no longer exist under
 // that name — past champions predate the current configuration.
-function ChampionDialog({ champion, sports, barangays, onClose, onSaved }) {
+function ChampionDialog({ champion, sports, barangays, currentSeason, onClose, onSaved }) {
+  // thisSeason: counts on the public "This season" leaderboard. A new champion is ticked by
+  // default (it is usually this season's winner); an old record keeps what it had.
   const [form, setForm] = useState(() => champion ? {
     year: String(champion.year), sport: champion.sport, division: champion.division || "",
     barangay: champion.barangay, teamName: champion.teamName || "", mvp: champion.mvp || "",
-    prize: prizeAmount(champion.prize), notes: champion.notes || "",
-  } : BLANK);
+    prize: prizeAmount(champion.prize), notes: champion.notes || "", thisSeason: !!champion.thisSeason,
+  } : { ...BLANK, thisSeason: !!currentSeason });
   const [otherSport, setOtherSport] = useState(() => !!champion && !sports.some((s) => s.name === champion.sport));
   const [otherBarangay, setOtherBarangay] = useState(() => !!champion && !barangays.some((b) => b.name === champion.barangay));
   const [photo, setPhoto] = useState(null);
@@ -368,7 +375,11 @@ function ChampionDialog({ champion, sports, barangays, onClose, onSaved }) {
       const token = localStorage.getItem("token");
       const fd = new FormData();
       // The form holds only the amount; the ₱ is added here.
-      Object.entries(form).forEach(([k, v]) => fd.append(k, k === "prize" ? formatPrize(v) : v));
+      Object.entries(form).forEach(([k, v]) => {
+        // An unchanged tick isn't sent, so editing an old record keeps its season link.
+        if (k === "thisSeason" && (!currentSeason || (champion && v === !!champion.thisSeason))) return;
+        fd.append(k, k === "prize" ? formatPrize(v) : v);
+      });
       if (photo) fd.append("photo", photo);
 
       const res = await fetch(champion ? `/api/champions/${champion.id}` : "/api/champions", {
@@ -516,6 +527,22 @@ function ChampionDialog({ champion, sports, barangays, onClose, onSaved }) {
               <Label>Notes</Label>
               <Input value={form.notes} onChange={set("notes")} placeholder="Anything worth recording" />
             </div>
+
+            {currentSeason && (
+              <label className="sm:col-span-2 flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={!!form.thisSeason}
+                  onCheckedChange={(v) => setForm({ ...form, thisSeason: v === true })}
+                />
+                <span className="text-sm">
+                  <span className="font-medium">Counts for this season ({currentSeason.name})</span>
+                  <span className="block text-muted-foreground">
+                    Shown on the public "This season" leaderboard, which names the overall champion. Every champion is on the all-time leaderboard either way.
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
         </div>
 

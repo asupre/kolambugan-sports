@@ -1624,6 +1624,7 @@ mode only for the sidebar tokens):
   `frontend/.gitignore`, never shipped) → a drawn SVG landscape (Mount Bucas, Panguil Bay, pines).
 - **Profile on phones (Oct 4 2026):** the top-bar avatar is a button that opens Profile (phones have no other way in); the account row above Sign out is desktop-only (`hidden lg:flex`).
 - **Banner picture on other pages (Oct 4 2026, trial):** the picture layers are `components/BannerBackdrop.jsx` (account banner, else /banner.jpg, else the drawn landscape), shared by the Dashboard banner and the Season page, where it is the header of the current-season card (name, dates, stage pill on the picture; tracker below).
+- **Season process = SEGMENTED BAR (Oct 4 2026, Super Admin picked it over icon cards / vertical timeline / chevrons):** `SeasonTracker` (Season page + Barangay Admin / Organizer dashboards) draws five thick segments, solid green up to the current stage, the current one lighter with a ring + "Now" tag, a check beside finished labels; phones keep the bar + "Step N of 5".
 - Colours (light mode): ALL WHITE (page, sidebar, cards, popovers) with hairline grey-green borders
   (#E4E9E5) and very light neutral greys; a pale green-tinted page was tried and rejected ("kinda
   bad, use white"). The calm green #2F6B4B is the ONLY accent (Super Admin: "just the

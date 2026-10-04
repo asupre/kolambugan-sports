@@ -55,7 +55,7 @@ export function SeasonBadge({ status, name, className }) {
   );
 }
 
-// The five stages as a row of steps with the current one marked, plus what it
+// The five stages as a segmented bar with the current one marked, plus what it
 // means for this role. Finished stages get a check; upcoming ones stay muted.
 export function SeasonTracker({ status, role, name }) {
   const at = SEASON_STAGES.findIndex((s) => s.key === status);
@@ -67,32 +67,35 @@ export function SeasonTracker({ status, role, name }) {
           below, so this just names the season (no third copy of the badge). */}
       {name && <p className="text-sm font-semibold">{name}</p>}
 
-      <ol className="flex items-start" aria-label="Season stages">
+      {/* Segmented bar (Oct 2026): one thick segment per stage, solid green up to the current one,
+          which is a lighter green with a ring and a "Now" tag. Phones show only the bar, plus the
+          "Step N of 5" line below (five labels don't fit). */}
+      <ol className="grid grid-cols-5 gap-1.5 sm:gap-2" aria-label="Season stages">
         {SEASON_STAGES.map((s, i) => {
           const done = i < at;
           const current = i === at;
           return (
-            <li key={s.key} className="relative flex flex-1 flex-col items-center gap-1.5 text-center">
-              {/* connector to the previous step */}
-              {i > 0 && (
-                <span className={cn("absolute right-1/2 top-3 h-0.5 w-full -translate-y-1/2", i <= at ? "bg-primary/40" : "bg-border")} />
-              )}
-              <span
-                aria-current={current ? "step" : undefined}
+            <li key={s.key} aria-current={current ? "step" : undefined} className="min-w-0">
+              <div
                 className={cn(
-                  "relative z-10 flex size-6 items-center justify-center rounded-full border-2 text-[10px] font-semibold",
-                  done && "border-primary bg-primary text-primary-foreground",
-                  current && cn("text-foreground", TONE[status].ring),
-                  !done && !current && "border-border bg-card text-muted-foreground"
+                  "h-2.5 rounded-full",
+                  done && "bg-primary",
+                  current && "bg-primary/45 ring-2 ring-primary ring-offset-2 ring-offset-card",
+                  !done && !current && "bg-muted"
                 )}
-              >
-                {done ? <Check className="size-3.5" /> : i + 1}
-              </span>
-              {/* Phones: five labels don't fit (they ran together, "RegistrationVerification"), so
-                  only the circles show there and one "Step N of 5" line follows the tracker. */}
-              <span className={cn("hidden text-xs leading-tight sm:block", current ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                {s.label}
-              </span>
+              />
+              <p className={cn(
+                "mt-2.5 hidden items-center gap-1 truncate text-[13px] leading-tight sm:flex",
+                current ? "font-semibold text-foreground" : done ? "text-muted-foreground" : "text-muted-foreground/60"
+              )}>
+                {done && <Check className="size-3.5 shrink-0 text-primary" strokeWidth={2.5} />}
+                <span className="truncate">{s.label}</span>
+              </p>
+              {current && (
+                <span className="mt-1 hidden w-fit rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary sm:inline-block">
+                  Now
+                </span>
+              )}
             </li>
           );
         })}

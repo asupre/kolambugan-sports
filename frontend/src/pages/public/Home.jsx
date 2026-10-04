@@ -195,7 +195,8 @@ export default function Home() {
           style={{ background: "linear-gradient(90deg, rgba(10,12,11,0.88) 0%, rgba(10,12,11,0.55) 45%, rgba(10,12,11,0.25) 100%), linear-gradient(180deg, rgba(10,12,11,0.35) 0%, rgba(10,12,11,0) 35%, rgba(10,12,11,0.85) 82%, #0A0C0B 100%)" }}
         />
 
-        <div className="relative px-5 pt-14 pb-10 sm:px-8 lg:px-12 lg:pb-14">
+        {/* lg: the hero runs up behind the 72px header, so the top padding clears it plus a gap. */}
+        <div className="relative px-5 pt-14 pb-10 sm:px-8 lg:px-12 lg:pt-[calc(72px+4.5rem)] lg:pb-14">
           <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#4ADE80]">
             <span aria-hidden="true">✦</span> Live scores · Standings · {counts.barangays ?? 26} barangays
           </p>

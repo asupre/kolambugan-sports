@@ -6,6 +6,7 @@ import InstructionModal from "./InstructionModal";
 import LoadingScreen from "./LoadingScreen";
 import ProfilePanel from "./ProfilePanel";
 import BannerBackdrop from "./BannerBackdrop";
+import PageBanner, { bannerFor } from "./PageBanner";
 import { useScrollLock } from "../lib/scrollLock";
 import { useImageRev } from "../lib/profileImages";
 import { getStoredTheme, storeTheme } from "../lib/theme";
@@ -137,6 +138,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const location = useLocation();
   // The "Hello" picture banner is the Dashboard's only (Super Admin request); other pages keep the top bar.
   const showBanner = fit && DASHBOARD_PATHS.includes(location.pathname);
+  const pageBanner = bannerFor(location.pathname);   // every other page: its promo-style banner
 
   // Every page opens at the TOP (Oct 2026 bug: scroll to the bottom of one page, click another
   // in the menu, and the new page opened scrolled to the bottom too). The browser keeps the
@@ -508,7 +510,16 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
                   }
                 />
               )}
-              {pageHeader && (
+              {/* Promo-style page banner (components/PageBanner.jsx) in place of the plain title:
+                  the page name, a bold line, "How this works", a drawn illustration. The page's
+                  own buttons sit under it on the right. */}
+              {pageHeader && pageBanner && (
+                <>
+                  <PageBanner banner={pageBanner} title={title} onHelp={() => setShowHelp(true)} />
+                  {actions && <div className="-mt-3 mb-6 flex flex-wrap items-center justify-end gap-2 print:hidden">{actions}</div>}
+                </>
+              )}
+              {pageHeader && !pageBanner && (
                 <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between print:hidden">
                   <div className="min-w-0">
                     <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[36px]">{title}</h1>

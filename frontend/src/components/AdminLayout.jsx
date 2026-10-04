@@ -83,7 +83,7 @@ function LandscapeBanner({ userId, name, line, buttons }) {
   );
 }
 
-export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true, seasonStrip = true, subtitle, actions, pageHeader = true }) {
+export default function AdminLayout({ title, menu, children, enableDarkMode = false, animateTheme = true, seasonStrip = true, subtitle, actions, pageHeader = true, pictureBackground = false }) {
   const [open, setOpen] = useState(false);          // mobile: sidebar shown as an overlay
   // Desktop: the user's choice to collapse the whole sidebar to an icon rail. It only
   // TAKES EFFECT at desktop width (`rail` below) — the rail toggle is hidden on
@@ -481,7 +481,17 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         {/* `isolate` = its own stacking context: whatever z-index a page uses inside (the
             Season stepper's circles, bracket columns) stays BELOW the sticky header instead
             of tying with it and painting on top because it comes later in the DOM. */}
-        <main className="isolate flex-1 p-4 lg:p-6 bg-background print:p-0">
+        {/* pictureBackground (Oct 2026 trial, Reference List): the account's banner picture fixed
+            behind the whole page (beside the sidebar), darkened so white headings read on it. The
+            boxes stay solid cards; the page title and section headings turn white (.on-picture in
+            index.css). */}
+        {pictureBackground && (
+          <div aria-hidden="true" className={cn("pointer-events-none fixed inset-y-0 right-0 left-0 z-0 overflow-hidden bg-[#3B6A62] print:hidden", rail ? "lg:left-16" : "lg:left-64")}>
+            <BannerBackdrop userId={user?.id} position="50% 50%" />
+            <div className="absolute inset-0 z-[1] bg-black/45" />
+          </div>
+        )}
+        <main className={cn("isolate flex-1 p-4 lg:p-6 print:p-0", pictureBackground ? "on-picture relative bg-transparent" : "bg-background")}>
           {calm ? (
             // Calm look: one centred column, like the dashboard and the reference site.
             <div className="mx-auto max-w-6xl pb-12 pt-2 sm:px-2 lg:pt-4 print:max-w-none print:p-0">
@@ -511,8 +521,8 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
               {pageHeader && (
                 <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between print:hidden">
                   <div className="min-w-0">
-                    <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[36px]">{title}</h1>
-                    {subtitle && <p className="mt-1.5 text-[16px] text-muted-foreground sm:text-[17px]">{subtitle}</p>}
+                    <h1 className={cn("text-[30px] font-semibold leading-tight tracking-tight sm:text-[36px]", pictureBackground && "text-white [text-shadow:0_1px_10px_rgba(0,0,0,0.4)]")}>{title}</h1>
+                    {subtitle && <p className={cn("mt-1.5 text-[16px] sm:text-[17px]", pictureBackground ? "text-white/85" : "text-muted-foreground")}>{subtitle}</p>}
                   </div>
                   {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
                 </div>

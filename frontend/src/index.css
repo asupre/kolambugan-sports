@@ -576,3 +576,25 @@
 :root.calm-fit aside .scroll-shadow-y { --scroll-shadow-bg: var(--sidebar); }
 /* The dashboard's own hover / bar-track tones, retuned from warm beige for the white page. */
 :root.calm-fit:not(.dark) .calm { --calm-card-hover: #F6F8F7; --calm-track: #EAEEEB; }
+
+/* Picture background (AdminLayout pictureBackground, Oct 2026 trial): a calm SECTION's header
+   sits on the page itself, i.e. on the dark picture, so its text goes white. The tokens are
+   re-pointed inside the header only, so every muted / primary bit in it follows. Boxes keep
+   their normal colours. */
+:root.calm-theme main.on-picture [data-slot="card"][data-section] > [data-slot="card-header"] {
+  --foreground: #fff;
+  --card-foreground: #fff;
+  --muted-foreground: rgb(255 255 255 / 0.82);
+  --primary: #A7F3C9;
+  color: #fff;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.35);
+}
+/* On the picture, a section whose content is "bare" (a list / table, normally its own box) still
+   has loose bits around it (search box, "Showing 1-30", rows per page), so the whole content gets
+   the card box, the same as a non-bare section. */
+:root.calm-theme main.on-picture [data-slot="card"][data-section] > [data-slot="card-content"][data-bare] {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+}

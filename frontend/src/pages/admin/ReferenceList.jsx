@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
 import { CheckCircle2, ChevronLeft, ChevronRight, CircleCheck, CircleX, ClipboardList, Search, Sparkles, TriangleAlert, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
-import BannerBackdrop from "../../components/BannerBackdrop";
 import { api } from "../../api";
 import InfoHint from "../../components/InfoHint";
 import { superAdminMenu } from "../../components/menus";
@@ -194,7 +193,6 @@ function MatchInfo({ info }) {
 }
 
 export default function ReferenceList() {
-  const me = JSON.parse(localStorage.getItem("user") || "null");   // whose banner picture to show
   // The list can be replaced only BEFORE verification starts. From verification until the season
   // ends, the Super Admin's verdicts are being made against it, and replacing it re-screens every
   // player (the server refuses too). The list itself stays fully viewable.
@@ -436,29 +434,27 @@ export default function ReferenceList() {
   }
 
   return (
-    <AdminLayout title="Reference List" menu={superAdminMenu} enableDarkMode
+    <AdminLayout title="Reference List" menu={superAdminMenu} enableDarkMode pictureBackground
       subtitle="The residents every player is checked against. Upload this season's list or search it.">
       <div className="space-y-6">
-        {/* Current status, on the Dashboard banner's picture (same treatment as the Season card). */}
-        <div className="relative overflow-hidden rounded-[14px] bg-[#3B6A62]">
-          <div className="print:hidden"><BannerBackdrop userId={me?.id} position="50% 60%" /></div>
-          <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
-          <div className="relative z-[2] flex min-h-32 flex-col justify-end gap-1 p-4 text-white sm:min-h-36 sm:p-5 [text-shadow:0_1px_8px_rgba(20,40,32,0.45)]">
-            <p className="flex items-center gap-1.5 text-[13px] text-white/85">
-              <ClipboardList className="size-3.5" /> Current reference list
+        {/* Current status */}
+        <Card>
+          <CardContent className="space-y-1">
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <ClipboardList className="size-4" /> Current reference list
             </p>
             {loading ? (
-              <Skeleton className="h-9 w-56 bg-white/25" />
+              <Skeleton className="h-9 w-56" />
             ) : !status || status.count === 0 ? (
-              <p className="text-[18px] font-semibold">No reference list uploaded for the current season yet.</p>
+              <p className="text-[17px] font-semibold">No reference list uploaded for the current season yet.</p>
             ) : (
-              <p className="text-[15px] text-white/90">
-                <span className="mr-1.5 text-[34px] font-semibold leading-none tabular-nums text-white">{status.count.toLocaleString()}</span>
+              <p className="text-[15px] text-muted-foreground">
+                <span className="mr-1.5 text-[32px] font-semibold leading-none tabular-nums text-foreground">{status.count.toLocaleString()}</span>
                 resident records loaded{status.season ? ` for ${status.season}` : ""}.
               </p>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Upload */}
         <Card>

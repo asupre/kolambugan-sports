@@ -4,11 +4,11 @@ import { cn } from "../lib/utils";
 
 // One color per stage — the header pill and the tracker read the same way.
 const TONE = {
-  setup: { pill: "bg-slate-500/15 text-slate-600 dark:text-slate-300", dot: "bg-slate-400", ring: "border-slate-400 bg-slate-400/15" },
-  registration_open: { pill: "bg-blue-500/15 text-blue-600 dark:text-blue-400", dot: "bg-blue-500", ring: "border-blue-500 bg-blue-500/15" },
-  verification: { pill: "bg-amber-500/15 text-amber-600 dark:text-amber-400", dot: "bg-amber-500", ring: "border-amber-500 bg-amber-500/15" },
-  ongoing: { pill: "bg-green-500/15 text-green-600 dark:text-green-400", dot: "bg-green-500", ring: "border-green-500 bg-green-500/15" },
-  completed: { pill: "bg-slate-500/15 text-slate-600 dark:text-slate-300", dot: "bg-slate-400", ring: "border-slate-400 bg-slate-400/15" },
+  setup: { pill: "bg-slate-500/15 text-slate-600 dark:text-slate-300", dot: "bg-slate-400", ring: "border-slate-400 bg-slate-400/15", glow: "shadow-[0_0_12px_2px_rgba(148,163,184,0.55)]" },
+  registration_open: { pill: "bg-blue-500/15 text-blue-600 dark:text-blue-400", dot: "bg-blue-500", ring: "border-blue-500 bg-blue-500/15", glow: "shadow-[0_0_12px_2px_rgba(59,130,246,0.55)]" },
+  verification: { pill: "bg-amber-500/15 text-amber-600 dark:text-amber-400", dot: "bg-amber-500", ring: "border-amber-500 bg-amber-500/15", glow: "shadow-[0_0_12px_2px_rgba(245,158,11,0.6)]" },
+  ongoing: { pill: "bg-green-500/15 text-green-600 dark:text-green-400", dot: "bg-green-500", ring: "border-green-500 bg-green-500/15", glow: "shadow-[0_0_12px_2px_rgba(34,197,94,0.6)]" },
+  completed: { pill: "bg-slate-500/15 text-slate-600 dark:text-slate-300", dot: "bg-slate-400", ring: "border-slate-400 bg-slate-400/15", glow: "shadow-[0_0_12px_2px_rgba(148,163,184,0.55)]" },
 };
 
 // What the current stage means for the person reading — in plain words, because
@@ -38,6 +38,12 @@ const GUIDE = {
     completed: "This season has ended. All results are final.",
   },
 };
+
+// Glow (Oct 2026, "can it be glowy"): finished steps and the line through them glow in the brand
+// green; the current step glows in its stage colour (TONE[...].glow). Box-shadows only, no blur filter.
+// A BRIGHT green glow (not the dark brand green, which vanished on the Season card's picture).
+const GLOW_DOT = "shadow-[0_0_10px_2px_rgba(74,222,128,0.75)]";
+const GLOW_LINE = "bg-[#4ADE80] shadow-[0_0_8px_2px_rgba(74,222,128,0.7)]";
 
 // A small pill — "● Registration open" — for the admin header.
 export function SeasonBadge({ status, name, className }) {
@@ -77,14 +83,14 @@ export function SeasonTracker({ status, role, name, onPicture = false }) {
             <li key={s.key} className="relative flex flex-1 flex-col items-center gap-1.5 text-center">
               {/* connector to the previous step */}
               {i > 0 && (
-                <span className={cn("absolute right-1/2 top-3 h-0.5 w-full -translate-y-1/2", i <= at ? (onPicture ? "bg-primary" : "bg-primary/40") : (onPicture ? "bg-white/45" : "bg-border"))} />
+                <span className={cn("absolute right-1/2 top-3 h-0.5 w-full -translate-y-1/2", i <= at ? GLOW_LINE : (onPicture ? "bg-white/45" : "bg-border"))} />
               )}
               <span
                 aria-current={current ? "step" : undefined}
                 className={cn(
                   "relative z-10 flex size-6 items-center justify-center rounded-full border-2 text-[10px] font-semibold",
-                  done && "border-primary bg-primary text-primary-foreground",
-                  current && cn("text-foreground", TONE[status].ring, onPicture && "bg-white text-slate-800"),
+                  done && cn("border-primary bg-primary text-primary-foreground", GLOW_DOT),
+                  current && cn("text-foreground", TONE[status].ring, TONE[status].glow, onPicture && "bg-white text-slate-800"),
                   !done && !current && (onPicture ? "border-white/60 bg-white/90 text-slate-500" : "border-border bg-card text-muted-foreground")
                 )}
               >

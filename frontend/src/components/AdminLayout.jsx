@@ -67,7 +67,7 @@ function HeaderAvatar({ user }) {
 // league's greens (Mount Bucas, Panguil Bay, the sunrise from the logo, pines on the right), the
 // greeting on the left, the round buttons on the right (desktop; phones keep them in the top bar).
 // One inline SVG, no images or blur, so it costs nothing to paint.
-// The picture: BannerBackdrop (the account's own, else /banner.jpg, else the drawn landscape).
+// The picture: BannerBackdrop (the account's own, else the drawn landscape).
 const DASHBOARD_PATHS = ["/admin", "/brgy/dashboard", "/organizer/dashboard"];
 const ROLE_LABEL = { super_admin: "Super Admin", barangay_admin: "Barangay Admin", organizer: "Organizer" };
 function LandscapeBanner({ userId, name, line, buttons }) {

@@ -807,7 +807,8 @@ function BracketTree({ title, matches, labelFor, winner, runnerUp }) {
         const x1 = a.right - base.left, y1 = a.top - base.top + a.height / 2;
         const x2 = b.left - base.left, y2 = b.top - base.top + b.height / 2;
         const mx = (x1 + x2) / 2;
-        ws.push(`M ${x1} ${y1} H ${mx} V ${y2} H ${x2}`);
+        // done: the match this wire leaves has a result, so the winner has travelled it.
+        ws.push({ d: `M ${x1} ${y1} H ${mx} V ${y2} H ${x2}`, done: ["completed", "forfeited"].includes(m.status) });
       });
       setWires(ws);
     }
@@ -825,7 +826,12 @@ function BracketTree({ title, matches, labelFor, winner, runnerUp }) {
       <div ref={dragRef} className="overflow-x-auto scrollbar-thin pb-4 cursor-grab">
         <div ref={stageRef} className={cn("relative flex gap-5 sm:gap-10 min-w-min", grandFinal && rounds.length < 3 && "pb-24")}>
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
-            {wires.map((d, i) => <path key={i} d={d} className="stroke-border" strokeWidth="2" fill="none" />)}
+            {/* Played wires glow in the brand green (Oct 2026), the rest stay plain. */}
+            {wires.filter((w) => !w.done).map((w, i) => <path key={"p" + i} d={w.d} className="stroke-border" strokeWidth="2" fill="none" />)}
+            {wires.filter((w) => w.done).map((w, i) => (
+              <path key={"g" + i} d={w.d} className="stroke-primary" strokeWidth="2.5" fill="none" strokeLinejoin="round"
+                style={{ filter: "drop-shadow(0 0 4px color-mix(in oklab, var(--primary) 75%, transparent)) drop-shadow(0 0 9px color-mix(in oklab, var(--primary) 40%, transparent))" }} />
+            ))}
           </svg>
           {rounds.map((r, i) => (
             <div key={r} className="relative z-10 flex flex-col">

@@ -3,15 +3,15 @@ import { useImageRev } from "../lib/profileImages";
 
 // The picture behind the Dashboard "Hello" banner, shared so other pages can reuse it in their own
 // way (e.g. the Season page's current-season card). Fills its positioned parent (absolute inset-0).
-// Tried in order: the account's own picture (Profile > Dashboard banner), then /banner.jpg
-// (frontend/public, gitignored: a LOCAL preview only), then the drawn landscape underneath
-// (Mount Bucas, Panguil Bay, the sunrise from the logo, pines on the right). One inline SVG, no blur.
-const BANNER_PHOTO = "/banner.jpg";
+// The account's own picture (Profile > Dashboard banner) if it has one, else the drawn landscape
+// underneath (Mount Bucas, Panguil Bay, the sunrise from the logo, pines on the right). One inline
+// SVG, no blur. (A local /banner.jpg preview used to sit in between; removed Oct 2026 at the Super
+// Admin's request, so local and prod now look the same.)
 
 // The version comes from lib/profileImages.js, so a banner changed in Profile shows here at once.
 export default function BannerBackdrop({ userId, position = "50% 42%" }) {
   const rev = useImageRev("banner", userId);
-  const sources = [userId && `/api/auth/users/${userId}/banner?rev=${rev}`, BANNER_PHOTO].filter(Boolean);
+  const sources = [userId && `/api/auth/users/${userId}/banner?rev=${rev}`].filter(Boolean);
   const [at, setAt] = useState(0);
   useEffect(() => { setAt(0); }, [rev]);
   const photo = at < sources.length;

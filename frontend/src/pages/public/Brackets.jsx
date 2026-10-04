@@ -186,7 +186,8 @@ function BracketSection({ title, matches, labelFor, winner, runnerUp }) {
         const x1 = a.right - base.left, y1 = a.top - base.top + a.height / 2;
         const x2 = b.left - base.left, y2 = b.top - base.top + b.height / 2;
         const mx = (x1 + x2) / 2;
-        ws.push(`M ${x1} ${y1} H ${mx} V ${y2} H ${x2}`);
+        // done: the match this wire leaves has a result, so the winner has travelled it.
+        ws.push({ d: `M ${x1} ${y1} H ${mx} V ${y2} H ${x2}`, done: ["completed", "forfeited"].includes(m.status) });
       });
       setWires(ws);
     }
@@ -204,7 +205,13 @@ function BracketSection({ title, matches, labelFor, winner, runnerUp }) {
       <div ref={dragRef} className="overflow-x-auto pb-2 cursor-grab">
         <div ref={stageRef} className={`relative flex gap-5 sm:gap-10 min-w-min ${grandFinal && rounds.length < 3 ? "pb-24 sm:pb-28" : ""}`}>
           <svg className="absolute inset-0 w-full h-full" style={{ overflow: "visible", pointerEvents: "none" }}>
-            {wires.map((d, i) => <path key={i} d={d} stroke="#242C27" strokeWidth="2" fill="none" />)}
+            {/* Plain wires first, then the played ones on top: green with a glow (Oct 2026), so only the
+                path a winner has actually taken lights up. */}
+            {wires.filter((w) => !w.done).map((w, i) => <path key={"p" + i} d={w.d} stroke="#242C27" strokeWidth="2" fill="none" />)}
+            {wires.filter((w) => w.done).map((w, i) => (
+              <path key={"g" + i} d={w.d} stroke="#4ADE80" strokeWidth="2.5" fill="none" strokeLinejoin="round"
+                style={{ filter: "drop-shadow(0 0 4px rgba(74,222,128,0.85)) drop-shadow(0 0 10px rgba(74,222,128,0.45))" }} />
+            ))}
           </svg>
           {rounds.map((r, i) => (
             <div key={r} className="relative z-10 flex flex-col">

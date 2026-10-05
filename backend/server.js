@@ -25,6 +25,7 @@ app.use('/api/tournaments', require('./src/routes/tournament'));
 app.use('/api/stats', require('./src/routes/stats'));
 app.use('/api/accounts', require('./src/routes/accounts'));
 app.use('/api/organizer', require('./src/routes/organizer'));
+app.use('/api/demo', require('./src/routes/demo'));   // League Setup demo data (super admin)
 app.use('/api/public', require('./src/routes/public'));
 app.use('/api/champions', championRoutes);
 app.use('/api/site-images', require('./src/routes/siteimage'));

@@ -25,6 +25,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { useDragScroll } from "../../hooks/useDragScroll";
 import MvpBadge from "../../components/MvpBadge";
 import { cn } from "../../lib/utils";
+import { useSeason, SEASON_STAGES } from "../../lib/season";
 
 const DIVISION_LABEL = { open: "Open", boys: "Boys", girls: "Girls", under15: "U15", under30: "U30" };
 
@@ -377,6 +378,9 @@ function ScheduleSection({ tournamentId }) {
       <p className="text-muted-foreground text-sm mb-4">
         Dates are guidance, not a lock. An organizer can still start an undated match,
         or one being played on a different day. Times are Philippine time.
+        Each date and time can hold only one game of this sport (any group or division),
+        so "Apply to round" takes a time only for a one-match round: for bigger rounds,
+        apply the date with "No time", then set each match's time on its own row.
       </p>
 
       {msg && <p className="text-sm bg-muted rounded px-3 py-2 mb-3">{msg}</p>}
@@ -1307,6 +1311,11 @@ export default function Tournaments() {
       (t.division || "open") === activeDivision
   );
 
+  // Generating needs an ONGOING season (the server refuses otherwise).
+  const { season } = useSeason();
+  const canGenerate = season?.status === "ongoing";
+  const seasonLabel = SEASON_STAGES.find((st) => st.key === season?.status)?.label;
+
   async function generate() {
     if (!selectedSport) return;
     setBusy(true);
@@ -1441,7 +1450,17 @@ export default function Tournaments() {
                     </div>
                   )}
 
-                  <Button onClick={generate} disabled={busy}>
+                  {season && !canGenerate && (
+                    <Alert className="mb-4">
+                      <AlertDescription>
+                        Tournaments can be generated once the season is Ongoing (it is in{" "}
+                        {seasonLabel || season.status} now). Finish verification, then move the season on from the{" "}
+                        <Link to="/admin/season" className="underline underline-offset-2">Season page</Link>.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <Button onClick={generate} disabled={busy || !canGenerate}>
                     {busy ? "Generating…" : `Generate ${selectedSport.name} Tournament`}
                   </Button>
                 </div>

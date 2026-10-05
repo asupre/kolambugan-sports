@@ -8,6 +8,7 @@ import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import ChampionsReport from "./ChampionsReport";
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
@@ -117,6 +118,8 @@ export default function Reports() {
   const [sport, setSport] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Which report is open. Printing prints only this one.
+  const [view, setView] = useState("season");
 
   useEffect(() => {
     let alive = true;
@@ -168,7 +171,7 @@ export default function Reports() {
 
   return (
     <AdminLayout title="Reports" menu={superAdminMenu} enableDarkMode
-      subtitle="The season's records, to read here or print for the SK Federation.">
+      subtitle="The season's records and the champions archive, to read here or print for the SK Federation.">
       {/* Tabs are for reading. The printout is the WHOLE season — a records
           report handed to the SK Federation shouldn't depend on which tab
           happened to be open. */}
@@ -191,7 +194,17 @@ export default function Reports() {
         }
       `}</style>
 
-      {loading ? (
+      <div className="flex gap-2 mb-5 no-print">
+        {[["season", "Season records"], ["champions", "Champions archive"]].map(([key, label]) => (
+          <Button key={key} size="sm" variant={view === key ? "default" : "outline"} onClick={() => setView(key)}>
+            {key === "champions" && <Trophy />} {label}
+          </Button>
+        ))}
+      </div>
+
+      {view === "champions" ? (
+        <ChampionsReport printedOn={printedOn} />
+      ) : loading ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full rounded-xl" />
           <Skeleton className="h-48 w-full rounded-xl" />

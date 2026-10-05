@@ -31,6 +31,7 @@ import {
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
 import { useSeason } from "../../lib/season";
+import DemoDataCard from "./DemoDataCard";
 
 // Mirrors lockedWhileOngoing() in backend/src/routes/reference.js: once the season is ongoing,
 // games can't be added or deleted and barangays can't be added, renamed, removed or re-ticked.
@@ -1086,9 +1087,11 @@ export default function SportConfig() {
         )}
 
         <TabBar value={tab} onChange={setTab}
-          tabs={[{ value: "games", label: "Games", count: loading ? null : sports.length }, { value: "barangays", label: "Barangays" }]} />
+          tabs={[{ value: "games", label: "Games", count: loading ? null : sports.length }, { value: "barangays", label: "Barangays" }, { value: "demo", label: "Demo data" }]} />
 
-        {tab === "barangays" ? (
+        {tab === "demo" ? (
+          <DemoDataCard />
+        ) : tab === "barangays" ? (
           <BarangayCard onError={showError} onNotice={setNotice} locked={locked} />
         ) : loading ? (
           <div className="space-y-3">

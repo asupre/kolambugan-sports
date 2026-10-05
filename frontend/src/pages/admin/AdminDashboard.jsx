@@ -58,7 +58,7 @@ function buildAttention(s) {
     const n = s.playersToReview;
     add("amber", `${n} player${n === 1 ? " is" : "s are"} flagged or missing a document.`, "/admin/review", "Review players");
   }
-  if (status === "verification" || status === "ongoing") {
+  if (status === "ongoing") {
     const undrawn = (s.sportsProgress || []).flatMap((sp) => sp.divisions.filter((d) => d.verifiedTeams > 0 && !d.tournament).map((d) => `${sp.name} ${divisionLabel(d.division)}`.trim()));
     if (undrawn.length) {
       add("amber", `${undrawn.length} sport division${undrawn.length === 1 ? " has" : "s have"} verified teams but no bracket yet (${undrawn.slice(0, 3).join(", ")}${undrawn.length > 3 ? "…" : ""}).`, "/admin/tournaments", "Generate brackets");
@@ -75,7 +75,7 @@ function buildAttention(s) {
     }
   }
   if (status === "verification" && s.teamsByState?.review === 0 && s.teamsByState?.draft === 0 && s.teamsByState?.verified > 0) {
-    add("accent", "Every team is verified. You can generate brackets and move the season on.", "/admin/season", "Manage season");
+    add("accent", "Every team is verified. Start the season to generate the brackets.", "/admin/season", "Manage season");
   }
   if (s.accounts?.tempPassword > 0) {
     const n = s.accounts.tempPassword;

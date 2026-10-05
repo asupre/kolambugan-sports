@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
-import { Crest, Panel, PanelSkeleton, Skeleton, PlayerAvatar, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
+import { Crest, LiveDot, Panel, PanelSkeleton, Skeleton, PlayerAvatar, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
 
 export default function TeamDetail() {
   const { id } = useParams();
@@ -24,6 +24,23 @@ export default function TeamDetail() {
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [id]);
+
+  // Live refresh (Oct 2026): the organizer's stats keepers tap points / fouls during the
+  // game, so the page re-reads every 10s (5s while this team is playing). Identical data
+  // is skipped; a failed refresh keeps what is on screen.
+  const lastRef = useRef("");
+  const isLive = !!data?.live;
+  useEffect(() => {
+    let alive = true;
+    const tick = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      api(`/api/public/teams/${id}`).then((d) => {
+        const json = JSON.stringify(d);
+        if (alive && json !== lastRef.current) { lastRef.current = json; setData(d); }
+      }).catch(() => {});
+    }, isLive ? 5000 : 10000);
+    return () => { alive = false; clearInterval(tick); };
+  }, [id, isLive]);
 
   useEffect(() => {
     if (loading || !focusId || !focusRef.current) return;
@@ -109,6 +126,62 @@ export default function TeamDetail() {
         <Tag>{DIVISION_LABEL[team.division] || team.division}</Tag>
         {team.format && <Tag>{FORMAT_LABEL[team.format] || team.format}</Tag>}
       </div>
+
+      {data.live && (() => {
+        const lv = data.live;
+        const word = (lv.periodLabel || "period").replace(/^./, (c) => c.toUpperCase());
+        const inGame = roster.filter((p) => lv.stats?.[String(p.id)]);
+        return (
+          <Panel title={<span className="flex items-center gap-2"><LiveDot /> Live now</span>}
+            count={lv.gamesWon ? `Best of ${lv.periods}` : `${word} ${lv.period} of ${lv.periods}`}>
+            <div className="flex items-center justify-center gap-3 sm:gap-5 px-4 py-4 border-b border-white/[0.08]">
+              <span className="min-w-0 flex-1 truncate text-right text-slate-100 text-[15px] font-semibold">{team.name}</span>
+              <span className="shrink-0 text-slate-100 text-3xl font-semibold tabular-nums">{lv.score} – {lv.opponentScore}</span>
+              {lv.opponent ? (
+                <Link to={`/teams/${lv.opponent.id}`} className="min-w-0 flex-1 truncate text-slate-300 text-[15px] hover:text-slate-100">
+                  {lv.opponent.name}
+                </Link>
+              ) : <span className="flex-1 text-slate-400 text-[15px]">TBD</span>}
+            </div>
+            {cols.length > 0 && (
+              inGame.length === 0 ? (
+                <p className="px-4 py-4 text-slate-400 text-[15px]">No player stats recorded in this game yet.</p>
+              ) : (
+                <div className="overflow-x-auto scrollbar-thin">
+                  <table className="w-full">
+                    <thead className="border-b border-white/[0.08]">
+                      <tr>
+                        <Th>#</Th><Th>Player</Th>
+                        {has("points") && <Th right>PTS</Th>}
+                        {has("rebounds") && <Th right>REB</Th>}
+                        {has("assists") && <Th right>AST</Th>}
+                        {has("fouls") && <Th right>Fouls</Th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inGame.map((p) => {
+                        const s = lv.stats[String(p.id)];
+                        return (
+                          <tr key={p.id} className="border-b border-white/[0.08] last:border-0">
+                            <Td dim>{p.jerseyNumber ?? "—"}</Td>
+                            <td className="px-3 py-3 text-slate-100 text-[15px] min-w-[8rem]">
+                              {p.lastName}{p.firstName ? `, ${p.firstName}` : ""}
+                            </td>
+                            {has("points") && <Td right>{s.points}</Td>}
+                            {has("rebounds") && <Td right>{s.rebounds}</Td>}
+                            {has("assists") && <Td right>{s.assists}</Td>}
+                            {has("fouls") && <Td right>{s.fouls}</Td>}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+          </Panel>
+        );
+      })()}
 
       <Panel
         title="Roster"

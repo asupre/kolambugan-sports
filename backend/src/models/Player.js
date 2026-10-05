@@ -17,6 +17,8 @@ const playerSchema = new mongoose.Schema(
       default: 'pending',
     },
     flagReason: { type: String, default: "" },
+    // A made-up player from League Setup's "Demo data" generator (Oct 2026).
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

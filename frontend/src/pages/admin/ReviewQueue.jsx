@@ -385,8 +385,12 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
   // violation (the team's barangay isn't allowed to field players from another
   // barangay) or not being on the reference list (possible Dayo). The server
   // decides (`flagBlock`, live) and enforces it on the approve route too.
-  const blockedCrossBarangay = p.flagBlock === "cross_barangay";
-  const blockedDayo = p.flagBlock === "not_on_list";
+  // Since Oct 5 2026 a flagged player WITH a document can be approved (the
+  // Super Admin judges the document); only a flagged player with none is blocked.
+  const hasDocs = p.documents?.length > 0;
+  const flaggedWithDocs = !!p.flagBlock && hasDocs;
+  const blockedCrossBarangay = p.flagBlock === "cross_barangay" && !hasDocs;
+  const blockedDayo = p.flagBlock === "not_on_list" && !hasDocs;
   const approveBlocked = blockedNoDocument || blockedCrossBarangay || blockedDayo;
   // Not a hard block (a near-miss is a judgment call for the document review,
   // not a rule) but the action bar's own note needs to say so too — the callout
@@ -459,15 +463,17 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
 
         {/* Actions */}
         <div className="px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap shrink-0">
-          <p className={cn("text-xs", locked || teamVerified ? "text-muted-foreground font-medium" : blockedCrossBarangay || blockedDayo ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : hasNearMiss ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
+          <p className={cn("text-xs", locked || teamVerified ? "text-muted-foreground font-medium" : blockedCrossBarangay || blockedDayo || flaggedWithDocs ? "text-red-600 dark:text-red-400 font-medium" : blockedNoDocument ? "text-amber-600 dark:text-amber-400 font-medium" : hasNearMiss ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
             {teamVerified
               ? "This team is verified and locked. Nothing here can be edited. Reopen the team above to make corrections."
               : locked
               ? "View only. Approving and rejecting open once the season moves to the verification stage."
               : blockedCrossBarangay
-              ? "This barangay doesn't allow cross-barangay players, so this player can't be approved. Reject them, or allow cross-barangay for this barangay in League Setup."
+              ? "This barangay doesn't allow cross-barangay players and there is no document yet, so this player can't be approved. Reject them, allow cross-barangay for this barangay in League Setup, or wait for a document."
               : blockedDayo
-              ? "Not on the reference list (possible Dayo). This player can't be approved. If the name is misspelled, the Barangay Admin can correct it and it re-screens; otherwise reject them."
+              ? "Not on the reference list (possible Dayo) and no document yet, so this player can't be approved. The Barangay Admin can correct a misspelled name or upload a document; otherwise reject them."
+              : flaggedWithDocs
+              ? "Flagged by screening. Approve only if the document above proves this player may play for this barangay."
               : blockedNoDocument
               ? "No document uploaded yet. Approve is disabled until the Barangay Admin submits one."
               : hasNearMiss
@@ -477,10 +483,10 @@ function PlayerModal({ player, teamId, onClose, onApprove, onReject, busy, locke
           {!teamVerified && p.eligibilityStatus !== "eligible" && (
             <div className="flex gap-2 shrink-0">
               <Button onClick={() => onApprove(teamId, p._id)} disabled={busy || locked || approveBlocked}
-                title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : blockedNoDocument ? "This player has no document uploaded yet." : hasNearMiss ? "A same-name reference-list row exists but the middle name or birthdate differs. Double-check before approving." : undefined}
+                title={blockedCrossBarangay ? "This barangay doesn't allow cross-barangay players." : blockedDayo ? "Not on the reference list (possible Dayo)." : flaggedWithDocs ? "Flagged by screening: check the document before approving." : blockedNoDocument ? "This player has no document uploaded yet." : hasNearMiss ? "A same-name reference-list row exists but the middle name or birthdate differs. Double-check before approving." : undefined}
                 className={cn(
                   "text-white",
-                  hasNearMiss
+                  hasNearMiss || flaggedWithDocs
                     ? "bg-orange-600 hover:bg-orange-700 focus-visible:ring-orange-500/40 dark:focus-visible:ring-orange-500/40"
                     : "bg-green-600 hover:bg-green-700 focus-visible:ring-green-500/40 dark:focus-visible:ring-green-500/40"
                 )}>

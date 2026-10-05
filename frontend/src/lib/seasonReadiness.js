@@ -6,8 +6,9 @@ import { divisionLabel } from "./dashboardFormat";
 // Sep 2026): only REGISTRATION is gated by stage (create a team, add / remove a
 // player, import a roster, submit a roster: `registration_open` only), plus
 // "reopen a verified team" and the Review Queue verdicts — approve / reject / verify —
-// (`verification` only; the queue can still be VIEWED at any stage). Bracket
-// generation and scoring are NOT tied to the stage at all. So nothing stops a
+// (`verification` only; the queue can still be VIEWED at any stage), and generating
+// a tournament (`ongoing` only, Oct 2026). Later bracket steps
+// and scoring are NOT tied to the stage. So nothing stops a
 // premature advance — the checklist below is the Super Admin's only safety net,
 // and the CONSEQUENCES text must stay limited to what is actually enforced.
 
@@ -31,7 +32,7 @@ export const CONSEQUENCES = {
   ],
   verification: [
     "Verified teams can no longer be reopened for corrections. From here they're final.",
-    "Brackets are built from verified teams, so draw them before matches start.",
+    "Tournaments can be generated from the verified teams. That is only possible once the season is Ongoing.",
   ],
   ongoing: [
     "The season is closed and its close date is recorded.",
@@ -88,19 +89,17 @@ export function buildReadiness(status, s) {
     else items.push(ok("No flagged players."));
 
     if (!(s.teamsByState?.verified > 0)) {
-      items.push(warn("No team is verified yet, so there is nothing to build brackets from.", "/admin/review", "Open Review Queue"));
-    } else {
-      const undrawn = (s.sportsProgress || []).flatMap((sp) =>
-        sp.divisions.filter((d) => d.verifiedTeams > 0 && !d.tournament).map((d) => `${sp.name} ${divisionLabel(d.division)}`.trim()));
-      if (undrawn.length) {
-        items.push(warn(`${plural(undrawn.length, "division has", "divisions have")} verified teams but no bracket yet (${undrawn.slice(0, 3).join(", ")}${undrawn.length > 3 ? "…" : ""}).`, "/admin/tournaments", "Generate brackets"));
-      } else {
-        items.push(ok("Brackets are drawn for every division that has verified teams."));
-      }
+      items.push(warn("No team is verified yet, so there will be nothing to build brackets from.", "/admin/review", "Open Review Queue"));
     }
-    if (s.matches?.total > 0) {
-      if (s.matches.undated > 0) items.push(warn(`${plural(s.matches.undated, "ready match has", "ready matches have")} no date yet.`, "/admin/tournaments", "Set dates"));
-      else items.push(ok("Every ready match has a date."));
+    // Generating a tournament is only allowed once the season is Ongoing.
+    items.push(info("Tournaments are generated from the verified teams after you start the season."));
+  }
+
+  if (status === "ongoing") {
+    const undrawn = (s.sportsProgress || []).flatMap((sp) =>
+      sp.divisions.filter((d) => d.verifiedTeams > 0 && !d.tournament).map((d) => `${sp.name} ${divisionLabel(d.division)}`.trim()));
+    if (undrawn.length) {
+      items.push(warn(`${plural(undrawn.length, "division has", "divisions have")} verified teams but no bracket yet (${undrawn.slice(0, 3).join(", ")}${undrawn.length > 3 ? "…" : ""}).`, "/admin/tournaments", "Generate brackets"));
     }
   }
 

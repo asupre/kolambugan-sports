@@ -263,14 +263,18 @@ router.post('/teams/:teamId/players/:playerId/approve', requireVerificationStage
     //    League Setup (re-screens the season and clears the flag itself).
     //  - not_on_list: possible Dayo. If the name is just misspelled the
     //    Barangay Admin corrects it (auto re-screen); otherwise reject.
+    //
+    // REVISED Oct 5 2026 (Super Admin): a flagged player CAN be approved once a
+    // document has been uploaded: the Super Admin judges it in the Review Queue
+    // like a needs_document player's. Without a document it's still refused.
     if (player.eligibilityStatus === 'flagged') {
       const team = await Team.findById(req.params.teamId);
       const d = await decidePlayer(player, team);
-      if (d.status === 'flagged') {
+      if (d.status === 'flagged' && (await Document.countDocuments({ player: player._id })) === 0) {
         return res.status(409).json({
           message: d.code === 'cross_barangay'
-            ? `${d.reason}. This can't be approved. Reject the player, or allow cross-barangay players for this barangay in League Setup.`
-            : "This player isn't on the reference list (possible Dayo), so they can't be approved. If the name is misspelled, the Barangay Admin can correct it and it will re-screen; otherwise reject the player.",
+            ? `${d.reason}. This can't be approved without a residency document. Reject the player, allow cross-barangay players for this barangay in League Setup, or wait for the Barangay Admin to upload a document.`
+            : "This player isn't on the reference list (possible Dayo) and has no residency document, so they can't be approved yet. The Barangay Admin can correct a misspelled name (it re-screens) or upload a document; otherwise reject the player.",
         });
       }
     }

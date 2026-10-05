@@ -364,6 +364,99 @@ function StatsDialog({ open, onOpenChange, data, matchId, onSaved }) {
   );
 }
 
+// The three jobs on one live match (Oct 2026). Up to three people open the same match on
+// the sport's ONE organizer account: a score keeper (team score, periods, end match) and a
+// stats keeper per barangay. Each device picks its job; it is remembered per match on that
+// device only (sessionStorage), never on the server.
+function JobPicker({ m, job, onChoose }) {
+  const jobs = [
+    ["score", "Score keeper", "Team score, periods, end match"],
+    ["A", `Stats: ${m.teamA?.teamName || "Team A"}`, "Points, fouls… for each player"],
+    ["B", `Stats: ${m.teamB?.teamName || "Team B"}`, "Points, fouls… for each player"],
+  ];
+  return (
+    <Card className="mb-4 gap-0 p-4">
+      <p className="mb-1 text-sm font-medium">Your job on this match</p>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Up to three people can work this match at once on this account. Each picks one job.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {jobs.map(([key, label, sub]) => (
+          <button key={key} type="button" onClick={() => onChoose(key)}
+            className={cn(
+              "rounded-xl border px-3 py-3 text-left transition",
+              job === key ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent"
+            )}>
+            <span className="block truncate text-sm font-semibold">{label}</span>
+            <span className={cn("block text-xs", job === key ? "text-primary-foreground/80" : "text-muted-foreground")}>{sub}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// A stats keeper's screen: one card per player of THEIR barangay, a button per score-sheet
+// column (points use the sport's point values, the rest +1). A tap is saved at once and
+// shows on the public team page on its next refresh. Player points are stats only: the
+// team score stays the score keeper's.
+function StatsKeeperPanel({ team, roster, fields, statLabels, pointValues, statByPlayer, live, onTap, lastTap, onUndo, busy }) {
+  const short = (f) => statLabels?.[f]?.short || f;
+  const sorted = [...roster].sort((a, b) => (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999));
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2.5">
+        <Crest team={team} size={32} />
+        <p className="min-w-0 flex-1 truncate font-semibold">Player stats · {team?.teamName}</p>
+      </div>
+      {!live && (
+        <Alert>
+          <AlertDescription>
+            Waiting for the score keeper to start the match. The buttons work once it is live.
+          </AlertDescription>
+        </Alert>
+      )}
+      {lastTap && (
+        <button onClick={onUndo} disabled={busy}
+          className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border text-sm text-muted-foreground hover:bg-accent disabled:opacity-40">
+          <Undo2 className="size-3.5" /> Undo {lastTap.label}
+        </button>
+      )}
+      {sorted.length === 0 && <p className="text-sm text-muted-foreground">No players on this roster.</p>}
+      {sorted.map((p) => {
+        const s = statByPlayer?.[String(p._id)] || {};
+        return (
+          <Card key={p._id} className="gap-2 p-3">
+            <div className="flex items-baseline gap-2">
+              <span className="w-8 shrink-0 text-sm font-semibold tabular-nums text-muted-foreground">
+                {p.jerseyNumber != null ? `#${p.jerseyNumber}` : ""}
+              </span>
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold">{p.lastName}, {p.firstName}</p>
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                {fields.map((f) => `${s[f] || 0} ${short(f)}`).join(" · ")}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {fields.flatMap((f) => (f === "points" ? pointValues : [1]).map((v) => (
+                <button key={`${f}-${v}`} disabled={!live}
+                  onClick={() => onTap(p, f, v, `+${v} ${short(f)} ${p.lastName}`)}
+                  className={cn(
+                    "h-11 min-w-14 flex-1 rounded-lg px-2 text-sm font-bold transition active:scale-95 disabled:opacity-40 disabled:active:scale-100",
+                    f === "points" ? "bg-green-600 text-white hover:bg-green-700"
+                      : f === "fouls" ? "bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-400"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  )}>
+                  +{v} {short(f)}
+                </button>
+              )))}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function ScoringView({ matchId, onBack }) {
   const showError = useErrorDialog();
   const confirm = useConfirm();
@@ -381,12 +474,63 @@ function ScoringView({ matchId, onBack }) {
   // (the pre-start card used to just vanish and the scoring buttons appeared).
   const [justStarted, setJustStarted] = useState(false);
 
-  async function load() {
+  // This device's job on the match (see JobPicker), remembered per match on this device.
+  const jobKey = `org-job:${matchId}`;
+  const [job, setJob] = useState(() => { try { return sessionStorage.getItem(jobKey) || ""; } catch { return ""; } });
+  const chooseJob = (j) => { setJob(j); try { sessionStorage.setItem(jobKey, j); } catch { /* private mode */ } };
+  // This device's own stat taps, newest last, so its Undo never takes back someone else's.
+  const [statTaps, setStatTaps] = useState([]);
+  const [statBusy, setStatBusy] = useState(false);
+
+  // `quiet` = a background refresh: no error popup, and no re-render when nothing changed.
+  const lastJson = useRef("");
+  async function load(quiet = false) {
     try {
-      setData(await api(`/api/organizer/matches/${matchId}`));
-    } catch (e) { showError(e.message); }
+      const d = await api(`/api/organizer/matches/${matchId}`);
+      const json = JSON.stringify(d);
+      if (json !== lastJson.current) { lastJson.current = json; setData(d); }
+    } catch (e) { if (!quiet) showError(e.message); }
   }
   useEffect(() => { load(); }, [matchId]);
+
+  // Live refresh (Oct 2026): the score keeper and the two stats keepers are on different
+  // devices, so each screen re-reads the match every 3 seconds while it is not finished.
+  const statusRef = useRef(null);
+  statusRef.current = data?.match?.status;
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (!["scheduled", "ongoing"].includes(statusRef.current)) return;
+      load(true);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [matchId]);
+
+  async function tapStat(player, stat, amount, label, isUndo = false) {
+    setStatBusy(true);
+    try {
+      const r = await api(`/api/organizer/matches/${matchId}/player-stat`, {
+        method: "POST",
+        body: JSON.stringify({ playerId: player._id, stat, amount }),
+      });
+      setData((d) => {
+        if (!d) return d;
+        const id = String(player._id);
+        return { ...d, statByPlayer: { ...(d.statByPlayer || {}), [id]: { ...(d.statByPlayer?.[id] || {}), [stat]: r.value } } };
+      });
+      lastJson.current = "";   // the next refresh always applies
+      if (isUndo) setStatTaps((t) => t.slice(0, -1));
+      else setStatTaps((t) => [...t.slice(-29), { player, stat, amount, label }]);
+      buzz(15);
+    } catch (e) {
+      if (isUndo) setStatTaps((t) => t.slice(0, -1));   // e.g. already back at 0
+      showError(e.message);
+    } finally { setStatBusy(false); }
+  }
+  const undoStat = () => {
+    const last = statTaps[statTaps.length - 1];
+    if (last) tapStat(last.player, last.stat, -last.amount, last.label, true);
+  };
   useEffect(() => {
     if (!justStarted) return undefined;
     const t = setTimeout(() => setJustStarted(false), 8000);
@@ -469,6 +613,13 @@ function ScoringView({ matchId, onBack }) {
   const when = [m.schedule ? dateOf(m.schedule) : null, timeOf(m.schedule), m.venue].filter(Boolean).join(" · ");
   // Sports with a post-match form: a box score (points…) and/or roles for esports.
   const hasStatsForm = (data.statFields?.length || 0) > 0 || (data.roles?.length || 0) > 0;
+  // Live player stats need numeric sheet columns; without them there is only one job.
+  const statFields = data.statFields || [];
+  const hasJobs = statFields.length > 0;
+  const myJob = hasJobs ? job : "score";
+  const isScorer = myJob === "score";
+  const statsSide = myJob === "A" || myJob === "B" ? myJob : null;
+  const open = !finished && !forfeited;
 
   function openEnd() {
     setEnding(true);
@@ -506,7 +657,7 @@ function ScoringView({ matchId, onBack }) {
         )}
       </Card>
 
-      {live && (
+      {live && isScorer && (
         <>
           {m.lastAction?.label && (
             <button onClick={() => call("undo")} disabled={busy}
@@ -568,10 +719,17 @@ function ScoringView({ matchId, onBack }) {
                   : `${periodWord.replace(/^./, (c) => c.toUpperCase())} ${Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of ${m.bestOf || 1}`}
               </p>
             </div>
-            <button onClick={() => call("undo")} disabled={busy || !m.lastAction?.label}
-              className="flex h-9 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent disabled:opacity-40">
-              <Undo2 className="size-3.5" /> Undo
-            </button>
+            {isScorer ? (
+              <button onClick={() => call("undo")} disabled={busy || !m.lastAction?.label}
+                className="flex h-9 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent disabled:opacity-40">
+                <Undo2 className="size-3.5" /> Undo
+              </button>
+            ) : statsSide && (
+              <button onClick={undoStat} disabled={statBusy || !statTaps.length}
+                className="flex h-9 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent disabled:opacity-40">
+                <Undo2 className="size-3.5" /> Undo
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -633,7 +791,9 @@ function ScoringView({ matchId, onBack }) {
         </Alert>
       )}
 
-      {!live && !finished && !forfeited && (
+      {hasJobs && open && <JobPicker m={m} job={job} onChoose={chooseJob} />}
+
+      {!live && open && isScorer && (
         <Card className="p-4 mb-4 gap-0">
           <>
               <p className="text-sm font-medium mb-1">
@@ -706,7 +866,25 @@ function ScoringView({ matchId, onBack }) {
 
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 min-w-0">
-          {live && (finalMode ? (
+          {open && statsSide && (
+            <StatsKeeperPanel
+              team={statsSide === "A" ? m.teamA : m.teamB}
+              roster={(statsSide === "A" ? data.rosterA : data.rosterB) || []}
+              fields={statFields}
+              statLabels={data.statLabels}
+              pointValues={pointValues}
+              statByPlayer={data.statByPlayer}
+              live={live}
+              onTap={tapStat}
+              lastTap={statTaps[statTaps.length - 1]}
+              onUndo={undoStat}
+              busy={statBusy}
+            />
+          )}
+          {hasJobs && open && !myJob && (
+            <p className="text-sm text-muted-foreground">Pick your job above to begin.</p>
+          )}
+          {live && isScorer && (finalMode ? (
             <>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => call("score", { side: "A", points: 1 })} disabled={busy || seriesOver}

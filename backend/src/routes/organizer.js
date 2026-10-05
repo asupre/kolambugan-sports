@@ -229,17 +229,25 @@ router.post('/matches/:matchId/score', async (req, res) => {
     }
 
     const field = side === 'A' ? 'liveScoreA' : 'liveScoreB';
+    let action = null;
     if (points > 0) {
       const team = await Team.findById(side === 'A' ? match.teamA : match.teamB).select('teamName');
-      match.lastAction = {
+      action = {
         type: 'points', side, player: null, amount: points,
         label: `+${points} ${team?.teamName || (side === 'A' ? 'team A' : 'team B')}`,
       };
     }
-    match[field] = Math.max(0, (match[field] || 0) + points);
-    await match.save();
+    // ATOMIC (Oct 2026): up to three people work one match on the same account, so a
+    // read-add-save could lose a tap that lands at the same moment. $inc can't lose one;
+    // a take-back only applies while the score is high enough (never below 0).
+    const filter = { _id: match._id, status: 'ongoing' };
+    if (points < 0) filter[field] = { $gte: -points };
+    const update = { $inc: { [field]: points } };
+    if (points > 0) update.$set = { lastAction: action };
+    const saved = await Match.findOneAndUpdate(filter, update, { returnDocument: 'after' });
+    if (!saved) return res.status(409).json({ message: "Can't take that off: the score is lower than that (it may have just changed). Check the scoreboard." });
 
-    res.json({ message: 'Scored.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
+    res.json({ message: 'Scored.', liveScoreA: saved.liveScoreA, liveScoreB: saved.liveScoreB });
   } catch (err) {
     console.error('Score error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -267,6 +275,62 @@ router.post('/matches/:matchId/undo', async (req, res) => {
     res.json({ message: 'Undone.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
   } catch (err) {
     console.error('Undo error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/organizer/matches/:matchId/player-stat
+// body: { playerId, stat, amount }
+// LIVE player stats (Oct 2026, brought back): while the match runs, a stats keeper (one per
+// barangay, on the same organizer account as the score keeper) taps a player's points, fouls,
+// rebounds… and the public team page picks it up on its next refresh. Player points are
+// stats only: they do NOT change the team score (the score keeper owns that). `amount` is
+// the tap (points use the sport's point values, everything else 1); a negative amount is
+// that device's own Undo and never takes a stat below 0. Atomic, so taps from several
+// devices at once can't overwrite each other. The after-match form opens prefilled with
+// these numbers for corrections.
+router.post('/matches/:matchId/player-stat', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+    if (match.status !== 'ongoing') return res.status(409).json({ message: 'Player stats can be tapped only while the match is live.' });
+
+    const rules = rulesFor(ctx.sport);
+    const stat = String(req.body.stat || '');
+    if (!rules.statFields.includes(stat)) {
+      return res.status(400).json({ message: `"${stat}" isn't on ${ctx.sportName}'s score sheet.` });
+    }
+    const amount = Number(req.body.amount);
+    const max = stat === 'points' ? Math.max(...rules.pointValues, 1) : 1;
+    if (!Number.isInteger(amount) || amount === 0 || Math.abs(amount) > max) {
+      return res.status(400).json({ message: `amount must be a non-zero whole number from -${max} to ${max}.` });
+    }
+
+    const playerId = String(req.body.playerId || '');
+    const link = await TeamPlayer.findOne({ player: playerId, team: { $in: [match.teamA, match.teamB] } }).select('_id');
+    if (!link) return res.status(400).json({ message: 'That player is not on either team.' });
+
+    const path = LEGACY_STAT_COLUMNS.includes(stat) ? stat : `extra.${stat}`;
+    let doc;
+    if (amount > 0) {
+      doc = await PlayerMatchStats.findOneAndUpdate(
+        { match: match._id, player: playerId },
+        { $inc: { [path]: amount } },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+      );
+    } else {
+      doc = await PlayerMatchStats.findOneAndUpdate(
+        { match: match._id, player: playerId, [path]: { $gte: -amount } },
+        { $inc: { [path]: amount } },
+        { returnDocument: 'after' }
+      );
+      if (!doc) return res.status(409).json({ message: "Can't take that back: the player's stat is already lower than that." });
+    }
+    const value = path.startsWith('extra.') ? doc.extra?.[stat] || 0 : doc[stat] || 0;
+    res.json({ message: 'Recorded.', playerId, stat, value });
+  } catch (err) {
+    console.error('Player stat error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

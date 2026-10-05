@@ -37,6 +37,9 @@ const teamSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Created by League Setup's "Demo data" generator (Oct 2026), so "Remove demo data"
+    // deletes only these and never a real registration.
+    isDemo: { type: Boolean, default: false },
         // Which division this entry competes in. Values used per sport:
     //   Basketball  -> 'under15' | 'under30'   (age split)
     //   Volleyball  -> 'boys' | 'girls'

@@ -170,7 +170,7 @@ const RAW_STEPS = {
     {
       title: "Start & score",
       description:
-        "Pick how many periods you're playing, tap Start, then tap the team that scored (+1, +2 or +3 in basketball). Scoring is by team. You don't pick players while the game runs. Everything updates live on the public site as you go.",
+        "Up to three people can work one match on this account. Each picks a job: the Score keeper picks how many periods, taps Start, then taps the team that scored (+1, +2 or +3 in basketball). A Stats keeper for each barangay taps that team's players' points, fouls and other stats as they happen. Player points don't change the team score. Everything updates live on the public site as you go.",
       icon: Play,
       shots: [
         ["start.png", "Choose the number of periods and tap Start match"],
@@ -187,7 +187,7 @@ const RAW_STEPS = {
     {
       title: "Fill in the player stats",
       description:
-        "After the match, a score sheet lists every player. Fill in the columns the Super Admin set up for your sport (for example points, fouls, rebounds, blocks and assists in basketball; the role each player played, and kills / deaths / assists, in esports). Leave a player blank if they didn't play, choose the MVP and Save. You can come back and correct it later.",
+        "After the match, a score sheet lists every player, already filled in from the stats keepers' live taps. Correct anything that's off in the columns the Super Admin set up for your sport (for example points, fouls, rebounds, blocks and assists in basketball; the role each player played, and kills / deaths / assists, in esports). Leave a player blank if they didn't play, choose the MVP and Save. You can come back and correct it later.",
       icon: ClipboardList,
       shots: [["scoresheet.png", "Player stats: each player's totals, team by team, then Save"]],
     },

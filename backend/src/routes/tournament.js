@@ -230,6 +230,13 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
   try {
     const season = await getCurrentSeason();
     if (!season) return res.status(409).json({ message: 'No active season.' });
+    // Only once the season is ONGOING: during verification rosters can still be
+    // rejected / reopened, so the set of verified teams isn't final yet.
+    if (season.status !== 'ongoing') {
+      return res.status(409).json({
+        message: 'Tournaments can only be generated once the season is Ongoing. Finish verification, then move the season on from the Season page.',
+      });
+    }
 
     const sport = await Sport.findById(req.body.sportId);
     if (!sport) return res.status(404).json({ message: 'Sport not found.' });
@@ -978,6 +985,39 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
   }
 });
 
+// ---- Schedule clashes ------------------------------------------------------
+// One match per date + time per sport (Oct 2026, Super Admin rule): a sport has a
+// single organizer, so two of its matches can't be played at the same moment,
+// whatever their group, round or division. A date with NO time (stored as
+// midnight Manila) is "time not set yet" and never clashes.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const hasTimeSet = (d) => !!d && (d.getTime() + 8 * 60 * 60 * 1000) % DAY_MS !== 0;
+
+const DIVISION_NAME = { open: 'Open', boys: 'Boys', girls: 'Girls', under15: 'Under 15', under30: 'Under 30' };
+const WHEN_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+});
+
+// The other match of this sport (current tournament's season) already set for
+// `when`, or null. `excludeIds` = the match(es) being re-dated themselves.
+async function findScheduleClash(tournament, when, excludeIds) {
+  const tournamentIds = await Tournament.find({ sport: tournament.sport, season: tournament.season }).distinct('_id');
+  return Match.findOne({ tournament: { $in: tournamentIds }, schedule: when, _id: { $nin: excludeIds } })
+    .populate('tournament', 'division')
+    .populate('teamA', 'teamName')
+    .populate('teamB', 'teamName');
+}
+
+function clashMessage(clash, when, sportName) {
+  const where = [
+    sportName,
+    DIVISION_NAME[clash.tournament?.division] || clash.tournament?.division,
+    clash.group ? `Group ${clash.group}` : 'Knockout',
+  ].filter(Boolean).join(' · ');
+  const teams = `${clash.teamA?.teamName || 'TBD'} vs ${clash.teamB?.teamName || 'TBD'}`;
+  return `${WHEN_FMT.format(when)} is already taken by ${where} (${teams}). Only one ${sportName || 'match'} game can be set per date and time. Pick another time.`;
+}
+
 // PATCH /api/tournaments/matches/:matchId/schedule — super admin sets or clears
 // one match's date. body: { schedule: "2026-09-12" | null }
 router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'), async (req, res) => {
@@ -993,6 +1033,13 @@ router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'
         // server's own zone, which is UTC in production.
         const d = parseManila(req.body.schedule);
         if (!d) return res.status(400).json({ message: 'Invalid date.' });
+        if (hasTimeSet(d)) {
+          const tournament = await Tournament.findById(match.tournament).populate('sport', 'name');
+          if (tournament) {
+            const clash = await findScheduleClash({ sport: tournament.sport._id, season: tournament.season }, d, [match._id]);
+            if (clash) return res.status(409).json({ message: clashMessage(clash, d, tournament.sport?.name) });
+          }
+        }
         match.schedule = d;
       }
     }
@@ -1024,6 +1071,20 @@ router.post('/:id/schedule-bulk', authenticate, authorize('super_admin'), async 
 
     if (Object.keys(filter).length === 1) {
       return res.status(400).json({ message: 'Give at least one of: round, group, or bracket.' });
+    }
+
+    // A time can hold only one match of the sport, so a time can be bulk-applied
+    // only to a single match; for more, set the date here and each time per match.
+    if (hasTimeSet(d)) {
+      const targets = await Match.find(filter).distinct('_id');
+      if (targets.length > 1) {
+        return res.status(409).json({
+          message: `Only one game can be set per date and time, and this would put ${targets.length} matches at ${WHEN_FMT.format(d)}. Apply the date with "No time", then set each match's time on its own row.`,
+        });
+      }
+      await tournament.populate('sport', 'name');
+      const clash = await findScheduleClash({ sport: tournament.sport._id, season: tournament.season }, d, targets);
+      if (clash) return res.status(409).json({ message: clashMessage(clash, d, tournament.sport?.name) });
     }
 
         const set = { schedule: d };

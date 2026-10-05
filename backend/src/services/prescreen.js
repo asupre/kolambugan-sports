@@ -112,7 +112,7 @@ function decideFromCandidates(player, teamBarangay, candidates) {
     return {
       status: 'flagged',
       code: 'not_on_list',
-      reason: 'Not found on the reference list (name, middle initial, and birthdate must all match). Possible Dayo. If the name is misspelled, correct it and it will be re-checked',
+      reason: 'Not found on the reference list (name, middle initial, and birthdate must all match). Possible Dayo. If the name is misspelled, correct it and it will be re-checked; otherwise upload a residency document for review',
       matchedReferenceId: null,
     };
   }

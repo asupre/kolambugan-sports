@@ -198,7 +198,7 @@ router.get('/teams', async (req, res) => {
 router.get('/teams/:id', async (req, res) => {
   try {
     const team = await Team.findById(req.params.id)
-      .populate('barangay', 'name').populate('sport', 'name category scoreSheet customStats');
+      .populate('barangay', 'name').populate('sport', 'name category scoreSheet customStats periodLabel');
     if (!team) return res.status(404).json({ message: 'Team not found.' });
 
     // Only the columns the Super Admin put on this sport's after-match score sheet
@@ -223,6 +223,31 @@ router.get('/teams/:id', async (req, res) => {
                   { $group: { _id: '$player', points: { $sum: '$points' }, fouls: { $sum: '$fouls' },
                   rebounds: { $sum: '$rebounds' }, assists: { $sum: '$assists' } } },
     ]);
+    // The team's LIVE game, if one is on (Oct 2026): the score plus each of this team's
+    // players' stats IN THAT GAME, tapped live by the organizer's stats keeper. The team
+    // page refreshes on its own while this is set.
+    let live = null;
+    const liveMatch = await Match.findOne({
+      tournament: { $in: ids }, status: 'ongoing', $or: [{ teamA: team._id }, { teamB: team._id }],
+    }).populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay');
+    if (liveMatch) {
+      const isA = String(liveMatch.teamA?._id) === String(team._id);
+      const opp = isA ? liveMatch.teamB : liveMatch.teamA;
+      const rows = await PlayerMatchStats.find({ match: liveMatch._id, player: { $in: players.map((p) => p._id) } }).lean();
+      live = {
+        matchId: liveMatch._id,
+        opponent: opp ? { id: opp._id, name: opp.teamName, barangayId: opp.barangay ? String(opp.barangay) : null } : null,
+        score: (isA ? liveMatch.liveScoreA : liveMatch.liveScoreB) || 0,
+        opponentScore: (isA ? liveMatch.liveScoreB : liveMatch.liveScoreA) || 0,
+        period: Math.min((liveMatch.games?.length || 0) + 1, liveMatch.bestOf || 1),
+        periods: liveMatch.bestOf || 1,
+        periodLabel: rulesFor(team.sport).periodLabel,
+        gamesWon: rulesFor(team.sport).scoringMode === 'final',
+        stats: Object.fromEntries(rows.map((r) => [String(r.player),
+          { points: r.points || 0, fouls: r.fouls || 0, rebounds: r.rebounds || 0, assists: r.assists || 0 }])),
+      };
+    }
+
     const games = (await teamGamesMap(ids))[String(team._id)] || 0;
     const mvpBy = await mvpCountMap(seasonMatches.map((m) => m._id), players.map((p) => p._id));
     const statBy = {};
@@ -237,6 +262,7 @@ router.get('/teams/:id', async (req, res) => {
         sport: team.sport?.name, division: team.division, format: team.format,
         statColumns,
       },
+      live,
       players: players.map((p) => ({
         id: p._id,
         firstName: p.firstName,

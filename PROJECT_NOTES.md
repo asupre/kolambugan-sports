@@ -654,6 +654,22 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
     separate public match page.
   - Tested: routes against stubbed models (taps, undo, bad stat / amount / player, team score
     untouched, refused once completed). Not yet run in a browser or on three real devices.
+- **STARTING LINEUP + SUBSTITUTIONS ARE BACK (Oct 6 2026, user: "after hitting Start it should
+  have a modal to select the players… then a sub in case of substitution").** Team-format sports
+  with an on-court count (`onCourtFor()` in `lib/sportRules.js`, returned as `onCourt` by
+  `rulesFor()`: the sport's own `Sport.onCourt` if set, else Basketball 5 / Volleyball 6 / Mobile
+  Legends 5, else 5 for any esport; singles / doubles = none). Start opens `LineupDialog`
+  (`OrganizerScoring.jsx`) when either roster is bigger than the court: pick up to N per team
+  (fewer allowed, with a warning), then Start from the modal. `POST .../start` takes
+  `lineupA` / `lineupB` (400 if missing when needed, too many, duplicates or not on that team; a
+  roster that fits on court starts whole). Stored on `Match.lineupA/lineupB` (needs a FULL server
+  restart), plus a `Match.subs` log (side, playerOut, playerIn, period, at). `POST
+  .../substitute` `{side, outId?, inId?}` while live: swap, or just put a player in when short, or
+  just take one off. Score keeper: "On court" card under the score buttons, Substitute per team
+  (`SubDialog`: coming off / going in). Stats keeper: only on-court players get stat buttons,
+  each with a Sub button; the bench is listed below. Cancel clears the lineups. A match started
+  before this has no lineup and shows everyone, as before. Tested: routes on stubbed models (10
+  cases). Not yet run in a browser.
 - **SCORING IS BY TEAM; PLAYER STATS COME AFTER THE MATCH (Sep 2026 — replaces the per-player
   live scoring, the on-court lineup / substitute UI and live foul/rebound/assist buttons).**
   While a game runs the organizer only taps the team that scored (+1/+2/+3 in basketball, +1

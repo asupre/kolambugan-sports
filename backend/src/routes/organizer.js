@@ -28,7 +28,7 @@ async function loadOwnedMatch(req, res) {
   // The rule fields ride along: rulesFor() reads them, and with only `name` populated a
   // sport's saved point values / period settings were silently ignored by the routes.
   const t = await Tournament.findById(match.tournament)
-    .populate('sport', 'name category pointValues periodLabel periodOptions scoreSheet customStats');
+    .populate('sport', 'name category entryFormat onCourt pointValues periodLabel periodOptions scoreSheet customStats');
   if (!t) { res.status(404).json({ message: 'Tournament not found.' }); return null; }
   if (req.user.role === 'organizer' && String(req.user.assignedSport) !== String(t.sport._id)) {
     res.status(403).json({ message: 'You can only score matches for your assigned sport.' });
@@ -140,6 +140,41 @@ router.post('/matches/:matchId/start', async (req, res) => {
             return res.status(400).json({ message: 'periods must be 1, 2, 3, 4, 5, or 7.' });
     }
     match.bestOf = periods;
+
+    // Starting lineup (Oct 2026): for a team sport with an on-court count, the organizer picks
+    // who starts for each side in a modal before the match begins. A side whose whole roster
+    // fits on court needs no pick (everyone starts).
+    const onCourt = rulesFor(ctx.sport).onCourt;
+    if (onCourt) {
+      for (const [side, teamId] of [['A', match.teamA], ['B', match.teamB]]) {
+        const links = await TeamPlayer.find({ team: teamId }).select('player');
+        const roster = links.map((l) => String(l.player));
+        const picked = req.body[`lineup${side}`];
+        let lineup;
+        if (Array.isArray(picked)) {
+          lineup = [...new Set(picked.map(String))];
+          if (lineup.length !== picked.length) return res.status(400).json({ message: 'A player was picked twice.' });
+          if (lineup.some((id) => !roster.includes(id))) {
+            return res.status(400).json({ message: 'A player in the lineup is not on that team.' });
+          }
+        } else if (roster.length <= onCourt) {
+          lineup = roster;
+        } else {
+          return res.status(400).json({ message: `Pick the starting ${onCourt} for each team.` });
+        }
+        if (lineup.length === 0 && roster.length > 0) {
+          return res.status(400).json({ message: 'Each team needs at least one player on court.' });
+        }
+        if (lineup.length > onCourt) {
+          return res.status(400).json({ message: `Only ${onCourt} players can be on court per team.` });
+        }
+        match[`lineup${side}`] = lineup;
+      }
+    } else {
+      match.lineupA = [];
+      match.lineupB = [];
+    }
+    match.subs = [];
 
     match.status = 'ongoing';
     match.startedAt = match.startedAt || new Date();
@@ -275,6 +310,54 @@ router.post('/matches/:matchId/undo', async (req, res) => {
     res.json({ message: 'Undone.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
   } catch (err) {
     console.error('Undo error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/organizer/matches/:matchId/substitute   body: { side: 'A'|'B', outId?, inId? }
+// A substitution while the match is live (Oct 2026): `outId` comes off the court and `inId`
+// (from the bench) goes on. Either may be left out on its own: inId only = add a player to a
+// side that is short (a latecomer), outId only = take a player off (fouled out / injured, no
+// one to replace them). Logged in match.subs.
+router.post('/matches/:matchId/substitute', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+    if (match.status !== 'ongoing') return res.status(409).json({ message: 'Substitutions are made while the match is live.' });
+    const onCourt = rulesFor(ctx.sport).onCourt;
+    if (!onCourt) return res.status(400).json({ message: `${ctx.sportName} has no lineup to substitute.` });
+
+    const { side } = req.body;
+    if (!['A', 'B'].includes(side)) return res.status(400).json({ message: 'side must be "A" or "B".' });
+    const outId = req.body.outId ? String(req.body.outId) : null;
+    const inId = req.body.inId ? String(req.body.inId) : null;
+    if (!outId && !inId) return res.status(400).json({ message: 'Pick who comes off and who goes in.' });
+
+    const field = `lineup${side}`;
+    const lineup = (match[field] || []).map(String);
+    if (outId && !lineup.includes(outId)) {
+      return res.status(409).json({ message: 'That player is not on court (the lineup may have just changed).' });
+    }
+    if (inId) {
+      const link = await TeamPlayer.findOne({ team: side === 'A' ? match.teamA : match.teamB, player: inId }).select('_id');
+      if (!link) return res.status(400).json({ message: 'The player going in is not on that team.' });
+      if (lineup.includes(inId)) return res.status(409).json({ message: 'That player is already on court.' });
+    }
+    let next = outId ? lineup.filter((id) => id !== outId) : lineup;
+    if (inId) next = outId ? lineup.map((id) => (id === outId ? inId : id)) : [...lineup, inId];
+    if (next.length > onCourt) return res.status(409).json({ message: `Only ${onCourt} players can be on court. Pick who comes off.` });
+
+    match[field] = next;
+    match.subs.push({
+      side, playerOut: outId, playerIn: inId,
+      period: Math.min((match.games?.length || 0) + 1, match.bestOf || 1),
+      at: new Date(),
+    });
+    await match.save();
+    res.json({ message: 'Substitution made.', lineupA: match.lineupA, lineupB: match.lineupB });
+  } catch (err) {
+    console.error('Substitute error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
@@ -603,6 +686,9 @@ router.post('/matches/:matchId/cancel', async (req, res) => {
     match.games = [];
     match.startedAt = null;
     match.mvp = null;
+    match.lineupA = [];
+    match.lineupB = [];
+    match.subs = [];
     await match.save();
 
     res.json({ message: 'Match cancelled and reset.', matchId: match._id, status: match.status });

@@ -64,6 +64,20 @@ const SHEET_BY_CATEGORY = {
   board: ['points'],
 };
 
+// How many players are on court at once (Oct 2026: the starting lineup + substitutions are
+// back). Only team-format entries have a lineup; a sport's own `onCourt` (Sport model) wins,
+// else these built-ins, else 5 for any esport. Singles / doubles have no lineup.
+const ON_COURT = {
+  'Basketball': 5,
+  'Volleyball': 6,
+  'Mobile Legends': 5,
+};
+function onCourtFor(sport) {
+  if (!sport || (sport.entryFormat && sport.entryFormat !== 'team')) return null;
+  if (Number.isInteger(sport.onCourt) && sport.onCourt > 0) return sport.onCourt;
+  return ON_COURT[sport.name] || (sport.category === 'esports' ? 5 : null);
+}
+
 // The sheet used until the Super Admin picks one. Basketball is the full box score;
 // volleyball & co: points; esports: the role each player played; chess / billiards: none.
 const DEFAULT_SHEET = {
@@ -147,6 +161,7 @@ function rulesFor(sport) {
     statFields: sheet.filter((k) => k !== 'role'),
     roles: sheet.includes('role') ? rolesFor(sport) : [],
     statLabels,
+    onCourt: onCourtFor(sport),
   };
 }
 
@@ -190,6 +205,6 @@ function teamsAllowedFor(sport) {
 
 module.exports = {
   SCORING_MODE, PERIOD_LABEL, PERIOD_OPTIONS, POINT_VALUES, STAT_CATALOG, SHEET_BY_CATEGORY,
-  DEFAULT_SHEET, LEGACY_STAT_COLUMNS, rolesFor, sheetOptionsFor, rulesFor,
+  DEFAULT_SHEET, LEGACY_STAT_COLUMNS, ON_COURT, onCourtFor, rolesFor, sheetOptionsFor, rulesFor,
   KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, knockoutChoiceOf, hasKnockoutChoice, teamsAllowedFor,
 };

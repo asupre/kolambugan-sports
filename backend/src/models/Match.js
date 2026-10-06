@@ -76,6 +76,20 @@ const matchSchema = new mongoose.Schema(
     liveScoreA: { type: Number, default: 0 },
     liveScoreB: { type: Number, default: 0 },
     startedAt: { type: Date, default: null },   // when the organizer tapped Start
+    // Who is on court right now (Oct 2026): picked in the starting-lineup modal at Start and
+    // changed by substitutions. Only for team sports with an on-court count (basketball 5,
+    // volleyball 6, esports 5); empty for everything else.
+    lineupA: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
+    lineupB: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
+    // Every substitution, in order: who came off, who went in, during which period, when.
+    subs: [{
+      _id: false,
+      side: { type: String, enum: ['A', 'B'] },
+      playerOut: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+      playerIn: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+      period: { type: Number, default: 1 },
+      at: { type: Date, default: Date.now },
+    }],
     // Organizer's declared MVP (suggested as top scorer, confirmed by the organizer).
     mvp: {
       type: mongoose.Schema.Types.ObjectId,

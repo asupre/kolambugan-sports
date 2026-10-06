@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CalendarClock, Circle, CircleCheck, ClipboardList, ListChecks, Play, Radio, TriangleAlert, Undo2, X } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, CalendarClock, Circle, CircleCheck, ClipboardList, ListChecks, Play, Radio, TriangleAlert, Undo2, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -364,6 +364,227 @@ function StatsDialog({ open, onOpenChange, data, matchId, onSaved }) {
   );
 }
 
+const byJersey = (list) => [...list].sort((a, b) => (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999));
+const jerseyOf = (p) => (p.jerseyNumber != null ? `#${p.jerseyNumber}` : "—");
+
+// One tappable player row, used by the lineup and substitution modals.
+function PlayerPick({ p, selected, disabled, onClick, tone = "primary" }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-40",
+        selected
+          ? tone === "out" ? "border-red-500 bg-red-500/10" : "border-primary bg-primary/10"
+          : "hover:bg-accent"
+      )}>
+      <span className={cn(
+        "flex h-8 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-semibold tabular-nums",
+        selected ? (tone === "out" ? "bg-red-600 text-white" : "bg-primary text-primary-foreground") : "bg-muted"
+      )}>
+        {jerseyOf(p)}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.lastName}, {p.firstName}</span>
+      {selected && <CircleCheck className={cn("size-4 shrink-0", tone === "out" ? "text-red-600" : "text-primary")} />}
+    </button>
+  );
+}
+
+// The STARTING LINEUP modal (Oct 2026): after tapping Start, the organizer picks who starts
+// for each team (up to the sport's on-court count), then starts the match from here.
+function LineupDialog({ open, onOpenChange, data, onStart, busy, startLabel }) {
+  const m = data.match;
+  const onCourt = data.onCourt;
+  const rosterOf = (s) => byJersey((s === "A" ? data.rosterA : data.rosterB) || []);
+  // A team whose whole roster fits on court starts with everyone already picked.
+  const initial = (s) => {
+    const r = rosterOf(s);
+    return r.length <= onCourt ? r.map((p) => String(p._id)) : [];
+  };
+  const [side, setSide] = useState("A");
+  const [picked, setPicked] = useState(() => ({ A: initial("A"), B: initial("B") }));
+  useEffect(() => {
+    if (open) { setSide("A"); setPicked({ A: initial("A"), B: initial("B") }); }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggle = (id) => setPicked((prev) => {
+    const cur = prev[side];
+    if (cur.includes(id)) return { ...prev, [side]: cur.filter((x) => x !== id) };
+    if (cur.length >= onCourt) return prev;
+    return { ...prev, [side]: [...cur, id] };
+  });
+  const teamOf = (s) => (s === "A" ? m.teamA : m.teamB);
+  const full = (s) => picked[s].length === Math.min(onCourt, rosterOf(s).length);
+  const ready = ["A", "B"].every((s) => picked[s].length > 0 || rosterOf(s).length === 0);
+  const short = ["A", "B"].filter((s) => !full(s));
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="border-b px-4 pt-4 pb-3 sm:px-5">
+          <DialogTitle className="flex items-center gap-2">
+            <ListChecks className="size-4 text-blue-500" /> Starting lineup
+          </DialogTitle>
+          <DialogDescription>
+            Pick the {onCourt} players who start for each team. You can substitute during the game.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin px-4 py-3 sm:px-5">
+          <div className="mb-3 flex gap-2">
+            {["A", "B"].map((s) => (
+              <button key={s} type="button" onClick={() => setSide(s)}
+                className={cn(
+                  "min-w-0 flex-1 rounded-lg px-2 py-2 text-sm font-medium transition",
+                  side === s ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                )}>
+                <span className="block truncate">{teamOf(s)?.teamName}</span>
+                <span className={cn("block text-xs tabular-nums",
+                  side === s ? "text-primary-foreground/80" : full(s) ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400")}>
+                  {picked[s].length} of {onCourt}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {rosterOf(side).map((p) => {
+              const id = String(p._id);
+              const sel = picked[side].includes(id);
+              return (
+                <PlayerPick key={id} p={p} selected={sel}
+                  disabled={!sel && picked[side].length >= onCourt}
+                  onClick={() => toggle(id)} />
+              );
+            })}
+            {rosterOf(side).length === 0 && <p className="text-sm text-muted-foreground">This team has no players on its roster.</p>}
+          </div>
+        </div>
+
+        <div className="border-t px-4 py-3 sm:px-5">
+          {ready && short.length > 0 && (
+            <p className="mb-2 flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+              <TriangleAlert className="mt-px size-3.5 shrink-0" />
+              {short.map((s) => teamOf(s)?.teamName).join(" and ")} {short.length === 1 ? "has" : "have"} fewer than {onCourt} picked. You can still start.
+            </p>
+          )}
+          <button disabled={busy || !ready}
+            onClick={() => onStart({ lineupA: picked.A, lineupB: picked.B })}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+            <Play className="size-4 fill-current" /> {busy ? "Starting…" : startLabel}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// The SUBSTITUTION modal: pick who comes off (on court) and who goes in (bench).
+// `presetOut` pre-selects the player whose Sub button was tapped.
+function SubDialog({ sub, onClose, data, onSubmit, busy }) {
+  const open = !!sub;
+  const side = sub?.side || "A";
+  const m = data.match;
+  const onCourt = data.onCourt || 0;
+  const team = side === "A" ? m.teamA : m.teamB;
+  const roster = byJersey((side === "A" ? data.rosterA : data.rosterB) || []);
+  const lineupIds = ((side === "A" ? m.lineupA : m.lineupB) || []).map(String);
+  const court = roster.filter((p) => lineupIds.includes(String(p._id)));
+  const bench = roster.filter((p) => !lineupIds.includes(String(p._id)));
+  const [outId, setOutId] = useState(null);
+  const [inId, setInId] = useState(null);
+  useEffect(() => { if (open) { setOutId(sub.presetOut || null); setInId(null); } }, [open, sub]);
+
+  const shortHanded = court.length < onCourt;
+  const valid = (outId && inId) || (shortHanded && inId && !outId) || (outId && !inId);
+  const label = outId && inId ? "Make substitution" : inId ? "Put on court" : outId ? "Take off court" : "Make substitution";
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b px-4 pt-4 pb-3 sm:px-5">
+          <DialogTitle>Substitution · {team?.teamName}</DialogTitle>
+          <DialogDescription>
+            Tap who comes off, then who goes in.
+            {shortHanded ? ` Only ${court.length} of ${onCourt} are on court, so you can also just put a player in.` : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain scrollbar-thin px-4 py-3 sm:grid-cols-2 sm:px-5">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">Coming off · on court</p>
+            <div className="space-y-1.5">
+              {court.map((p) => (
+                <PlayerPick key={p._id} p={p} tone="out" selected={outId === String(p._id)}
+                  onClick={() => setOutId(outId === String(p._id) ? null : String(p._id))} />
+              ))}
+              {court.length === 0 && <p className="text-sm text-muted-foreground">Nobody on court.</p>}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-green-600 dark:text-green-400">Going in · bench</p>
+            <div className="space-y-1.5">
+              {bench.map((p) => (
+                <PlayerPick key={p._id} p={p} selected={inId === String(p._id)}
+                  onClick={() => setInId(inId === String(p._id) ? null : String(p._id))} />
+              ))}
+              {bench.length === 0 && <p className="text-sm text-muted-foreground">No one on the bench.</p>}
+            </div>
+          </div>
+        </div>
+        <div className="border-t px-4 py-3 sm:px-5">
+          <button disabled={busy || !valid}
+            onClick={() => onSubmit({ side, outId, inId })}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+            <ArrowLeftRight className="size-4" /> {busy ? "Saving…" : label}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Who is on court for each team, with a Sub button (score keeper's view).
+function OnCourtCard({ data, onSub }) {
+  const m = data.match;
+  return (
+    <Card className="mb-4 gap-3 p-4">
+      <div className="flex items-center gap-2">
+        <ArrowLeftRight className="size-4 text-blue-500" />
+        <h2 className="text-sm font-semibold">On court</h2>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {["A", "B"].map((s) => {
+          const team = s === "A" ? m.teamA : m.teamB;
+          const ids = ((s === "A" ? m.lineupA : m.lineupB) || []).map(String);
+          const court = byJersey(((s === "A" ? data.rosterA : data.rosterB) || []).filter((p) => ids.includes(String(p._id))));
+          return (
+            <div key={s} className="rounded-xl border p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Crest team={team} size={24} />
+                <p className="min-w-0 flex-1 truncate text-sm font-semibold">{team?.teamName}</p>
+                <span className={cn("text-xs tabular-nums", court.length < data.onCourt ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                  {court.length}/{data.onCourt}
+                </span>
+              </div>
+              <ul className="mb-2.5 space-y-0.5 text-sm">
+                {court.map((p) => (
+                  <li key={p._id} className="flex gap-2 truncate">
+                    <span className="w-8 shrink-0 tabular-nums text-muted-foreground">{jerseyOf(p)}</span>
+                    <span className="truncate">{p.lastName}, {p.firstName}</span>
+                  </li>
+                ))}
+                {court.length === 0 && <li className="text-muted-foreground">Nobody on court.</li>}
+              </ul>
+              <button onClick={() => onSub({ side: s })}
+                className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-secondary text-sm font-semibold text-secondary-foreground hover:bg-secondary/80">
+                <ArrowLeftRight className="size-3.5" /> Substitute
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 // The three jobs on one live match (Oct 2026). Up to three people open the same match on
 // the sport's ONE organizer account: a score keeper (team score, periods, end match) and a
 // stats keeper per barangay. Each device picks its job; it is remembered per match on that
@@ -400,9 +621,14 @@ function JobPicker({ m, job, onChoose }) {
 // column (points use the sport's point values, the rest +1). A tap is saved at once and
 // shows on the public team page on its next refresh. Player points are stats only: the
 // team score stays the score keeper's.
-function StatsKeeperPanel({ team, roster, fields, statLabels, pointValues, statByPlayer, live, onTap, lastTap, onUndo, busy }) {
+function StatsKeeperPanel({ team, roster, fields, statLabels, pointValues, statByPlayer, live, onTap, lastTap, onUndo, busy, lineupIds, onSub }) {
   const short = (f) => statLabels?.[f]?.short || f;
-  const sorted = [...roster].sort((a, b) => (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999));
+  const all = byJersey(roster);
+  // With a lineup, only the players on court get stat buttons; the bench is listed below.
+  // (A match started before lineups existed has none: everyone shows.)
+  const hasLineup = live && Array.isArray(lineupIds) && lineupIds.length > 0;
+  const sorted = hasLineup ? all.filter((p) => lineupIds.includes(String(p._id))) : all;
+  const bench = hasLineup ? all.filter((p) => !lineupIds.includes(String(p._id))) : [];
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2.5">
@@ -435,6 +661,12 @@ function StatsKeeperPanel({ team, roster, fields, statLabels, pointValues, statB
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                 {fields.map((f) => `${s[f] || 0} ${short(f)}`).join(" · ")}
               </span>
+              {hasLineup && onSub && (
+                <button onClick={() => onSub({ presetOut: String(p._id) })}
+                  className="flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs font-medium text-muted-foreground hover:bg-accent">
+                  <ArrowLeftRight className="size-3" /> Sub
+                </button>
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {fields.flatMap((f) => (f === "points" ? pointValues : [1]).map((v) => (
@@ -453,6 +685,28 @@ function StatsKeeperPanel({ team, roster, fields, statLabels, pointValues, statB
           </Card>
         );
       })}
+      {hasLineup && (
+        <Card className="gap-2 p-3">
+          <div className="flex items-center gap-2">
+            <p className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bench · {bench.length}</p>
+            {onSub && (
+              <button onClick={() => onSub({})}
+                className="flex h-8 items-center gap-1 rounded-md bg-secondary px-2.5 text-xs font-semibold text-secondary-foreground hover:bg-secondary/80">
+                <ArrowLeftRight className="size-3" /> Substitute
+              </button>
+            )}
+          </div>
+          {bench.length === 0 && <p className="text-sm text-muted-foreground">No one on the bench.</p>}
+          <ul className="space-y-0.5 text-sm">
+            {bench.map((p) => (
+              <li key={p._id} className="flex gap-2 truncate text-muted-foreground">
+                <span className="w-8 shrink-0 tabular-nums">{jerseyOf(p)}</span>
+                <span className="truncate">{p.lastName}, {p.firstName}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }
@@ -470,6 +724,10 @@ function ScoringView({ matchId, onBack }) {
   // organizer who simply tapped Start began a ONE-quarter game.
   const [periodsChoice, setPeriodsChoice] = useState(null);
   const [forfeiting, setForfeiting] = useState(false);
+  // Starting lineup modal (opens from Start) and the substitution modal ({ side, presetOut }).
+  const [lineupOpen, setLineupOpen] = useState(false);
+  const [sub, setSub] = useState(null);
+  const [subBusy, setSubBusy] = useState(false);
   // True for a few seconds after Start, so the organizer SEES that the match began
   // (the pre-start card used to just vanish and the scoring buttons appeared).
   const [justStarted, setJustStarted] = useState(false);
@@ -556,6 +814,7 @@ function ScoringView({ matchId, onBack }) {
       await load();
       if (path === "start") afterStart();
       else if (path === "score" || path === "undo") buzz(15);
+      return true;
     } catch (e) {
       // The start route returns 409 when the match is dated for another day.
       // Dates are guidance, not a lock — confirm and proceed.
@@ -568,12 +827,27 @@ function ScoringView({ matchId, onBack }) {
             });
             await load();
             afterStart();
+            return true;
           } catch (e2) { showError(e2.message); }
         }
       } else {
         showError(e.message);
       }
     } finally { setBusy(false); }
+  }
+
+  async function substitute({ side, outId, inId }) {
+    setSubBusy(true);
+    try {
+      await api(`/api/organizer/matches/${matchId}/substitute`, {
+        method: "POST",
+        body: JSON.stringify({ side, outId, inId }),
+      });
+      await load();
+      buzz(15);
+      setSub(null);
+    } catch (e) { showError(e.message); }
+    finally { setSubBusy(false); }
   }
 
   if (!data) {
@@ -620,6 +894,15 @@ function ScoringView({ matchId, onBack }) {
   const isScorer = myJob === "score";
   const statsSide = myJob === "A" || myJob === "B" ? myJob : null;
   const open = !finished && !forfeited;
+  // Team sports with an on-court count pick a starting lineup at Start (when a roster is bigger
+  // than the court) and can substitute while live.
+  const onCourt = data.onCourt || 0;
+  const needsLineup = onCourt > 0 &&
+    ((data.rosterA || []).length > onCourt || (data.rosterB || []).length > onCourt);
+  const hasLineup = live && onCourt > 0 && ((m.lineupA || []).length > 0 || (m.lineupB || []).length > 0);
+  const startLabel = finalMode
+    ? (periods === 1 ? `Start match · 1 ${periodWord}` : `Start match · best of ${periods}`)
+    : `Start match · ${periods} ${periodWord}${periods === 1 ? "" : "s"}`;
 
   function openEnd() {
     setEnding(true);
@@ -819,13 +1102,16 @@ function ScoringView({ matchId, onBack }) {
               </div>
           </>
 
-          <button onClick={() => call("start", { periods })} disabled={busy}
+          <button onClick={() => (needsLineup ? setLineupOpen(true) : call("start", { periods }))} disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
             <Play className="size-4 fill-current" />
-            {busy ? "Starting…"
-              : finalMode ? (periods === 1 ? `Start match · 1 ${periodWord}` : `Start match · best of ${periods}`)
-              : `Start match · ${periods} ${periodWord}${periods === 1 ? "" : "s"}`}
+            {busy ? "Starting…" : startLabel}
           </button>
+          {needsLineup && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Next, you pick the starting {onCourt} for each team.
+            </p>
+          )}
 
           {!forfeiting ? (
             <button onClick={() => setForfeiting(true)}
@@ -879,6 +1165,8 @@ function ScoringView({ matchId, onBack }) {
               lastTap={statTaps[statTaps.length - 1]}
               onUndo={undoStat}
               busy={statBusy}
+              lineupIds={((statsSide === "A" ? m.lineupA : m.lineupB) || []).map(String)}
+              onSub={hasLineup ? (o) => setSub({ side: statsSide, ...o }) : null}
             />
           )}
           {hasJobs && open && !myJob && (
@@ -931,6 +1219,12 @@ function ScoringView({ matchId, onBack }) {
             </div>
           ))}
 
+          {hasLineup && isScorer && (
+            <div className="mt-4">
+              <OnCourtCard data={data} onSub={(o) => setSub(o)} />
+            </div>
+          )}
+
           {/* The score sheet itself is a modal; this card opens it again any time. */}
           {finished && hasStatsForm && (() => {
             const saved = Object.keys(data.statByPlayer || {}).length > 0 || !!m.mvp;
@@ -969,6 +1263,17 @@ function ScoringView({ matchId, onBack }) {
 
         <Scoreboard />
       </div>
+
+      {needsLineup && open && !live && (
+        <LineupDialog open={lineupOpen} onOpenChange={setLineupOpen} data={data} busy={busy}
+          startLabel={startLabel}
+          onStart={async (lineup) => {
+            if (await call("start", { periods, ...lineup })) setLineupOpen(false);
+          }} />
+      )}
+      {hasLineup && (
+        <SubDialog sub={sub} onClose={() => setSub(null)} data={data} busy={subBusy} onSubmit={substitute} />
+      )}
 
       {finished && hasStatsForm && (
         <StatsDialog open={statsOpen} onOpenChange={setStatsOpen} data={data} matchId={matchId} onSaved={load} />

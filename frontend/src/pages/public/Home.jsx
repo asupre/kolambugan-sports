@@ -188,12 +188,18 @@ export default function Home() {
           (w-screen / -50vw clipped content on phones); -mx-4 lg:-mx-8 cancels <main>'s padding and
           -mt-6 its top padding, so the hero sits flush under the nav (desktop: also the 72px header, so
           the photo runs up BEHIND the transparent header and the two blend). */}
-      <section ref={heroRef} className="relative isolate overflow-hidden bg-[#0C1A12] -mx-4 lg:-mx-8 -mt-6 lg:-mt-[calc(1.5rem+72px)] mb-8 flex flex-col justify-end min-h-[calc(88svh-7.5rem)] lg:min-h-[88svh]">
-        <HeroImage containerRef={heroRef} />
-        <div
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{ background: "linear-gradient(90deg, rgba(10,12,11,0.88) 0%, rgba(10,12,11,0.55) 45%, rgba(10,12,11,0.25) 100%), linear-gradient(180deg, rgba(10,12,11,0.35) 0%, rgba(10,12,11,0) 35%, rgba(10,12,11,0.85) 82%, #0A0C0B 100%)" }}
-        />
+      <section ref={heroRef} className="relative isolate -mx-4 lg:-mx-8 -mt-6 lg:-mt-[calc(1.5rem+72px)] mb-8 flex flex-col justify-end min-h-[calc(88svh-7.5rem)] lg:min-h-[88svh]">
+        {/* Photo + shade reach the SCREEN edges, not just the 1400px column (wide monitors showed
+            dark bands either side). Only this background layer is full-bleed; the words stay in the
+            column. 50vw counts the scrollbar, so it overshoots a few px: the layout root's
+            overflow-x-clip hides that, with no sideways scroll. */}
+        <div className="pointer-events-none absolute inset-y-0 left-[calc(50%-50vw)] right-[calc(50%-50vw)] -z-10 overflow-hidden bg-[#0C1A12]">
+          <HeroImage containerRef={heroRef} />
+          <div
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(90deg, rgba(10,12,11,0.88) 0%, rgba(10,12,11,0.55) 45%, rgba(10,12,11,0.25) 100%), linear-gradient(180deg, rgba(10,12,11,0.35) 0%, rgba(10,12,11,0) 35%, rgba(10,12,11,0.85) 82%, #0A0C0B 100%)" }}
+          />
+        </div>
 
         {/* lg: the hero runs up behind the 72px header, so the top padding clears it plus a gap. */}
         <div className="relative px-5 pt-14 pb-10 sm:px-8 lg:px-12 lg:pt-[calc(72px+4.5rem)] lg:pb-14">

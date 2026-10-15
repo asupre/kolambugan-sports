@@ -3730,3 +3730,14 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - Admin light mode: pale green-tinted page with white sidebar and cards (from the reference), green accent kept.
 - Admin light mode: plain white page, sidebar and cards (replaces the pale green page), green accent kept.
 - Instruction guide: every screenshot re-captured for the new admin look (old pictures removed); profile step text now points to the name above Sign out.
+
+## 2026-10-15 — Session: instant taps, one device per organizer job
+
+- Score / stat taps show on screen at once (saved in the background; a refused tap is taken back).
+- Shared Organizer account: each job (score keeper, stats for team A, stats for team B) is
+  claimed by ONE device on the server; every write route checks the job. Substitutions,
+  games-won scoring and team-score Undo are atomic conditional updates. After the match each
+  stats keeper saves only their own team's form and the score keeper confirms the result + MVP;
+  all three forms are version-checked (a stale save is refused with "Reload").
+- Full write-up for the manuscript (data model, API, risks fixed and remaining):
+  CHANGES_FOR_THESIS.md, sections 3, 4, 6, 9.

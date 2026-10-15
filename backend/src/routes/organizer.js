@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Match = require('../models/Match');
 const Tournament = require('../models/Tournament');
 const Team = require('../models/Team');
@@ -37,6 +38,73 @@ async function loadOwnedMatch(req, res) {
     return { match, tournament: t, sportName: t.sport.name, sport: t.sport };
 }
 
+// ---- Jobs (Oct 2026) ------------------------------------------------------------------
+// One organizer account, up to three devices per match: the score keeper and one stats keeper
+// per team. Each job is claimed by ONE device, identified by a random id the browser tab makes
+// for itself and sends as the X-Device-Id header. The routes below check that the device
+// asking holds the right job. This separates DEVICES, not people: everyone shares the login.
+const JOB_KEYS = ['score', 'statsA', 'statsB'];
+const JOB_NAME = { score: 'score keeper', statsA: 'team A stats', statsB: 'team B stats' };
+// A job whose device hasn't had the match open for this long can be taken over (a dead phone).
+const STALE_MS = 2 * 60 * 1000;
+// How often an open screen refreshes its `seen` time (its 3s refresh does it, throttled).
+const SEEN_EVERY_MS = 30 * 1000;
+const EMPTY_SLOT = { device: null, since: null, seen: null };
+
+function deviceOf(req) {
+  const d = String(req.get('x-device-id') || '').trim();
+  return /^[A-Za-z0-9_-]{8,64}$/.test(d) ? d : null;
+}
+const slotOf = (match, key) => match.jobs?.[key] || {};
+const holds = (match, req, key) => {
+  const d = deviceOf(req);
+  return !!d && slotOf(match, key).device === d;
+};
+const myJobOf = (match, req) => JOB_KEYS.find((k) => holds(match, req, k)) || null;
+const isStale = (slot, now = Date.now()) => !slot.seen || now - new Date(slot.seen).getTime() > STALE_MS;
+
+// Refuses the request (403) unless this device holds one of `keys`.
+function requireJob(match, req, res, keys, what) {
+  if (keys.some((k) => holds(match, req, k))) return true;
+  const names = keys.map((k) => JOB_NAME[k]).join(' or ');
+  res.status(403).json({
+    code: 'not_your_job',
+    message: `Only the device holding the ${names} job can ${what}. Pick your job at the top of the match screen.`,
+  });
+  return false;
+}
+
+// What each job looks like to the device asking: free, mine, or held by another device (and
+// whether that device has gone quiet). Device ids themselves never leave the server.
+function jobsView(match, req, now = Date.now()) {
+  const d = deviceOf(req);
+  return Object.fromEntries(JOB_KEYS.map((k) => {
+    const s = slotOf(match, k);
+    const taken = !!s.device;
+    return [k, {
+      taken,
+      mine: taken && s.device === d,
+      stale: taken && s.device !== d && isStale(s, now),
+      seenSecondsAgo: taken && s.seen ? Math.round((now - new Date(s.seen).getTime()) / 1000) : null,
+    }];
+  }));
+}
+
+// A version filter for an after-match form. A match made before versions existed has no field,
+// which counts as version 0.
+const versionIs = (path, v) => (v === 0 ? { $or: [{ [path]: 0 }, { [path]: { $exists: false } }] } : { [path]: v });
+// The three form versions, as sent back to the browser.
+const versionsOut = (m) => ({ A: m.formVersion?.A || 0, B: m.formVersion?.B || 0, result: m.formVersion?.result || 0 });
+// A score filter that also matches an older match with no stored score (counts as 0).
+const scoreIs = (v) => (v === 0 ? { $in: [0, null] } : v);
+
+// Strip the device ids from a match before it goes to the browser.
+function matchOut(doc) {
+  const o = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+  delete o.jobs;
+  return o;
+}
+
 // GET /api/organizer/matches — every match in this organizer's sport, newest first.
 router.get('/matches', async (req, res) => {
   try {
@@ -63,7 +131,7 @@ router.get('/matches', async (req, res) => {
       sport: sport?.name,
             scoringMode: rulesFor(sport).scoringMode,
       matches: matches.map((m) => ({
-        ...m.toObject(),
+        ...matchOut(m),
         division: divisionByTournament[String(m.tournament)] || 'open',
       })),
     });
@@ -99,9 +167,25 @@ router.get('/matches/:matchId', async (req, res) => {
         const full = await Match.findById(match._id)
       .populate('teamA', 'teamName barangay').populate('teamB', 'teamName barangay')
       .populate('mvp', 'firstName lastName');
+
+    // This device has the match open: keep its job from looking abandoned (throttled write).
+    const now = Date.now();
+    const mine = myJobOf(match, req);
+    if (mine) {
+      const s = slotOf(match, mine);
+      if (!s.seen || now - new Date(s.seen).getTime() > SEEN_EVERY_MS) {
+        await Match.updateOne(
+          { _id: match._id, [`jobs.${mine}.device`]: s.device },
+          { $set: { [`jobs.${mine}.seen`]: new Date(now) } }
+        );
+      }
+    }
+
             res.json({
-      match: full,
+      match: matchOut(full),
             ...rulesFor(ctx.sport),
+      jobs: jobsView(match, req, now),
+      myJob: mine,
       rosterA, rosterB, statByPlayer,
             division: ctx.tournament.division || 'open',
       sport: sportName,
@@ -112,12 +196,102 @@ router.get('/matches/:matchId', async (req, res) => {
   }
 });
 
+// POST /api/organizer/matches/:matchId/claim   body: { job, confirmSwitch?, takeOver? }
+// This device takes a job. A job held by another device can't be taken, unless that device has
+// been quiet for STALE_MS (a dead phone) and `takeOver` is sent. One device holds at most one
+// job: taking a new one releases the old one; once the match has started that needs
+// `confirmSwitch` (the screen asks first).
+router.post('/matches/:matchId/claim', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+    const d = deviceOf(req);
+    if (!d) return res.status(400).json({ message: "This browser didn't identify itself. Reload the page and try again." });
+    const job = String(req.body.job || '');
+    if (!JOB_KEYS.includes(job)) return res.status(400).json({ message: 'Unknown job.' });
+    if (match.status === 'forfeited') return res.status(409).json({ message: 'This match was forfeited; there is nothing to record.' });
+    if (job !== 'score' && rulesFor(ctx.sport).statFields.length === 0) {
+      return res.status(400).json({ message: `${ctx.sportName} has no live player stats, so there is only the score keeper job.` });
+    }
+
+    const current = myJobOf(match, req);
+    if (current === job) return res.json({ message: 'This job is already yours.', myJob: job });
+    if (current && match.status !== 'scheduled' && !req.body.confirmSwitch) {
+      return res.status(409).json({
+        code: 'confirm_switch',
+        message: `You are the ${JOB_NAME[current]}. Switch to ${JOB_NAME[job]}? Your current job will be free for another device.`,
+      });
+    }
+
+    const s = slotOf(match, job);
+    const path = `jobs.${job}`;
+    const ok = [{ [`${path}.device`]: null }, { [`${path}.device`]: d }];
+    if (s.device && s.device !== d) {
+      if (!isStale(s)) {
+        return res.status(409).json({ code: 'job_taken', message: `Another device is already the ${JOB_NAME[job]}.` });
+      }
+      if (!req.body.takeOver) {
+        return res.status(409).json({
+          code: 'job_stale',
+          message: `Another device holds the ${JOB_NAME[job]} job but hasn't been seen for a while. Take it over? Only do this if that device is no longer in use.`,
+        });
+      }
+      // Take over only if it is still the same quiet device (nothing changed since we looked).
+      ok.push({ [`${path}.device`]: s.device, [`${path}.seen`]: s.seen || null });
+    }
+
+    const now = new Date();
+    const claimed = await Match.findOneAndUpdate(
+      { _id: match._id, status: { $ne: 'forfeited' }, $or: ok },
+      { $set: { [path]: { device: d, since: now, seen: now } } },
+      { returnDocument: 'after' }
+    );
+    if (!claimed) return res.status(409).json({ code: 'job_taken', message: `Another device just took the ${JOB_NAME[job]} job.` });
+
+    // Free whatever this device held before.
+    for (const k of JOB_KEYS) {
+      if (k !== job) await Match.updateOne({ _id: match._id, [`jobs.${k}.device`]: d }, { $set: { [`jobs.${k}`]: EMPTY_SLOT } });
+    }
+    res.json({ message: `You are the ${JOB_NAME[job]}.`, myJob: job });
+  } catch (err) {
+    console.error('Claim job error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/organizer/matches/:matchId/release   body: { job }
+// Frees a job: your own, or (score keeper) a stats job whose phone died, or any job for a
+// Super Admin.
+router.post('/matches/:matchId/release', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+    const job = String(req.body.job || '');
+    if (!JOB_KEYS.includes(job)) return res.status(400).json({ message: 'Unknown job.' });
+    const allowed = holds(match, req, job)
+      || (job !== 'score' && holds(match, req, 'score'))
+      || req.user.role === 'super_admin';
+    if (!allowed) {
+      return res.status(403).json({ code: 'not_your_job', message: 'Only the score keeper can free another device\'s job.' });
+    }
+    const s = slotOf(match, job);
+    if (s.device) await Match.updateOne({ _id: match._id, [`jobs.${job}.device`]: s.device }, { $set: { [`jobs.${job}`]: EMPTY_SLOT } });
+    res.json({ message: `The ${JOB_NAME[job]} job is free.` });
+  } catch (err) {
+    console.error('Release job error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
 // POST /api/organizer/matches/:matchId/start   body: { periods }
 router.post('/matches/:matchId/start', async (req, res) => {
   try {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
     const { match, sportName } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'start the match')) return;
     if (match.status === 'completed' || match.status === 'forfeited') return res.status(409).json({ message: 'This match is already finished.' });
     if (!match.teamA || !match.teamB) return res.status(400).json({ message: 'This match is still waiting for a team.' });
 
@@ -206,6 +380,7 @@ router.post('/matches/:matchId/score', async (req, res) => {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
     const { match } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'change the score')) return;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before scoring.' });
 
     // Games-won series: each tap is one game won, recorded straight into games[] (there are
@@ -225,20 +400,27 @@ router.post('/matches/:matchId/score', async (req, res) => {
       }
       const teamId = side === 'A' ? match.teamA : match.teamB;
       const team = await Team.findById(teamId).select('teamName');
-      const gameNumber = match.games.length + 1;
-      match.games.push({
-        gameNumber,
-        scoreA: side === 'A' ? 1 : 0,
-        scoreB: side === 'B' ? 1 : 0,
-        winner: teamId,
-      });
-      if (side === 'A') match.liveScoreA = a + 1; else match.liveScoreB = b + 1;
-      match.lastAction = {
-        type: 'game', side, player: null, amount: 1,
-        label: `${team?.teamName || (side === 'A' ? 'team A' : 'team B')} won game ${gameNumber}`,
-      };
-      await match.save();
-      return res.json({ message: 'Game recorded.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
+      const played = match.games.length;
+      const gameNumber = played + 1;
+      // ATOMIC (Oct 2026): written only if the score and the number of games are still what
+      // was read above, so a second request at the same moment can't overwrite this one (the
+      // loser gets a 409 and the screen refreshes).
+      const saved = await Match.findOneAndUpdate(
+        { _id: match._id, status: 'ongoing', liveScoreA: scoreIs(a), liveScoreB: scoreIs(b), games: { $size: played } },
+        {
+          $inc: { [side === 'A' ? 'liveScoreA' : 'liveScoreB']: 1 },
+          $push: { games: { gameNumber, scoreA: side === 'A' ? 1 : 0, scoreB: side === 'B' ? 1 : 0, winner: teamId } },
+          $set: {
+            lastAction: {
+              type: 'game', side, player: null, amount: 1,
+              label: `${team?.teamName || (side === 'A' ? 'team A' : 'team B')} won game ${gameNumber}`,
+            },
+          },
+        },
+        { returnDocument: 'after' }
+      );
+      if (!saved) return res.status(409).json({ code: 'score_changed', message: 'The score just changed on another request. The screen has been refreshed; check it and tap again if needed.' });
+      return res.json({ message: 'Game recorded.', liveScoreA: saved.liveScoreA, liveScoreB: saved.liveScoreB });
     }
 
     // Once every period has been banked, the match is done scoring — the only
@@ -295,19 +477,36 @@ router.post('/matches/:matchId/undo', async (req, res) => {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
     const { match } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'undo the score')) return;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'The match is not running.' });
 
     const last = match.lastAction;
     if (!last || !['points', 'game'].includes(last.type)) return res.status(400).json({ message: 'Nothing to undo.' });
 
     const field = last.side === 'A' ? 'liveScoreA' : 'liveScoreB';
-    match[field] = Math.max(0, (match[field] || 0) - last.amount);
-    // A games-won tap also wrote a games[] entry — take that back too.
-    if (last.type === 'game' && match.games.length) match.games.pop();
-    match.lastAction = { type: null, side: null, player: null, amount: 0, label: '' };
-    await match.save();
+    // ATOMIC (Oct 2026): score taps no longer wait for each other on screen, so a tap can be
+    // saving while Undo runs. A read-subtract-save here could write back a score that misses
+    // that tap; $inc can't. The filter also makes sure this exact action is still the last
+    // one (a second Undo press finds nothing to undo) and never takes the score below 0.
+    const filter = {
+      _id: match._id, status: 'ongoing',
+      'lastAction.type': last.type, 'lastAction.side': last.side, 'lastAction.label': last.label,
+      [field]: { $gte: last.amount },
+    };
+    const update = {
+      $inc: { [field]: -last.amount },
+      $set: { lastAction: { type: null, side: null, player: null, amount: 0, label: '' } },
+    };
+    // A games-won tap also wrote a games[] entry — take that back too, only while the game
+    // count is still what was read (so it is that tap's game being removed).
+    if (last.type === 'game' && match.games.length) {
+      update.$pop = { games: 1 };
+      filter.games = { $size: match.games.length };
+    }
+    const saved = await Match.findOneAndUpdate(filter, update, { returnDocument: 'after' });
+    if (!saved) return res.status(409).json({ message: 'Nothing to undo (the score may have just changed). Check the scoreboard.' });
 
-    res.json({ message: 'Undone.', liveScoreA: match.liveScoreA, liveScoreB: match.liveScoreB });
+    res.json({ message: 'Undone.', liveScoreA: saved.liveScoreA, liveScoreB: saved.liveScoreB });
   } catch (err) {
     console.error('Undo error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -333,29 +532,61 @@ router.post('/matches/:matchId/substitute', async (req, res) => {
     const outId = req.body.outId ? String(req.body.outId) : null;
     const inId = req.body.inId ? String(req.body.inId) : null;
     if (!outId && !inId) return res.status(400).json({ message: 'Pick who comes off and who goes in.' });
+    if ((outId && !mongoose.isValidObjectId(outId)) || (inId && !mongoose.isValidObjectId(inId))) {
+      return res.status(400).json({ message: 'Unknown player.' });
+    }
+    if (outId && inId && outId === inId) return res.status(400).json({ message: 'Pick two different players.' });
+    // The team's own stats keeper or the score keeper (Oct 2026).
+    if (!requireJob(match, req, res, [`stats${side}`, 'score'], `substitute for this team`)) return;
 
     const field = `lineup${side}`;
     const lineup = (match[field] || []).map(String);
+    // Friendly messages from what was read; the update below re-checks everything atomically.
     if (outId && !lineup.includes(outId)) {
-      return res.status(409).json({ message: 'That player is not on court (the lineup may have just changed).' });
+      return res.status(409).json({ code: 'lineup_changed', message: 'That player is not on court (the lineup may have just changed).' });
     }
     if (inId) {
       const link = await TeamPlayer.findOne({ team: side === 'A' ? match.teamA : match.teamB, player: inId }).select('_id');
       if (!link) return res.status(400).json({ message: 'The player going in is not on that team.' });
-      if (lineup.includes(inId)) return res.status(409).json({ message: 'That player is already on court.' });
+      if (lineup.includes(inId)) return res.status(409).json({ code: 'lineup_changed', message: 'That player is already on court.' });
     }
-    let next = outId ? lineup.filter((id) => id !== outId) : lineup;
-    if (inId) next = outId ? lineup.map((id) => (id === outId ? inId : id)) : [...lineup, inId];
-    if (next.length > onCourt) return res.status(409).json({ message: `Only ${onCourt} players can be on court. Pick who comes off.` });
+    if (inId && !outId && lineup.length >= onCourt) {
+      return res.status(409).json({ code: 'lineup_changed', message: `Only ${onCourt} players can be on court. Pick who comes off.` });
+    }
 
-    match[field] = next;
-    match.subs.push({
+    // ATOMIC (Oct 2026): the score keeper and the team's stats keeper can both substitute, so
+    // the lineup is changed in ONE conditional update instead of read-change-save. The filter
+    // demands the lineup still looks the way this change expects; if another substitution got
+    // there first, nothing is written and the device gets a 409 and refreshes.
+    const entry = {
       side, playerOut: outId, playerIn: inId,
       period: Math.min((match.games?.length || 0) + 1, match.bestOf || 1),
       at: new Date(),
-    });
-    await match.save();
-    res.json({ message: 'Substitution made.', lineupA: match.lineupA, lineupB: match.lineupB });
+      by: myJobOf(match, req),
+    };
+    const base = { _id: match._id, status: 'ongoing' };
+    let filter;
+    let update;
+    if (outId && inId) {
+      // Swap: the outgoing player is in the lineup and the incoming one isn't; `$` is the
+      // outgoing player's slot (the element the $eq matched).
+      filter = { ...base, [field]: { $eq: outId, $ne: inId } };
+      update = { $set: { [`${field}.$`]: inId }, $push: { subs: entry } };
+    } else if (inId) {
+      // Add only: not already on court, and the lineup is below the court size (no element at
+      // index onCourt-1).
+      filter = { ...base, [field]: { $ne: inId }, [`${field}.${onCourt - 1}`]: { $exists: false } };
+      update = { $push: { [field]: inId, subs: entry } };
+    } else {
+      // Remove only: the player is on court.
+      filter = { ...base, [field]: outId };
+      update = { $pull: { [field]: outId }, $push: { subs: entry } };
+    }
+    const saved = await Match.findOneAndUpdate(filter, update, { returnDocument: 'after' });
+    if (!saved) {
+      return res.status(409).json({ code: 'lineup_changed', message: 'The lineup just changed on another device. The screen has been refreshed; check who is on court and try again.' });
+    }
+    res.json({ message: 'Substitution made.', lineupA: saved.lineupA, lineupB: saved.lineupB });
   } catch (err) {
     console.error('Substitute error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -391,8 +622,12 @@ router.post('/matches/:matchId/player-stat', async (req, res) => {
     }
 
     const playerId = String(req.body.playerId || '');
-    const link = await TeamPlayer.findOne({ player: playerId, team: { $in: [match.teamA, match.teamB] } }).select('_id');
+    if (!mongoose.isValidObjectId(playerId)) return res.status(400).json({ message: 'That player is not on either team.' });
+    const link = await TeamPlayer.findOne({ player: playerId, team: { $in: [match.teamA, match.teamB] } }).select('team');
     if (!link) return res.status(400).json({ message: 'That player is not on either team.' });
+    // Only that team's stats keeper (Oct 2026).
+    const side = String(link.team) === String(match.teamA) ? 'A' : 'B';
+    if (!requireJob(match, req, res, [`stats${side}`], "record this team's player stats")) return;
 
     const path = LEGACY_STAT_COLUMNS.includes(stat) ? stat : `extra.${stat}`;
     let doc;
@@ -418,14 +653,21 @@ router.post('/matches/:matchId/player-stat', async (req, res) => {
   }
 });
 
-// PUT /api/organizer/matches/:matchId/stats
-// body: { players: [{ playerId, points?, assists?, fouls?, rebounds?, role? }], mvpPlayerId? }
+// PUT /api/organizer/matches/:matchId/stats?side=A|B
+// body: { players: [{ playerId, points?, assists?, fouls?, rebounds?, role? }], version }
 // The POST-MATCH form: the organizer totals each player's game from the scoresheet and enters
 // it here. Only on a finished match, and can be re-saved to correct it. Which fields count
 // comes from the sport (`statFields`), and `role` only exists for esports (`roles`). A player
 // whose row is all zeros with no role is treated as "didn't play" and has no record at all.
 // Player totals are NOT forced to equal the team score — the screen shows the difference, but
 // an official must never be blocked from saving what is on the sheet.
+//
+// PER TEAM (Oct 2026): `?side=A` saves only team A's rows and is allowed only from the device
+// holding team A's stats job. A sport with no live stats has no stats jobs, so there the score
+// keeper saves the form, and may leave `side` out to save both teams (`version` is then
+// { A, B }). `version` is the form version the device loaded (match.formVersion); a save made
+// from an older copy gets a 409 instead of overwriting the newer save. The MVP moved to
+// PUT /result.
 router.put('/matches/:matchId/stats', async (req, res) => {
   try {
     const ctx = await loadOwnedMatch(req, res);
@@ -436,11 +678,30 @@ router.put('/matches/:matchId/stats', async (req, res) => {
     }
 
     const rules = rulesFor(ctx.sport);
+    const sideQ = req.query.side;
+    if (sideQ != null && !['A', 'B'].includes(sideQ)) return res.status(400).json({ message: 'side must be A or B.' });
+    const sides = sideQ ? [sideQ] : ['A', 'B'];
+    const noStatsJobs = rules.statFields.length === 0;
+    if (!sideQ && !noStatsJobs) {
+      return res.status(400).json({ message: 'Save one team at a time (side=A or side=B).' });
+    }
+    for (const s of sides) {
+      const keys = noStatsJobs ? ['score'] : [`stats${s}`];
+      if (!requireJob(match, req, res, keys, "save this team's player stats")) return;
+    }
+
+    // The version each side's form was loaded at.
+    const versions = {};
+    for (const s of sides) {
+      const v = Number(sideQ ? req.body.version : req.body.version?.[s]);
+      if (!Number.isInteger(v) || v < 0) return res.status(400).json({ message: 'The form version is missing. Reload the form and try again.' });
+      versions[s] = v;
+    }
+
     const rows = Array.isArray(req.body.players) ? req.body.players : [];
 
     const links = await TeamPlayer.find({ team: { $in: [match.teamA, match.teamB] } }).select('player team');
-    const onRoster = new Set(links.map((l) => String(l.player)));
-    // Which side each player is on, for the points cap below.
+    // Which side each player is on, for the side check and the points cap below.
     const sideOf = {};
     links.forEach((l) => { sideOf[String(l.player)] = String(l.team) === String(match.teamA) ? 'A' : 'B'; });
 
@@ -448,7 +709,10 @@ router.put('/matches/:matchId/stats', async (req, res) => {
     const clean = [];
     for (const r of rows) {
       const id = String(r?.playerId || '');
-      if (!onRoster.has(id)) return res.status(400).json({ message: 'A player in the form is not on either team.' });
+      if (!sideOf[id]) return res.status(400).json({ message: 'A player in the form is not on either team.' });
+      if (!sides.includes(sideOf[id])) {
+        return res.status(400).json({ message: "A player in the form is on the other team. Each team's stats are saved from its own form." });
+      }
 
       const doc = { player: id, $set: {} };
       for (const f of rules.statFields) {
@@ -473,12 +737,9 @@ router.put('/matches/:matchId/stats', async (req, res) => {
     // esports) keeps its score as games, so a "points" column there isn't capped by it.
     if (rules.scoringMode !== 'final' && rules.statFields.includes('points')) {
       const sum = { A: 0, B: 0 };
-      for (const d of clean) {
-        const side = sideOf[d.player];
-        if (side) sum[side] += Number(d.$set.points) || 0;
-      }
+      for (const d of clean) sum[sideOf[d.player]] += Number(d.$set.points) || 0;
       for (const [side, team, score] of [['A', match.teamA, match.liveScoreA || 0], ['B', match.teamB, match.liveScoreB || 0]]) {
-        if (sum[side] > score) {
+        if (sides.includes(side) && sum[side] > score) {
           const name = (await Team.findById(team).select('teamName'))?.teamName || 'a team';
           return res.status(400).json({
             message: `${name}'s players add up to ${sum[side]} points, but the team scored ${score}. Player points can't be more than the team's score.`,
@@ -487,12 +748,13 @@ router.put('/matches/:matchId/stats', async (req, res) => {
       }
     }
 
-    let mvp = match.mvp || null;
-    if ('mvpPlayerId' in req.body) {
-      if (req.body.mvpPlayerId && !onRoster.has(String(req.body.mvpPlayerId))) {
-        return res.status(400).json({ message: 'The MVP must be a player in this match.' });
-      }
-      mvp = req.body.mvpPlayerId || null;
+    // Take the version first (atomic): of two saves made from the same copy, only one gets
+    // past this, and the other is told to reload.
+    const filter = { _id: match._id, status: 'completed', $and: sides.map((s) => versionIs(`formVersion.${s}`, versions[s])) };
+    const inc = Object.fromEntries(sides.map((s) => [`formVersion.${s}`, 1]));
+    const bumped = await Match.findOneAndUpdate(filter, { $inc: inc }, { returnDocument: 'after' });
+    if (!bumped) {
+      return res.status(409).json({ code: 'stale_form', message: 'Someone else saved this form. Reload to see the latest.' });
     }
 
     let saved = 0;
@@ -508,12 +770,49 @@ router.put('/matches/:matchId/stats', async (req, res) => {
         saved += 1;
       }
     }
-    match.mvp = mvp;
-    await match.save();
 
-    res.json({ message: `Player stats saved (${saved} player${saved === 1 ? '' : 's'}).`, saved });
+    res.json({
+      message: `Player stats saved (${saved} player${saved === 1 ? '' : 's'}).`,
+      saved,
+      formVersion: versionsOut(bumped),
+    });
   } catch (err) {
     console.error('Save stats error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// PUT /api/organizer/matches/:matchId/result   body: { mvpPlayerId, version }
+// The score keeper's after-match form (Oct 2026): confirms the final result and picks the MVP.
+// The result itself can't change here (the winner has already advanced); this saves the MVP,
+// with the same version check as the stats forms.
+router.put('/matches/:matchId/result', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+    if (match.status !== 'completed') return res.status(409).json({ message: 'The result is confirmed after the match is finished.' });
+    if (!requireJob(match, req, res, ['score'], 'confirm the result')) return;
+
+    const v = Number(req.body.version);
+    if (!Number.isInteger(v) || v < 0) return res.status(400).json({ message: 'The form version is missing. Reload the form and try again.' });
+
+    const mvp = req.body.mvpPlayerId ? String(req.body.mvpPlayerId) : null;
+    if (mvp) {
+      const onEither = mongoose.isValidObjectId(mvp)
+        && await TeamPlayer.findOne({ team: { $in: [match.teamA, match.teamB] }, player: mvp }).select('_id');
+      if (!onEither) return res.status(400).json({ message: 'The MVP must be a player in this match.' });
+    }
+
+    const saved = await Match.findOneAndUpdate(
+      { _id: match._id, status: 'completed', ...versionIs('formVersion.result', v) },
+      { $set: { mvp }, $inc: { 'formVersion.result': 1 } },
+      { returnDocument: 'after' }
+    );
+    if (!saved) return res.status(409).json({ code: 'stale_form', message: 'Someone else saved this form. Reload to see the latest.' });
+    res.json({ message: 'Result confirmed.', formVersion: versionsOut(saved) });
+  } catch (err) {
+    console.error('Confirm result error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
@@ -528,6 +827,7 @@ router.post('/matches/:matchId/end', async (req, res) => {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
     const { match } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'end the match')) return;
 
         if (match.status === 'completed' || match.status === 'forfeited') return res.status(409).json({ message: 'This match already has a result.' });
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before ending it.' });
@@ -619,6 +919,7 @@ router.post('/matches/:matchId/end-period', async (req, res) => {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
     const { match, sportName } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'end a period')) return;
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
     if (isGamesWon(ctx.sport)) {
       return res.status(409).json({ message: 'Each game is recorded when you tap its winner. End the match once a side has won the series.' });
@@ -670,6 +971,7 @@ router.post('/matches/:matchId/cancel', async (req, res) => {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
     const { match } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'cancel the match')) return;
 
     if (match.status === 'completed' || match.status === 'forfeited') {
       return res.status(409).json({ message: 'This match is already finished and cannot be cancelled.' });
@@ -707,6 +1009,7 @@ router.post('/matches/:matchId/forfeit', async (req, res) => {
     const ctx = await loadOwnedMatch(req, res);
     if (!ctx) return;
     const { match } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'record a forfeit')) return;
 
     if (match.status === 'completed' || match.status === 'forfeited') {
       return res.status(409).json({ message: 'This match already has a result.' });

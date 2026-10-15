@@ -21,6 +21,13 @@ const gameSchema = new mongoose.Schema(
   { _id: false }   // these are sub-documents inside a match; they don't need their own id
 );
 
+// One job on a live match (see `jobs` below): which device holds it, since when, last seen.
+const jobSlot = () => ({
+  device: { type: String, default: null },
+  since: { type: Date, default: null },
+  seen: { type: Date, default: null },
+});
+
 const matchSchema = new mongoose.Schema(
   {
     tournament: {
@@ -89,7 +96,27 @@ const matchSchema = new mongoose.Schema(
       playerIn: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
       period: { type: Number, default: 1 },
       at: { type: Date, default: Date.now },
+      // Which job's device made it ('score', 'statsA', 'statsB'). All three share one login,
+      // so this is the only "who" on record: a job, never a person.
+      by: { type: String, default: null },
     }],
+    // Job claims (Oct 2026): up to three devices work one match on the sport's one organizer
+    // account, and each job is held by ONE device. `device` is a random id the browser tab
+    // makes for itself (sent as the X-Device-Id header); `seen` is refreshed while that
+    // device has the match open, so a job whose phone died can be taken over after a while.
+    jobs: {
+      score: jobSlot(),
+      statsA: jobSlot(),
+      statsB: jobSlot(),
+    },
+    // After-match forms (Oct 2026): each save sends the version it loaded and bumps it, so a
+    // save made from an older copy of the form is refused instead of overwriting a newer one.
+    // A / B = each team's player stats form, result = the score keeper's result + MVP form.
+    formVersion: {
+      A: { type: Number, default: 0 },
+      B: { type: Number, default: 0 },
+      result: { type: Number, default: 0 },
+    },
     // Organizer's declared MVP (suggested as top scorer, confirmed by the organizer).
     mvp: {
       type: mongoose.Schema.Types.ObjectId,

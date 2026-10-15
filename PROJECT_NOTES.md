@@ -654,6 +654,51 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
     separate public match page.
   - Tested: routes against stubbed models (taps, undo, bad stat / amount / player, team score
     untouched, refused once completed). Not yet run in a browser or on three real devices.
+  - **Taps show instantly (Oct 15 2026, "it loads a little when we click the score").** A score
+    tap used to grey out every button until the save AND a full re-read of the match came back
+    (two round trips). Now `scoreTap()` / `tapStat()` in `OrganizerScoring.jsx` add the tap to
+    the screen at once and keep it in `pending` until the server answers; on screen = the
+    server's number + what is still pending; a failed tap is taken back off with the error.
+    Points-sport score buttons and stat buttons never lock; a games-won tap (chess, billiards,
+    esports) still waits for its answer (that route is read-modify-save), stat Undo waits too.
+    `gen` counts taps so a 3s refresh that left before a tap can't paint the old number back;
+    one quiet re-read runs after the last pending tap (`settle()`). **Score Undo is atomic now**
+    (`$inc` + `$pop`, filtered on the same `lastAction` still being the last one), since a tap
+    can be saving while Undo runs. Tested: headless Edge vs a mock API with a 0.9s delay (3
+    taps of +2 in 0.26s showed 6 at once, server 6; stat taps + undo same), undo route on
+    stubbed models (4 cases incl. a tap landing mid-undo).
+  - **ONE DEVICE PER JOB, enforced by the server (Oct 15 2026; supersedes "the job is remembered
+    in sessionStorage, the server doesn't know it").** Each tab makes a random id
+    (`deviceId()` in `api.js`, sessionStorage `device-id`) sent on every request as
+    `X-Device-Id`. `POST .../claim {job, confirmSwitch?, takeOver?}` records it on
+    `Match.jobs.{score,statsA,statsB} = {device, since, seen}` (conditional update; 409
+    `job_taken` / `confirm_switch` once started / `job_stale` = holder quiet 2+ min, take over
+    with confirmation). One job per device (claiming frees the old one). `POST .../release`:
+    own job, score keeper for a stats job, or a Super Admin. `seen` is refreshed by the GET
+    (≤ every 30s). Device ids never leave the server (`matchOut`, `jobsView`). Route checks
+    (`requireJob`, 403 `not_your_job`): start / score / undo / end-period / end / cancel /
+    forfeit = score; player-stat = that player's team's stats job; substitute = that team's
+    stats job or score; PUT stats `?side=A|B` = that team's stats job (score keeper, both sides,
+    when the sport has no number columns); PUT `/result` (MVP) = score. A sport with no number
+    columns has only the score job and the screen claims it automatically.
+  - **Atomic:** substitutions (swap = filter `{lineupX: {$eq: out, $ne: in}}` + positional `$`;
+    add = `$push` with `lineupX.<onCourt-1>` absent; remove = `$pull`; `subs` pushed in the same
+    update with `by` = job; 409 `lineup_changed`), games-won score taps (filter on both scores +
+    `games` size; 409 `score_changed`), undo (`$inc`/`$pop` filtered on the same lastAction).
+    `optimisticConcurrency` deliberately NOT enabled on Match (every contested write is a
+    conditional update; enabling it would touch every route that saves a match).
+  - **After-match forms per device:** End match opens "Confirm the result" (score + MVP,
+    `ResultForm`) on the score keeper's device; each stats keeper's device opens "Player stats ·
+    <team>" (`StatsForm only="A"|"B"`), prefilled with the live taps, when its refresh sees the
+    match completed. Each save sends `version` (Match.formVersion.{A,B,result}); the server
+    bumps it atomically or returns 409 `stale_form` → amber "Someone else saved this form.
+    Reload to see the latest." with a Reload button. Points cap per team kept.
+  - Tested: 54 route checks on a REAL mongod (mongodb-memory-server, real routes + models,
+    incl. parallel taps / swaps / adds / chess taps / form saves) and 29 checks with three
+    headless Edge tabs as three phones against the full stack at 390px. Headless gotcha: only
+    the newest tab is "visible", and the screen pauses its 3s refresh when hidden; override
+    `document.visibilityState` per tab and `/json/activate` a tab before screenshotting it (a
+    hidden tab's screenshot hangs). Not yet run on three real phones.
 - **STARTING LINEUP + SUBSTITUTIONS ARE BACK (Oct 6 2026, user: "after hitting Start it should
   have a modal to select the players… then a sub in case of substitution").** Team-format sports
   with an on-court count (`onCourtFor()` in `lib/sportRules.js`, returned as `onCourt` by

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowLeftRight, CalendarClock, Circle, CircleCheck, ClipboardList, ListChecks, Play, Radio, TriangleAlert, Undo2, X } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, CalendarClock, Circle, CircleCheck, ClipboardList, ListChecks, Play, Radio, TriangleAlert, Trophy, Undo2, X } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { useErrorDialog } from "../../components/ErrorDialog";
@@ -127,19 +127,25 @@ function Crest({ team, size = 40 }) {
 // It opens by itself right after End match and can be reopened from the
 // "Player stats" card. This component is the modal's content; its state starts
 // fresh from the saved stats each time the modal opens.
-function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
+// PER TEAM (Oct 2026): `only` = "A" or "B" shows and saves just that team (each stats keeper's
+// device). Without it (a sport with no live stats, saved by the score keeper) both teams show
+// with tabs. The MVP moved to the score keeper's ResultForm. Each save sends the form version
+// it was opened at; if someone saved in between, the server refuses and `onStale` is called.
+function StatsForm({ data, matchId, only, onSaved, onClose, onDirtyChange, onStale }) {
   const showError = useErrorDialog();
   const m = data.match;
   const fields = data.statFields || [];
   const roles = data.roles || [];
 
-  const [side, setSide] = useState("A");
+  const [side, setSide] = useState(only || "A");
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
-  const [mvp, setMvp] = useState(m.mvp?._id ? String(m.mvp._id) : "none");
+  // The versions this copy of the form was opened at.
+  const [version] = useState(() => ({ A: m.formVersion?.A || 0, B: m.formVersion?.B || 0 }));
   const [rows, setRows] = useState(() => {
     const init = {};
-    [...(data.rosterA || []), ...(data.rosterB || [])].forEach((p) => {
+    const players = only === "A" ? data.rosterA || [] : only === "B" ? data.rosterB || [] : [...(data.rosterA || []), ...(data.rosterB || [])];
+    players.forEach((p) => {
       const s = data.statByPlayer?.[String(p._id)] || {};
       init[String(p._id)] = {
         ...Object.fromEntries(fields.map((f) => [f, s[f] || ""])),
@@ -199,29 +205,27 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
         ...Object.fromEntries(fields.map((f) => [f, r[f] === "" ? 0 : Number(r[f])])),
         role: r.role || "",
       }));
-      await api(`/api/organizer/matches/${matchId}/stats`, {
+      await api(`/api/organizer/matches/${matchId}/stats${only ? `?side=${only}` : ""}`, {
         method: "PUT",
-        body: JSON.stringify({ players, mvpPlayerId: mvp === "none" ? null : mvp }),
+        body: JSON.stringify({ players, version: only ? version[only] : version }),
       });
       setSavedAt(new Date());
       setDirty(false);
       onDirtyChange?.(false);
       await onSaved();
       onClose?.();
-    } catch (e) { showError(e.message); }
+    } catch (e) {
+      if (e.code === "stale_form") onStale?.(e.message);
+      else showError(e.message);
+    }
     finally { setSaving(false); }
   }
-
-  const everyone = [
-    ...(data.rosterA || []).map((p) => ({ p, team: m.teamA?.teamName })),
-    ...(data.rosterB || []).map((p) => ({ p, team: m.teamB?.teamName })),
-  ];
 
   return (
     <>
       <DialogHeader className="border-b px-4 pt-4 pb-3 sm:px-5">
         <DialogTitle className="flex items-center gap-2">
-          <ClipboardList className="size-4 text-blue-500" /> Player stats
+          <ClipboardList className="size-4 text-blue-500" /> Player stats{only ? ` · ${teamOf(only)?.teamName}` : ""}
         </DialogTitle>
         <DialogDescription>
           {fields.length > 0
@@ -232,7 +236,7 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
 
       {/* Only this middle part scrolls; the title and Save stay put. */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin px-4 py-3 sm:px-5">
-      <div className="mb-3 flex gap-2">
+      {!only && <div className="mb-3 flex gap-2">
         {["A", "B"].map((s) => (
           <button key={s} type="button" onClick={() => { setSide(s); setCapNote(""); }}
             className={cn(
@@ -242,7 +246,7 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
             {teamOf(s)?.teamName}
           </button>
         ))}
-      </div>
+      </div>}
 
       {fields.includes("points") && (
         <p className={cn("mb-3 text-xs tabular-nums", diff === 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400")}>
@@ -303,19 +307,6 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
         {roster.length === 0 && <p className="text-sm text-muted-foreground">This team has no players on its roster.</p>}
       </div>
 
-      <div className="mt-4 space-y-1.5">
-        <p className="text-xs font-medium">MVP</p>
-        <Select value={mvp} onValueChange={(v) => { setMvp(v); setSavedAt(null); }}>
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No MVP</SelectItem>
-            {everyone.map(({ p, team }) => (
-              <SelectItem key={p._id} value={String(p._id)}>{p.lastName}, {p.firstName} — {team}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       </div>
 
       <div className="border-t px-4 py-3 sm:px-5">
@@ -333,32 +324,140 @@ function StatsForm({ data, matchId, onSaved, onClose, onDirtyChange }) {
   );
 }
 
-// The score sheet modal. Closing with unsaved numbers asks first — a stray tap
-// outside the sheet must not lose a whole scoresheet.
-function StatsDialog({ open, onOpenChange, data, matchId, onSaved }) {
+// The score keeper's after-match form (Oct 2026): the final result, read-only (the winner has
+// already advanced), and the MVP. Saved with the version it was opened at, like the stats forms.
+function ResultForm({ data, matchId, onSaved, onClose, onDirtyChange, onStale }) {
+  const showError = useErrorDialog();
+  const m = data.match;
+  const [mvp, setMvp] = useState(m.mvp?._id ? String(m.mvp._id) : "none");
+  const [version] = useState(() => m.formVersion?.result || 0);
+  const [saving, setSaving] = useState(false);
+  const everyone = [
+    ...byJersey(data.rosterA || []).map((p) => ({ p, team: m.teamA?.teamName })),
+    ...byJersey(data.rosterB || []).map((p) => ({ p, team: m.teamB?.teamName })),
+  ];
+  const a = m.liveScoreA || 0;
+  const b = m.liveScoreB || 0;
+  const winner = a > b ? m.teamA : m.teamB;
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api(`/api/organizer/matches/${matchId}/result`, {
+        method: "PUT",
+        body: JSON.stringify({ mvpPlayerId: mvp === "none" ? null : mvp, version }),
+      });
+      onDirtyChange?.(false);
+      await onSaved();
+      onClose?.();
+    } catch (e) {
+      if (e.code === "stale_form") onStale?.(e.message);
+      else showError(e.message);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <>
+      <DialogHeader className="border-b px-4 pt-4 pb-3 sm:px-5">
+        <DialogTitle className="flex items-center gap-2">
+          <Trophy className="size-4 text-amber-500" /> Confirm the result
+        </DialogTitle>
+        <DialogDescription>
+          Check the final score and choose the MVP. The stats keepers save each team's player stats on their own devices.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin px-4 py-4 sm:px-5 space-y-4">
+        <div className="rounded-xl border p-4">
+          <div className="flex items-center justify-center gap-3 tabular-nums">
+            <span className="min-w-0 flex-1 truncate text-right text-sm font-medium">{m.teamA?.teamName}</span>
+            <span className="shrink-0 text-2xl font-semibold">{a} – {b}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{m.teamB?.teamName}</span>
+          </div>
+          {(m.games || []).length > 1 && (
+            <p className="mt-1 text-center text-xs text-muted-foreground tabular-nums">
+              {(m.games || []).map((g) => `${g.scoreA}-${g.scoreB}`).join(" · ")}
+            </p>
+          )}
+          <p className="mt-2 text-center text-sm text-green-600 dark:text-green-400">{winner?.teamName} won</p>
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium">MVP</p>
+          <Select value={mvp} onValueChange={(v) => { setMvp(v); onDirtyChange?.(true); }}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No MVP</SelectItem>
+              {everyone.map(({ p, team }) => (
+                <SelectItem key={p._id} value={String(p._id)}>{p.lastName}, {p.firstName} · {team}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="border-t px-4 py-3 sm:px-5">
+        <button onClick={save} disabled={saving}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+          {saving ? "Saving…" : "Confirm result"}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// The after-match modal: a team's player stats (`kind="stats"`, `only` = "A" / "B" / null for
+// both) or the score keeper's result (`kind="result"`). Closing with unsaved changes asks first.
+// If the save is refused because someone else saved in between, it says so and offers Reload,
+// which re-reads the match and opens a fresh copy of the form.
+function StatsDialog({ open, onOpenChange, data, matchId, onSaved, kind = "stats", only = null }) {
   const confirm = useConfirm();
   const dirtyRef = useRef(false);
   const onDirtyChange = useCallback((d) => { dirtyRef.current = d; }, []);
+  const [stale, setStale] = useState("");
+  const [copy, setCopy] = useState(0);
+  const [reloading, setReloading] = useState(false);
 
   async function requestOpenChange(next) {
     if (!next && dirtyRef.current) {
-      const ok = await confirm("Close without saving? The player stats you typed will be lost.", {
+      const ok = await confirm(kind === "result"
+        ? "Close without saving? The MVP you picked will be lost."
+        : "Close without saving? The player stats you typed will be lost.", {
         danger: true, confirmLabel: "Discard",
       });
       if (!ok) return;
     }
-    if (!next) dirtyRef.current = false;
+    if (!next) { dirtyRef.current = false; setStale(""); }
     onOpenChange(next);
   }
 
+  async function reload() {
+    setReloading(true);
+    try {
+      await onSaved();
+      dirtyRef.current = false;
+      setStale("");
+      setCopy((c) => c + 1);
+    } finally { setReloading(false); }
+  }
+
+  const props = {
+    data, matchId, onSaved, onDirtyChange, onStale: setStale,
+    onClose: () => { dirtyRef.current = false; onOpenChange(false); },
+  };
   return (
     <Dialog open={open} onOpenChange={requestOpenChange}>
       <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        {open && (
-          <StatsForm data={data} matchId={matchId} onSaved={onSaved}
-            onClose={() => { dirtyRef.current = false; onOpenChange(false); }}
-            onDirtyChange={onDirtyChange} />
+        {open && stale && (
+          <div role="alert" className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5 pr-12 text-sm text-amber-700 dark:text-amber-300 sm:px-5">
+            <TriangleAlert className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1">{stale}</span>
+            <button onClick={reload} disabled={reloading}
+              className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
+              {reloading ? "Reloading…" : "Reload"}
+            </button>
+          </div>
         )}
+        {open && (kind === "result"
+          ? <ResultForm key={copy} {...props} />
+          : <StatsForm key={copy} {...props} only={only} />)}
       </DialogContent>
     </Dialog>
   );
@@ -587,32 +686,82 @@ function OnCourtCard({ data, onSub }) {
 
 // The three jobs on one live match (Oct 2026). Up to three people open the same match on
 // the sport's ONE organizer account: a score keeper (team score, periods, end match) and a
-// stats keeper per barangay. Each device picks its job; it is remembered per match on that
-// device only (sessionStorage), never on the server.
-function JobPicker({ m, job, onChoose }) {
-  const jobs = [
-    ["score", "Score keeper", "Team score, periods, end match"],
-    ["A", `Stats: ${m.teamA?.teamName || "Team A"}`, "Points, fouls… for each player"],
-    ["B", `Stats: ${m.teamB?.teamName || "Team B"}`, "Points, fouls… for each player"],
-  ];
+// stats keeper per barangay. Each job is held by ONE device, recorded on the server: a job
+// another device holds can't be picked, unless that device has gone quiet (then it can be
+// taken over). The score keeper can free a stats job whose phone died.
+const JOB_ROWS = (m, hasJobs) => [
+  ["score", "Score keeper", "Team score, periods, end match"],
+  ...(hasJobs ? [
+    ["statsA", `Stats: ${m.teamA?.teamName || "Team A"}`, "Points, fouls… for each player"],
+    ["statsB", `Stats: ${m.teamB?.teamName || "Team B"}`, "Points, fouls… for each player"],
+  ] : []),
+];
+const agoText = (sec) => (sec == null ? "a while" : sec < 90 ? `${sec}s` : `${Math.round(sec / 60)} min`);
+
+function JobPicker({ m, jobs, myJob, hasJobs, busy, onChoose, onRelease }) {
+  const rows = JOB_ROWS(m, hasJobs);
   return (
     <Card className="mb-4 gap-0 p-4">
       <p className="mb-1 text-sm font-medium">Your job on this match</p>
       <p className="mb-3 text-xs text-muted-foreground">
-        Up to three people can work this match at once on this account. Each picks one job.
+        {hasJobs
+          ? "Up to three people can work this match at once on this account. Each job is on one device."
+          : "One device keeps the score for this match."}
       </p>
-      <div className="grid gap-2 sm:grid-cols-3">
-        {jobs.map(([key, label, sub]) => (
-          <button key={key} type="button" onClick={() => onChoose(key)}
-            className={cn(
-              "rounded-xl border px-3 py-3 text-left transition",
-              job === key ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent"
-            )}>
-            <span className="block truncate text-sm font-semibold">{label}</span>
-            <span className={cn("block text-xs", job === key ? "text-primary-foreground/80" : "text-muted-foreground")}>{sub}</span>
-          </button>
-        ))}
+      <div className={cn("grid gap-2", rows.length > 1 && "sm:grid-cols-3")}>
+        {rows.map(([key, label, sub]) => {
+          const j = jobs[key] || {};
+          const mine = myJob === key;
+          const lockedOut = j.taken && !j.mine && !j.stale;
+          const status = mine ? "This device"
+            : j.stale ? `Inactive for ${agoText(j.seenSecondsAgo)}. Tap to take over`
+            : j.taken ? "Taken by another device"
+            : sub;
+          return (
+            <div key={key} className="relative">
+              <button type="button" onClick={() => !mine && onChoose(key)} disabled={busy || lockedOut}
+                className={cn(
+                  "w-full rounded-xl border px-3 py-3 text-left transition disabled:cursor-not-allowed",
+                  mine ? "border-primary bg-primary text-primary-foreground"
+                    : lockedOut ? "bg-muted/50 opacity-60"
+                    : j.stale ? "border-amber-500/40 hover:bg-amber-500/10"
+                    : "hover:bg-accent"
+                )}>
+                <span className="block truncate text-sm font-semibold">{label}</span>
+                <span className={cn("block text-xs", mine ? "text-primary-foreground/80" : j.stale ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{status}</span>
+              </button>
+              {myJob === "score" && key !== "score" && j.taken && !j.mine && (
+                <button type="button" onClick={() => onRelease(key, label)}
+                  className="mt-1 w-full rounded-md py-1 text-xs text-red-600 hover:bg-red-500/10 dark:text-red-400">
+                  Free this job
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
+    </Card>
+  );
+}
+
+// A card on a finished match that (re)opens one of this device's after-match forms.
+function AfterMatchCard({ icon: Icon, title, saved, text, action, onOpen }) {
+  return (
+    <Card className="mb-3 gap-0 p-4">
+      <div className="mb-1 flex items-center gap-2">
+        <Icon className="size-4 text-blue-500" />
+        <h2 className="min-w-0 truncate text-sm font-semibold">{title}</h2>
+        <Badge className={cn("ml-auto shrink-0", saved
+          ? "bg-green-500/15 text-green-600 dark:text-green-400"
+          : "bg-amber-500/15 text-amber-600 dark:text-amber-400")}>
+          {saved ? "Saved" : "Not saved yet"}
+        </Badge>
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">{text}</p>
+      <button onClick={onOpen}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90">
+        <Icon className="size-4" /> {action}
+      </button>
     </Card>
   );
 }
@@ -718,7 +867,9 @@ function ScoringView({ matchId, onBack }) {
   const [busy, setBusy] = useState(false);
   const [ending, setEnding] = useState(false);
   // The post-match score sheet modal (opens by itself after End match).
-  const [statsOpen, setStatsOpen] = useState(false);
+  // Which after-match form is open: "stats" (this device's team, or both on a sport with no
+  // stats jobs), "result" (score keeper: result + MVP), or null.
+  const [formOpen, setFormOpen] = useState(null);
   // null until the organizer taps a choice; the default comes from the sport's own options
   // (below). It used to default to 1 — which basketball doesn't even offer (only 4) — so an
   // organizer who simply tapped Start began a ONE-quarter game.
@@ -732,23 +883,36 @@ function ScoringView({ matchId, onBack }) {
   // (the pre-start card used to just vanish and the scoring buttons appeared).
   const [justStarted, setJustStarted] = useState(false);
 
-  // This device's job on the match (see JobPicker), remembered per match on this device.
-  const jobKey = `org-job:${matchId}`;
-  const [job, setJob] = useState(() => { try { return sessionStorage.getItem(jobKey) || ""; } catch { return ""; } });
-  const chooseJob = (j) => { setJob(j); try { sessionStorage.setItem(jobKey, j); } catch { /* private mode */ } };
+  // This device's job on the match comes from the SERVER (Oct 2026): each job is held by one
+  // device (the tab's random id, see api.js), so two phones can't both be the score keeper.
+  const [claiming, setClaiming] = useState(false);
   // This device's own stat taps, newest last, so its Undo never takes back someone else's.
   const [statTaps, setStatTaps] = useState([]);
   const [statBusy, setStatBusy] = useState(false);
 
+  // Taps show at once (Oct 2026: a score / stat tap used to grey out the buttons until the
+  // save AND a full re-read of the match had come back). Each tap is added to the screen
+  // straight away and kept in `pending` until the server answers; the server's number plus
+  // whatever is still pending is what stays on screen. `gen` counts taps, so a background
+  // refresh that set off before a tap can't paint the old number back over it.
+  const pending = useRef({ score: { A: 0, B: 0 }, stat: {}, count: 0 });
+  const gen = useRef(0);
+
   // `quiet` = a background refresh: no error popup, and no re-render when nothing changed.
   const lastJson = useRef("");
   async function load(quiet = false) {
+    const startGen = gen.current;
     try {
       const d = await api(`/api/organizer/matches/${matchId}`);
+      // A tap happened while this was on its way, or one is still saving: this copy is
+      // older than the screen. The refresh after the last tap brings everything in line.
+      if (quiet && (pending.current.count > 0 || gen.current !== startGen)) return;
       const json = JSON.stringify(d);
       if (json !== lastJson.current) { lastJson.current = json; setData(d); }
     } catch (e) { if (!quiet) showError(e.message); }
   }
+  // After the last pending tap is saved: one quiet re-read (Undo label, periods, other devices).
+  const settle = () => { if (pending.current.count === 0) { lastJson.current = ""; load(true); } };
   useEffect(() => { load(); }, [matchId]);
 
   // Live refresh (Oct 2026): the score keeper and the two stats keepers are on different
@@ -764,26 +928,145 @@ function ScoringView({ matchId, onBack }) {
     return () => clearInterval(id);
   }, [matchId]);
 
+  // Take a job. The server says no if another device holds it; it asks before switching jobs
+  // mid-match, and before taking over a job whose device has gone quiet (a dead phone).
+  async function claimJob(job, extra = {}) {
+    setClaiming(true);
+    try {
+      await api(`/api/organizer/matches/${matchId}/claim`, { method: "POST", body: JSON.stringify({ job, ...extra }) });
+      setStatTaps([]);
+      lastJson.current = "";
+      await load();
+    } catch (e) {
+      if (e.code === "confirm_switch") {
+        if (await confirm(e.message, { confirmLabel: "Switch job" })) return claimJob(job, { ...extra, confirmSwitch: true });
+      } else if (e.code === "job_stale") {
+        if (await confirm(e.message, { danger: true, confirmLabel: "Take over" })) return claimJob(job, { ...extra, takeOver: true });
+      } else {
+        showError(e.message);
+      }
+      lastJson.current = "";
+      load(true);
+    } finally { setClaiming(false); }
+  }
+  // Score keeper: free a stats job whose device is gone.
+  async function releaseJob(job, label) {
+    if (!(await confirm(`Free the "${label}" job? Only do this if that phone died or the person left. Another device can then pick it.`, { danger: true, confirmLabel: "Free job" }))) return;
+    try {
+      await api(`/api/organizer/matches/${matchId}/release`, { method: "POST", body: JSON.stringify({ job }) });
+    } catch (e) { showError(e.message); }
+    lastJson.current = "";
+    load(true);
+  }
+
+  // A sport with no live player stats has only the score keeper job: take it on open, if free.
+  const autoClaimed = useRef(false);
+  useEffect(() => {
+    if (!data || autoClaimed.current) return;
+    const single = (data.statFields?.length || 0) === 0;
+    if (single && !data.myJob && data.match?.status !== "forfeited" && !data.jobs?.score?.taken) {
+      autoClaimed.current = true;
+      claimJob("score");
+    }
+  }, [data]);
+
+  // When the match ends, open this device's after-match form by itself: the score keeper's
+  // result + MVP, or the stats keeper's own team (the stats keepers see it on their next refresh).
+  const prevStatus = useRef(null);
+  useEffect(() => {
+    const st = data?.match?.status;
+    if (prevStatus.current === "ongoing" && st === "completed") {
+      if (data.myJob === "score") setFormOpen("result");
+      else if (data.myJob === "statsA" || data.myJob === "statsB") setFormOpen("stats");
+    }
+    if (st) prevStatus.current = st;
+  }, [data]);
+
+  const setStatValue = (id, stat, value) => setData((d) => {
+    if (!d) return d;
+    return { ...d, statByPlayer: { ...(d.statByPlayer || {}), [id]: { ...(d.statByPlayer?.[id] || {}), [stat]: value } } };
+  });
+
   async function tapStat(player, stat, amount, label, isUndo = false) {
-    setStatBusy(true);
+    const id = String(player._id);
+    const key = `${id}:${stat}`;
+    const p = pending.current;
+    // Undo waits for its answer (it can be refused when the number is already 0); a normal
+    // tap shows at once and the buttons stay live for the next one.
+    if (isUndo) setStatBusy(true);
+    gen.current += 1;
+    const tid = gen.current;
+    p.count += 1;
+    p.stat[key] = (p.stat[key] || 0) + amount;
+    setData((d) => {
+      if (!d) return d;
+      const now = Number(d.statByPlayer?.[id]?.[stat]) || 0;
+      return { ...d, statByPlayer: { ...(d.statByPlayer || {}), [id]: { ...(d.statByPlayer?.[id] || {}), [stat]: Math.max(0, now + amount) } } };
+    });
+    if (isUndo) setStatTaps((t) => t.slice(0, -1));
+    else setStatTaps((t) => [...t.slice(-29), { tid, player, stat, amount, label }]);
+    buzz(15);
     try {
       const r = await api(`/api/organizer/matches/${matchId}/player-stat`, {
         method: "POST",
         body: JSON.stringify({ playerId: player._id, stat, amount }),
       });
+      p.stat[key] -= amount;
+      p.count -= 1;
+      setStatValue(id, stat, Math.max(0, r.value + (p.stat[key] || 0)));
+    } catch (e) {
+      p.stat[key] -= amount;
+      p.count -= 1;
+      // Take the tap back off the screen (and off this device's Undo list).
       setData((d) => {
         if (!d) return d;
-        const id = String(player._id);
-        return { ...d, statByPlayer: { ...(d.statByPlayer || {}), [id]: { ...(d.statByPlayer?.[id] || {}), [stat]: r.value } } };
+        const now = Number(d.statByPlayer?.[id]?.[stat]) || 0;
+        return { ...d, statByPlayer: { ...(d.statByPlayer || {}), [id]: { ...(d.statByPlayer?.[id] || {}), [stat]: Math.max(0, now - amount) } } };
       });
-      lastJson.current = "";   // the next refresh always applies
-      if (isUndo) setStatTaps((t) => t.slice(0, -1));
-      else setStatTaps((t) => [...t.slice(-29), { player, stat, amount, label }]);
-      buzz(15);
-    } catch (e) {
-      if (isUndo) setStatTaps((t) => t.slice(0, -1));   // e.g. already back at 0
+      if (!isUndo) setStatTaps((t) => t.filter((x) => x.tid !== tid));
       showError(e.message);
-    } finally { setStatBusy(false); }
+    } finally {
+      if (isUndo) setStatBusy(false);
+      settle();
+    }
+  }
+
+  // A team score tap, shown at once. Points-scored sports save with an atomic increment, so
+  // taps can run back to back; a games-won tap (chess, billiards, esports) also records the
+  // game and is saved one at a time (`busy` holds the buttons until it is answered).
+  async function scoreTap(side, points, gamesWon) {
+    const p = pending.current;
+    if (gamesWon) setBusy(true);
+    gen.current += 1;
+    p.count += 1;
+    p.score[side] += points;
+    const field = side === "A" ? "liveScoreA" : "liveScoreB";
+    setData((d) => d && ({ ...d, match: { ...d.match, [field]: (d.match[field] || 0) + points } }));
+    buzz(15);
+    try {
+      const r = await api(`/api/organizer/matches/${matchId}/score`, {
+        method: "POST",
+        body: JSON.stringify({ side, points }),
+      });
+      p.score[side] -= points;
+      p.count -= 1;
+      setData((d) => d && ({
+        ...d,
+        match: {
+          ...d.match,
+          liveScoreA: (r.liveScoreA || 0) + p.score.A,
+          liveScoreB: (r.liveScoreB || 0) + p.score.B,
+        },
+      }));
+    } catch (e) {
+      p.score[side] -= points;
+      p.count -= 1;
+      setData((d) => d && ({ ...d, match: { ...d.match, [field]: Math.max(0, (d.match[field] || 0) - points) } }));
+      showError(e.message);
+    } finally {
+      if (gamesWon) setBusy(false);
+      settle();
+    }
   }
   const undoStat = () => {
     const last = statTaps[statTaps.length - 1];
@@ -832,6 +1115,8 @@ function ScoringView({ matchId, onBack }) {
         }
       } else {
         showError(e.message);
+        // e.g. another device took the score keeper job: show the current state.
+        if (e.status === 403 || e.status === 409) { lastJson.current = ""; load(true); }
       }
     } finally { setBusy(false); }
   }
@@ -846,7 +1131,13 @@ function ScoringView({ matchId, onBack }) {
       await load();
       buzz(15);
       setSub(null);
-    } catch (e) { showError(e.message); }
+    } catch (e) {
+      showError(e.message);
+      // Refused (another device changed the lineup first, or this isn't our job): re-read.
+      lastJson.current = "";
+      load(true);
+      if (e.code === "lineup_changed") setSub(null);
+    }
     finally { setSubBusy(false); }
   }
 
@@ -890,7 +1181,7 @@ function ScoringView({ matchId, onBack }) {
   // Live player stats need numeric sheet columns; without them there is only one job.
   const statFields = data.statFields || [];
   const hasJobs = statFields.length > 0;
-  const myJob = hasJobs ? job : "score";
+  const myJob = { score: "score", statsA: "A", statsB: "B" }[data.myJob] || "";
   const isScorer = myJob === "score";
   const statsSide = myJob === "A" || myJob === "B" ? myJob : null;
   const open = !finished && !forfeited;
@@ -1062,19 +1353,24 @@ function ScoringView({ matchId, onBack }) {
         </Alert>
       )}
 
-      {finished && hasStatsForm && (
+      {finished && myJob && (
         <Alert className="mb-4 border-blue-500/30 bg-blue-500/5">
           <ClipboardList className="text-blue-600 dark:text-blue-400" />
           <AlertDescription className="text-foreground">
             <span className="font-medium">Match finished.</span>{" "}
-            {(data.statFields?.length || 0) > 0
-              ? "Fill in the player stats from your scoresheet."
-              : "Pick the role each player played."}
+            {isScorer
+              ? hasStatsForm && !hasJobs
+                ? "Confirm the result and choose the MVP, then fill in the player stats."
+                : "Confirm the result and choose the MVP."
+              : "Check your team's player stats against the scoresheet and save them."}
           </AlertDescription>
         </Alert>
       )}
 
-      {hasJobs && open && <JobPicker m={m} job={job} onChoose={chooseJob} />}
+      {!forfeited && (open || !myJob) && (hasJobs || !isScorer) && (
+        <JobPicker m={m} jobs={data.jobs || {}} myJob={data.myJob} hasJobs={hasJobs}
+          busy={claiming} onChoose={claimJob} onRelease={releaseJob} />
+      )}
 
       {!live && open && isScorer && (
         <Card className="p-4 mb-4 gap-0">
@@ -1169,17 +1465,17 @@ function ScoringView({ matchId, onBack }) {
               onSub={hasLineup ? (o) => setSub({ side: statsSide, ...o }) : null}
             />
           )}
-          {hasJobs && open && !myJob && (
+          {!forfeited && !myJob && (
             <p className="text-sm text-muted-foreground">Pick your job above to begin.</p>
           )}
           {live && isScorer && (finalMode ? (
             <>
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => call("score", { side: "A", points: 1 })} disabled={busy || seriesOver}
+                <button onClick={() => scoreTap("A", 1, true)} disabled={busy || seriesOver}
                   className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
                   {m.teamA?.teamName} won a game
                 </button>
-                <button onClick={() => call("score", { side: "B", points: 1 })} disabled={busy || seriesOver}
+                <button onClick={() => scoreTap("B", 1, true)} disabled={busy || seriesOver}
                   className="py-6 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50">
                   {m.teamB?.teamName} won a game
                 </button>
@@ -1207,7 +1503,7 @@ function ScoringView({ matchId, onBack }) {
                     </div>
                     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${pointValues.length}, minmax(0, 1fr))` }}>
                       {pointValues.map((v) => (
-                        <button key={v} onClick={() => call("score", { side: s, points: v })} disabled={busy}
+                        <button key={v} onClick={() => scoreTap(s, v, false)} disabled={busy}
                           className="h-16 rounded-xl bg-green-600 text-xl font-bold text-white transition active:scale-95 hover:bg-green-700 disabled:opacity-40 disabled:active:scale-100">
                           +{v}
                         </button>
@@ -1225,32 +1521,26 @@ function ScoringView({ matchId, onBack }) {
             </div>
           )}
 
-          {/* The score sheet itself is a modal; this card opens it again any time. */}
-          {finished && hasStatsForm && (() => {
-            const saved = Object.keys(data.statByPlayer || {}).length > 0 || !!m.mvp;
+          {/* The after-match forms are modals; these cards open them again any time. */}
+          {finished && isScorer && (
+            <AfterMatchCard icon={Trophy} title="Result & MVP" saved={(m.formVersion?.result || 0) > 0 || !!m.mvp}
+              text="Check the final score and choose the MVP."
+              action={(m.formVersion?.result || 0) > 0 || m.mvp ? "Change the MVP" : "Confirm the result"}
+              onOpen={() => setFormOpen("result")} />
+          )}
+          {finished && hasStatsForm && (statsSide || (isScorer && !hasJobs)) && (() => {
+            const saved = statsSide ? (m.formVersion?.[statsSide] || 0) > 0
+              : (m.formVersion?.A || 0) > 0 || (m.formVersion?.B || 0) > 0;
             return (
-              <Card className="gap-0 p-4">
-                <div className="mb-1 flex items-center gap-2">
-                  <ClipboardList className="size-4 text-blue-500" />
-                  <h2 className="text-sm font-semibold">Player stats</h2>
-                  <Badge className={cn("ml-auto", saved
-                    ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                    : "bg-amber-500/15 text-amber-600 dark:text-amber-400")}>
-                    {saved ? "Saved" : "Not entered yet"}
-                  </Badge>
-                </div>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  {saved
-                    ? "Open the score sheet to check or change the numbers."
-                    : (data.statFields?.length || 0) > 0
-                    ? "Enter each player's totals from your scoresheet."
-                    : "Pick the role each player played."}
-                </p>
-                <button onClick={() => setStatsOpen(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90">
-                  <ClipboardList className="size-4" /> {saved ? "Edit player stats" : "Fill in player stats"}
-                </button>
-              </Card>
+              <AfterMatchCard icon={ClipboardList}
+                title={statsSide ? `Player stats · ${(statsSide === "A" ? m.teamA : m.teamB)?.teamName}` : "Player stats"}
+                saved={saved}
+                text={saved ? "Open the form to check or change the numbers."
+                  : hasJobs ? "Your live taps are filled in. Check them against the scoresheet and save."
+                  : (data.statFields?.length || 0) > 0 ? "Enter each player's totals from your scoresheet."
+                  : "Pick the role each player played."}
+                action={saved ? "Edit player stats" : "Check and save"}
+                onOpen={() => setFormOpen("stats")} />
             );
           })()}
 
@@ -1275,8 +1565,10 @@ function ScoringView({ matchId, onBack }) {
         <SubDialog sub={sub} onClose={() => setSub(null)} data={data} busy={subBusy} onSubmit={substitute} />
       )}
 
-      {finished && hasStatsForm && (
-        <StatsDialog open={statsOpen} onOpenChange={setStatsOpen} data={data} matchId={matchId} onSaved={load} />
+      {finished && (
+        <StatsDialog open={!!formOpen} onOpenChange={(o) => { if (!o) setFormOpen(null); }}
+          kind={formOpen || "stats"} only={formOpen === "stats" ? statsSide : null}
+          data={data} matchId={matchId} onSaved={load} />
       )}
 
       <Dialog open={ending} onOpenChange={setEnding}>
@@ -1285,7 +1577,8 @@ function ScoringView({ matchId, onBack }) {
             <DialogTitle>End match</DialogTitle>
             <DialogDescription>
               Final score {m.liveScoreA}–{m.liveScoreB}. The winner advances automatically.
-              {hasStatsForm ? " You'll enter the player stats next." : ""}
+              {" Next you confirm the result and choose the MVP."}
+              {hasJobs ? " Each stats keeper then saves their team's player stats." : hasStatsForm ? " Then you fill in the player stats." : ""}
             </DialogDescription>
           </DialogHeader>
 
@@ -1297,8 +1590,7 @@ function ScoringView({ matchId, onBack }) {
                 await call("end", {});
                 setEnding(false);
                 window.scrollTo({ top: 0, behavior: "smooth" });
-                // Straight into the score sheet.
-                if (hasStatsForm) setStatsOpen(true);
+                // The result form opens by itself once the reload shows the match finished.
               }}
               disabled={busy}
               className="flex-1 py-2.5 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50">

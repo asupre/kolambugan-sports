@@ -7,6 +7,22 @@
 // run long.
 const DEFAULT_TIMEOUT_MS = 20000;
 
+// A random id for THIS browser tab (Oct 2026). Up to three devices share one organizer login
+// on a match, and the server gives each job to one device; this id is how it tells them apart.
+// sessionStorage = one id per tab, kept across reloads, gone when the tab is closed.
+export function deviceId() {
+  try {
+    let id = sessionStorage.getItem('device-id');
+    if (!id) {
+      id = (crypto.randomUUID?.() || Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/[^A-Za-z0-9_-]/g, '');
+      sessionStorage.setItem('device-id', id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 export async function api(path, options = {}) {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOptions } = options;
   const token = localStorage.getItem("token");
@@ -22,6 +38,7 @@ export async function api(path, options = {}) {
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(deviceId() ? { "X-Device-Id": deviceId() } : {}),
         ...(fetchOptions.headers || {}),
       },
     });
@@ -46,6 +63,7 @@ export async function api(path, options = {}) {
   }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || "Request failed.");
+  // status + code ride along so a screen can react to a specific refusal (e.g. a stale form).
+  if (!res.ok) throw Object.assign(new Error(data.message || "Request failed."), { status: res.status, code: data.code });
   return data;
 }

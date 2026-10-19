@@ -2620,13 +2620,25 @@ where registration took ~3h for one game, the Super Admin asked for two buttons.
 `routes/demo.js` (`/api/demo`, super_admin) + `pages/admin/DemoDataCard.jsx` (third League Setup
 tab): `POST /teams` = a team (named after the barangay) for every barangay × every sport ×
 division set in League Setup, skipping slots already registered (1 per slot, even for a Top 16
-esport); `POST /rosters` = made-up players (random name combinations from built-in lists, never
+esport), only while the season is `registration_open` (Oct 19 2026, same rule as `POST /api/teams`; rosters can still be filled at setup / verification); `POST /rosters` = (superseded Oct 19 2026, see below) made-up players (random name combinations from built-in lists, never
 real residents; 12 per team, 6 esports, 2 doubles, 1 singles; under15 ages 11-15, others 16-30;
 girls get female names; unique name+birthdate across the run), `eligible`, team `verified` +
 `submittedAt`. Both only before `ongoing`. `DELETE /` removes everything `isDemo` (new Boolean on
 Team and Player: needs a FULL server restart) plus any tournament with a demo team (matches,
 PlayerMatchStats), refused while one of those matches is live. Tested on stubbed models (26
 barangays, 4 sports: 155 teams, 898 players). Not yet run against the real database.
+**Rosters come from the REFERENCE LIST now (Oct 19 2026, Super Admin: the thesis is about the SK
+list, 15-30).** `POST /rosters` takes residents from the current season's uploaded list, aged
+16-30 (15 is a minor, `MINOR_AGE`, never matched) with a middle name + birthdate, from the team's
+own barangay (list barangay name, `norm()`), or any barangay if the team's barangay allows
+cross-barangay. Each resident is used once per run and never one already on a real roster this
+season; status comes from the real `decideFromCandidates()`. **No made-up players at all** (Super
+Admin: they would never pass screening): 409 with no list uploaded. Two passes: (1) every team
+takes its OWN barangay's residents, (2) teams of a cross-barangay barangay fill their gaps with
+residents nobody took. A team below its minimum roster (10 / 6 / 2 / 1) is left empty and its
+residents go back to the pool; Under 15 teams are always left empty (minors aren't on the list).
+The response says how many teams were left empty and why. The list has no gender, so a girls team may get
+male names. Tested on mongodb-memory-server (3 barangays, own / cross-barangay / no residents).
 If a new dev-only script/route gets added later, list it here again and
 repeat this pass before the next deploy.
 

@@ -3741,3 +3741,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
   all three forms are version-checked (a stale save is refused with "Reload").
 - Full write-up for the manuscript (data model, API, risks fixed and remaining):
   CHANGES_FOR_THESIS.md, sections 3, 4, 6, 9.
+
+## 2026-10-31 — Season can step back one stage
+
+- The season lifecycle was forward-only. The Super Admin can now move the CURRENT season back
+  one stage (Season page, "Back to <stage>") to undo an accidental advance. Refused while
+  brackets exist (ongoing → verification) or once a completed season is cleaned up. The thesis
+  describes the lifecycle as one-way; true this up.

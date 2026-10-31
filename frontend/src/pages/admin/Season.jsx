@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarClock, CircleCheck, Eraser, Info, Plus, Settings2, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleCheck, Eraser, Info, Plus, Settings2, Trash2, TriangleAlert, Undo2 } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
@@ -35,6 +35,20 @@ const nextStageOf = (status) => {
   return i >= 0 && i < SEASON_STAGES.length - 1 ? SEASON_STAGES[i + 1] : null;
 };
 
+// The stage before `status`, or null at Setup.
+const prevStageOf = (status) => {
+  const i = SEASON_STAGES.findIndex((s) => s.key === status);
+  return i > 0 ? SEASON_STAGES[i - 1] : null;
+};
+
+// What going back one step means, keyed by the CURRENT stage.
+const BACK_NOTES = {
+  registration_open: ["Barangays can't register teams or edit rosters until registration opens again.", "Teams already registered are kept."],
+  verification: ["Registration opens again: barangays can add teams and edit draft rosters.", "Review Queue verdicts pause. Verdicts already given are kept."],
+  ongoing: ["The Review Queue opens again for verdicts.", "Generating brackets is blocked until the season moves on again."],
+  completed: ["The season is ongoing again, so scoring and brackets carry on.", "The closing date is cleared."],
+};
+
 const READY_ICON = {
   ok: { Icon: CircleCheck, cls: "text-green-600 dark:text-green-400" },
   warn: { Icon: TriangleAlert, cls: "text-amber-600 dark:text-amber-400" },
@@ -61,8 +75,8 @@ function ReadinessRow({ item, onGo }) {
 }
 
 // The deliberate last step: what changes, anything unfinished, and an explicit
-// "move on anyway" when there are warnings. Advancing is irreversible and the
-// backend doesn't stop a premature one, so this is where it's made a real decision.
+// "move on anyway" when there are warnings. The backend doesn't stop a premature
+// advance (only BackDialog undoes one), so this is where it's made a real decision.
 function AdvanceDialog({ open, onClose, status, warnings, onConfirm, busy, error }) {
   const next = nextStageOf(status);
   if (!next) return null;
@@ -72,7 +86,8 @@ function AdvanceDialog({ open, onClose, status, warnings, onConfirm, busy, error
         <DialogHeader>
           <DialogTitle>{NEXT_LABEL[status]}?</DialogTitle>
           <DialogDescription>
-            The season moves to <span className="font-medium text-foreground">{next.label}</span>. This can't be undone.
+            The season moves to <span className="font-medium text-foreground">{next.label}</span>. If it was a mistake,
+            you can go back one stage from this page.
           </DialogDescription>
         </DialogHeader>
 
@@ -101,6 +116,40 @@ function AdvanceDialog({ open, onClose, status, warnings, onConfirm, busy, error
           <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button onClick={onConfirm} disabled={busy}>
             {busy ? "Working…" : warnings.length > 0 ? "Move on anyway" : NEXT_LABEL[status]}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Undo an accidental advance: one stage back. The server refuses where that would
+// leave data the earlier stage never allows (e.g. brackets during verification).
+function BackDialog({ open, onClose, status, onConfirm, busy, error }) {
+  const prev = prevStageOf(status);
+  if (!prev) return null;
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Go back to {prev.label}?</DialogTitle>
+          <DialogDescription>
+            Use this if the season was moved on by mistake. It goes back one stage.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">What changes</p>
+            <ul className="list-disc space-y-1.5 pl-5 text-sm">
+              {(BACK_NOTES[status] || []).map((c) => <li key={c}>{c}</li>)}
+            </ul>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={onConfirm} disabled={busy}>
+            {busy ? "Working…" : <><Undo2 /> Go back to {prev.label}</>}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -364,6 +413,7 @@ export default function Season() {
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [backOpen, setBackOpen] = useState(false);
   const [cleanupSeason, setCleanupSeason] = useState(null);
   const [deleteSeason, setDeleteSeason] = useState(null);
 
@@ -418,7 +468,30 @@ export default function Season() {
     }
   }
 
+  async function goBack() {
+    if (!season) return;
+    const prev = prevStageOf(season.status);
+    if (!prev) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/seasons/${season._id}/back`, { method: "POST", body: JSON.stringify({ expectedPrevious: prev.key }) });
+      setBackOpen(false);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const next = season ? nextStageOf(season.status) : null;
+  const prev = season && !season.cleanedAt ? prevStageOf(season.status) : null;
+  const backButton = prev && (
+    <Button variant="outline" onClick={() => { setError(""); setBackOpen(true); }}>
+      <Undo2 /> Back to {prev.label}
+    </Button>
+  );
   const readiness = season ? buildReadiness(season.status, stats) : [];
   const warnings = readiness.filter((r) => r.state === "warn");
 
@@ -477,7 +550,7 @@ export default function Season() {
               <CardHeader>
                 <CardTitle>Ready to move on?</CardTitle>
                 <CardDescription>
-                  <InfoHint summary="Moving on can't be undone. This checklist is the safety net." label="Why">
+                  <InfoHint summary="Check this list before moving on. A mistaken move can be undone one stage at a time." label="Why">
                     <p>Registration and the Review Queue verdicts are tied to the season stage (brackets and scoring
                     aren't), so nothing else will stop a premature move.</p>
                   </InfoHint>
@@ -495,6 +568,7 @@ export default function Season() {
                   <Button onClick={() => { setError(""); setAdvanceOpen(true); }}>
                     {NEXT_LABEL[season.status]} <ArrowRight />
                   </Button>
+                  {backButton}
                   {warnings.length > 0 ? (
                     <span className="text-sm text-amber-700 dark:text-amber-400">
                       {warnings.length} thing{warnings.length === 1 ? " isn't" : "s aren't"} finished yet.
@@ -514,10 +588,11 @@ export default function Season() {
                   {season.closedAt ? ` (closed ${fmtDate(season.closedAt)})` : ""}. Start a new one to begin the next cycle.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-wrap gap-3">
                 <Button onClick={() => { setError(""); setCreateOpen(true); }}>
                   <Plus /> Create New Season
                 </Button>
+                {backButton}
               </CardContent>
             </Card>
           )}
@@ -581,6 +656,14 @@ export default function Season() {
         status={season?.status}
         warnings={warnings}
         onConfirm={advance}
+        busy={busy}
+        error={error}
+      />
+      <BackDialog
+        open={backOpen}
+        onClose={() => setBackOpen(false)}
+        status={season?.status}
+        onConfirm={goBack}
         busy={busy}
         error={error}
       />

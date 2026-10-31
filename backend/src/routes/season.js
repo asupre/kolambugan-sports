@@ -16,7 +16,8 @@ const { getCurrentSeason } = require('../middleware/season');
 
 const router = express.Router();
 
-// The only legal forward transitions — one step at a time, never backward.
+// The only legal forward transitions, one step at a time. (Going back one step is
+// POST /:id/back, below.)
 const NEXT_STATE = {
   setup: 'registration_open',
   registration_open: 'verification',
@@ -126,6 +127,69 @@ router.post('/:id/advance', authenticate, authorize('super_admin'), async (req, 
     res.json({ season });
   } catch (err) {
     console.error('Advance season error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// The reverse of NEXT_STATE, for undoing an accidental advance.
+const PREV_STATE = {
+  registration_open: 'setup',
+  verification: 'registration_open',
+  ongoing: 'verification',
+  completed: 'ongoing',
+};
+
+// POST /api/seasons/:id/back  — super admin moves the CURRENT season one step back
+// (an accidental "move on"). Refused where going back would leave data that the
+// earlier stage never allows: brackets during verification, or a season that was
+// already cleaned up / replaced by a newer one.
+router.post('/:id/back', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const season = await Season.findById(req.params.id);
+    if (!season) {
+      return res.status(404).json({ message: 'Season not found.' });
+    }
+
+    const current = await getCurrentSeason();
+    if (!current || String(current._id) !== String(season._id)) {
+      return res.status(409).json({ message: 'Only the current season can go back a stage.' });
+    }
+
+    const prev = PREV_STATE[season.status];
+    if (!prev) {
+      return res.status(400).json({ message: 'This season is at the first stage and cannot go back.' });
+    }
+
+    // Same stale-screen guard as advancing.
+    const { expectedPrevious } = req.body;
+    if (expectedPrevious && expectedPrevious !== prev) {
+      return res.status(409).json({
+        message: `Season is "${season.status}"; the previous state is "${prev}", not "${expectedPrevious}". Refresh and try again.`,
+      });
+    }
+
+    if (season.status === 'completed' && season.cleanedAt) {
+      return res.status(409).json({ message: 'This season was cleaned up, so it cannot be reopened.' });
+    }
+
+    // Brackets are only drawn while ongoing; verification could still change the
+    // verified teams they were drawn from.
+    if (season.status === 'ongoing') {
+      const brackets = await Tournament.countDocuments({ season: season._id });
+      if (brackets > 0) {
+        return res.status(409).json({
+          message: `${brackets} bracket${brackets === 1 ? ' has' : 's have'} already been generated. Delete ${brackets === 1 ? 'it' : 'them'} on the Tournaments page first, then go back.`,
+        });
+      }
+    }
+
+    season.status = prev;
+    if (prev === 'ongoing') season.closedAt = undefined;
+    await season.save();
+
+    res.json({ season });
+  } catch (err) {
+    console.error('Season back error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

@@ -2294,6 +2294,13 @@ respondents); deployment Sep–Oct; FINAL DEFENSE OCTOBER 2026.)
 - **Season lifecycle**: ONE season covers all 7 sports.
   setup → registration_open → verification → ongoing → completed.
   Only Super Admin advances state; gates enforced in BACKEND middleware.
+  **One step BACK is allowed (Oct 31 2026, for an accidental "move on")**: `POST
+  /api/seasons/:id/back` (`PREV_STATE`, body `expectedPrevious`), a "Back to <stage>" button
+  + `BackDialog` on the Season page. Current season only. Refused: ongoing → verification
+  while any bracket of the season exists (delete them on Tournaments first, since verification
+  could change the verified teams they were drawn from); completed → ongoing once the season is
+  cleaned up. Going back from completed clears `closedAt`. Data is never touched (teams,
+  verdicts, results stay). Not yet tested against a running server.
 - **Physical-sport structure took several passes to pin down.** The spec once
   said "no group stage, one straight double-elim bracket" while the meeting
   notes said "split into groups, win 3 → Big 8." The meeting notes were right.

@@ -1210,7 +1210,7 @@ so a bug in one route cannot expose the other.
   `Home.jsx` (Live now, Today, Coming up, Recent results) — change it there, not per page.
   Layout: `[crest][angled name banner]  time|score  [banner][crest]`; the banner is a BLUE gradient
   (`#1D4ED8`→`#3B82F6`, slanted toward the centre via `clip-path`) with a light strip under the
-  name; the RIGHT strip carries the round, the left strip is a plain bar. **Sport · division sits
+  name; BOTH strips carry the stage (group + round; until Oct 31 2026 only the right one did, the left was a plain bar). **Sport · division sits
   in the CENTRE, above the time / score** (Oct 1 2026, "make it a little bigger to be visible"):
   bold uppercase 13px (11px, two lines on phones), lifted clear of the score (`-mt-2 mb-4`, phones
   `-mt-1 mb-3`); rows are `gap-7 sm:gap-9` apart so a label never reads as the row above's. The Matches competition headings no longer

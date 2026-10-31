@@ -8,8 +8,8 @@ import { Crest, LiveDot, matchDateLabel, matchTime, DIVISION_LABEL } from "./Pub
 //           [ light strip: info ]    Oct 2      [ light strip: info ]
 //
 // Banners are a blue gradient (steel-navy + yellow theme) slanted on the edge
-// that faces the centre. The strip under the left name says the competition,
-// the right one the round. Finished: winner green / loser red, loser greyed.
+// that faces the centre. Both strips say the stage (group + round), Oct 31 2026;
+// it used to be on the right only. Finished: winner green / loser red, loser greyed.
 
 // Quarters in basketball, sets in the rally sports.
 const PERIOD_PREFIX = { Basketball: "Q", Volleyball: "S", Badminton: "S", Pickleball: "S" };
@@ -93,8 +93,8 @@ function VsMatchRowImpl({ m, showDate = true }) {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-5">
-      {/* The competition label moved from the left banner's strip to the centre (Oct 2026). */}
-      <Side team={m.teamA} side="left" tone={tone(aWon, bWon)} info={null} />
+      {/* The competition label is in the centre; both strips carry the stage. */}
+      <Side team={m.teamA} side="left" tone={tone(aWon, bWon)} info={stageOf(m)} />
 
       <div className="flex flex-col items-center text-center min-w-[56px] sm:min-w-[110px]">
         {/* Sport · division, centred over the time / score. Two short lines on a phone. */}

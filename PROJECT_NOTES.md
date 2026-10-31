@@ -2654,7 +2654,13 @@ takes its OWN barangay's residents, (2) teams of a cross-barangay barangay fill 
 residents nobody took. A team below its minimum roster (10 / 6 / 2 / 1) is left empty and its
 residents go back to the pool; Under 15 teams are always left empty (minors aren't on the list).
 The response says how many teams were left empty and why. The list has no gender, so a girls team may get
-male names. Tested on mongodb-memory-server (3 barangays, own / cross-barangay / no residents).
+male names. **Under 15 teams DO get filled now (Oct 31 2026, Super Admin: "so the defense will be fast")**
+from the list's residents aged 15 and under (`MINOR_AGE`), same own-barangay / cross-barangay passes
+and minimum roster, middle name not required (a minor is never matched). They are saved
+`eligible` (as if their documents had been approved; real screening would say
+`needs_document`) and the team verified; `rescreenSeason` already skips eligible minors, so a
+re-screen won't undo it. This supersedes "Under 15 teams are always left empty" above. Tested on
+mongodb-memory-server (own barangay filled, short pools left empty with the reason). Tested on mongodb-memory-server (3 barangays, own / cross-barangay / no residents).
 If a new dev-only script/route gets added later, list it here again and
 repeat this pass before the next deploy.
 

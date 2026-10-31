@@ -11,7 +11,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 // League Setup → Demo data (Oct 2026). Registering every barangay by hand took hours in the
 // mock defense, so two buttons fill the league instead: (1) a team for every barangay in
 // every game and division set up here, (2) players on those teams, taken from the uploaded
-// reference list (ages 16-30) where it can, verified at once.
+// reference list (16-30, or 15 and under for Under 15) where it can, verified at once.
 // Everything generated is tagged as demo, so "Remove demo data" never touches real teams.
 export default function DemoDataCard() {
   const confirm = useConfirm();
@@ -48,9 +48,9 @@ export default function DemoDataCard() {
       <CardContent className="space-y-4">
         <Alert>
           <AlertDescription>
-            Players are taken from this season's reference list (the SK list, so ages 16 to 30 only), from the
+            Players are taken from this season's reference list (ages 16 to 30; Under 15 teams get its residents aged 15 and under, marked approved), from the
             team's own barangay first. A barangay that allows cross-barangay players then takes residents nobody
-            else used. No made-up players: a team the list can't fill, and every Under 15 team, is left empty.
+            else used. No made-up players: a team the list can't fill is left empty.
             Everything created here is marked as demo,
             so <span className="font-medium">Remove demo data</span> deletes only it, never a real registration.
             {!status.canGenerate && " Generating is only possible before the season is Ongoing."}
@@ -81,7 +81,7 @@ export default function DemoDataCard() {
             <p className="font-medium text-sm">2. Fill the rosters</p>
             <p className="text-xs text-muted-foreground">
               Players for every demo team with no players yet (12 per team, 6 for esports, 2 for doubles, 1 for
-              singles): residents from the reference list aged 16 to 30. The teams are verified. Upload the
+              singles): residents from the reference list aged 16 to 30 (15 and under for Under 15). The teams are verified. Upload the
               reference list first.
             </p>
             <Button className="w-full" disabled={off || status.emptyDemoTeams === 0}

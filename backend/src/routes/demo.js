@@ -5,8 +5,10 @@
 //   POST   /api/demo/rosters  — fills every empty demo team with residents taken from this
 //                               season's uploaded REFERENCE LIST (the SK list, so only ages
 //                               16-30), screened like a real roster, and verifies the team, so
-//                               brackets can be generated at once. No made-up players: a team
-//                               the list can't fill (and every Under 15 team) is left empty.
+//                               brackets can be generated at once. Under 15 teams take the
+//                               list's residents aged 15 and under, marked approved (as if their
+//                               documents were reviewed). No made-up players: a team the list
+//                               can't fill is left empty.
 //   DELETE /api/demo          — removes every demo team / player and any tournament that
 //                               contains a demo team (with its matches and player stats).
 // Everything generated carries isDemo: true, so real registrations are never touched.
@@ -133,7 +135,7 @@ router.post('/teams', async (req, res) => {
 //   2. teams whose barangay allows cross-barangay players fill their gaps with residents
 //      nobody took in pass 1 (from any barangay).
 // A team that still can't reach the minimum roster is left empty and its residents go back
-// to the pool. Under 15 teams are left empty too: minors are never matched to the list.
+// to the pool. Under 15 teams draw from the list's 15-and-under residents the same way.
 router.post('/rosters', async (req, res) => {
   try {
     const season = await generationSeason(res);
@@ -162,45 +164,49 @@ router.post('/rosters', async (req, res) => {
     (await Player.find({ _id: { $in: rosteredIds } }).select('firstName lastName birthdate'))
       .forEach((p) => used.add(keyOf(p)));
 
-    // Residents 16-30 with the middle name + birthdate a match needs, grouped by their
-    // barangay on the list, shuffled so each run picks different people.
-    const pools = new Map();
+    // Residents grouped by their barangay on the list, shuffled so each run picks different
+    // people. Two pools: adults 16-30 with the middle name + birthdate a match needs, and
+    // minors (15 and under, MINOR_AGE) for the Under 15 teams. A minor is never matched to the
+    // list, so the middle name isn't needed for them.
+    const adultPools = new Map();
+    const minorPools = new Map();
     for (const r of shuffle(refs)) {
       const age = ageFrom(r.birthdate);
-      if (age === null || age < LIST_MIN_AGE || age > LIST_MAX_AGE || !norm(r.middleName)) continue;
+      if (age === null || age > LIST_MAX_AGE) continue;
+      const minor = age <= MINOR_AGE;
+      if (!minor && !norm(r.middleName)) continue;
       const k = keyOf(r);
       if (used.has(k)) continue;
       used.add(k);   // also drops duplicate rows of the same person
+      const pools = minor ? minorPools : adultPools;
       const b = norm(r.barangay);
       if (!pools.has(b)) pools.set(b, []);
       pools.get(b).push(r);
     }
-    const giveBack = (rows) => rows.forEach((r) => pools.get(norm(r.barangay)).push(r));
 
-    const slots = empty
-      .filter((t) => t.division !== 'under15')
-      .map((team) => {
-        const kind = team.format === 'singles' ? 'singles'
-          : team.format === 'doubles' ? 'doubles'
-          : team.sport?.category === 'esports' ? 'esports' : 'team';
-        return { team, size: ROSTER_SIZE[kind], min: ROSTER_MIN[kind], rows: [] };
-      });
+    const slots = empty.map((team) => {
+      const kind = team.format === 'singles' ? 'singles'
+        : team.format === 'doubles' ? 'doubles'
+        : team.sport?.category === 'esports' ? 'esports' : 'team';
+      const minor = team.division === 'under15';
+      return { team, minor, pools: minor ? minorPools : adultPools, size: ROSTER_SIZE[kind], min: ROSTER_MIN[kind], rows: [] };
+    });
     // Release a team that can't reach its minimum, so another team can use its residents.
     const settle = (slot) => {
       if (slot.rows.length >= slot.min) return;
-      giveBack(slot.rows);
+      slot.rows.forEach((r) => slot.pools.get(norm(r.barangay)).push(r));
       slot.rows = [];
     };
 
     // Pass 1: own barangay.
     for (const slot of slots) {
-      const pool = pools.get(norm(slot.team.barangay?.name)) || [];
+      const pool = slot.pools.get(norm(slot.team.barangay?.name)) || [];
       while (slot.rows.length < slot.size && pool.length) slot.rows.push(pool.pop());
       if (!slot.team.barangay?.allowsCrossBarangay) settle(slot);
     }
     // Pass 2: cross-barangay teams take whoever is left, from any barangay.
     for (const slot of slots.filter((s) => s.team.barangay?.allowsCrossBarangay)) {
-      for (const pool of pools.values()) {
+      for (const pool of slot.pools.values()) {
         while (slot.rows.length < slot.size && pool.length) slot.rows.push(pool.pop());
         if (slot.rows.length >= slot.size) break;
       }
@@ -214,10 +220,12 @@ router.post('/rosters', async (req, res) => {
     for (const slot of done) {
       slot.rows.forEach((r, i) => {
         const p = {
-          firstName: r.firstName, middleName: r.middleName, lastName: r.lastName,
+          firstName: r.firstName, middleName: r.middleName || '', lastName: r.lastName,
           birthdate: r.birthdate, age: ageFrom(r.birthdate),
         };
-        const screening = decideFromCandidates(p, slot.team.barangay, [r]);
+        // A minor can't be confirmed by the list (needs_document in real screening); for the
+        // demo they count as approved, as if the Super Admin had reviewed their documents.
+        const screening = slot.minor ? { status: 'eligible', reason: '' } : decideFromCandidates(p, slot.team.barangay, [r]);
         if (norm(r.barangay) !== norm(slot.team.barangay?.name)) crossCount++;
         plan.push([slot.team, players.length]);
         players.push({
@@ -240,20 +248,22 @@ router.post('/rosters', async (req, res) => {
       );
     }
 
-    const under15 = empty.length - slots.length;
-    const short = slots.length - done.length;
+    const shortAdult = slots.filter((s) => !s.minor && !s.rows.length).length;
+    const shortMinor = slots.filter((s) => s.minor && !s.rows.length).length;
+    const minorsAdded = done.filter((s) => s.minor).reduce((n, s) => n + s.rows.length, 0);
     const left = [
-      short && `${short} team${short === 1 ? '' : 's'} left empty (not enough residents aged ${LIST_MIN_AGE}-${LIST_MAX_AGE} on the list for that barangay)`,
-      under15 && `${under15} Under 15 team${under15 === 1 ? '' : 's'} left empty (minors aren't on the list; register them by hand with documents)`,
+      shortAdult && `${shortAdult} team${shortAdult === 1 ? '' : 's'} left empty (not enough residents aged ${LIST_MIN_AGE}-${LIST_MAX_AGE} on the list for that barangay)`,
+      shortMinor && `${shortMinor} Under 15 team${shortMinor === 1 ? '' : 's'} left empty (not enough residents aged ${MINOR_AGE} and under on the list for that barangay)`,
     ].filter(Boolean);
     res.json({
-      message: `Filled ${done.length} team${done.length === 1 ? '' : 's'} with ${inserted.length} residents from the reference list (ages ${LIST_MIN_AGE}-${LIST_MAX_AGE}), all verified`
+      message: `Filled ${done.length} team${done.length === 1 ? '' : 's'} with ${inserted.length} residents from the reference list, all verified`
+        + (minorsAdded ? ` (${minorsAdded} of them aged ${MINOR_AGE} and under, on Under 15 teams, marked approved)` : '')
         + (crossCount ? `, ${crossCount} of them playing for a cross-barangay team` : '')
         + '.' + (left.length ? ` ${left.join('; ')}.` : '')
         + (done.length ? ' You can generate the brackets once the season is Ongoing.' : ''),
       teams: done.length,
       players: inserted.length,
-      emptyLeft: short + under15,
+      emptyLeft: shortAdult + shortMinor,
     });
   } catch (err) {
     console.error('Demo rosters error:', err);

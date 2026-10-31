@@ -458,22 +458,25 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked, dirtyRef }) {
               </p>
             </div>
 
-            {/* Draw format (Oct 2026): there was no way to change it for an existing game, so a
-                sport switched to round-robin stayed that way. Esports are always round-robin. */}
+            {/* Draw format is fixed by type (Oct 31 2026): esports round-robin, sports and board
+                games double elimination. A non-esport saved as round-robin before that rule gets a
+                button to switch it back. */}
             {sport.category !== "esports" && (
               <div>
                 <Label className="mb-2">Draw format</Label>
-                <Select value={sport.tournamentFormat || "double_elimination"} onValueChange={(v) => patchSport({ tournamentFormat: v })} disabled={busy}>
-                  <SelectTrigger className="w-full sm:w-80"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="double_elimination">4 groups, double elimination, then Top 8</SelectItem>
-                    <SelectItem value="round_robin">Round-robin groups, then Top 8</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="mt-2 text-[14px] text-muted-foreground">
-                  Sports normally use double elimination. Either way it is one team per barangay per division;
-                  only esports choose Top 8 / Top 16. Can't change once this season's bracket is drawn. Applies right away.
+                <p className="text-[15px]">4 groups, double elimination, then Top 8</p>
+                <p className="mt-1 text-[14px] text-muted-foreground">
+                  Fixed for sports and board games (esports always use round-robin groups).
                 </p>
+                {sport.tournamentFormat === "round_robin" && (
+                  <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[14px]">
+                    <p>This game is still saved as round-robin from before this rule.</p>
+                    <Button size="sm" className="mt-2" disabled={busy}
+                      onClick={() => patchSport({ tournamentFormat: "double_elimination" })}>
+                      Switch to double elimination
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -564,7 +567,7 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked, dirtyRef }) {
             {reviewRow("Entry format", `${formatInfo?.label || format} · ${formatInfo?.hint || ""}`, 0, "format")}
             {isRoundRobin && reviewRow("Knockout", `Top ${koSize} · ${koSize === 8 ? "1 team" : "up to 2 teams"} per barangay`, 0, "knockout")}
             {reviewRow("Type", typeText, 1, "type")}
-            {sport.category !== "esports" && reviewRow("Draw format", sport.tournamentFormat === "round_robin" ? "Round-robin groups, then Top 8" : "4 groups, double elimination, then Top 8", 1, "format_draw")}
+            {reviewRow("Draw format", sport.category === "esports" || sport.tournamentFormat === "round_robin" ?"Round-robin groups, then a knockout" : "4 groups, double elimination, then Top 8", 1, "format_draw")}
             {reviewRow("Scoring", scoringText, 1, "scoring")}
             {reviewRow("Score sheet", sheetText, 2, "sheet")}
           </div>
@@ -660,7 +663,6 @@ function PurgeSportDialog({ sport, history, onClose, onDone }) {
 function AddSport({ onAdded, onCancel, onError }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("physical");
-  const [tournamentFormat, setTournamentFormat] = useState("double_elimination");
   // Scoring rules for a new sport that scores by points. Sensible starting values so it works at once.
   const [rules, setRules] = useState({ pointValues: "1", periodLabel: "", periodOptions: "1, 3, 5", seriesOptions: "1, 3, 5" });
   const [busy, setBusy] = useState(false);
@@ -671,7 +673,7 @@ function AddSport({ onAdded, onCancel, onError }) {
       const d = await api("/api/sports", {
         method: "POST",
         body: JSON.stringify({
-          name: name.trim(), category, tournamentFormat,
+          name: name.trim(), category,
           // Only a sport scores by points; an esport or board game records games won.
           ...(category === "physical" ? {
             pointValues: parseNums(rules.pointValues),
@@ -712,15 +714,16 @@ function AddSport({ onAdded, onCancel, onError }) {
           </div>
           <div className="space-y-1.5">
             <Label>Draw format</Label>
-            {/* Esports are always round-robin + a Top 8 / Top 16 knockout. */}
-            <Select value={category === "esports" ? "round_robin" : tournamentFormat}
-              onValueChange={setTournamentFormat} disabled={category === "esports"}>
+            {/* Fixed by type (Oct 31 2026): esports = round-robin + a Top 8 / Top 16 knockout,
+                sports and board games = double elimination. */}
+            <Select value={category === "esports" ? "round_robin" : "double_elimination"} disabled>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="double_elimination">Double-elimination groups</SelectItem>
                 <SelectItem value="round_robin">Round-robin groups</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-[13px] text-muted-foreground">Set by the type.</p>
           </div>
         </div>
 

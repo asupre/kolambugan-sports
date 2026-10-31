@@ -354,9 +354,9 @@ router.post('/sports', authenticate, authorize('super_admin'), async (req, res) 
       return res.status(409).json({ message: `"${name}" already exists.` });
     }
     const category = ['esports', 'board'].includes(req.body.category) ? req.body.category : 'physical';
-    // Every esport is round-robin (the Sport model enforces it too).
-    const tournamentFormat = category === 'esports' || req.body.tournamentFormat === 'round_robin'
-      ? 'round_robin' : 'double_elimination';
+    // The draw is fixed by type: esports round-robin, sports and board games double
+    // elimination (the Sport model enforces it too). Any tournamentFormat sent is ignored.
+    const tournamentFormat = category === 'esports' ? 'round_robin' : 'double_elimination';
 
     const scoring = scoringFromBody(req.body);
     if (scoring.error) return res.status(400).json({ message: scoring.error });
@@ -389,9 +389,10 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
       if (!['physical', 'esports', 'board'].includes(req.body.category)) {
         return res.status(400).json({ message: 'Type must be sports, esports or a board game.' });
       }
-      // Switching to esports also switches the draw to round-robin (Sport model hook).
-      // That can't happen under a bracket this season has already generated.
-      const willBeRoundRobin = req.body.category === 'esports' || sport.tournamentFormat === 'round_robin';
+      // The draw follows the type (Sport model hook): esports round-robin, anything else double
+      // elimination. That can't change under a bracket this season has already generated.
+      const willBeRoundRobin = req.body.category === sport.category
+        ? isRoundRobinSport(sport) : req.body.category === 'esports';
       if (willBeRoundRobin !== isRoundRobinSport(sport)) {
         const season = await getCurrentSeason();
         if (season && await Tournament.exists({ sport: sport._id, season: season._id })) {
@@ -438,6 +439,11 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
       }
       if (sport.category === 'esports' && req.body.tournamentFormat !== 'round_robin') {
         return res.status(400).json({ message: 'Esports always use round-robin groups and a Top 8 / Top 16 knockout.' });
+      }
+      // Sports and board games are always double elimination (Oct 31 2026). Switching a game
+      // saved as round-robin before that rule BACK to double elimination is still allowed.
+      if (sport.category !== 'esports' && req.body.tournamentFormat !== 'double_elimination') {
+        return res.status(400).json({ message: 'Sports and board games always use 4 groups, double elimination, then a Top 8.' });
       }
       if (req.body.tournamentFormat !== sport.tournamentFormat) {
         const season = await getCurrentSeason();

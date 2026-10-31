@@ -493,6 +493,14 @@ TWO formats, both ending in a single-elimination knockout.
   `teamsAllowedFor()` in `lib/sportRules.js` — unset = Top 16, the old default).
   Applies to any `round_robin` sport; every double-elim sport is 1 team per
   division. Why: Barangay Admins need to know how many teams to register.
+  - **THE DRAW FORMAT IS FIXED BY TYPE (Oct 31 2026, Super Admin; supersedes the step-2 Draw format
+    select in the next bullet).** Esports = round-robin, sports and board games = double
+    elimination. The Sport model's `pre('validate')` hook sets it when a game is created or its type
+    changes; `POST /api/sports` ignores any `tournamentFormat` sent; `PATCH /api/sports/:id` refuses
+    round-robin for a non-esport (400). "Add a game" shows the draw read-only ("Set by the type"),
+    and the editor's step 2 shows it as text. A non-esport saved as round-robin BEFORE this rule is
+    left alone (so a drawn bracket never changes under it) and the editor shows an amber "Switch to
+    double elimination" button for it (still 409 once this season has a bracket).
   - **ONLY ESPORTS choose Top 8 / Top 16 (Oct 3 2026, Super Admin rule, supersedes "any round_robin
     sport" below).** `hasKnockoutChoice` / `knockoutChoiceOf` in `lib/sportRules.js`: a non-esport set
     to a round-robin draw is always a Top 8 (`knockoutSizeOf` returns 8, so /generate works) and

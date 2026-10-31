@@ -1033,7 +1033,13 @@ so a bug in one route cannot expose the other.
   super admin); per-account "Reset password" (barangay_admin/organizer always;
   super_admin only until they've changed their own password — see below);
   guarded delete.
-- **A Super Admin's password can be reset by a peer only up until they change
+- **Super Admin accounts: delete your OWN only, reset each other's ANY time (Oct 31 2026, Super
+  Admin rule; supersedes the next bullet).** `DELETE /api/accounts/:id` 409s when the target is
+  another Super Admin; a Super Admin may delete their own account (still never the last Super
+  Admin), and `Accounts.jsx` then clears the session and goes to /login. Barangay admin /
+  organizer deletes are unchanged. `POST /api/accounts/:id/reset-password` no longer has the
+  "only until they've set their own password" lock. The Super Admin guide step was reworded.
+- (Superseded, see above.) **A Super Admin's password can be reset by a peer only up until they change
   it themselves; after that, never — and no account can delete itself (Sep
   2026, revised Sep 2026).** `POST /api/accounts/:id/reset-password` 409s
   when the target is `role: 'super_admin'` AND `mustChangePassword` is

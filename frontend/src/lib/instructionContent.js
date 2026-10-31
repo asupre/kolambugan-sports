@@ -99,7 +99,7 @@ const RAW_STEPS = {
     {
       title: "Your profile & recovery code",
       description:
-        "Tap your name above Sign out (bottom of the sidebar) to change your password, add a profile photo or a Dashboard banner picture. Generate a recovery code and keep it somewhere safe: it's the only way back in if you forget your password, since no one can reset a Super Admin's password for you.",
+        "Tap your name above Sign out (bottom of the sidebar) to change your password, add a profile photo or a Dashboard banner picture. Generate a recovery code and keep it somewhere safe: it gets you back in if you forget your password; the other Super Admin can also reset it for you from Accounts.",
       icon: UserCircle,
       shots: [
         ["profile.png", "Your name above Sign out opens your profile"],

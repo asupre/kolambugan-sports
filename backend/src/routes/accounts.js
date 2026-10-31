@@ -107,24 +107,12 @@ router.post('/', async (req, res) => {
 });
 
 // POST /api/accounts/:id/reset-password — new temp password, forces change on next login.
-// A super_admin account is resettable by a peer ONLY while it's still on its
-// original/temp password (mustChangePassword: true, Sep 2026) — e.g. right
-// after a peer provisions it and needs to hand off the credential, or a temp
-// password got lost before the new Super Admin ever logged in. The moment
-// that Super Admin changes their own password (mustChangePassword flips to
-// false), the password becomes theirs alone to manage — a peer resetting it
-// after that would silently override a password only the owner chose, and
-// self-service recovery exists for exactly that case (see
-// POST /api/auth/recovery-code / /api/auth/forgot-password).
+// Super Admins can reset each other's passwords at any time (Oct 31 2026, Super Admin rule;
+// replaces "only until they've set their own").
 router.post('/:id/reset-password', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    if (user.role === 'super_admin' && !user.mustChangePassword) {
-      return res.status(409).json({
-        message: 'This Super Admin has already set their own password, so it can\'t be reset by another account. They can change it themselves from their profile, or use their own recovery code from the login page if they\'re locked out.',
-      });
-    }
     const tempPassword = generateTempPassword();
     user.passwordHash = await hashPassword(tempPassword);
     user.mustChangePassword = true;
@@ -189,18 +177,18 @@ router.post('/provision-all', async (req, res) => {
 });
 const Match = require('../models/Match');
 
-// DELETE /api/accounts/:id — remove an account. Blocked if it has scored any
-// match (would orphan the enteredBy audit trail), if it's the last super admin,
-// or if it's YOUR OWN account (Sep 2026 — e.g. sk_federation can delete
-// lydo_head, but never itself; deleting yourself mid-session is how an admin
-// accidentally locks themselves out with no one else signed in to undo it).
+// DELETE /api/accounts/:id — remove an account. Blocked if it entered results in the running
+// season, if it's the last super admin, or if it's ANOTHER super admin's account (Oct 31 2026:
+// a Super Admin deletes only their own; reverses the Sep 2026 "never yourself" rule).
 router.delete('/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'Account not found.' });
 
-    if (String(user._id) === String(req.user.id)) {
-      return res.status(409).json({ message: "You can't delete your own account while signed in as it." });
+    // Super Admin accounts (Oct 31 2026, Super Admin rule): a Super Admin may delete ONLY their
+    // own Super Admin account, never a peer's. Barangay admin / organizer accounts are unchanged.
+    if (user.role === 'super_admin' && String(user._id) !== String(req.user.id)) {
+      return res.status(409).json({ message: "A Super Admin account can only be deleted by its owner. You can reset its password instead." });
     }
 
     // Don't let the system be left with zero super admins.

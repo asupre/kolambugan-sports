@@ -187,30 +187,16 @@ function AccountRow({ a, resetting, onReset, onDelete, currentUserId }) {
           </Badge>
         </div>
         <div className="flex items-center gap-1.5 sm:justify-end">
-          {/* A Super Admin can be reset by a peer only until they change their own
-              password for the first time (mustChangePassword flips to false) —
-              after that it's theirs alone to manage (profile panel / recovery
-              code). See routes/accounts.js. */}
-          {(() => {
-            const locked = a.role === "super_admin" && !a.mustChangePassword;
-            return (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onReset(a)}
-                disabled={resetting || locked}
-                title={locked ? "This Super Admin already set their own password. Only they can change it now." : undefined}
-              >
-                <KeyRound /> {resetting ? "…" : "Reset password"}
-              </Button>
-            );
-          })()}
+          <Button size="sm" variant="outline" onClick={() => onReset(a)} disabled={resetting}>
+            <KeyRound /> {resetting ? "…" : "Reset password"}
+          </Button>
+          {/* A Super Admin account can be deleted only by its owner (see routes/accounts.js). */}
           <Button
             size="icon-sm"
             variant="destructive"
             aria-label={`Delete ${a.username}`}
-            title={isSelf ? "You can't delete your own account" : "Delete account"}
-            disabled={isSelf}
+            title={a.role === "super_admin" && !isSelf ? "Only its owner can delete a Super Admin account" : isSelf ? "Delete your own account" : "Delete account"}
+            disabled={a.role === "super_admin" && !isSelf}
             onClick={() => onDelete(a)}
           >
             <Trash2 />
@@ -285,9 +271,19 @@ export default function Accounts() {
   }
 
   async function deleteAccount(acc) {
-    if (!(await confirm(`Delete ${acc.username}? This can't be undone. Any results it entered in past seasons keep its name.`, { danger: true, confirmLabel: "Delete" }))) return;
+    const self = String(acc._id) === String(currentUser?.id);
+    const msg = self
+      ? `Delete your own account (${acc.username})? You'll be signed out and can't sign in with it again. This can't be undone.`
+      : `Delete ${acc.username}? This can't be undone. Any results it entered in past seasons keep its name.`;
+    if (!(await confirm(msg, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       await api(`/api/accounts/${acc._id}`, { method: "DELETE" });
+      if (self) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
+      }
       await load();
     } catch (e) {
       showError(e.message); // e.g. "has scored matches and can't be deleted"

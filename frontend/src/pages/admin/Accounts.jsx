@@ -34,7 +34,11 @@ const ROLE_LABEL = {
 };
 const ROLES = ["super_admin", "barangay_admin", "organizer"];
 
-function AddAccountForm({ onCreated }) {
+// At most two Super Admin accounts (the server enforces it too).
+const MAX_SUPER_ADMINS = 2;
+
+function AddAccountForm({ onCreated, superAdminCount = 0 }) {
+  const superFull = superAdminCount >= MAX_SUPER_ADMINS;
   const [role, setRole] = useState("organizer");
   const [username, setUsername] = useState("");
   const [barangays, setBarangays] = useState([]);
@@ -86,12 +90,19 @@ function AddAccountForm({ onCreated }) {
             type="button"
             size="sm"
             variant={role === r ? "default" : "secondary"}
+            disabled={r === "super_admin" && superFull}
+            title={r === "super_admin" && superFull ? `There are already ${MAX_SUPER_ADMINS} Super Admin accounts` : undefined}
             onClick={() => { setRole(r); setError(""); }}
           >
             {ROLE_LABEL[r]}
           </Button>
         ))}
       </div>
+      {superFull && (
+        <p className="text-xs text-muted-foreground -mt-1">
+          Super Admin is limited to {MAX_SUPER_ADMINS} accounts, and both exist.
+        </p>
+      )}
 
       {role === "barangay_admin" && (
         <Select value={barangayId} onValueChange={setBarangayId}>
@@ -471,6 +482,7 @@ export default function Accounts() {
             </DialogDescription>
           </DialogHeader>
           <AddAccountForm
+            superAdminCount={accounts.filter((a) => a.role === "super_admin").length}
             onCreated={(data) => {
               setReveals((prev) => [
                 { username: data.account.username, tempPassword: data.tempPassword },

@@ -1039,6 +1039,8 @@ so a bug in one route cannot expose the other.
   Admin), and `Accounts.jsx` then clears the session and goes to /login. Barangay admin /
   organizer deletes are unchanged. `POST /api/accounts/:id/reset-password` no longer has the
   "only until they've set their own password" lock. The Super Admin guide step was reworded.
+  **At most TWO Super Admin accounts** (`MAX_SUPER_ADMINS` in `routes/accounts.js`, 409 on
+  `POST /api/accounts`); Add account disables the Super Admin choice once two exist.
 - (Superseded, see above.) **A Super Admin's password can be reset by a peer only up until they change
   it themselves; after that, never — and no account can delete itself (Sep
   2026, revised Sep 2026).** `POST /api/accounts/:id/reset-password` 409s

@@ -48,11 +48,19 @@ router.get('/', async (req, res) => {
 
 // POST /api/accounts  — provision ONE account. Returns the temp password ONCE.
 // body: { role, username?, barangayId?, assignedSportId? }
+const MAX_SUPER_ADMINS = 2;
+
 router.post('/', async (req, res) => {
   try {
     let { username, role, barangayId, assignedSportId } = req.body;
     if (!['super_admin', 'barangay_admin', 'organizer'].includes(role)) {
       return res.status(400).json({ message: 'Invalid role.' });
+    }
+
+    // At most TWO Super Admin accounts (Oct 31 2026, Super Admin rule): the SK Federation and
+    // the Head of LYDO.
+    if (role === 'super_admin' && await User.countDocuments({ role: 'super_admin' }) >= MAX_SUPER_ADMINS) {
+      return res.status(409).json({ message: `There can only be ${MAX_SUPER_ADMINS} Super Admin accounts.` });
     }
 
     let barangay = null;

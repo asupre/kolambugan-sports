@@ -12,15 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
 import { Progress } from "../../components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { useDragScroll } from "../../hooks/useDragScroll";
 import MvpBadge from "../../components/MvpBadge";
@@ -242,8 +234,7 @@ function asInput(d) {
 // One match's date / venue / Save. Its unsaved values live HERE, not in the
 // section: kept in the section, every keystroke re-rendered every row and its
 // date picker (measured 160-450ms per letter on a 150-match Mobile Legends
-// group stage, 4x CPU throttle). memo() also keeps the rows still while the
-// round's bulk fields above them are typed in.
+// group stage, 4x CPU throttle).
 const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave }) {
   const savedSchedule = asInput(m.schedule);
   const savedVenue = m.venue || "";
@@ -288,9 +279,7 @@ function ScheduleSection({ tournamentId }) {
   const showError = useErrorDialog();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [bulk, setBulk] = useState({});       // round -> { schedule, venue, group }
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
   const [openRounds, setOpenRounds] = useState({});
 
   async function load() {
@@ -326,27 +315,6 @@ function ScheduleSection({ tournamentId }) {
   useLayoutEffect(() => { saveRef.current = saveOne; });
   const onSave = useCallback((...args) => saveRef.current(...args), []);
 
-  // Keyed by section, not round number: group round 1 and knockout round 1 are
-  // different sections that happen to share a number.
-  async function applyRound(key) {
-    const b = bulk[key] || {};
-    const round = Number(String(key).split("-")[1]);
-    if (!b.schedule) { showError("Pick a date and time first."); return; }
-    setBusy(true); setMsg("");
-    try {
-      const body = { schedule: b.schedule, round: Number(round) };
-      if (b.group) body.group = b.group;
-      if (b.venue) body.venue = b.venue;
-      const res = await api(`/api/tournaments/${tournamentId}/schedule-bulk`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      setMsg(res.message);
-      await load();
-    } catch (e) { showError(e.message); }
-    finally { setBusy(false); }
-  }
-
   // Round numbers restart in the knockout, so group-stage round 1 and the first
   // knockout round collide. Group-stage matches carry a `group`; knockout matches
   // don't — that's what separates them.
@@ -357,7 +325,6 @@ function ScheduleSection({ tournamentId }) {
     if (sa !== sb) return sa === "group" ? -1 : 1;
     return Number(ra) - Number(rb);
   });
-  const groups = [...new Set(matches.map((m) => m.group).filter(Boolean))].sort();
   const dated = matches.filter((m) => m.schedule).length;
 
   const roundLabel = (m) => {
@@ -378,12 +345,9 @@ function ScheduleSection({ tournamentId }) {
       <p className="text-muted-foreground text-sm mb-4">
         Dates are guidance, not a lock. An organizer can still start an undated match,
         or one being played on a different day. Times are Philippine time.
-        Each date and time can hold only one game of this sport (any group or division),
-        so "Apply to round" takes a time only for a one-match round: for bigger rounds,
-        apply the date with "No time", then set each match's time on its own row.
+        Set each match's date, time and venue on its own row. Each date and time can
+        hold only one game of this sport (any group or division).
       </p>
-
-      {msg && <p className="text-sm bg-muted rounded px-3 py-2 mb-3">{msg}</p>}
 
       {loading ? (
         <Skeleton className="h-32 w-full rounded-xl" />
@@ -393,7 +357,6 @@ function ScheduleSection({ tournamentId }) {
         <div className="space-y-6">
           {sections.map((key) => {
             const inRound = matches.filter((m) => keyOf(m) === key);
-            const b = bulk[key] || {};
 
             // A round where everything has been played is history — collapse it so
             // it doesn't bury the rounds still needing dates.
@@ -404,7 +367,7 @@ function ScheduleSection({ tournamentId }) {
               <Card key={key} className="p-0 gap-0 overflow-hidden">
                 <div className="bg-muted/60 px-4 py-3 border-b">
                   <button onClick={() => setOpenRounds({ ...openRounds, [key]: !open })}
-                    className="flex items-baseline gap-2 mb-2 w-full text-left">
+                    className="flex items-baseline gap-2 w-full text-left">
                     {open ? <ChevronDown className="size-3.5 text-muted-foreground" /> : <ChevronRight className="size-3.5 text-muted-foreground" />}
                     <h4 className="font-medium text-sm">{roundLabel(inRound[0])}</h4>
                     <span className="text-muted-foreground text-xs">
@@ -412,38 +375,6 @@ function ScheduleSection({ tournamentId }) {
                       {allPlayed ? "all played" : `${inRound.filter((m) => m.schedule).length} dated`}
                     </span>
                   </button>
-                  {open && (
-                    <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:flex-wrap">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-normal text-muted-foreground">Date &amp; time</Label>
-                        <DateTimePicker value={b.schedule || ""}
-                          onChange={(v) => setBulk({ ...bulk, [key]: { ...b, schedule: v } })} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-normal text-muted-foreground">Venue</Label>
-                        <Input type="text" placeholder="Covered court" value={b.venue || ""}
-                          onChange={(e) => setBulk({ ...bulk, [key]: { ...b, venue: e.target.value } })}
-                          className="w-full sm:w-44" />
-                      </div>
-                      {groups.length > 0 && (
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-normal text-muted-foreground">Group</Label>
-                          <Select value={b.group || "all"} onValueChange={(v) => setBulk({ ...bulk, [key]: { ...b, group: v === "all" ? "" : v } })}>
-                            <SelectTrigger className="w-full sm:w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All groups</SelectItem>
-                              {groups.map((g) => <SelectItem key={g} value={g}>Group {g}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                      <Button size="sm" onClick={() => applyRound(key)} disabled={busy} className="w-full sm:w-auto">
-                        Apply to round
-                      </Button>
-                    </div>
-                  )}
                 </div>
                 {open && (
                   <div className="divide-y">

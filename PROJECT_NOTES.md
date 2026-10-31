@@ -808,8 +808,10 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
 - Scoring is blocked once every period is banked; only End match remains.
 
 **MATCH SCHEDULING (BUILT Aug 2026):**
-- Super Admin sets dates per match or in BULK BY ROUND, plus a `venue` string,
-  from a collapsible Schedule section inside the Tournaments page.
+- Super Admin sets dates per match, plus a `venue` string, from a collapsible
+  Schedule section inside the Tournaments page. **The round-wide "Apply to round" row
+  (date / venue / group) was REMOVED Oct 31 2026** (Super Admin: set each match one by one).
+  The `POST /:id/schedule-bulk` route still exists but nothing calls it.
 - The organizer's match list surfaces a **Today** section; starting a match
   dated for another day asks for confirmation but PROCEEDS (soft gate).
   Rationale: dates are an organisational aid, not an integrity control — an

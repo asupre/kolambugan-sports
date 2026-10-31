@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useState, useRef, useLayoutEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight, Trash2, Trophy } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2, Trophy, Zap } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { DateTimePicker } from "../../components/DateTimePicker";
@@ -437,33 +437,84 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
   // qualified: it accounts for tiebreaker playoffs (ML) and for upper/lower
   // bracket winners (physical sports). Table POSITION is not enough — a playoff
   // can send a team through from below the cutoff line.
+  const confirm = useConfirm();
+
+  async function fetchReadiness() {
+    const d = await api(`/api/public/bracket?tournament=${tournamentId}`);
+    const groups = [...new Set((d.matches || []).filter((m) => m.group).map((m) => m.group))];
+    const qual = d.qualification || {};
+    const seeds = d.qualifiers || {};
+
+    if (isML) {
+      const contested = groups.filter((g) => (qual[g]?.contested || []).length > 0);
+      const ids = groups.flatMap((g) => qual[g]?.clear || []);
+      const advance = d.tournament?.advancePerGroup || 1;
+      return {
+        groups, contested, ids,
+        ready: contested.length === 0 && ids.length === groups.length * advance,
+        expected: groups.length * advance,
+      };
+    }
+    const short = groups.filter((g) => (seeds[g] || []).length < 2);
+    const ids = groups.flatMap((g) => (seeds[g] || []).map((s) => s.teamId));
+    return {
+      groups, contested: [], ids, short,
+      ready: short.length === 0 && groups.length > 0,
+      expected: groups.length * 2,
+    };
+  }
+
   async function loadReadiness() {
     try {
-      const d = await api(`/api/public/bracket?tournament=${tournamentId}`);
-      const groups = [...new Set((d.matches || []).filter((m) => m.group).map((m) => m.group))];
-      const qual = d.qualification || {};
-      const seeds = d.qualifiers || {};
-
-      if (isML) {
-        const contested = groups.filter((g) => (qual[g]?.contested || []).length > 0);
-        const ids = groups.flatMap((g) => qual[g]?.clear || []);
-        const advance = d.tournament?.advancePerGroup || 1;
-        setReadiness({
-          groups, contested, ids,
-          ready: contested.length === 0 && ids.length === groups.length * advance,
-          expected: groups.length * advance,
-        });
-      } else {
-        const short = groups.filter((g) => (seeds[g] || []).length < 2);
-        const ids = groups.flatMap((g) => (seeds[g] || []).map((s) => s.teamId));
-        setReadiness({
-          groups, contested: [], ids, short,
-          ready: short.length === 0 && groups.length > 0,
-          expected: groups.length * 2,
-        });
-      }
+      setReadiness(await fetchReadiness());
     } catch {
       setReadiness(null);
+    }
+  }
+
+  // Testing aid: plays every ready match with a random result, then draws the
+  // tiebreakers / knockout when they're due, and keeps going to the champion.
+  // Uses the same routes as the buttons below, one step at a time.
+  async function autoplayAll() {
+    const ok = await confirm(
+      "Fill every unplayed match in this tournament with a random result, all the way to the champion? " +
+      "This is for testing. Results show on the public site and can't be undone (delete the tournament to start over).",
+      { confirmLabel: "Auto-play" }
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError("");
+    let played = 0;
+    let koDrawn = stage === "elimination" || stage === "completed";
+    try {
+      for (let step = 0; step < 8; step++) {
+        const r = await api(`/api/tournaments/${tournamentId}/autoplay`, { method: "POST" });
+        played += r.played;
+        if (r.stage === "completed") break;
+        if (koDrawn) { if (r.played === 0) break; continue; }
+
+        const rd = await fetchReadiness();
+        if (isML && !rd.ready) {
+          const q = await api(`/api/tournaments/${tournamentId}/qualification`);
+          const needsTie = Object.values(q.groups || {}).some((g) => g.needsTiebreaker);
+          if (needsTie) { await api(`/api/tournaments/${tournamentId}/tiebreakers`, { method: "POST" }); continue; }
+        }
+        if (!rd.ready) { if (r.played === 0) break; continue; }
+
+        if (isML) {
+          await api(`/api/tournaments/${tournamentId}/bracket`, { method: "POST", body: JSON.stringify({ teamIds: rd.ids }) });
+        } else {
+          await api(`/api/tournaments/${tournamentId}/de-bracket`, { method: "POST" });
+        }
+        koDrawn = true;
+      }
+      await confirm(`Auto-play finished: ${played} match${played === 1 ? "" : "es"} played.`, { alertOnly: true });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+      setRefreshKey((k) => k + 1);
+      onBracketGenerated && onBracketGenerated();
     }
   }
 
@@ -536,8 +587,16 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
 
   return (
     <div>
+      {stage !== "completed" && (
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <span className="text-muted-foreground text-xs">Testing: skip the organizers</span>
+          <Button size="sm" variant="outline" onClick={autoplayAll} disabled={busy}>
+            <Zap /> {busy ? "Playing…" : "Auto-play to the champion"}
+          </Button>
+        </div>
+      )}
       {stage === "elimination" || stage === "completed" ? (
-        <BracketView tournamentId={tournamentId} />
+        <BracketView tournamentId={tournamentId} key={`k-${refreshKey}`} />
       ) : (
         <>
           {isML ? (

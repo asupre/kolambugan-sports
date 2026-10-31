@@ -4,7 +4,7 @@ const Match = require('../models/Match');
 const Team = require('../models/Team');
 const Sport = require('../models/Sport');
 const Barangay = require('../models/Barangay');
-const { knockoutSizeOf, isRoundRobinSport } = require('../lib/sportRules');
+const { knockoutSizeOf, isRoundRobinSport, rulesFor } = require('../lib/sportRules');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
 const { parseManila } = require('../config/time');
@@ -387,6 +387,113 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
     });
   } catch (err) {
     console.error('Generate tournament error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// ---- Auto-play (testing aid, Super Admin) ------------------------------------
+// Fills every match that is READY (both teams known, not started) with a random
+// result, the way an organizer's screen would record it, and advances the bracket.
+// Repeats until nothing more is ready, so a double-elim group plays out in one call.
+// Matches already live on an organizer's screen are left alone. Knockout draws and
+// tiebreakers are NOT created here: the Tournaments page calls those routes between
+// rounds of this one.
+const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+
+function simulateResult(match, sport) {
+  const rules = rulesFor(sport);
+  const aWins = Math.random() < 0.5;
+  if (rules.scoringMode === 'final') {
+    // A series: the winner takes a majority of best-of-N, game by game.
+    const bestOf = [1, 3, 5].includes(match.bestOf) ? match.bestOf : 1;
+    const need = Math.floor(bestOf / 2) + 1;
+    const loserWins = rnd(0, need - 1);
+    const seq = [...Array(need - 1).fill('W'), ...Array(loserWins).fill('L')].sort(() => Math.random() - 0.5);
+    seq.push('W');   // the winner always takes the last game
+    const games = seq.map((g, i) => {
+      const aTook = (g === 'W') === aWins;
+      return { gameNumber: i + 1, scoreA: aTook ? 1 : 0, scoreB: aTook ? 0 : 1, winner: aTook ? match.teamA : match.teamB };
+    });
+    return { bestOf, games, a: aWins ? need : loserWins, b: aWins ? loserWins : need };
+  }
+  // Points: every period played, the running total decides it.
+  const opts = rules.periodOptions;
+  const periods = opts.includes(3) ? 3 : opts[0] || 1;
+  const big = rules.pointValues.includes(3);     // basketball-style scoring
+  const games = [];
+  let a = 0, b = 0;
+  for (let i = 0; i < periods; i++) {
+    const pa = big ? rnd(10, 28) : rnd(8, 21);
+    const pb = big ? rnd(10, 28) : rnd(8, 21);
+    games.push({ gameNumber: i + 1, scoreA: pa, scoreB: pb });
+    a += pa; b += pb;
+  }
+  // Make the total match the coin flip, adjusting the last period only.
+  const last = games[games.length - 1];
+  if (aWins && a <= b) { const d = b - a + rnd(1, 6); last.scoreA += d; a += d; }
+  if (!aWins && b <= a) { const d = a - b + rnd(1, 6); last.scoreB += d; b += d; }
+  last.winner = aWins ? match.teamA : match.teamB;
+  return { bestOf: periods, games, a, b };
+}
+
+router.post('/:id/autoplay', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id).populate('sport');
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+
+    const placeInto = async (nextId, teamId) => {
+      if (!nextId || !teamId) return;
+      const next = await Match.findById(nextId);
+      if (!next) return;
+      if (!next.teamA) next.teamA = teamId;
+      else if (!next.teamB) next.teamB = teamId;
+      await next.save();
+    };
+
+    let played = 0;
+    for (let pass = 0; pass < 50; pass++) {
+      const ready = await Match.find({
+        tournament: tournament._id,
+        status: 'scheduled',
+        teamA: { $ne: null },
+        teamB: { $ne: null },
+      }).sort({ round: 1, createdAt: 1 });
+      if (!ready.length) break;
+
+      for (const match of ready) {
+        const r = simulateResult(match, tournament.sport);
+        const winner = r.a > r.b ? match.teamA : match.teamB;
+        const loser = r.a > r.b ? match.teamB : match.teamA;
+        match.bestOf = r.bestOf;
+        match.games = r.games;
+        match.liveScoreA = r.a;
+        match.liveScoreB = r.b;
+        match.seriesWinner = winner;
+        match.status = 'completed';
+        match.startedAt = match.startedAt || new Date();
+        match.enteredBy = req.user.id;
+        match.enteredAt = new Date();
+        await match.save();
+        played++;
+
+        // Same advancement as the organizer's End match.
+        if (match.isTiebreaker) {
+          await placeInto(match.nextMatchWin, winner);
+        } else if (['winners', 'losers', 'final', 'knockout', 'ko_final'].includes(match.bracket)) {
+          await placeInto(match.nextMatchWin, winner);
+          await placeInto(match.nextMatchLose, loser);
+          if (match.bracket === 'final' || match.bracket === 'ko_final') {
+            tournament.stage = 'completed';
+            await tournament.save();
+          }
+        }
+      }
+    }
+
+    const live = await Match.countDocuments({ tournament: tournament._id, status: 'ongoing' });
+    res.json({ played, live, stage: tournament.stage });
+  } catch (err) {
+    console.error('Auto-play error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });

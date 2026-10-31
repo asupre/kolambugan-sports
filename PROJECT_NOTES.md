@@ -2646,6 +2646,20 @@ now-unused `Zap` icon import and a `showError` declaration that had no other
 caller in that component).
 `dev-setup.ps1` was checked — it exists locally (gitignored) and was never
 committed, so nothing to do there.
+**Tournaments → "Auto-play to the champion" (Oct 31 2026, KEPT ON PURPOSE, testing aid):** so the
+Super Admin doesn't have to score every game as each organizer. `POST /api/tournaments/:id/autoplay`
+(super_admin) gives every READY match (both teams, `scheduled`) a random result shaped like the
+organizer's (points sports: every period played, periods sum to `liveScoreA/B`, no ties; games-won
+sports: a real best-of series), advances the bracket the same way End match does, and repeats until
+nothing is ready. A match `ongoing` on an organizer's screen is never touched. No PlayerMatchStats /
+MVP. It does NOT draw tiebreakers or the knockout: `autoplayAll()` in `TournamentDetail`
+(`Tournaments.jsx`) loops autoplay → `/tiebreakers` (esports, when needed) → `/de-bracket` or
+`/bracket` → autoplay until the champion. Confirmation first; results are real (public site),
+delete the tournament to start over. Tested with the real routes on mongodb-memory-server: Badminton
+14, Basketball 26, Chess 12, Mobile Legends 26 (Top 8), a 40-team Top 16 esport, all to a champion
++ 3rd place, nothing unplayed, no ties; a live match left alone. Note: the round-robin knockout
+uses `winners` / `final` / `third`, not the `ko_*` labels the Tournament-format section claims.
+
 **League Setup → Demo data (Oct 5 2026, KEPT ON PURPOSE, not dev-only):** after a mock defense
 where registration took ~3h for one game, the Super Admin asked for two buttons.
 `routes/demo.js` (`/api/demo`, super_admin) + `pages/admin/DemoDataCard.jsx` (third League Setup

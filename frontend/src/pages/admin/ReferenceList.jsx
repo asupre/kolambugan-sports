@@ -544,7 +544,6 @@ export default function ReferenceList() {
               <CardDescription>
                 Search a resident by name or barangay. Colors show how a resident connects to a
                 roster: <span className="text-green-600 dark:text-green-400 font-medium">green</span> matched,{" "}
-                <span className="text-red-600 dark:text-red-400 font-medium">red</span> mismatch,{" "}
                 <span className="text-orange-600 dark:text-orange-400 font-medium">orange</span> same name but
                 middle initial/birthdate differ, <span className="text-purple-600 dark:text-purple-400 font-medium">purple</span>{" "}
                 same-name hint for a player 15 or under whose details actually agree.

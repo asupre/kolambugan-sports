@@ -812,6 +812,12 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   Schedule section inside the Tournaments page. **The round-wide "Apply to round" row
   (date / venue / group) was REMOVED Oct 31 2026** (Super Admin: set each match one by one).
   The `POST /:id/schedule-bulk` route still exists but nothing calls it.
+  **Venue is a DROPDOWN (Oct 31 2026)**: `VENUES` / `VENUE_BY_SPORT` in `Tournaments.jsx`
+  (Basketball + Pickleball = KCC Gym, Mobile Legends = Munisipyo 2nd Floor, Volleyball =
+  Volleyball Court, Badminton = Badminton Court, Chess = Poblacion Brgy Hall, Billiards =
+  Billiards Area). A match with no venue starts on its sport's venue and it is saved with the
+  date; any venue can still be picked, or "No venue". An older typed-in venue stays as an option.
+  Matched by sport NAME, so a renamed / new sport gets no default (add it to the map).
 - The organizer's match list surfaces a **Today** section; starting a match
   dated for another day asks for confirmation but PROCEEDS (soft gate).
   Rationale: dates are an organisational aid, not an integrity control — an

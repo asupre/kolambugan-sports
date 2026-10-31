@@ -11,8 +11,14 @@ import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
 import { Progress } from "../../components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { useDragScroll } from "../../hooks/useDragScroll";
 import MvpBadge from "../../components/MvpBadge";
@@ -231,17 +237,36 @@ function asInput(d) {
   return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
 }
 
+// The league's venues, and which one each sport plays at (Super Admin, Oct 31 2026).
+// A match with no venue saved yet starts on its sport's venue.
+const VENUES = ["KCC Gym", "Munisipyo 2nd Floor", "Volleyball Court", "Badminton Court", "Poblacion Brgy Hall", "Billiards Area"];
+const VENUE_BY_SPORT = {
+  basketball: "KCC Gym",
+  pickleball: "KCC Gym",
+  "mobile legends": "Munisipyo 2nd Floor",
+  volleyball: "Volleyball Court",
+  badminton: "Badminton Court",
+  chess: "Poblacion Brgy Hall",
+  billiards: "Billiards Area",
+};
+const NO_VENUE = "__none";
+const venueForSport = (name) => VENUE_BY_SPORT[(name || "").trim().toLowerCase()] || "";
+
 // One match's date / venue / Save. Its unsaved values live HERE, not in the
 // section: kept in the section, every keystroke re-rendered every row and its
 // date picker (measured 160-450ms per letter on a 150-match Mobile Legends
 // group stage, 4x CPU throttle).
-const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave }) {
+const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave, defaultVenue }) {
   const savedSchedule = asInput(m.schedule);
   const savedVenue = m.venue || "";
+  const startVenue = savedVenue || defaultVenue;
   const [schedule, setSchedule] = useState(savedSchedule);
-  const [venue, setVenue] = useState(savedVenue);
+  const [venue, setVenue] = useState(startVenue);
   const done = m.status === "completed" || m.status === "forfeited";
-  const dirty = schedule !== savedSchedule || venue !== savedVenue;
+  // The sport's venue filled in on its own isn't an edit; it's saved with the date.
+  const dirty = schedule !== savedSchedule || venue !== startVenue;
+  // A venue typed in before the dropdown existed stays selectable.
+  const options = savedVenue && !VENUES.includes(savedVenue) ? [...VENUES, savedVenue] : VENUES;
 
   return (
     <div className={cn("px-4 py-2.5", done && "bg-muted/30")}>
@@ -262,9 +287,15 @@ const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave }) {
         ) : (
           <div className="flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2">
             <DateTimePicker value={schedule} onChange={setSchedule} className="sm:shrink-0" />
-            <Input type="text" placeholder="Venue" value={venue}
-              onChange={(e) => setVenue(e.target.value)}
-              className="text-xs flex-1 min-w-0 sm:flex-none sm:w-36" />
+            <Select value={venue || NO_VENUE} onValueChange={(v) => setVenue(v === NO_VENUE ? "" : v)}>
+              <SelectTrigger className="text-xs flex-1 min-w-0 sm:flex-none sm:w-44" aria-label="Venue">
+                <SelectValue placeholder="Venue" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_VENUE}>No venue</SelectItem>
+                {options.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Button size="sm" onClick={() => onSave(m, schedule, venue)} disabled={busy || !dirty} className="shrink-0">
               Save
             </Button>
@@ -275,7 +306,7 @@ const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave }) {
   );
 });
 
-function ScheduleSection({ tournamentId }) {
+function ScheduleSection({ tournamentId, sportName }) {
   const showError = useErrorDialog();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -382,7 +413,7 @@ function ScheduleSection({ tournamentId }) {
                       // Keyed on the saved values too: after a save reloads the list,
                       // a changed row remounts and starts from the new values.
                       <ScheduleRow key={`${m._id}|${m.schedule || ""}|${m.venue || ""}`}
-                        m={m} busy={busy} onSave={onSave} />
+                        m={m} busy={busy} onSave={onSave} defaultVenue={venueForSport(sportName)} />
                     ))}
                   </div>
                 )}
@@ -395,7 +426,7 @@ function ScheduleSection({ tournamentId }) {
   );
 }
 
-function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
+function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGenerated }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [qualification, setQualification] = useState(null);  // ML tiebreaker UI
   const [readiness, setReadiness] = useState(null);          // who actually qualified
@@ -563,7 +594,7 @@ function TournamentDetail({ tournamentId, stage, isML, onBracketGenerated }) {
           )}
         </>
       )}
-      <ScheduleSection tournamentId={tournamentId} />
+      <ScheduleSection tournamentId={tournamentId} sportName={sportName} />
     </div>
   );
 }
@@ -1401,6 +1432,7 @@ export default function Tournaments() {
                   tournamentId={currentTournament._id}
                   stage={currentTournament.stage}
                   isML={isEsports}
+                  sportName={selectedSport.name}
                   onBracketGenerated={loadAll}
                 />
               )}

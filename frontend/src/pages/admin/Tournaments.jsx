@@ -256,7 +256,7 @@ const venueForSport = (name) => VENUE_BY_SPORT[(name || "").trim().toLowerCase()
 // section: kept in the section, every keystroke re-rendered every row and its
 // date picker (measured 160-450ms per letter on a 150-match Mobile Legends
 // group stage, 4x CPU throttle).
-const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave, defaultVenue }) {
+const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave, defaultVenue, ended }) {
   const savedSchedule = asInput(m.schedule);
   const savedVenue = m.venue || "";
   const startVenue = savedVenue || defaultVenue;
@@ -280,9 +280,9 @@ const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave, defaultVenue })
           {m.teamB?.teamName || "TBD"}
         </span>
 
-        {done ? (
+        {done || ended ? (
           <span className="text-muted-foreground text-xs">
-            {m.status === "forfeited" ? "forfeited" : "played"}
+            {m.status === "forfeited" ? "forfeited" : done ? "played" : "not played"}
           </span>
         ) : (
           <div className="flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2">
@@ -306,7 +306,7 @@ const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave, defaultVenue })
   );
 });
 
-function ScheduleSection({ tournamentId, sportName }) {
+function ScheduleSection({ tournamentId, sportName, ended }) {
   const showError = useErrorDialog();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -413,7 +413,7 @@ function ScheduleSection({ tournamentId, sportName }) {
                       // Keyed on the saved values too: after a save reloads the list,
                       // a changed row remounts and starts from the new values.
                       <ScheduleRow key={`${m._id}|${m.schedule || ""}|${m.venue || ""}`}
-                        m={m} busy={busy} onSave={onSave} defaultVenue={venueForSport(sportName)} />
+                        m={m} busy={busy} onSave={onSave} defaultVenue={venueForSport(sportName)} ended={ended} />
                     ))}
                   </div>
                 )}
@@ -426,7 +426,7 @@ function ScheduleSection({ tournamentId, sportName }) {
   );
 }
 
-function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGenerated }) {
+function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGenerated, ended }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [qualification, setQualification] = useState(null);  // ML tiebreaker UI
   const [readiness, setReadiness] = useState(null);          // who actually qualified
@@ -587,7 +587,7 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
 
   return (
     <div>
-      {stage !== "completed" && (
+      {stage !== "completed" && !ended && (
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           <span className="text-muted-foreground text-xs">Testing: skip the organizers</span>
           <Button size="sm" variant="outline" onClick={autoplayAll} disabled={busy}>
@@ -609,7 +609,7 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
             <BracketView tournamentId={tournamentId} key={`b-${refreshKey}`} />
           )}
 
-          {(isML ? groupsComplete : readiness) && (
+          {!ended && (isML ? groupsComplete : readiness) && (
             <div className="mt-6 pt-6 border-t">
               {isML && anyNeedsTiebreaker && !readiness?.ready ? (
                 <>
@@ -653,7 +653,7 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
           )}
         </>
       )}
-      <ScheduleSection tournamentId={tournamentId} sportName={sportName} />
+      <ScheduleSection tournamentId={tournamentId} sportName={sportName} ended={ended} />
     </div>
   );
 }
@@ -1492,6 +1492,7 @@ export default function Tournaments() {
                   stage={currentTournament.stage}
                   isML={isEsports}
                   sportName={selectedSport.name}
+                  ended={season?.status === "completed"}
                   onBracketGenerated={loadAll}
                 />
               )}

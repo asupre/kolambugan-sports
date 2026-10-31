@@ -31,4 +31,12 @@ function requireSeasonState(...allowedStates) {
   };
 }
 
-module.exports = { getCurrentSeason, requireSeasonState };
+// True when the given season (id or doc) is completed, or no longer exists. A
+// completed season is the archive: its brackets, results and dates are frozen.
+async function seasonEnded(season) {
+  if (!season) return false;
+  const s = season.status ? season : await Season.findById(season).select('status').lean();
+  return !s || s.status === 'completed';
+}
+
+module.exports = { getCurrentSeason, requireSeasonState, seasonEnded };

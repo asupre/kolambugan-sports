@@ -6,7 +6,7 @@ const Sport = require('../models/Sport');
 const Barangay = require('../models/Barangay');
 const { knockoutSizeOf, isRoundRobinSport, rulesFor } = require('../lib/sportRules');
 const { authenticate, authorize } = require('../middleware/auth');
-const { getCurrentSeason } = require('../middleware/season');
+const { getCurrentSeason, seasonEnded } = require('../middleware/season');
 const { parseManila } = require('../config/time');
 const PlayerMatchStats = require('../models/PlayerMatchStats');
 
@@ -16,6 +16,20 @@ const router = express.Router();
 // winner and advances the bracket exactly like a played match, so every
 // "is this group/round done?" check must count it.
 const isFinished = (m) => m.status === 'completed' || m.status === 'forfeited';
+
+// A completed season is the archive: no results, dates or bracket draws after it
+// ends (Nov 2026). Takes a tournament doc or id; sends the 409 and returns true
+// when refused. Deleting a tournament is still allowed (clean-up).
+async function refuseEnded(res, tournamentOrId) {
+  const t = tournamentOrId && tournamentOrId.season !== undefined
+    ? tournamentOrId
+    : await Tournament.findById(tournamentOrId).select('season').lean();
+  if (t && await seasonEnded(t.season)) {
+    res.status(409).json({ message: 'This season has ended. Its brackets, results and dates can no longer be changed.' });
+    return true;
+  }
+  return false;
+}
 
 // Circle-method scheduling: returns rounds, each round = array of [teamA, teamB] pairs,
 // so every team plays once per round.
@@ -440,6 +454,7 @@ router.post('/:id/autoplay', authenticate, authorize('super_admin'), async (req,
   try {
     const tournament = await Tournament.findById(req.params.id).populate('sport');
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+    if (await refuseEnded(res, tournament)) return;
 
     const placeInto = async (nextId, teamId) => {
       if (!nextId || !teamId) return;
@@ -503,6 +518,7 @@ router.post('/matches/:matchId/result', authenticate, authorize('super_admin', '
   try {
     const match = await Match.findById(req.params.matchId);
     if (!match) return res.status(404).json({ message: 'Match not found.' });
+    if (await refuseEnded(res, match.tournament)) return;
     if (isFinished(match)) return res.status(409).json({ message: 'This match already has a result.' });
     if (!match.teamA || !match.teamB) return res.status(400).json({ message: 'This match is missing a team (an earlier match may not be finished yet).' });
 
@@ -797,6 +813,7 @@ router.post('/:id/tiebreakers', authenticate, authorize('super_admin'), async (r
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+    if (await refuseEnded(res, tournament)) return;
     const advance = tournament.advancePerGroup || 2;
 
     const matches = await Match.find({ tournament: tournament._id });
@@ -860,6 +877,7 @@ router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, 
   try {
         const tournament = await Tournament.findById(req.params.id).populate('sport', 'name tournamentFormat category');
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+    if (await refuseEnded(res, tournament)) return;
 
     const existing = await Match.findOne({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } });
     if (existing) return res.status(409).json({ message: 'A bracket already exists for this tournament.' });
@@ -1018,6 +1036,7 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+    if (await refuseEnded(res, tournament)) return;
 
     // Don't double-build the finals.
     const existing = await Match.findOne({ tournament: tournament._id, bracket: 'ko_final' });
@@ -1131,6 +1150,7 @@ router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'
   try {
     const match = await Match.findById(req.params.matchId);
     if (!match) return res.status(404).json({ message: 'Match not found.' });
+    if (await refuseEnded(res, match.tournament)) return;
 
     if (req.body.schedule !== undefined) {
       if (req.body.schedule === null || req.body.schedule === '') {
@@ -1167,6 +1187,7 @@ router.post('/:id/schedule-bulk', authenticate, authorize('super_admin'), async 
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
+    if (await refuseEnded(res, tournament)) return;
 
         const d = parseManila(req.body.schedule);
     if (!d) return res.status(400).json({ message: 'Invalid date.' });
@@ -1218,6 +1239,7 @@ router.post('/matches/:matchId/revert', authenticate, authorize('super_admin'), 
   try {
     const match = await Match.findById(req.params.matchId);
     if (!match) return res.status(404).json({ message: 'Match not found.' });
+    if (await refuseEnded(res, match.tournament)) return;
         if (!['completed', 'forfeited'].includes(match.status)) {
       return res.status(409).json({ message: 'Only a completed or forfeited match can be reverted.' });
     }

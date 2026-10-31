@@ -9,7 +9,7 @@ const PlayerMatchStats = require('../models/PlayerMatchStats');
 const Sport = require('../models/Sport');
 const { authenticate, authorize } = require('../middleware/auth');
 const { isManilaToday } = require('../config/time');
-const { getCurrentSeason } = require('../middleware/season');
+const { getCurrentSeason, seasonEnded } = require('../middleware/season');
 
 const router = express.Router();
 router.use(authenticate, authorize('organizer', 'super_admin'));
@@ -33,6 +33,11 @@ async function loadOwnedMatch(req, res) {
   if (!t) { res.status(404).json({ message: 'Tournament not found.' }); return null; }
   if (req.user.role === 'organizer' && String(req.user.assignedSport) !== String(t.sport._id)) {
     res.status(403).json({ message: 'You can only score matches for your assigned sport.' });
+    return null;
+  }
+  // A completed season is the archive: its matches can be viewed, never changed.
+  if (req.method !== 'GET' && await seasonEnded(t.season)) {
+    res.status(409).json({ message: 'This season has ended. Its matches can no longer be scored or changed.' });
     return null;
   }
     return { match, tournament: t, sportName: t.sport.name, sport: t.sport };
@@ -130,6 +135,7 @@ router.get('/matches', async (req, res) => {
     res.json({
       sport: sport?.name,
             scoringMode: rulesFor(sport).scoringMode,
+      seasonEnded: season.status === 'completed',   // the screen goes view-only
       matches: matches.map((m) => ({
         ...matchOut(m),
         division: divisionByTournament[String(m.tournament)] || 'open',

@@ -1701,7 +1701,8 @@ export default function OrganizerScoring() {
   }
 
   const Row = ({ m, showDate, isOverdue, nextUp }) => {
-    const ready = m.teamA && m.teamB;
+    // A completed season is view-only: nothing opens for scoring.
+    const ready = m.teamA && m.teamB && !feed?.seasonEnded;
     const d = describeMatch(m, allMatches);
     const time = timeOf(m.schedule);
     const isLive = m.status === "ongoing";
@@ -1763,7 +1764,9 @@ export default function OrganizerScoring() {
               {m.status === "forfeited" ? "Forfeit " : ""}{m.liveScoreA}–{m.liveScoreB}
             </Badge>
           ) : !ready ? (
-            <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">waiting for a team</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+              {feed?.seasonEnded ? "not played" : "waiting for a team"}
+            </span>
           ) : (
             <Badge className="bg-primary text-primary-foreground whitespace-nowrap shrink-0">
               Start →
@@ -1787,6 +1790,13 @@ export default function OrganizerScoring() {
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {feed?.seasonEnded && (
+          <Alert>
+            <AlertDescription>
+              This season has ended. Its matches are view-only and can't be started or scored.
+            </AlertDescription>
           </Alert>
         )}
 

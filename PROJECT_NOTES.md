@@ -1000,9 +1000,19 @@ so a bug in one route cannot expose the other.
   **Generating a tournament (`POST /api/tournaments/generate`) needs `ongoing`** (Oct 5 2026,
   Super Admin: no drawing while verification can still change the verified teams; the
   Tournaments page disables Generate with a note). Later bracket steps (knockout, tiebreakers)
-  and scoring are NOT gated by stage, so nothing stops a
+  and scoring are NOT gated by stage before the end, so nothing stops a
   premature advance except that checklist; keep the "what changes" copy to what is
   enforced, and add new readiness rules in `buildReadiness()`.
+  **A `completed` season is FROZEN (Nov 1 2026, Super Admin: could still score and add dates
+  after completing).** `seasonEnded()` in `middleware/season.js`. Organizer: every non-GET route
+  goes through `loadOwnedMatch`, which 409s for a match whose tournament's season is completed;
+  `GET /api/organizer/matches` returns `seasonEnded` and the list shows a notice with nothing
+  openable. Super Admin (`refuseEnded()` in `routes/tournament.js`): autoplay, result,
+  tiebreakers, `/bracket`, `/de-bracket`, schedule, schedule-bulk, revert all 409; the
+  Tournaments page hides Auto-play, the knockout / tiebreaker box and the schedule Save
+  (`ended` prop). Viewing and DELETING a tournament still work. Nothing is wiped: the results
+  stay as the archive (public site, champions); a new season is what makes every page look
+  empty. Going back to Ongoing (Season page) unfreezes it. Tested on mongodb-memory-server.
 - **Super Admin dashboard (Sep 2026, reworked)**: season tracker + a **"Needs your
   attention"** to-do list built by `buildAttention()` in `AdminDashboard.jsx` (only real
   items; each links to where it's fixed — add new rules THERE), four moving tiles, a

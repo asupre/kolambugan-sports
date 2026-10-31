@@ -36,6 +36,7 @@ export const CONSEQUENCES = {
   ],
   ongoing: [
     "The season is closed and its close date is recorded.",
+    "Its matches freeze: organizers can't start or score them, and dates and brackets can't be changed.",
     "You can then create a new season; this one stays in the history.",
   ],
 };

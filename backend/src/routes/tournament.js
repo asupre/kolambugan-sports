@@ -254,6 +254,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
 
     const sport = await Sport.findById(req.body.sportId);
     if (!sport) return res.status(404).json({ message: 'Sport not found.' });
+    if (sport.active === false) return res.status(409).json({ message: `${sport.name} is not part of the league this season.` });
 
         const division = req.body.division || 'open';
     if (await Tournament.findOne({ sport: sport._id, season: season._id, division })) {

@@ -95,7 +95,7 @@ router.post('/teams', async (req, res) => {
     const season = await generationSeason(res, { teams: true });
     if (!season) return;
     const [sports, barangays, existing] = await Promise.all([
-      Sport.find().sort({ name: 1 }),
+      Sport.find(Sport.ACTIVE).sort({ name: 1 }),
       Barangay.find().sort({ name: 1 }),
       Team.find({ season: season._id }).select('barangay sport division'),
     ]);

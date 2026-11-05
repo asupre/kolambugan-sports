@@ -186,7 +186,7 @@ export default function ChampionsReport({ printedOn }) {
     let alive = true;
     (async () => {
       try {
-        const [champ, sp] = await Promise.all([api("/api/champions"), api("/api/sports")]);
+        const [champ, sp] = await Promise.all([api("/api/champions"), api("/api/sports?all=1")]);
         if (!alive) return;
         const categoryOf = new Map((sp.sports || []).map((s) => [norm(s.name), s.category || "physical"]));
         setTitles((champ.champions || []).map((c) => ({ ...c, category: categoryOf.get(norm(c.sport)) || "other" })));

@@ -3748,3 +3748,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   one stage (Season page, "Back to <stage>") to undo an accidental advance. Refused while
   brackets exist (ongoing → verification) or once a completed season is cleaned up. The thesis
   describes the lifecycle as one-way; true this up.
+
+## 2026-11-05 — Games can be left out of a season; barangays can't be deleted
+
+- League Setup: each game has an "included this season" checkbox (`Sport.active`). An unticked
+  game keeps its settings but is hidden from registration, the public site, the dashboards,
+  account provisioning and tournament generation. Replaces deleting a game the league skips for
+  a season and re-adding it later. Refused once the season has teams or a bracket for it.
+- Barangays can no longer be deleted (route + button removed).

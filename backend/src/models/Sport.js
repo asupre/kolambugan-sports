@@ -91,6 +91,11 @@ const sportSchema = new mongoose.Schema(
     // How many groups the draw creates, and how many teams reach the knockout.
     numGroups: { type: Number, default: null },
     knockoutSize: { type: Number, default: null },
+    // Whether this game is part of the league this season (Nov 2026, Super Admin: untick a game
+    // instead of deleting it, so it keeps its settings and can be ticked back later). An
+    // excluded game is hidden from registration, the public site and the dashboards.
+    // Absent on older records = included; query with Sport.ACTIVE.
+    active: { type: Boolean, default: true },
   
   },
   {
@@ -111,4 +116,7 @@ sportSchema.pre('validate', function () {
   else if (this.isNew || this.isModified('category')) this.tournamentFormat = 'double_elimination';
 });
 
-module.exports = mongoose.model('Sport', sportSchema);
+const Sport = mongoose.model('Sport', sportSchema);
+// Filter for games included this season (older records have no `active` field).
+Sport.ACTIVE = { active: { $ne: false } };
+module.exports = Sport;

@@ -769,7 +769,6 @@ function AddSport({ onAdded, onCancel, onError }) {
 // Barangays and their cross-barangay permission in one place — both are facts
 // about a barangay, and splitting them across two cards made no sense.
 function BarangayCard({ onError, onNotice, locked }) {
-  const confirm = useConfirm();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -815,16 +814,6 @@ function BarangayCard({ onError, onNotice, locked }) {
       });
       setRows((prev) => prev.map((x) => (x._id === b._id ? { ...x, name: d.barangay.name } : x)));
       setEditingId(null);
-    } catch (e) { onError(e.message); }
-    finally { setBusyId(null); }
-  }
-
-  async function remove(b) {
-    if (!(await confirm(`Remove ${b.name}? This only works if nothing references it.`, { danger: true, confirmLabel: "Remove" }))) return;
-    setBusyId(b._id);
-    try {
-      await api(`/api/barangays/${b._id}`, { method: "DELETE" });
-      setRows((prev) => prev.filter((x) => x._id !== b._id));
     } catch (e) { onError(e.message); }
     finally { setBusyId(null); }
   }
@@ -896,16 +885,10 @@ function BarangayCard({ onError, onNotice, locked }) {
                       <span className="min-w-0 flex-1 truncate text-sm">{b.name}</span>
                       {b.hasLogo && <span className="shrink-0 text-[10px] text-muted-foreground">logo</span>}
                       {!locked && (
-                        <>
-                          <button onClick={() => { setEditingId(b._id); setDraft(b.name); }} title="Rename"
-                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
-                            <Pencil className="size-3.5" />
-                          </button>
-                          <button onClick={() => remove(b)} disabled={busyId === b._id} title="Remove"
-                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </>
+                        <button onClick={() => { setEditingId(b._id); setDraft(b.name); }} title="Rename"
+                          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+                          <Pencil className="size-3.5" />
+                        </button>
                       )}
                     </>
                   )}
@@ -960,7 +943,9 @@ function TabBar({ value, onChange, tabs }) {
 
 // The games on the page: one row each, whole row clickable (Enter / Space too), like the Review
 // Queue's team tables. Phones fold the details under the name.
-function GamesTable({ sports, onOpen }) {
+// The checkbox includes / excludes a game this season (Nov 2026, Super Admin: untick instead
+// of deleting, so the game keeps its settings). PATCH /api/sports/:id/active.
+function GamesTable({ sports, onOpen, onToggle, busyId, locked }) {
   const divText = (sp) => (sp.divisions?.length ? sp.divisions : ["open"])
     .map((d) => DIVISIONS.find((x) => x.value === d)?.label || d).join(", ");
   const fmtText = (sp) => FORMATS.find((f) => f.value === sp.entryFormat)?.label || sp.entryFormat || "Team";
@@ -973,6 +958,7 @@ function GamesTable({ sports, onOpen }) {
       <table className="w-full text-left">
         <thead className="border-b bg-muted/40 text-[13px] text-muted-foreground">
           <tr>
+            <th className="w-12 py-2.5 pl-4 pr-0 font-medium"><span className="sr-only">Included this season</span></th>
             <th className="px-4 py-2.5 font-medium">Game</th>
             <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Divisions</th>
             <th className="hidden px-4 py-2.5 font-medium md:table-cell">Entry</th>
@@ -986,11 +972,22 @@ function GamesTable({ sports, onOpen }) {
               onClick={() => onOpen(sp._id)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(sp._id); } }}
               tabIndex={0}
-              className="cursor-pointer border-b align-middle transition-colors last:border-0 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none">
+              className={cn("cursor-pointer border-b align-middle transition-colors last:border-0 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none",
+                sp.active === false && "text-muted-foreground")}>
+              <td className="py-3 pl-4 pr-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={sp.active !== false}
+                  disabled={busyId === sp._id || locked}
+                  onCheckedChange={(v) => onToggle(sp, v === true)}
+                  aria-label={`Include ${sp.name} this season`}
+                  title={locked ? LOCK_TITLE : sp.active === false ? "Not included this season: tick to include it" : "Included this season: untick to leave it out"}
+                />
+              </td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[15px] font-medium">{sp.name}</span>
+                  <span className={cn("text-[15px] font-medium", sp.active === false && "line-through decoration-muted-foreground/50")}>{sp.name}</span>
                   <Badge variant="secondary">{typeText(sp)}</Badge>
+                  {sp.active === false && <Badge variant="outline" className="text-muted-foreground">Not this season</Badge>}
                 </div>
                 <p className="text-[13px] text-muted-foreground sm:hidden">{divText(sp)} · {fmtText(sp)}</p>
               </td>
@@ -1053,7 +1050,7 @@ export default function SportConfig() {
 
   async function load() {
     try {
-      const d = await api("/api/sports");
+      const d = await api("/api/sports?all=1");
       setSports(d.sports || []);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
@@ -1061,7 +1058,19 @@ export default function SportConfig() {
 
   useEffect(() => { load(); }, []);
 
+  const [toggleId, setToggleId] = useState(null);
+  async function toggleActive(sp, active) {
+    setToggleId(sp._id);
+    try {
+      const d = await api(`/api/sports/${sp._id}/active`, { method: "PATCH", body: JSON.stringify({ active }) });
+      setSports((prev) => prev.map((x) => (x._id === sp._id ? d.sport : x)));
+      setNotice(d.message);
+    } catch (e) { showError(e.message); }
+    finally { setToggleId(null); }
+  }
+
   const editing = sports.find((s) => s._id === editId) || null;
+  const included = sports.filter((s) => s.active !== false).length;
 
   return (
     <AdminLayout title="League Setup" menu={superAdminMenu} enableDarkMode
@@ -1083,14 +1092,14 @@ export default function SportConfig() {
           <Alert className="border-amber-500/30 bg-amber-500/5">
             <Lock className="size-4 text-amber-600 dark:text-amber-400" />
             <AlertDescription className="text-amber-700 dark:text-amber-400">
-              The season is ongoing, so games can't be added or deleted and barangays can't be added, renamed,
-              removed or have their cross-barangay setting changed. This unlocks once the season is completed.
+              The season is ongoing, so games can't be added, deleted, included or left out, and barangays can't be
+              added, renamed or have their cross-barangay setting changed. This unlocks once the season is completed.
             </AlertDescription>
           </Alert>
         )}
 
         <TabBar value={tab} onChange={setTab}
-          tabs={[{ value: "games", label: "Games", count: loading ? null : sports.length }, { value: "barangays", label: "Barangays" }, { value: "demo", label: "Demo data" }]} />
+          tabs={[{ value: "games", label: "Games", count: loading ? null : included }, { value: "barangays", label: "Barangays" }, { value: "demo", label: "Demo data" }]} />
 
         {tab === "demo" ? (
           <DemoDataCard />
@@ -1118,7 +1127,13 @@ export default function SportConfig() {
             {showTypes && <RulesByType />}
 
             {sports.length ? (
-              <GamesTable sports={sports} onOpen={setEditId} />
+              <>
+                <p className="text-[13px] text-muted-foreground">
+                  Tick the games this season includes. An unticked game keeps its settings but is hidden from
+                  registration, the public site and the dashboards. Tick it again to bring it back.
+                </p>
+                <GamesTable sports={sports} onOpen={setEditId} onToggle={toggleActive} busyId={toggleId} locked={locked} />
+              </>
             ) : (
               <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
                 No games yet. Use “Add a game” to create the first one.

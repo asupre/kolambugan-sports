@@ -139,7 +139,7 @@ router.post('/provision-all', async (req, res) => {
   try {
     const [barangays, sports] = await Promise.all([
       Barangay.find().select('name'),
-      Sport.find().select('name'),
+      Sport.find(Sport.ACTIVE).select('name'),
     ]);
 
     const makeUnique = async (base) => {

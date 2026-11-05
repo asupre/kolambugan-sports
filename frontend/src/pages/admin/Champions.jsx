@@ -70,7 +70,7 @@ export default function Champions() {
   useEffect(() => {
     load();
     Promise.all([
-      api("/api/sports").catch(() => ({ sports: [] })),
+      api("/api/sports?all=1").catch(() => ({ sports: [] })),
       api("/api/barangays").catch(() => ({ barangays: [] })),
     ]).then(([s, b]) => {
       setSports(s.sports || []);

@@ -58,7 +58,7 @@ router.get('/queue', async (req, res) => {
         .populate('sport', 'name')
         .lean(),
       Barangay.find().sort({ name: 1 }).lean(),
-      Sport.find({ divisions: { $exists: true, $ne: [] } }).select('divisions').lean(),
+      Sport.find({ ...Sport.ACTIVE, divisions: { $exists: true, $ne: [] } }).select('divisions').lean(),
       // Teams a player was rejected from: reopened for their barangay to add a
       // replacement and resubmit (see requireRosterWindow in routes/team.js). Listed
       // so they don't vanish from the queue while they're being fixed.

@@ -969,10 +969,25 @@ so a bug in one route cannot expose the other.
   photos), tournaments, matches, PlayerMatchStats, organizer account(s), then the sport.
   Champions untouched (free text). Refused while a CURRENT-season match of it is `ongoing`
   (a past-season match stuck `ongoing` is abandoned and ignored). Irreversible.
+- **Include / exclude a game this season (Nov 5 2026, Super Admin: "instead of deleting, add a
+  checkbox").** `Sport.active` (Boolean, default true; an older record without the field counts as
+  included, so query with `Sport.ACTIVE` = `{ active: { $ne: false } }`, exported from
+  `models/Sport.js`). League Setup's Games table has a checkbox per row (`GamesTable`
+  `onToggle`); an unticked game is dimmed, struck through, "Not this season", and keeps all its
+  settings. `PATCH /api/sports/:id/active {active}`: excluding is refused (409) while the current
+  season has teams or a bracket for it, and both directions are locked while the season is
+  `ongoing`. `GET /api/sports` returns only included games; `?all=1` returns every game (League
+  Setup, Accounts, admin Champions + Champions report, which look up sports by name). Excluded games
+  are also left out of: `POST /api/teams` (409), `POST /api/tournaments/generate` (409), Provision
+  all (no organizer made), demo teams, the Super Admin dashboard and Barangay dashboard sport lists,
+  and the Review Queue's "Cleared" slot count. Its organizer account is NOT deleted. "Remove game"
+  still exists for a real delete. Tested on mongodb-memory-server (9 checks).
+- **Barangays can't be deleted (Nov 5 2026, Super Admin).** `DELETE /api/barangays/:id` and League
+  Setup's trash button were removed; add / rename / cross-barangay tick stay.
 - **League structure is frozen while the season is `ongoing`** (Oct 3 2026, Super Admin report:
   Mobile Legends, with results, was purged mid-tournament). `lockedWhileOngoing()` in
   `routes/reference.js` returns 409 on: add a game (`POST /api/sports`), delete a game (`DELETE
-  /api/sports/:id` AND `/purge`), add / rename / delete a barangay, and the cross-barangay toggle
+  /api/sports/:id` AND `/purge`), add / rename a barangay (delete no longer exists), including / excluding a game, and the cross-barangay toggle
   (`/barangays/:id/cross` and `allowsCrossBarangay` on `PATCH /barangays/:id`). Registration and
   verification are finished by then; the toggle re-screens every player and could reopen verified
   teams mid-tournament. League Setup (`SportConfig.jsx`, `useSeason`) shows an amber lock notice

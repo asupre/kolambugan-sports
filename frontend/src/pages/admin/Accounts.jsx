@@ -54,7 +54,7 @@ function AddAccountForm({ onCreated, superAdminCount = 0 }) {
   useEffect(() => {
     Promise.all([
       api("/api/barangays").catch(() => ({ barangays: [] })),
-      api("/api/sports").catch(() => ({ sports: [] })),
+      api("/api/sports?all=1").catch(() => ({ sports: [] })),
     ]).then(([b, s]) => {
       setBarangays(b.barangays || []);
       setSports(s.sports || []);

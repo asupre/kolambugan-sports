@@ -46,8 +46,10 @@ const withDefaults = (s) => ({
   teamsAllowed: teamsAllowedFor(s),
 });
 
+// GET /api/sports: the games included this season. ?all=1 also returns excluded ones (League
+// Setup, and pages that look up past champions' sports by name).
 router.get('/sports', async (req, res) => {
-  const sports = await Sport.find().sort({ name: 1 });
+  const sports = await Sport.find(req.query.all ? {} : Sport.ACTIVE).sort({ name: 1 });
   res.json({ sports: sports.map(withDefaults) });
 });
 
@@ -344,6 +346,40 @@ function customStatsFromBody(list) {
   }
   return { values: out };
 }
+
+// PATCH /api/sports/:id/active: super admin; include or exclude a game this season
+// (body { active: true|false }). Excluding is refused while the current season already has
+// teams or a bracket for it, and while the season is ongoing (structure frozen).
+router.patch('/sports/:id/active', authenticate, authorize('super_admin'), async (req, res) => {
+  try {
+    if (typeof req.body.active !== 'boolean') return res.status(400).json({ message: 'active must be true or false.' });
+    if (await lockedWhileOngoing(res, 'including or excluding a game')) return;
+    const sport = await Sport.findById(req.params.id);
+    if (!sport) return res.status(404).json({ message: 'Sport not found.' });
+    if (!req.body.active) {
+      const season = await getCurrentSeason();
+      if (season) {
+        const [teams, brackets] = await Promise.all([
+          Team.countDocuments({ sport: sport._id, season: season._id }),
+          Tournament.countDocuments({ sport: sport._id, season: season._id }),
+        ]);
+        if (teams || brackets) {
+          const parts = [teams ? `${teams} team(s)` : null, brackets ? `${brackets} bracket(s)` : null].filter(Boolean).join(' and ');
+          return res.status(409).json({ message: `${sport.name} already has ${parts} this season, so it can't be excluded. Remove those first.` });
+        }
+      }
+    }
+    sport.active = req.body.active;
+    await sport.save();
+    res.json({
+      message: req.body.active ? `${sport.name} is included this season.` : `${sport.name} is excluded this season. Its settings are kept.`,
+      sport: withDefaults(sport),
+    });
+  } catch (err) {
+    console.error('Set sport active error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
 
 router.post('/sports', authenticate, authorize('super_admin'), async (req, res) => {
   try {
@@ -696,29 +732,6 @@ router.patch('/barangays/:id', authenticate, authorize('super_admin'), async (re
   }
 });
 
-router.delete('/barangays/:id', authenticate, authorize('super_admin'), async (req, res) => {
-  try {
-    if (await lockedWhileOngoing(res, 'removing a barangay')) return;
-    const b = await Barangay.findById(req.params.id);
-    if (!b) return res.status(404).json({ message: 'Barangay not found.' });
-
-    const teams = await Team.countDocuments({ barangay: b._id });
-    const admins = await User.countDocuments({ barangay: b._id });
-    if (teams || admins) {
-      const parts = [
-        teams ? `${teams} team(s)` : null,
-        admins ? `${admins} admin account(s)` : null,
-      ].filter(Boolean).join(' and ');
-      return res.status(409).json({ message: `${b.name} still has ${parts}. Remove those first.` });
-    }
-
-    if (b.logo) await deleteFile('logos', b.logo);
-    await Barangay.deleteOne({ _id: b._id });
-    res.json({ message: `${b.name} removed.` });
-  } catch (err) {
-    console.error('Delete barangay error:', err);
-    res.status(500).json({ message: 'Something went wrong.' });
-  }
-});
+// (DELETE /api/barangays/:id was removed, Nov 2026, Super Admin: barangays are never deleted.)
 
 module.exports = router;

@@ -36,7 +36,7 @@ router.get('/dashboard', authenticate, authorize('super_admin'), async (req, res
     // when there's no season.
     const [barangayList, sportList, accountList, teams, tournaments, referenceCount] = await Promise.all([
       Barangay.find().select('name').sort({ name: 1 }).lean(),
-      Sport.find().select('name divisions').sort({ name: 1 }).lean(),
+      Sport.find(Sport.ACTIVE).select('name divisions').sort({ name: 1 }).lean(),
       User.find({ role: { $in: ['barangay_admin', 'organizer'] } })
         .select('role barangay assignedSport mustChangePassword').lean(),
       season ? Team.find({ season: season._id }).select('teamName barangay sport division status submittedAt').lean() : [],
@@ -225,7 +225,7 @@ router.get('/brgy-dashboard', authenticate, authorize('barangay_admin'), async (
 
     const [links, sportsWithDivisions, matches] = await Promise.all([
       TeamPlayer.find({ team: { $in: teamIds } }).select('team player').lean(),
-      Sport.find({ divisions: { $exists: true, $ne: [] } }).select('divisions').lean(),
+      Sport.find({ ...Sport.ACTIVE, divisions: { $exists: true, $ne: [] } }).select('divisions').lean(),
       Match.find({ $or: [{ teamA: { $in: teamIds } }, { teamB: { $in: teamIds } }] })
         .populate('teamA', 'teamName')
         .populate('teamB', 'teamName')

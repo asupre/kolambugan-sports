@@ -294,6 +294,9 @@ router.post('/', authenticate, authorize('barangay_admin'),
     if (!sport) {
       return res.status(404).json({ message: 'Sport not found.' });
     }
+    if (sport.active === false) {
+      return res.status(409).json({ message: `${sport.name} is not part of the league this season.` });
+    }
 
         const division = req.body.division || 'open';
     const format = req.body.format || sport.entryFormat || 'team';

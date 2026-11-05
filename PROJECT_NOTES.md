@@ -852,6 +852,12 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   `schedule-bulk` with a time is refused for more than one match (apply the date with "No time",
   then time each match on its own row). A date with no time (midnight Manila) never clashes.
   Exact-time equality only, no match duration. Clashes saved before this rule are not cleaned up.
+- **Overlap is checked PER VENUE (Nov 5 2026, Super Admin: "it should allow this since the venue
+  is different").** Two games of the same sport may share a time at DIFFERENT venues; only the
+  same venue (case-insensitive) clashes. A match with no venue clashes with any overlapping game
+  of its sport, and vice versa. `findScheduleClash(..., venue)` takes the venue being saved in
+  the same request. Different SPORTS at the same venue are still NOT checked (e.g. Basketball and
+  Pickleball both default to KCC Gym). 19 checks on mongodb-memory-server.
 - **Matches have a START and an END time; same-sport games can't OVERLAP (Nov 5 2026, Super Admin
   screenshot: 6:00 AM and 6:01 AM were both accepted). Supersedes the exact date + time rule above.**
   `Match.scheduleEnd` (Date, same Manila day; FULL server restart). The schedule row

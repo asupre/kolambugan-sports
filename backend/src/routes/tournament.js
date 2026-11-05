@@ -1113,8 +1113,9 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
 });
 
 // ---- Schedule clashes ------------------------------------------------------
-// A sport has a single organizer, so two of its matches can't be played at the same time,
-// whatever their group, round or division (Oct 2026). Since Nov 2026 each match has a START and
+// Two matches of one sport can't be played at the same time AT THE SAME VENUE, whatever their
+// group, round or division (Oct 2026; the venue part since Nov 2026, so the same sport may run
+// at two venues at once, see findScheduleClash). Since Nov 2026 each match has a START and
 // an END time, and two games clash when their times OVERLAP (6:00-8:00 and 7:30-9:00 clash;
 // 6:00-8:00 and 8:00-10:00 don't). It used to compare the exact start minute only, so 6:00 and
 // 6:01 were both allowed. A match dated before end times existed counts as one minute. A date
@@ -1130,20 +1131,32 @@ const MINUTE = 60 * 1000;
 const endOf = (m) => m.scheduleEnd || new Date(m.schedule.getTime() + MINUTE);
 const range = (start, end) => `${TIME_FMT.format(start)} to ${TIME_FMT.format(end)}`;
 
-// Another match of this sport (this tournament's season) whose time overlaps [start, end), or
-// null. `excludeIds` = the match(es) being re-dated themselves. Half-open, so a game may start
-// the minute the previous one ends.
-async function findScheduleClash(tournament, start, end, excludeIds) {
+// Another match of this sport (this tournament's season) whose time overlaps [start, end) AT THE
+// SAME VENUE, or null. `excludeIds` = the match(es) being re-dated themselves. Half-open, so a
+// game may start the minute the previous one ends.
+// Venue (Nov 2026, Super Admin: "it should allow this since the venue is different"): two games
+// of one sport at the same time are fine at DIFFERENT venues. A match with no venue could be
+// anywhere, so it clashes with any overlapping game (and any overlapping game clashes with it).
+// Venue names compare case-insensitively.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+async function findScheduleClash(tournament, start, end, excludeIds, venue = '') {
   const tournamentIds = await Tournament.find({ sport: tournament.sport, season: tournament.season }).distinct('_id');
-  return Match.findOne({
-    tournament: { $in: tournamentIds },
-    _id: { $nin: excludeIds },
-    schedule: { $lt: end },
+  const v = String(venue || '').trim();
+  const and = [{
     $or: [
       { scheduleEnd: { $gt: start } },
       // dated before end times existed: a single minute at its start
       { scheduleEnd: null, schedule: { $gte: start } },
     ],
+  }];
+  if (v) {
+    and.push({ $or: [{ venue: new RegExp(`^${escapeRe(v)}$`, 'i') }, { venue: '' }, { venue: null }] });
+  }
+  return Match.findOne({
+    tournament: { $in: tournamentIds },
+    _id: { $nin: excludeIds },
+    schedule: { $lt: end },
+    $and: and,
   })
     .populate('tournament', 'division')
     .populate('teamA', 'teamName')
@@ -1157,7 +1170,8 @@ function clashMessage(clash, start, end, sportName) {
     clash.group ? `Group ${clash.group}` : 'Knockout',
   ].filter(Boolean).join(' · ');
   const teams = `${clash.teamA?.teamName || 'TBD'} vs ${clash.teamB?.teamName || 'TBD'}`;
-  return `${DAY_FMT.format(start)}, ${range(start, end)} overlaps ${where} (${teams}), set for ${range(clash.schedule, endOf(clash))}. Only one ${sportName || 'match'} game can be played at a time. Pick a time after it ends or before it starts.`;
+  const at = clash.venue ? ` at ${clash.venue}` : ' (no venue set)';
+  return `${DAY_FMT.format(start)}, ${range(start, end)} overlaps ${where} (${teams}), set for ${range(clash.schedule, endOf(clash))}${at}. Two ${sportName || ''} games can't be played at the same venue at the same time. Pick another time or another venue.`.replace(/ {2,}/g, ' ');
 }
 
 // PATCH /api/tournaments/matches/:matchId/schedule — super admin sets or clears
@@ -1188,7 +1202,9 @@ router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'
           }
           const tournament = await Tournament.findById(match.tournament).populate('sport', 'name');
           if (tournament) {
-            const clash = await findScheduleClash({ sport: tournament.sport._id, season: tournament.season }, d, end, [match._id]);
+            // The venue being saved with this request (the row sends both), else the saved one.
+            const venue = req.body.venue !== undefined ? String(req.body.venue).trim() : match.venue;
+            const clash = await findScheduleClash({ sport: tournament.sport._id, season: tournament.season }, d, end, [match._id], venue);
             if (clash) return res.status(409).json({ message: clashMessage(clash, d, end, tournament.sport?.name) });
           }
         }

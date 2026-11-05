@@ -3781,3 +3781,5 @@ its filename and status, making "should I delete this and re-upload" a guess.
 - Each match is scheduled with a start AND an end time. Two games of the same sport can no
   longer overlap (before, only the exact same start minute was refused, so 6:00 and 6:01 were
   both allowed). Back-to-back games are fine.
+- Same day, later: the overlap check is per venue. Two games of one sport may be played at the
+  same time at different venues; at the same venue they still clash.

@@ -402,7 +402,8 @@ function ScheduleSection({ tournamentId, sportName, ended }) {
         Dates are guidance, not a lock. An organizer can still start an undated match,
         or one being played on a different day. Times are Philippine time.
         Set each match's date, start and end time, and venue on its own row. Two games of
-        this sport (any group or division) can't overlap; one may start when the other ends.
+        this sport (any group or division) can't overlap at the same venue; at different venues
+        they can, and one may start when the other ends.
       </p>
 
       {loading ? (

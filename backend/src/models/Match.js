@@ -81,6 +81,7 @@ const matchSchema = new mongoose.Schema(
     clock: {
       type: new mongoose.Schema({
         periodSeconds: Number, running: Boolean, startedAt: Date, elapsed: Number,
+        started: Boolean,   // the clock has run in this period (scoring opens then)
       }, { _id: false }),
       default: null,
     },

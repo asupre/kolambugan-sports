@@ -457,6 +457,12 @@ router.post('/matches/:matchId/score', async (req, res) => {
     // summing to the final score.
     const periodsTotal = totalPeriods(match);
     const tied = (match.liveScoreA || 0) === (match.liveScoreB || 0);
+    // Timed sports: no points until the clock has been started in this period (Nov 2026, Super
+    // Admin). Once it has run, points are allowed while it is paused (free throws are shot with
+    // the clock stopped) and at 0:00.
+    if (match.clock && match.games.length < periodsTotal && !match.clock.started && !match.clock.running) {
+      return res.status(409).json({ code: 'clock_not_started', message: 'Start the clock first. Points can be added once this period is under way.' });
+    }
     if (match.games.length >= periodsTotal) {
       return res.status(409).json({
         message: tied
@@ -1017,7 +1023,7 @@ router.post('/matches/:matchId/clock', async (req, res) => {
     const action = req.body.action;
     if (action === 'start') {
       if (clockRemaining(c, now) <= 0) return res.status(409).json({ message: 'Time is up. End this period.' });
-      if (!c.running) match.clock = { periodSeconds: c.periodSeconds, running: true, startedAt: new Date(now), elapsed: c.elapsed || 0 };
+      if (!c.running) match.clock = { periodSeconds: c.periodSeconds, running: true, startedAt: new Date(now), elapsed: c.elapsed || 0, started: true };
     } else if (action === 'pause') {
       match.clock = pauseClock(c, now);
     } else if (action === 'set') {
@@ -1026,7 +1032,7 @@ router.post('/matches/:matchId/clock', async (req, res) => {
         return res.status(400).json({ message: `The time left must be between 0:00 and ${Math.floor(c.periodSeconds / 60)}:00.` });
       }
       const running = !!c.running && seconds > 0;
-      match.clock = { periodSeconds: c.periodSeconds, running, startedAt: running ? new Date(now) : null, elapsed: c.periodSeconds - seconds };
+      match.clock = { periodSeconds: c.periodSeconds, running, startedAt: running ? new Date(now) : null, elapsed: c.periodSeconds - seconds, started: !!c.started };
     } else {
       return res.status(400).json({ message: 'action must be start, pause or set.' });
     }

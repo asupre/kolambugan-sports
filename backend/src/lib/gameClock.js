@@ -25,11 +25,12 @@ function clockView(m, now = Date.now()) {
   return {
     remaining: Math.ceil(remaining),
     running: !!m.clock.running && remaining > 0,
+    started: !!m.clock.started,
     periodSeconds: m.clock.periodSeconds,
   };
 }
 
-const freshClock = (seconds) => ({ periodSeconds: seconds, running: false, startedAt: null, elapsed: 0 });
+const freshClock = (seconds) => ({ periodSeconds: seconds, running: false, startedAt: null, elapsed: 0, started: false });
 
 // Length of period `n` (1-based): a regulation period, or an overtime.
 const periodSecondsFor = (m, n) => ((n > (m.bestOf || 1) ? m.overtimeMinutes : m.periodMinutes) || 0) * 60;
@@ -38,7 +39,7 @@ const periodSecondsFor = (m, n) => ((n > (m.bestOf || 1) ? m.overtimeMinutes : m
 function pauseClock(clock, now = Date.now()) {
   if (!clock || !clock.running) return clock;
   const left = clockRemaining(clock, now);
-  return { periodSeconds: clock.periodSeconds, running: false, startedAt: null, elapsed: clock.periodSeconds - left };
+  return { periodSeconds: clock.periodSeconds, running: false, startedAt: null, elapsed: clock.periodSeconds - left, started: !!clock.started };
 }
 
 module.exports = { totalPeriods, clockRemaining, clockView, freshClock, periodSecondsFor, pauseClock };

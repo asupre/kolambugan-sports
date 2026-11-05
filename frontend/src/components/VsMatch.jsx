@@ -136,17 +136,6 @@ function VsMatchRowImpl({ m, showDate = true }) {
         {!live && !done && endTime && (
           <div className="mt-1 text-[11px] sm:text-[13px] font-semibold tabular-nums text-slate-300">to {endTime}</div>
         )}
-        {/* Game clock games (basketball): how long it is, and the overtime rule / tag. */}
-        {(live || done) && gameLength(m, live) && (
-          <div className="mt-1 max-w-[110px] sm:max-w-[190px] text-[10px] sm:text-[12px] font-medium leading-snug text-slate-400">
-            {gameLength(m, live && m.periodsPlayed < (m.regulationPeriods || 0))}
-          </div>
-        )}
-        {live && m.overtimes > 0 && (
-          <span className="mt-1 rounded bg-amber-500 px-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-[#0A0C0B]">
-            {m.periodMinutes ? "Overtime" : "Deciding set"}{m.overtimes > 1 ? ` ${m.overtimes}` : ""}
-          </span>
-        )}
         <div className="mt-1.5 text-[10px] sm:text-[12px] font-semibold uppercase tracking-wide">
           {live ? (
             <span className="inline-flex items-center gap-1 text-red-400">
@@ -157,7 +146,6 @@ function VsMatchRowImpl({ m, showDate = true }) {
                     label: "set", timed: !!m.periodMinutes, short: true, prefix: PERIOD_PREFIX[m.sport] || "P",
                   })
                 : "Live"}
-              {m.clock && m.periodsPlayed < m.totalPeriods && <> · <LiveClock clock={m.clock} /></>}
             </span>
           ) : done ? (
             <span className="text-slate-400">
@@ -167,6 +155,25 @@ function VsMatchRowImpl({ m, showDate = true }) {
             <span className="text-[#4ADE80]">{showDate && date ? date : "VS"}</span>
           )}
         </div>
+        {/* The game clock, big enough to read at a glance under the quarter (it used to be
+            small red text beside it, easy to miss). Ticks between polls; red at 0:00. */}
+        {live && m.clock && m.periodsPlayed < m.totalPeriods && (
+          <div className="mt-1 text-[24px] sm:text-[32px] leading-none tabular-nums" style={{ fontFamily: "Anton, sans-serif" }}
+            aria-label="Game clock">
+            <LiveClock clock={m.clock} />
+          </div>
+        )}
+        {live && m.overtimes > 0 && (
+          <span className="mt-1.5 rounded bg-amber-500 px-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-[#0A0C0B]">
+            {m.periodMinutes ? "Overtime" : "Deciding set"}{m.overtimes > 1 ? ` ${m.overtimes}` : ""}
+          </span>
+        )}
+        {/* Game clock games (basketball): how long it is, and the overtime rule. */}
+        {(live || done) && gameLength(m, live) && (
+          <div className="mt-1 max-w-[110px] sm:max-w-[190px] text-[10px] sm:text-[12px] font-medium leading-snug text-slate-400">
+            {gameLength(m, live && m.periodsPlayed < (m.regulationPeriods || 0))}
+          </div>
+        )}
         {/* Venue under the VS (Super Admin request, Oct 2026). */}
         {/* Bold + a yellow pin so it reads at a glance (Super Admin, Oct 2026). */}
         {m.venue && (

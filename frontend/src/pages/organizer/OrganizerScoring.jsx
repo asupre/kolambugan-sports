@@ -1178,6 +1178,9 @@ function ScoringView({ matchId, onBack }) {
   const periodText = (short) => periodName({ n: curPeriod, regulation, label: data.periodLabel || "period", timed: !!timed, short, prefix: data.periodLabel === "quarter" ? "Q" : undefined });
   const allPeriodsDone = periodsOver && !tied;
   const minutes = minutesChoice ?? timed?.defaultMinutes ?? null;
+  // Timed sports: no points until the clock has run in this period (server: clock_not_started).
+  // Once started, points still go in while it is paused (free throws) and at 0:00.
+  const clockNotStarted = !!timed && !!data.clockNow && !periodsOver && !data.clockNow.started && !data.clockNow.running;
   // Games-won sports play a series of m.bestOf games (picked at start, like a sport's sets) and
   // end as soon as one side has won the majority of it.
   const seriesLength = m.bestOf || 1;
@@ -1498,7 +1501,9 @@ function ScoringView({ matchId, onBack }) {
       {live && timed && data.clockNow && !periodsOver && (
         <GameClockCard clock={data.clockNow} period={periodText(false)} overtime={inOvertime}
           canControl={isScorer} busy={busy} onAction={clockAction}
-          note={inOvertime ? `${timed.overtimeMinutes}-minute overtime: the scores were level after ${periodWord} ${regulation}.` : null} />
+          note={clockNotStarted && isScorer
+            ? `Start the clock to begin this ${periodWord}. The score buttons unlock once it runs.`
+            : inOvertime ? `${timed.overtimeMinutes}-minute overtime: the scores were level after ${periodWord} ${regulation}.` : null} />
       )}
 
       <div className="flex flex-col lg:flex-row gap-4">
@@ -1558,8 +1563,8 @@ function ScoringView({ matchId, onBack }) {
                     </div>
                     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${pointValues.length}, minmax(0, 1fr))` }}>
                       {pointValues.map((v) => (
-                        <button key={v} onClick={() => scoreTap(s, v, false)} disabled={busy || periodsOver}
-                          title={periodsOver ? (tied ? "Start overtime first" : "Every period is over. End the match.") : undefined}
+                        <button key={v} onClick={() => scoreTap(s, v, false)} disabled={busy || periodsOver || clockNotStarted}
+                          title={clockNotStarted ? "Start the clock first" : periodsOver ? (tied ? "Start overtime first" : "Every period is over. End the match.") : undefined}
                           className="h-16 rounded-xl bg-green-600 text-xl font-bold text-white transition active:scale-95 hover:bg-green-700 disabled:opacity-40 disabled:active:scale-100">
                           +{v}
                         </button>

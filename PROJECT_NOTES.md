@@ -851,6 +851,14 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   - **Public:** `publicMatch()` adds regulationPeriods, overtimes, periodMinutes, overtimeMinutes,
     clock (live only). VS rows: "Q3 · 7:42" under the score, "4 × 10 min · 5-min OT if tied", an
     amber OVERTIME tag during OT, "Final · OT" / "Final · 2 OT". Team page "Live now" panel: same.
+  - **No points until the clock has STARTED in the current period** (Nov 5 2026, Super Admin).
+    `clock.started` (set by the first Start of each period, reset by `freshClock`): the score route
+    returns 409 `clock_not_started` before that, and the score buttons stay disabled with a note on
+    the clock card. Once started, points ARE allowed while paused (free throws are shot with the
+    clock stopped) and at 0:00. A "Set time" correction alone doesn't open scoring.
+  - **Public clock is big** (same day, "public viewers should see the clock"): it was shown, but as
+    small red text beside "Q2"; now the VS row's centre is score, "● Q2", the clock in Anton
+    24/32px, the OVERTIME tag, then the game length.
   - Tested: 25 route checks on mongodb-memory-server (clock start / pause / set, regulation tied →
     OT1 → tied → OT2 → end, periods sum to the final, volleyball untimed + deciding set);
     rendered the organizer screen (start / live / tied) at 390 and the public live rows at 390

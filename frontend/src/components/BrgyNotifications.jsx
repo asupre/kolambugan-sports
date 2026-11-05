@@ -32,7 +32,12 @@ export default function BrgyNotifications({ className }) {
   async function load() {
     try { const d = await api("/api/notifications"); setData(d); return d; } catch { return null; }
   }
-  useEffect(() => { load(); }, []);
+  // Re-check every minute while the tab is visible, so an update arrives without reloading.
+  useEffect(() => {
+    load();
+    const timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   async function openPanel() {
     setOpen(true);

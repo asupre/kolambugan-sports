@@ -58,4 +58,24 @@ async function notifySeasonStage(season, { back = false } = {}) {
   }
 }
 
-module.exports = { notifySeasonStage };
+// Self-heal (Nov 2026): a stage change made while the server ran older code (or one whose
+// notification failed) was never announced. When a Barangay Admin opens the bell and the
+// current season has NO notification for its current stage, post it now. Upsert, so two
+// admins opening the bell at once don't both create it: the catch-up carries a unique `key`,
+// so the second insert fails with a duplicate-key error, which is ignored.
+async function ensureCurrentStageNotified(season) {
+  try {
+    if (!season || !STAGE_TEXT[season.status]) return;
+    const exists = await Notification.exists({ season: season._id, kind: 'season', stage: season.status, barangay: null });
+    if (exists) return;
+    const t = STAGE_TEXT[season.status];
+    await Notification.create({
+      role: 'barangay_admin', barangay: null, season: season._id, kind: 'season', stage: season.status,
+      title: t.title(season), body: t.body, link: t.link, key: `${season._id}:${season.status}`,
+    });
+  } catch (err) {
+    if (err?.code !== 11000) console.error('Ensure stage notified error:', err);
+  }
+}
+
+module.exports = { notifySeasonStage, ensureCurrentStageNotified };

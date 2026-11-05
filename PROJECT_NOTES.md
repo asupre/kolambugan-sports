@@ -1070,6 +1070,12 @@ so a bug in one route cannot expose the other.
   one opens its page (/brgy, /brgy/documents, /brgy/matches…). `barangay` allows per-barangay news
   later (e.g. a rejected player); nothing writes those yet. A season already running when this
   shipped has no notification until its next change. Tested on mongodb-memory-server (9 checks).
+  **Catch-up (Nov 5 2026 fix, "moved it into verification and there's still no notification"):**
+  prod was still on the old build when the season moved, so nothing was written. Now every
+  `GET /api/notifications` runs `ensureCurrentStageNotified()`: if the current season has no
+  notification for its current stage, it posts one (with a unique sparse `key` "<season>:<stage>",
+  so two admins opening the bell at once create it once). The bell also re-checks every 60s while
+  the tab is visible (it used to load only with the page).
 - **Barangay Admin + Organizer dashboards and the season indicator (Sep 2026)**:
   both roles land on a Dashboard tab (`/brgy/dashboard`, `/organizer/dashboard`;
   `/brgy` is still My Teams and `/organizer` still the scoring screen). Data comes

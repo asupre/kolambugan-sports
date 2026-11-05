@@ -6,6 +6,8 @@ const express = require('express');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const { authenticate, authorize } = require('../middleware/auth');
+const { getCurrentSeason } = require('../middleware/season');
+const { ensureCurrentStageNotified } = require('../lib/notify');
 
 const router = express.Router();
 router.use(authenticate, authorize('barangay_admin'));
@@ -15,6 +17,9 @@ const LIMIT = 30;
 // GET /api/notifications: this account's latest notifications + unread count.
 router.get('/', async (req, res) => {
   try {
+    // A stage change the server never announced (e.g. made before this feature was deployed)
+    // gets its notification now, so the bell is never silent about where the season is.
+    await ensureCurrentStageNotified(await getCurrentSeason());
     const user = await User.findById(req.user.id).select('notificationsSeenAt').lean();
     const filter = { role: 'barangay_admin', barangay: { $in: [null, req.user.barangay || null] } };
     const rows = await Notification.find(filter).sort({ createdAt: -1 }).limit(LIMIT).lean();

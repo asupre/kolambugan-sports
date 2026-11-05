@@ -15,6 +15,7 @@ const router = express.Router();
 router.use(authenticate, authorize('organizer', 'super_admin'));
 const { PERIOD_LABEL, LEGACY_STAT_COLUMNS, rulesFor } = require('../lib/sportRules');
 const { totalPeriods, clockView, freshClock, periodSecondsFor, pauseClock, clockRemaining } = require('../lib/gameClock');
+const { suggestMvp, applyAutoMvp, formulaText } = require('../lib/mvp');
 
 // Games-won sports (chess, billiards, esports — scoringMode 'final') play a SERIES: the organizer
 // picks its length at start (stored in bestOf, like a sport's period count), and it ends as soon
@@ -194,6 +195,9 @@ router.get('/matches/:matchId', async (req, res) => {
       match: matchOut(full),
             ...rulesFor(ctx.sport),
       clockNow: clockView(full, now),   // seconds left right now (devices tick from this)
+      // Automatic MVP: who the stats pick right now, and how (lib/mvp.js).
+      mvpSuggestion: full.status === 'completed' ? await suggestMvp(full, ctx.sport) : null,
+      mvpFormula: formulaText(ctx.sport),
       serverNow: now,
       jobs: jobsView(match, req, now),
       myJob: mine,
@@ -814,6 +818,9 @@ router.put('/matches/:matchId/stats', async (req, res) => {
       }
     }
 
+    // The automatic MVP follows the saved stats (a hand pick is left alone).
+    await applyAutoMvp(match._id, ctx.sport);
+
     res.json({
       message: `Player stats saved (${saved} player${saved === 1 ? '' : 's'}).`,
       saved,
@@ -840,7 +847,10 @@ router.put('/matches/:matchId/result', async (req, res) => {
     const v = Number(req.body.version);
     if (!Number.isInteger(v) || v < 0) return res.status(400).json({ message: 'The form version is missing. Reload the form and try again.' });
 
-    const mvp = req.body.mvpPlayerId ? String(req.body.mvpPlayerId) : null;
+    // mvpAuto: true = let the stats decide (lib/mvp.js); otherwise mvpPlayerId (or none) is a
+    // hand pick that a later recount won't change.
+    const auto = req.body.mvpAuto === true;
+    const mvp = !auto && req.body.mvpPlayerId ? String(req.body.mvpPlayerId) : null;
     if (mvp) {
       const onEither = mongoose.isValidObjectId(mvp)
         && await TeamPlayer.findOne({ team: { $in: [match.teamA, match.teamB] }, player: mvp }).select('_id');
@@ -849,10 +859,11 @@ router.put('/matches/:matchId/result', async (req, res) => {
 
     const saved = await Match.findOneAndUpdate(
       { _id: match._id, status: 'completed', ...versionIs('formVersion.result', v) },
-      { $set: { mvp }, $inc: { 'formVersion.result': 1 } },
+      { $set: auto ? { mvpPick: 'auto' } : { mvp, mvpPick: 'manual', mvpRating: null }, $inc: { 'formVersion.result': 1 } },
       { returnDocument: 'after' }
     );
     if (!saved) return res.status(409).json({ code: 'stale_form', message: 'Someone else saved this form. Reload to see the latest.' });
+    if (auto) await applyAutoMvp(match._id, ctx.sport);
     res.json({ message: 'Result confirmed.', formVersion: versionsOut(saved) });
   } catch (err) {
     console.error('Confirm result error:', err);
@@ -905,6 +916,7 @@ router.post('/matches/:matchId/end', async (req, res) => {
       });
       if (!onEither) return res.status(400).json({ message: 'The MVP must be a player in this match.' });
       match.mvp = req.body.mvpPlayerId;
+      match.mvpPick = 'manual';
     }
 
         // games[] already holds each period's snapshot; stamp the overall winner on the last one.
@@ -926,6 +938,9 @@ router.post('/matches/:matchId/end', async (req, res) => {
       else if (!next.teamB) next.teamB = teamId;
       await next.save();
     };
+
+    // Automatic MVP from the stats keepers' live taps (recounted when the forms are saved).
+    await applyAutoMvp(match._id, ctx.sport);
 
     let advanced = null;
     if (match.isTiebreaker) {

@@ -3791,3 +3791,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
   the fourth quarter goes to 5-minute overtimes until a team leads. The public site shows the
   quarter and clock live, the game length, and when a game is in overtime. Set-based sports
   (volleyball, badminton, pickleball) have no clock; a tie gets a deciding set.
+
+## 2026-11-05 — Automatic MVP
+
+- The MVP of a match is picked automatically: the winning team's player with the best rating
+  from the player stats (points, rebounds, assists, steals, blocks, minus turnovers and half a
+  point per foul; kills, assists and deaths for esports). The organizer can still choose
+  someone else. Before, the organizer always chose the MVP by hand.

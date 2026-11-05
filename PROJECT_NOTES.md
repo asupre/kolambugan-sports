@@ -821,6 +821,20 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   the new column on the sheet; removing it unticks it. Values are stored under
   `PlayerMatchStats.extra` like every non-original column; the header over the input is the first
   5 letters of the name, upper-cased. Not shown on the public pages.
+- **AUTOMATIC MVP (Nov 5 2026, Super Admin: "based on the stats of a player").** `backend/src/lib/mvp.js`.
+  The MVP is the **winning team's** player with the best rating from PlayerMatchStats (live stat
+  taps + the after-match forms), counting only the sport's own sheet columns: sports = PTS + REB +
+  AST + STL + BLK + ACE + DIG + custom columns − TO − ½ per FOUL; esports = K + ½ AST − ½ D; board =
+  PTS. Ties: more points (kills), then fewer fouls (deaths). Singles: the winner is MVP with no
+  stats needed. No numeric stats (e.g. Mobile Legends with only "role") → no automatic pick.
+  Counted at End match and again after every `PUT /stats` save (`applyAutoMvp`). `Match.mvpPick`
+  'auto' | 'manual' and `mvpRating` (FULL server restart). "Confirm the result" defaults to
+  **Automatic (name)** with the rating, the stat line and the formula (`mvpSuggestion`,
+  `mvpFormula` on the detail GET); choosing a player or "No MVP" is a hand pick (`mvpPick:
+  'manual'`) that a recount never changes; choosing Automatic again (`mvpAuto: true`) recounts.
+  A match finished before this with an MVP and no mvpPick is treated as a hand pick. The public
+  MVP chip / cards read `Match.mvp` as before. Tested: 10 route checks on mongodb-memory-server;
+  the result form rendered at 390 against a mock API.
 - **GAME CLOCK + OVERTIME (Nov 5 2026, Super Admin: "they can set time each quarter… we also need
   to overtime it… show the time in the public viewer"; the rules were left to us).** Rules chosen
   (`TIMED` in `lib/sportRules.js`, returned as `rulesFor().timed`): **Basketball only** is timed:

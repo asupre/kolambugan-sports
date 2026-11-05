@@ -332,7 +332,11 @@ function StatsForm({ data, matchId, only, onSaved, onClose, onDirtyChange, onSta
 function ResultForm({ data, matchId, onSaved, onClose, onDirtyChange, onStale }) {
   const showError = useErrorDialog();
   const m = data.match;
-  const [mvp, setMvp] = useState(m.mvp?._id ? String(m.mvp._id) : "none");
+  // Automatic MVP (Nov 2026, backend lib/mvp.js): "auto" = the stats decide (recounted when the
+  // stats keepers save); a player / "none" = a hand pick, which a recount never changes.
+  // A match from before automatic MVPs (no mvpPick) with an MVP keeps that hand pick.
+  const manual = m.mvpPick === "manual" || (!m.mvpPick && m.mvp);
+  const [mvp, setMvp] = useState(manual ? (m.mvp?._id ? String(m.mvp._id) : "none") : "auto");
   const [version] = useState(() => m.formVersion?.result || 0);
   const [saving, setSaving] = useState(false);
   const everyone = [
@@ -342,13 +346,16 @@ function ResultForm({ data, matchId, onSaved, onClose, onDirtyChange, onStale })
   const a = m.liveScoreA || 0;
   const b = m.liveScoreB || 0;
   const winner = a > b ? m.teamA : m.teamB;
+  const sug = data.mvpSuggestion;
+  const sugEntry = sug && everyone.find(({ p }) => String(p._id) === String(sug.player));
+  const sugName = sugEntry ? `${sugEntry.p.firstName} ${sugEntry.p.lastName}` : null;
 
   async function save() {
     setSaving(true);
     try {
       await api(`/api/organizer/matches/${matchId}/result`, {
         method: "PUT",
-        body: JSON.stringify({ mvpPlayerId: mvp === "none" ? null : mvp, version }),
+        body: JSON.stringify(mvp === "auto" ? { mvpAuto: true, version } : { mvpPlayerId: mvp === "none" ? null : mvp, version }),
       });
       onDirtyChange?.(false);
       await onSaved();
@@ -366,7 +373,7 @@ function ResultForm({ data, matchId, onSaved, onClose, onDirtyChange, onStale })
           <Trophy className="size-4 text-amber-500" /> Confirm the result
         </DialogTitle>
         <DialogDescription>
-          Check the final score and choose the MVP. The stats keepers save each team's player stats on their own devices.
+          Check the final score. The MVP is picked automatically from the player stats; you can choose someone else.
         </DialogDescription>
       </DialogHeader>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin px-4 py-4 sm:px-5 space-y-4">
@@ -388,12 +395,35 @@ function ResultForm({ data, matchId, onSaved, onClose, onDirtyChange, onStale })
           <Select value={mvp} onValueChange={(v) => { setMvp(v); onDirtyChange?.(true); }}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="auto">Automatic{sugName ? ` (${sugName})` : ""}</SelectItem>
               <SelectItem value="none">No MVP</SelectItem>
               {everyone.map(({ p, team }) => (
                 <SelectItem key={p._id} value={String(p._id)}>{p.lastName}, {p.firstName} · {team}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {mvp === "auto" && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+              {sug ? (
+                <>
+                  <p className="text-sm font-medium text-foreground">
+                    <Trophy className="mr-1 inline size-3.5 text-amber-500" />{sugName || "A player"}
+                    <span className="font-normal text-muted-foreground"> · {sugEntry?.team || winner?.teamName}</span>
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    {sug.reason === "singles"
+                      ? "The winner of a singles match is the MVP."
+                      : <>Rating {sug.rating}{sug.line ? ` (${sug.line})` : ""}, the best on the winning team.</>}
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">No pick yet: no player stats have been entered for {winner?.teamName}. It is picked as soon as they are saved.</p>
+              )}
+              {data.mvpFormula && sug?.reason !== "singles" && (
+                <p className="mt-1.5 text-muted-foreground">Rating = {data.mvpFormula}, from the winning team's players.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="border-t px-4 py-3 sm:px-5">
@@ -1589,8 +1619,10 @@ function ScoringView({ matchId, onBack }) {
           {/* The after-match forms are modals; these cards open them again any time. */}
           {finished && isScorer && (
             <AfterMatchCard icon={Trophy} title="Result & MVP" saved={(m.formVersion?.result || 0) > 0 || !!m.mvp}
-              text="Check the final score and choose the MVP."
-              action={(m.formVersion?.result || 0) > 0 || m.mvp ? "Change the MVP" : "Confirm the result"}
+              text={m.mvp
+                ? `MVP: ${m.mvp.firstName} ${m.mvp.lastName} (${m.mvpPick === "auto" ? "picked from the stats" : "chosen by hand"}).`
+                : "The MVP is picked automatically from the winning team's player stats once they are entered."}
+              action={(m.formVersion?.result || 0) > 0 || m.mvp ? "Check or change the MVP" : "Confirm the result"}
               onOpen={() => setFormOpen("result")} />
           )}
           {finished && hasStatsForm && (statsSide || (isScorer && !hasJobs)) && (() => {

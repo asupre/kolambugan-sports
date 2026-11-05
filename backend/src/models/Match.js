@@ -137,6 +137,11 @@ const matchSchema = new mongoose.Schema(
       ref: 'Player',
       default: null,
     },
+    // Automatic MVP (Nov 2026, lib/mvp.js): 'auto' = picked from the winning team's stats and
+    // recounted when stats are saved; 'manual' = the score keeper chose (never overwritten).
+    // Unset on matches from before this (their MVP was chosen by hand).
+    mvpPick: { type: String, enum: ['auto', 'manual', null], default: null },
+    mvpRating: { type: Number, default: null },
 
     // Bracket routing: where the winner and loser go next. Pre-generated at draw time
     // and LOCKED, so advancement is determined by structure, not by an admin's choice.

@@ -27,6 +27,15 @@ import {
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
 import { timeRange } from "../../lib/dashboardFormat";
+import GameClockCard from "../../components/GameClockCard";
+import { fmtClock, periodName, useClockSeconds, useSnapshotTime } from "../../lib/gameClock";
+
+// The phone bar's small clock ("Q3 · 7:42"), ticking like the clock card.
+function BarClock({ clock, label }) {
+  const at = useSnapshotTime(clock);
+  const left = useClockSeconds(clock, at);
+  return <>{label}{left !== null ? ` · ${fmtClock(left)}` : ""}</>;
+}
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
@@ -868,6 +877,8 @@ function ScoringView({ matchId, onBack }) {
   // (below). It used to default to 1 — which basketball doesn't even offer (only 4) — so an
   // organizer who simply tapped Start began a ONE-quarter game.
   const [periodsChoice, setPeriodsChoice] = useState(null);
+  // Timed sports (basketball): minutes per quarter, picked at Start (null = the sport's default).
+  const [minutesChoice, setMinutesChoice] = useState(null);
   const [forfeiting, setForfeiting] = useState(false);
   // Starting lineup modal (opens from Start) and the substitution modal ({ side, presetOut }).
   const [lineupOpen, setLineupOpen] = useState(false);
@@ -1156,7 +1167,17 @@ function ScoringView({ matchId, onBack }) {
   const finished = m.status === "completed";
   const forfeited = m.status === "forfeited";
   const tied = (m.liveScoreA || 0) === (m.liveScoreB || 0);
-  const allPeriodsDone = (m.games?.length || 0) >= (m.bestOf || 1) && !tied;
+  // Overtime (Nov 2026): m.bestOf = regulation periods, m.overtimes = extra ones to break a tie.
+  const timed = data.timed || null;
+  const regulation = m.bestOf || 1;
+  const totalPeriods = regulation + (m.overtimes || 0);
+  const played = m.games?.length || 0;
+  const periodsOver = played >= totalPeriods;
+  const curPeriod = Math.min(played + 1, totalPeriods);
+  const inOvertime = curPeriod > regulation;
+  const periodText = (short) => periodName({ n: curPeriod, regulation, label: data.periodLabel || "period", timed: !!timed, short, prefix: data.periodLabel === "quarter" ? "Q" : undefined });
+  const allPeriodsDone = periodsOver && !tied;
+  const minutes = minutesChoice ?? timed?.defaultMinutes ?? null;
   // Games-won sports play a series of m.bestOf games (picked at start, like a sport's sets) and
   // end as soon as one side has won the majority of it.
   const seriesLength = m.bestOf || 1;
@@ -1187,7 +1208,18 @@ function ScoringView({ matchId, onBack }) {
   const hasLineup = live && onCourt > 0 && ((m.lineupA || []).length > 0 || (m.lineupB || []).length > 0);
   const startLabel = finalMode
     ? (periods === 1 ? `Start match · 1 ${periodWord}` : `Start match · best of ${periods}`)
-    : `Start match · ${periods} ${periodWord}${periods === 1 ? "" : "s"}`;
+    : `Start match · ${periods} ${periodWord}${periods === 1 ? "" : "s"}${timed ? ` of ${minutes} min` : ""}`;
+  const startBody = () => ({ periods, ...(timed ? { periodMinutes: minutes } : {}) });
+
+  // The game clock (score keeper only). Returns true when the server took it.
+  async function clockAction(action, seconds) {
+    try {
+      await api(`/api/organizer/matches/${matchId}/clock`, { method: "POST", body: JSON.stringify({ action, seconds }) });
+      lastJson.current = "";
+      await load(true);
+      return true;
+    } catch (e) { showError(e.message); return false; }
+  }
 
   function openEnd() {
     setEnding(true);
@@ -1204,8 +1236,8 @@ function ScoringView({ matchId, onBack }) {
             {live && finalMode
               ? seriesText
               : live
-              ? `${(data.periodLabel || "period").replace(/^./, (c) => c.toUpperCase())} ${Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of ${m.bestOf || 1}`
-              : forfeited ? "Forfeit" : finished ? "Final" : "Not started"}
+              ? (inOvertime ? periodText(false) : `${periodText(false)} of ${regulation}`)
+              : forfeited ? "Forfeit" : finished ? ((m.overtimes || 0) > 0 ? `Final · ${m.overtimes > 1 ? `${m.overtimes} OT` : "OT"}` : "Final") : "Not started"}
           </span>
         </div>
 
@@ -1235,7 +1267,7 @@ function ScoringView({ matchId, onBack }) {
           )}
           {!finalMode && (
             <button onClick={() => call("end-period")}
-              disabled={busy || (m.games?.length || 0) >= (m.bestOf || 1)}
+              disabled={busy || periodsOver}
               className="w-full h-9 rounded-lg bg-foreground text-background text-[13px] font-medium hover:bg-foreground/90 disabled:opacity-40">
               End this {data.periodLabel || "period"}
             </button>
@@ -1284,7 +1316,9 @@ function ScoringView({ matchId, onBack }) {
               <p className="text-center text-[11px] text-muted-foreground">
                 {finalMode
                   ? seriesText
-                  : `${periodWord.replace(/^./, (c) => c.toUpperCase())} ${Math.min((m.games?.length || 0) + 1, m.bestOf || 1)} of ${m.bestOf || 1}`}
+                  : timed && data.clockNow && !periodsOver
+                  ? <BarClock clock={data.clockNow} label={periodText(true)} />
+                  : inOvertime ? periodText(false) : `${periodText(false)} of ${regulation}`}
               </p>
             </div>
             {isScorer ? (
@@ -1342,7 +1376,7 @@ function ScoringView({ matchId, onBack }) {
               ? seriesLength === 1
                 ? "Tap the winner when the game finishes."
                 : `Tap the winner of each game as it finishes. First to ${winsNeeded} wins the match.`
-              : `${periodWord.replace(/^./, (c) => c.toUpperCase())} 1 of ${m.bestOf || 1}. Tap the team that scored; Undo is at the top.`}
+              : `${periodWord.replace(/^./, (c) => c.toUpperCase())} 1 of ${m.bestOf || 1}.${timed ? " Start the clock at tip-off and pause it at every stoppage." : ""} Tap the team that scored; Undo is at the top.`}
           </AlertDescription>
         </Alert>
       )}
@@ -1392,7 +1426,28 @@ function ScoringView({ matchId, onBack }) {
               </div>
           </>
 
-          <button onClick={() => (needsLineup ? setLineupOpen(true) : call("start", { periods }))} disabled={busy}
+          {timed && (
+            <>
+              <p className="text-sm font-medium mb-1">How long is each {periodWord}?</p>
+              <p className="text-muted-foreground text-xs mb-3">
+                The clock counts down each {periodWord}. If the score is level after the last one, a {timed.overtimeMinutes}-minute
+                overtime is played, again and again until a team leads.
+              </p>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {timed.minutes.map((n) => (
+                  <button key={n} type="button" onClick={() => setMinutesChoice(n)}
+                    className={cn(
+                      "py-3 rounded-lg text-lg font-semibold transition",
+                      minutes === n ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    )}>
+                    {n} min
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <button onClick={() => (needsLineup ? setLineupOpen(true) : call("start", startBody()))} disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
             <Play className="size-4 fill-current" />
             {busy ? "Starting…" : startLabel}
@@ -1438,6 +1493,12 @@ function ScoringView({ matchId, onBack }) {
             </div>
           )}
         </Card>
+      )}
+
+      {live && timed && data.clockNow && !periodsOver && (
+        <GameClockCard clock={data.clockNow} period={periodText(false)} overtime={inOvertime}
+          canControl={isScorer} busy={busy} onAction={clockAction}
+          note={inOvertime ? `${timed.overtimeMinutes}-minute overtime: the scores were level after ${periodWord} ${regulation}.` : null} />
       )}
 
       <div className="flex flex-col lg:flex-row gap-4">
@@ -1497,7 +1558,8 @@ function ScoringView({ matchId, onBack }) {
                     </div>
                     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${pointValues.length}, minmax(0, 1fr))` }}>
                       {pointValues.map((v) => (
-                        <button key={v} onClick={() => scoreTap(s, v, false)} disabled={busy}
+                        <button key={v} onClick={() => scoreTap(s, v, false)} disabled={busy || periodsOver}
+                          title={periodsOver ? (tied ? "Start overtime first" : "Every period is over. End the match.") : undefined}
                           className="h-16 rounded-xl bg-green-600 text-xl font-bold text-white transition active:scale-95 hover:bg-green-700 disabled:opacity-40 disabled:active:scale-100">
                           +{v}
                         </button>
@@ -1538,10 +1600,20 @@ function ScoringView({ matchId, onBack }) {
             );
           })()}
 
-          {live && !finalMode && tied && (m.games?.length || 0) >= (m.bestOf || 1) && (
-            <p className="text-amber-600 dark:text-amber-400 text-sm text-center mt-3">
-              Scores are level. Play a deciding {data.periodLabel || "period"}.
-            </p>
+          {live && !finalMode && tied && periodsOver && (
+            <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-center">
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                The scores are level{(m.overtimes || 0) > 0 ? ` after overtime ${m.overtimes}` : ""}, so the game goes to {timed ? "overtime" : `a deciding ${periodWord}`}.
+              </p>
+              {isScorer ? (
+                <button onClick={() => call("overtime")} disabled={busy}
+                  className="mt-3 w-full rounded-xl bg-amber-600 py-3 text-base font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
+                  {timed ? `Start overtime ${(m.overtimes || 0) + 1} · ${timed.overtimeMinutes} min` : `Play a deciding ${periodWord}`}
+                </button>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground">The score keeper starts it.</p>
+              )}
+            </div>
           )}
         </div>
 
@@ -1552,7 +1624,7 @@ function ScoringView({ matchId, onBack }) {
         <LineupDialog open={lineupOpen} onOpenChange={setLineupOpen} data={data} busy={busy}
           startLabel={startLabel}
           onStart={async (lineup) => {
-            if (await call("start", { periods, ...lineup })) setLineupOpen(false);
+            if (await call("start", { ...startBody(), ...lineup })) setLineupOpen(false);
           }} />
       )}
       {hasLineup && (

@@ -821,7 +821,41 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   the new column on the sheet; removing it unticks it. Values are stored under
   `PlayerMatchStats.extra` like every non-original column; the header over the input is the first
   5 letters of the name, upper-cased. Not shown on the public pages.
-- A TIE at the end extends the match by one deciding period rather than
+- **GAME CLOCK + OVERTIME (Nov 5 2026, Super Admin: "they can set time each quarter… we also need
+  to overtime it… show the time in the public viewer"; the rules were left to us).** Rules chosen
+  (`TIMED` in `lib/sportRules.js`, returned as `rulesFor().timed`): **Basketball only** is timed:
+  4 quarters of **8, 10 or 12 min** (organizer picks at Start, default 10, FIBA / local-league
+  style) and **5-minute overtimes**, repeated until a team leads. Volleyball / badminton /
+  pickleball (sets to points), chess, billiards and esports have no clock; a tie after their
+  last set gets ONE deciding set at a time through the same overtime route.
+  - **Model:** `bestOf` = REGULATION periods; `Match.overtimes` = extra periods (bestOf's enum
+    [1,2,3,4,5,7] couldn't hold 4 + 2 OT); `periodMinutes`, `overtimeMinutes`, and `clock`
+    = { periodSeconds, running, startedAt, elapsed } (FULL server restart). The math is in
+    `backend/src/lib/gameClock.js` (`totalPeriods`, `clockView` → { remaining, running,
+    periodSeconds }); the server never ticks, every device / the public page counts down from the
+    snapshot (`frontend/src/lib/gameClock.js`: `useClockSeconds`, `useSnapshotTime`, `fmtClock`,
+    `periodName` → "Q3" / "Quarter 3" / "OT 1" / "Overtime 1" / "Deciding set").
+  - **Routes:** start takes `periodMinutes` (400 if not offered); `POST .../clock`
+    {action: start | pause | set, seconds} (score keeper; set = correct the time left);
+    end-period banks the period and sets the clock up (stopped, full length) for the next one;
+    `POST .../overtime` (only when every period is banked AND tied: overtimes + 1, clock = OT
+    length); score is refused once every period is banked ("Start overtime first"); End match
+    needs every period incl. overtimes. The OLD tie rule (end-period raised bestOf and banked a 0-0
+    period at once, and OT points were never banked) is gone. Cancel clears all of it. The
+    detail GET adds `clockNow` + `serverNow`.
+  - **Organizer screen:** Start card has the quarter-length choice + the OT rule; live: a
+    `GameClockCard` (big countdown, Start / Pause, Set time; every device sees it, only the score
+    keeper controls it; at 0:00 the score keeper's screen pauses it on the server); the phone
+    bar shows "Q3 · 7:42"; tied after the last period → an orange "Start overtime N · 5 min" card
+    (score buttons disabled until then); Final shows "Final · OT".
+  - **Public:** `publicMatch()` adds regulationPeriods, overtimes, periodMinutes, overtimeMinutes,
+    clock (live only). VS rows: "Q3 · 7:42" under the score, "4 × 10 min · 5-min OT if tied", an
+    amber OVERTIME tag during OT, "Final · OT" / "Final · 2 OT". Team page "Live now" panel: same.
+  - Tested: 25 route checks on mongodb-memory-server (clock start / pause / set, regulation tied →
+    OT1 → tied → OT2 → end, periods sum to the final, volleyball untimed + deciding set);
+    rendered the organizer screen (start / live / tied) at 390 and the public live rows at 390
+    and 1366 against a mock API. Not yet run on a real phone at a real game.
+- (Superseded by the overtime route above.) A TIE at the end extends the match by one deciding period rather than
   trapping the organizer — a tie can never be recorded.
 - **Cancel match** resets a started match to `scheduled` and discards the live
   score, periods, and PlayerMatchStats (for a mis-tap or a voided game). A

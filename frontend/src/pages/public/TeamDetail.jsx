@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { Crest, LiveDot, Panel, PanelSkeleton, Skeleton, PlayerAvatar, Tag, DIVISION_LABEL, FORMAT_LABEL } from "../../components/PublicUI";
+import { fmtClock, periodName, useClockSeconds, useSnapshotTime } from "../../lib/gameClock";
+
+// The live game clock in the "Live now" panel, ticking between refreshes.
+function TeamLiveClock({ clock }) {
+  const at = useSnapshotTime(clock);
+  const left = useClockSeconds(clock, at);
+  return left === null ? null : <span className="tabular-nums">{fmtClock(left)}</span>;
+}
 
 export default function TeamDetail() {
   const { id } = useParams();
@@ -133,7 +141,10 @@ export default function TeamDetail() {
         const inGame = roster.filter((p) => lv.stats?.[String(p.id)]);
         return (
           <Panel title={<span className="flex items-center gap-2"><LiveDot /> Live now</span>}
-            count={lv.gamesWon ? `Best of ${lv.periods}` : `${word} ${lv.period} of ${lv.periods}`}>
+            count={lv.gamesWon ? `Best of ${lv.periods}`
+              : lv.period > lv.periods
+                ? <>{periodName({ n: lv.period, regulation: lv.periods, label: lv.periodLabel || "period", timed: !!lv.periodMinutes })}{lv.clock && <> · <TeamLiveClock clock={lv.clock} /></>}</>
+                : <>{word} {lv.period} of {lv.periods}{lv.clock && <> · <TeamLiveClock clock={lv.clock} /></>}</>}>
             <div className="flex items-center justify-center gap-3 sm:gap-5 px-4 py-4 border-b border-white/[0.08]">
               <span className="min-w-0 flex-1 truncate text-right text-slate-100 text-[15px] font-semibold">{team.name}</span>
               <span className="shrink-0 text-slate-100 text-3xl font-semibold tabular-nums">{lv.score} – {lv.opponentScore}</span>
@@ -143,6 +154,14 @@ export default function TeamDetail() {
                 </Link>
               ) : <span className="flex-1 text-slate-400 text-[15px]">TBD</span>}
             </div>
+            {lv.periodMinutes && (
+              <p className="border-b border-white/[0.08] px-4 py-2 text-center text-[13px] text-slate-400">
+                {lv.periods} × {lv.periodMinutes} min {(lv.periodLabel || "period")}s
+                {lv.overtimes > 0
+                  ? <span className="ml-2 rounded bg-amber-500 px-1.5 text-[11px] font-bold uppercase text-[#0A0C0B]">Overtime{lv.overtimes > 1 ? ` ${lv.overtimes}` : ""}</span>
+                  : lv.overtimeMinutes ? ` · ${lv.overtimeMinutes}-min overtime if tied` : ""}
+              </p>
+            )}
             {cols.length > 0 && (
               inGame.length === 0 ? (
                 <p className="px-4 py-4 text-slate-400 text-[15px]">No player stats recorded in this game yet.</p>

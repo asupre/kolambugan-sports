@@ -35,6 +35,13 @@ const PERIOD_OPTIONS = {
   'Badminton': [1, 3, 5],
   'Pickleball': [1, 3, 5],
 };
+// Timed sports (Nov 2026): a countdown clock per period, and overtime when tied after
+// regulation. Basketball: FIBA / local-league style, 4 quarters of 8, 10 or 12 minutes (the
+// organizer picks at Start, default 10) and 5-minute overtimes, repeated until a team leads.
+// The rally sports (sets to points), chess, billiards and esports are not played on a clock.
+const TIMED = {
+  'Basketball': { minutes: [8, 10, 12], defaultMinutes: 10, overtimeMinutes: 5 },
+};
 // Which point values a sport can score in one tap. Basketball has 1/2/3; the rest add 1.
 const POINT_VALUES = {
   'Basketball': [1, 2, 3],
@@ -162,6 +169,8 @@ function rulesFor(sport) {
     roles: sheet.includes('role') ? rolesFor(sport) : [],
     statLabels,
     onCourt: onCourtFor(sport),
+    // null = no game clock (see TIMED).
+    timed: TIMED[name] || null,
   };
 }
 

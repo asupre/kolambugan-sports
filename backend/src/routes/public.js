@@ -2,6 +2,7 @@
 // read scores, standings, and rosters. Nothing here exposes private data:
 // no birthdates, no addresses, no documents. Photos ARE public by decision.
 const express = require('express');
+const { totalPeriods, clockView } = require('../lib/gameClock');
 const Match = require('../models/Match');
 const Tournament = require('../models/Tournament');
 const Team = require('../models/Team');
@@ -39,7 +40,14 @@ function publicMatch(m, sportName, division, labels) {
     scoreB: m.liveScoreB || (m.games || []).reduce((n, g) => n + (g.scoreB || 0), 0),
     periods: (m.games || []).map((g) => ({ n: g.gameNumber, a: g.scoreA, b: g.scoreB })),
     periodsPlayed: (m.games || []).length,
-    totalPeriods: m.bestOf || 1,
+    totalPeriods: totalPeriods(m),
+    // Game clock + overtime (lib/gameClock.js): regulation length, overtimes played, and the
+    // clock right now (the page ticks it down itself between polls).
+    regulationPeriods: m.bestOf || 1,
+    overtimes: m.overtimes || 0,
+    periodMinutes: m.periodMinutes || null,
+    overtimeMinutes: m.overtimeMinutes || null,
+    clock: m.status === 'ongoing' ? clockView(m) : null,
     status: m.status,
     schedule: m.schedule,
     scheduleEnd: m.scheduleEnd || null,
@@ -240,8 +248,12 @@ router.get('/teams/:id', async (req, res) => {
         opponent: opp ? { id: opp._id, name: opp.teamName, barangayId: opp.barangay ? String(opp.barangay) : null } : null,
         score: (isA ? liveMatch.liveScoreA : liveMatch.liveScoreB) || 0,
         opponentScore: (isA ? liveMatch.liveScoreB : liveMatch.liveScoreA) || 0,
-        period: Math.min((liveMatch.games?.length || 0) + 1, liveMatch.bestOf || 1),
+        period: Math.min((liveMatch.games?.length || 0) + 1, totalPeriods(liveMatch)),
         periods: liveMatch.bestOf || 1,
+        overtimes: liveMatch.overtimes || 0,
+        periodMinutes: liveMatch.periodMinutes || null,
+        overtimeMinutes: liveMatch.overtimeMinutes || null,
+        clock: clockView(liveMatch),
         periodLabel: rulesFor(team.sport).periodLabel,
         gamesWon: rulesFor(team.sport).scoringMode === 'final',
         stats: Object.fromEntries(rows.map((r) => [String(r.player),

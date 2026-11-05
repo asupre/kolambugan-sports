@@ -3783,3 +3783,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   both allowed). Back-to-back games are fine.
 - Same day, later: the overlap check is per venue. Two games of one sport may be played at the
   same time at different venues; at the same venue they still clash.
+
+## 2026-11-05 — Game clock and overtime
+
+- Not in the thesis document: basketball is played on a game clock. The organizer picks the
+  quarter length (8, 10 or 12 minutes) at the start, runs and pauses the clock, and a tie after
+  the fourth quarter goes to 5-minute overtimes until a team leads. The public site shows the
+  quarter and clock live, the game length, and when a game is in overtime. Set-based sports
+  (volleyball, badminton, pickleball) have no clock; a tie gets a deciding set.

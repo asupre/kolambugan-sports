@@ -71,6 +71,19 @@ const matchSchema = new mongoose.Schema(
       type: [gameSchema],  // the individual games in the series
       default: [],
     },
+    // Overtime + game clock (Nov 2026, lib/gameClock.js). bestOf stays the REGULATION period
+    // count; overtimes = extra periods played to break a tie after regulation.
+    overtimes: { type: Number, default: 0 },
+    // Timed sports (basketball): minutes per period / per overtime, picked at Start.
+    periodMinutes: { type: Number, default: null },
+    overtimeMinutes: { type: Number, default: null },
+    // The running clock of the current period: { periodSeconds, running, startedAt, elapsed }.
+    clock: {
+      type: new mongoose.Schema({
+        periodSeconds: Number, running: Boolean, startedAt: Date, elapsed: Number,
+      }, { _id: false }),
+      default: null,
+    },
     seriesWinner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Team',

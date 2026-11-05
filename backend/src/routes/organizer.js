@@ -14,12 +14,15 @@ const { getCurrentSeason, seasonEnded } = require('../middleware/season');
 const router = express.Router();
 router.use(authenticate, authorize('organizer', 'super_admin'));
 const { PERIOD_LABEL, LEGACY_STAT_COLUMNS, rulesFor } = require('../lib/sportRules');
+const { totalPeriods, clockView, freshClock, periodSecondsFor, pauseClock, clockRemaining } = require('../lib/gameClock');
 
 // Games-won sports (chess, billiards, esports — scoringMode 'final') play a SERIES: the organizer
 // picks its length at start (stored in bestOf, like a sport's period count), and it ends as soon
 // as one side has won a majority of it — best of 3 = first to 2, best of 5 = first to 3.
 const isGamesWon = (sport) => rulesFor(sport).scoringMode === 'final';
 const winsNeeded = (bestOf) => Math.floor((bestOf || 1) / 2) + 1;
+// What "every period" means at End match: a series' length, or the periods incl. overtimes.
+const gamesWonTotal = (match, sport) => (isGamesWon(sport) ? (match.bestOf || 1) : totalPeriods(match));
 
 
 // Load a match and confirm this organizer owns its sport.
@@ -190,6 +193,8 @@ router.get('/matches/:matchId', async (req, res) => {
             res.json({
       match: matchOut(full),
             ...rulesFor(ctx.sport),
+      clockNow: clockView(full, now),   // seconds left right now (devices tick from this)
+      serverNow: now,
       jobs: jobsView(match, req, now),
       myJob: mine,
       rosterA, rosterB, statByPlayer,
@@ -321,6 +326,23 @@ router.post('/matches/:matchId/start', async (req, res) => {
     }
     match.bestOf = periods;
 
+    // Timed sports: minutes per period, picked at Start (Nov 2026). Overtime length is the rule.
+    const timed = rulesFor(ctx.sport).timed;
+    if (timed) {
+      const minutes = Number(req.body.periodMinutes ?? timed.defaultMinutes);
+      if (!timed.minutes.includes(minutes)) {
+        return res.status(400).json({ message: `Pick a period length: ${timed.minutes.join(', ')} minutes.` });
+      }
+      match.periodMinutes = minutes;
+      match.overtimeMinutes = timed.overtimeMinutes;
+      match.clock = freshClock(minutes * 60);
+    } else {
+      match.periodMinutes = null;
+      match.overtimeMinutes = null;
+      match.clock = null;
+    }
+    match.overtimes = 0;
+
     // Starting lineup (Oct 2026): for a team sport with an on-court count, the organizer picks
     // who starts for each side in a modal before the match begins. A side whose whole roster
     // fits on court needs no pick (everyone starts).
@@ -433,11 +455,13 @@ router.post('/matches/:matchId/score', async (req, res) => {
     // remaining action is ending it. Otherwise stray points would land in the
     // running total with no period to belong to, and the periods would stop
     // summing to the final score.
-    const totalPeriods = match.bestOf || 1;
+    const periodsTotal = totalPeriods(match);
     const tied = (match.liveScoreA || 0) === (match.liveScoreB || 0);
-    if (match.games.length >= totalPeriods && !tied) {
+    if (match.games.length >= periodsTotal) {
       return res.status(409).json({
-        message: `All ${totalPeriods} period(s) are recorded. End the match to finish.`,
+        message: tied
+          ? 'The scores are level after the last period. Start overtime first.'
+          : `All ${periodsTotal} period(s) are recorded. End the match to finish.`,
       });
     }
 
@@ -566,7 +590,7 @@ router.post('/matches/:matchId/substitute', async (req, res) => {
     // there first, nothing is written and the device gets a 409 and refreshes.
     const entry = {
       side, playerOut: outId, playerIn: inId,
-      period: Math.min((match.games?.length || 0) + 1, match.bestOf || 1),
+      period: Math.min((match.games?.length || 0) + 1, totalPeriods(match)),
       at: new Date(),
       by: myJobOf(match, req),
     };
@@ -838,7 +862,7 @@ router.post('/matches/:matchId/end', async (req, res) => {
         if (match.status === 'completed' || match.status === 'forfeited') return res.status(409).json({ message: 'This match already has a result.' });
     if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match before ending it.' });
 
-    const total = match.bestOf || 1;
+    const total = gamesWonTotal(match, ctx.sport);
     const a = match.liveScoreA || 0;
     const b = match.liveScoreB || 0;
     const gamesWon = isGamesWon(ctx.sport);
@@ -874,6 +898,7 @@ router.post('/matches/:matchId/end', async (req, res) => {
     // (A games-won series already recorded each game's own winner.)
     if (!gamesWon && match.games.length) match.games[match.games.length - 1].winner = winner;
     match.seriesWinner = winner;
+    if (match.clock) match.clock = pauseClock(match.clock);
     match.status = 'completed';
     match.enteredBy = req.user.id;
     match.enteredAt = new Date();
@@ -931,16 +956,15 @@ router.post('/matches/:matchId/end-period', async (req, res) => {
       return res.status(409).json({ message: 'Each game is recorded when you tap its winner. End the match once a side has won the series.' });
     }
 
-        const played = match.games.length;
-    const total = match.bestOf || 1;
+    const played = match.games.length;
+    const total = totalPeriods(match);
     if (played >= total) {
-      // A tie can't stand — allow an extra deciding period rather than trapping
-      // the organizer with no legal action.
+      // A tie is broken by an extra period the organizer starts on purpose (POST /overtime).
+      // It used to add a period here and bank it at once as 0-0.
       if ((match.liveScoreA || 0) === (match.liveScoreB || 0)) {
-        match.bestOf = total + 1;
-      } else {
-        return res.status(409).json({ message: `All ${total} ${PERIOD_LABEL[sportName] || 'period'}(s) are recorded. End the match.` });
+        return res.status(409).json({ message: 'The scores are level. Start overtime to break the tie.' });
       }
+      return res.status(409).json({ message: `All ${total} ${PERIOD_LABEL[sportName] || 'period'}(s) are recorded. End the match.` });
     }
     // Bank only what was scored DURING this period (the running total minus
     // everything already banked), so the periods read like a scoresheet and
@@ -954,6 +978,13 @@ router.post('/matches/:matchId/end-period', async (req, res) => {
       scoreB: (match.liveScoreB || 0) - bankedB,
       winner: null,
     });
+    // The clock is set up for the next period (stopped, full length). After the last one it
+    // stays at 0:00 until overtime is started.
+    if (match.clock) {
+      const next = played + 2;
+      match.clock = next <= total ? freshClock(periodSecondsFor(match, next))
+        : { ...pauseClock(match.clock), elapsed: match.clock.periodSeconds };
+    }
     await match.save();
 
     res.json({
@@ -967,6 +998,69 @@ router.post('/matches/:matchId/end-period', async (req, res) => {
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
+// POST /api/organizer/matches/:matchId/clock   body: { action: 'start' | 'pause' | 'set', seconds? }
+// The game clock of a timed sport (lib/gameClock.js). Score keeper only. 'set' corrects the time
+// left (0..period length) and keeps it running or stopped as it was.
+router.post('/matches/:matchId/clock', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'run the clock')) return;
+    if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
+    if (!match.clock) return res.status(409).json({ message: 'This game is not played on a clock.' });
+    if (match.games.length >= totalPeriods(match)) {
+      return res.status(409).json({ message: 'Every period is over. Start overtime or end the match.' });
+    }
+    const now = Date.now();
+    const c = match.clock;
+    const action = req.body.action;
+    if (action === 'start') {
+      if (clockRemaining(c, now) <= 0) return res.status(409).json({ message: 'Time is up. End this period.' });
+      if (!c.running) match.clock = { periodSeconds: c.periodSeconds, running: true, startedAt: new Date(now), elapsed: c.elapsed || 0 };
+    } else if (action === 'pause') {
+      match.clock = pauseClock(c, now);
+    } else if (action === 'set') {
+      const seconds = Number(req.body.seconds);
+      if (!Number.isInteger(seconds) || seconds < 0 || seconds > c.periodSeconds) {
+        return res.status(400).json({ message: `The time left must be between 0:00 and ${Math.floor(c.periodSeconds / 60)}:00.` });
+      }
+      const running = !!c.running && seconds > 0;
+      match.clock = { periodSeconds: c.periodSeconds, running, startedAt: running ? new Date(now) : null, elapsed: c.periodSeconds - seconds };
+    } else {
+      return res.status(400).json({ message: 'action must be start, pause or set.' });
+    }
+    await match.save();
+    res.json({ clock: clockView(match, now), serverNow: now });
+  } catch (err) {
+    console.error('Clock error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
+// POST /api/organizer/matches/:matchId/overtime — the scores are level after every period:
+// add one more period to break the tie (basketball: a 5-minute overtime; a set-based sport: one
+// deciding set). Repeats until a side leads. Score keeper only.
+router.post('/matches/:matchId/overtime', async (req, res) => {
+  try {
+    const ctx = await loadOwnedMatch(req, res);
+    if (!ctx) return;
+    const { match } = ctx;
+    if (!requireJob(match, req, res, ['score'], 'start overtime')) return;
+    if (match.status !== 'ongoing') return res.status(409).json({ message: 'Start the match first.' });
+    if (isGamesWon(ctx.sport)) return res.status(409).json({ message: 'A series is decided by games won, not overtime.' });
+    if (match.games.length < totalPeriods(match)) return res.status(409).json({ message: 'Finish the current period first.' });
+    if ((match.liveScoreA || 0) !== (match.liveScoreB || 0)) return res.status(409).json({ message: 'The scores are not level, so there is no overtime. End the match.' });
+    match.overtimes = (match.overtimes || 0) + 1;
+    if (match.overtimeMinutes) match.clock = freshClock(match.overtimeMinutes * 60);
+    await match.save();
+    res.json({ message: `Overtime ${match.overtimes} started.`, overtimes: match.overtimes });
+  } catch (err) {
+    console.error('Overtime error:', err);
+    res.status(500).json({ message: 'Something went wrong.' });
+  }
+});
+
 // POST /api/organizer/matches/:matchId/cancel — undo a started match.
 // Resets it to 'scheduled' and discards everything recorded: live score, periods,
 // and per-player stats. For a match started by mistake or one that must be voided.
@@ -994,6 +1088,10 @@ router.post('/matches/:matchId/cancel', async (req, res) => {
     match.games = [];
     match.startedAt = null;
     match.mvp = null;
+    match.overtimes = 0;
+    match.clock = null;
+    match.periodMinutes = null;
+    match.overtimeMinutes = null;
     match.lineupA = [];
     match.lineupB = [];
     match.subs = [];

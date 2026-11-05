@@ -1,5 +1,20 @@
 import { memo } from "react";
 import { Crest, LiveDot, matchDateLabel, matchTime, DIVISION_LABEL } from "./PublicUI";
+import { fmtClock, periodName, useClockSeconds, useSnapshotTime } from "../lib/gameClock";
+
+// The live game clock under the score ("7:42"), ticking between polls (lib/gameClock.js).
+function LiveClock({ clock }) {
+  const at = useSnapshotTime(clock);
+  const left = useClockSeconds(clock, at);
+  if (left === null) return null;
+  return <span className={left <= 0 ? "text-red-400" : "text-white"}>{fmtClock(left)}</span>;
+}
+
+// "4 × 10 min" (+ "· 5-min OT if tied" while it can still matter), for a timed game.
+const gameLength = (m, live) => (m.periodMinutes
+  ? `${m.regulationPeriods || m.totalPeriods} × ${m.periodMinutes} min${live && m.overtimeMinutes ? ` · ${m.overtimeMinutes}-min OT if tied` : ""}`
+  : null);
+const otText = (n) => (n > 1 ? `${n} OT` : "OT");
 
 // VS match row (Oct 2026, from the Super Admin's "vs sample ui"), shared by the
 // public Matches and Home pages. ONE game per row, like the picture:
@@ -121,15 +136,32 @@ function VsMatchRowImpl({ m, showDate = true }) {
         {!live && !done && endTime && (
           <div className="mt-1 text-[11px] sm:text-[13px] font-semibold tabular-nums text-slate-300">to {endTime}</div>
         )}
+        {/* Game clock games (basketball): how long it is, and the overtime rule / tag. */}
+        {(live || done) && gameLength(m, live) && (
+          <div className="mt-1 max-w-[110px] sm:max-w-[190px] text-[10px] sm:text-[12px] font-medium leading-snug text-slate-400">
+            {gameLength(m, live && m.periodsPlayed < (m.regulationPeriods || 0))}
+          </div>
+        )}
+        {live && m.overtimes > 0 && (
+          <span className="mt-1 rounded bg-amber-500 px-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-[#0A0C0B]">
+            {m.periodMinutes ? "Overtime" : "Deciding set"}{m.overtimes > 1 ? ` ${m.overtimes}` : ""}
+          </span>
+        )}
         <div className="mt-1.5 text-[10px] sm:text-[12px] font-semibold uppercase tracking-wide">
           {live ? (
             <span className="inline-flex items-center gap-1 text-red-400">
               <LiveDot />
-              {m.totalPeriods > 1 ? `${PERIOD_PREFIX[m.sport] || "P"}${Math.min(m.periodsPlayed + 1, m.totalPeriods)}` : "Live"}
+              {m.totalPeriods > 1
+                ? periodName({
+                    n: Math.min(m.periodsPlayed + 1, m.totalPeriods), regulation: m.regulationPeriods || m.totalPeriods,
+                    label: "set", timed: !!m.periodMinutes, short: true, prefix: PERIOD_PREFIX[m.sport] || "P",
+                  })
+                : "Live"}
+              {m.clock && m.periodsPlayed < m.totalPeriods && <> · <LiveClock clock={m.clock} /></>}
             </span>
           ) : done ? (
             <span className="text-slate-400">
-              {m.status === "forfeited" ? "Forfeit" : "Final"}{showDate && date ? ` · ${date}` : ""}
+              {m.status === "forfeited" ? "Forfeit" : "Final"}{m.overtimes > 0 ? ` · ${otText(m.overtimes)}` : ""}{showDate && date ? ` · ${date}` : ""}
             </span>
           ) : (
             <span className="text-[#4ADE80]">{showDate && date ? date : "VS"}</span>

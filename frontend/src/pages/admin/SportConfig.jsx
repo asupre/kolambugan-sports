@@ -70,6 +70,13 @@ const TYPES = [
 
 // A small toggle button used for divisions and score sheet columns. Reads as "on" at a glance
 // (tint + tick) without the visual weight of a checkbox list.
+// The draw in words, from the server's `draw` (lib/sportRules.js drawOf).
+const DRAW_NAME = { double_elimination: "Double elimination", round_robin: "Round-robin" };
+function drawText(d) {
+  if (!d) return "";
+  return `${DRAW_NAME[d.format]} · ${d.groups} groups → Top ${d.knockout}`;
+}
+
 function Chip({ on, onClick, children, title, disabled, className }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={title} aria-pressed={on}
@@ -414,6 +421,63 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked, dirtyRef }) {
               </div>
             </div>
 
+            {/* Bracket (Nov 2026, professor's suggestion): the draw format and the number of groups
+                are the Super Admin's choice for every game. Applied at once (like Type), since
+                they change what the rest of this step offers. Refused once this game has a
+                bracket this season. */}
+            {sport.draw && (
+              <div>
+                <Label className="mb-2">Draw format</Label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {[
+                    { v: "double_elimination", hint: "Each group plays a double-elimination mini-bracket (lose twice and you're out). 2 teams from each group go on." },
+                    { v: "round_robin", hint: "Every team in a group plays every other once. The best of each group go on." },
+                  ].map(({ v, hint }) => (
+                    <button key={v} type="button" aria-pressed={sport.tournamentFormat === v} disabled={busy}
+                      onClick={() => sport.tournamentFormat !== v && patchSport({ tournamentFormat: v })}
+                      className={cn(
+                        "rounded-xl border px-4 py-3 text-left transition disabled:opacity-60",
+                        sport.tournamentFormat === v ? "border-primary bg-primary/10" : "bg-card hover:bg-accent"
+                      )}>
+                      <span className="block text-[15px] font-medium">{DRAW_NAME[v]}</span>
+                      <span className="block text-[13px] text-muted-foreground">{hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {sport.draw && (
+              <div>
+                <Label className="mb-2">Number of groups</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(sport.groupOptions || [2, 4, 8]).map((g) => {
+                    const rr = sport.draw.format === "round_robin";
+                    const knockout = rr ? sport.draw.knockout : g * 2;
+                    const on = sport.draw.groups === g;
+                    return (
+                      <button key={g} type="button" aria-pressed={on} disabled={busy}
+                        onClick={() => !on && patchSport({ numGroups: g })}
+                        className={cn(
+                          "rounded-xl border px-3 py-3 text-left transition disabled:opacity-60",
+                          on ? "border-primary bg-primary/10" : "bg-card hover:bg-accent"
+                        )}>
+                        <span className="block text-[15px] font-medium">{g} groups</span>
+                        <span className="block text-[13px] text-muted-foreground">
+                          {rr ? `${knockout / g} from each → Top ${knockout}` : `Top ${knockout} knockout`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-[14px] text-muted-foreground">
+                  {drawText(sport.draw)}. Needs at least {sport.draw.minTeams} verified teams per division
+                  ({sport.draw.format === "round_robin" ? sport.draw.advancePerGroup + 1 : 3} per group). Fewer groups = bigger groups and more
+                  group games; more groups = quicker groups and a longer knockout.
+                </p>
+              </div>
+            )}
+
             {isRoundRobin && (
               <div>
                 <Label className="mb-2">Knockout size</Label>
@@ -434,7 +498,7 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked, dirtyRef }) {
                   ))}
                 </div>
                 <p className="mt-2 text-[14px] text-muted-foreground">
-                  8 groups play round-robin, then the Top {koSize} go to the knockout. Barangay Admins see
+                  {sport.draw?.groups || 8} groups play round-robin, then the Top {koSize} go to the knockout. Barangay Admins see
                   this limit when they register. Can't switch to Top 8 while a barangay has two teams.
                 </p>
               </div>
@@ -458,27 +522,6 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked, dirtyRef }) {
               </p>
             </div>
 
-            {/* Draw format is fixed by type (Oct 31 2026): esports round-robin, sports and board
-                games double elimination. A non-esport saved as round-robin before that rule gets a
-                button to switch it back. */}
-            {sport.category !== "esports" && (
-              <div>
-                <Label className="mb-2">Draw format</Label>
-                <p className="text-[15px]">4 groups, double elimination, then Top 8</p>
-                <p className="mt-1 text-[14px] text-muted-foreground">
-                  Fixed for sports and board games (esports always use round-robin groups).
-                </p>
-                {sport.tournamentFormat === "round_robin" && (
-                  <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[14px]">
-                    <p>This game is still saved as round-robin from before this rule.</p>
-                    <Button size="sm" className="mt-2" disabled={busy}
-                      onClick={() => patchSport({ tournamentFormat: "double_elimination" })}>
-                      Switch to double elimination
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
 
             {gamesWon ? (
               <div>
@@ -567,7 +610,7 @@ function SportEditor({ sport, onSaved, onRemoved, onError, locked, dirtyRef }) {
             {reviewRow("Entry format", `${formatInfo?.label || format} · ${formatInfo?.hint || ""}`, 0, "format")}
             {isRoundRobin && reviewRow("Knockout", `Top ${koSize} · ${koSize === 8 ? "1 team" : "up to 2 teams"} per barangay`, 0, "knockout")}
             {reviewRow("Type", typeText, 1, "type")}
-            {reviewRow("Draw format", sport.category === "esports" || sport.tournamentFormat === "round_robin" ?"Round-robin groups, then a knockout" : "4 groups, double elimination, then Top 8", 1, "format_draw")}
+            {reviewRow("Draw", drawText(sport.draw), 0, "format_draw")}
             {reviewRow("Scoring", scoringText, 1, "scoring")}
             {reviewRow("Score sheet", sheetText, 2, "sheet")}
           </div>
@@ -663,6 +706,9 @@ function PurgeSportDialog({ sport, history, onClose, onDone }) {
 function AddSport({ onAdded, onCancel, onError }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("physical");
+  // The draw starts on the type's usual one; the Super Admin may pick the other (Nov 2026).
+  const [drawFormat, setDrawFormat] = useState(null);
+  const draw = drawFormat || (category === "esports" ? "round_robin" : "double_elimination");
   // Scoring rules for a new sport that scores by points. Sensible starting values so it works at once.
   const [rules, setRules] = useState({ pointValues: "1", periodLabel: "", periodOptions: "1, 3, 5", seriesOptions: "1, 3, 5" });
   const [busy, setBusy] = useState(false);
@@ -673,7 +719,7 @@ function AddSport({ onAdded, onCancel, onError }) {
       const d = await api("/api/sports", {
         method: "POST",
         body: JSON.stringify({
-          name: name.trim(), category,
+          name: name.trim(), category, tournamentFormat: draw,
           // Only a sport scores by points; an esport or board game records games won.
           ...(category === "physical" ? {
             pointValues: parseNums(rules.pointValues),
@@ -714,16 +760,14 @@ function AddSport({ onAdded, onCancel, onError }) {
           </div>
           <div className="space-y-1.5">
             <Label>Draw format</Label>
-            {/* Fixed by type (Oct 31 2026): esports = round-robin + a Top 8 / Top 16 knockout,
-                sports and board games = double elimination. */}
-            <Select value={category === "esports" ? "round_robin" : "double_elimination"} disabled>
+            <Select value={draw} onValueChange={setDrawFormat}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="double_elimination">Double-elimination groups</SelectItem>
                 <SelectItem value="round_robin">Round-robin groups</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-[13px] text-muted-foreground">Set by the type.</p>
+            <p className="text-[13px] text-muted-foreground">Groups and knockout size come next.</p>
           </div>
         </div>
 
@@ -950,9 +994,7 @@ function GamesTable({ sports, onOpen, onToggle, busyId, locked }) {
     .map((d) => DIVISIONS.find((x) => x.value === d)?.label || d).join(", ");
   const fmtText = (sp) => FORMATS.find((f) => f.value === sp.entryFormat)?.label || sp.entryFormat || "Team";
   const typeText = (sp) => TYPES.find((t) => t.value === sp.category)?.label || sp.category;
-  const drawText = (sp) => sp.category === "esports"
-    ? `Round-robin, Top ${sp.knockoutSize || 16}`
-    : sp.tournamentFormat === "round_robin" ? "Round-robin" : "Double elimination";
+  const tableDraw = (sp) => drawText(sp.draw) || DRAW_NAME[sp.tournamentFormat] || "";
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
       <table className="w-full text-left">
@@ -993,7 +1035,7 @@ function GamesTable({ sports, onOpen, onToggle, busyId, locked }) {
               </td>
               <td className="hidden px-4 py-3 text-[15px] sm:table-cell">{divText(sp)}</td>
               <td className="hidden px-4 py-3 text-[15px] md:table-cell">{fmtText(sp)}</td>
-              <td className="hidden px-4 py-3 text-[15px] lg:table-cell">{drawText(sp)}</td>
+              <td className="hidden px-4 py-3 text-[15px] lg:table-cell">{tableDraw(sp)}</td>
               <td className="px-2 py-3 text-muted-foreground"><ChevronRight className="size-4" /></td>
             </tr>
           ))}

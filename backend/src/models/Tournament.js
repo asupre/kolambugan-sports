@@ -43,8 +43,8 @@ const tournamentSchema = new mongoose.Schema(
       default: 2,
     },
     knockoutSize: {
-      type: Number,            // 8 or 16 — the Top-N knockout the group stage funnels into
-      enum: [8, 16],
+      type: Number,            // the Top-N knockout the group stage funnels into (4 / 8 / 16 since Nov 2026: 2 / 4 / 8 groups)
+      enum: [4, 8, 16],
       default: 16,
     },
       

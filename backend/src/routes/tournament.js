@@ -4,7 +4,8 @@ const Match = require('../models/Match');
 const Team = require('../models/Team');
 const Sport = require('../models/Sport');
 const Barangay = require('../models/Barangay');
-const { knockoutSizeOf, isRoundRobinSport, rulesFor } = require('../lib/sportRules');
+const { knockoutSizeOf, isRoundRobinSport, rulesFor, drawOf } = require('../lib/sportRules');
+const { standardSeedOrder } = require('../lib/knockoutSeeding');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason, seasonEnded } = require('../middleware/season');
 const { parseManila } = require('../config/time');
@@ -265,18 +266,22 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
     // new sport can use either draw.
     const isRoundRobin = isRoundRobinSport(sport);   // every esport, plus any sport set to round-robin
 
-    // ---- PHYSICAL SPORTS: 4 groups, double-elimination within each group ----
+    // The draw (Nov 2026): format, number of groups and knockout size come from League Setup
+    // (lib/sportRules.js drawOf). Double elimination: 2, 4 or 8 groups -> Top 4 / 8 / 16.
+    const draw = drawOf(sport);
+
+    // ---- DOUBLE ELIMINATION: N groups, double-elimination within each group ----
     if (!isRoundRobin) {
-            const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified', division });
-            const NUM_GROUPS = sport.numGroups || 4;
-      // Need at least 2 per group so every group can produce 2 qualifiers → a real Top 8.
-            if (teams.length < NUM_GROUPS * 3) {
+      const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified', division });
+      const NUM_GROUPS = draw.groups;
+      // At least 3 per group, so every group plays a real mini-bracket and produces 2 qualifiers.
+      if (teams.length < draw.minTeams) {
         return res.status(400).json({
-          message: `Double-elimination needs at least ${NUM_GROUPS * 3} verified teams (3 per group across ${NUM_GROUPS} groups); found ${teams.length}.`,
+          message: `${NUM_GROUPS} groups need at least ${draw.minTeams} verified teams (3 per group); found ${teams.length}. Pick fewer groups in League Setup, or verify more teams.`,
         });
       }
 
-      // Shuffle, then distribute as evenly as possible across the 4 groups.
+      // Shuffle, then distribute as evenly as possible across the groups.
       const shuffled = [...teams].sort(() => Math.random() - 0.5);
             const LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
       const groupNames = LABELS.slice(0, NUM_GROUPS);
@@ -292,7 +297,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
         stage: 'group_stage',
         groups: groupNames,
         advancePerGroup: 2,           // upper-bracket winner + lower-bracket winner
-                knockoutSize: sport.knockoutSize || NUM_GROUPS * 2,
+        knockoutSize: draw.knockout,  // 2 per group: Top 4 / 8 / 16
       });
 
       // Build one double-elim bracket per group (byes handled inside the generator).
@@ -311,16 +316,18 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
         teams: teams.length,
         numGroups: NUM_GROUPS,
         advancePerGroup: 2,
-                knockoutSize: sport.knockoutSize || NUM_GROUPS * 2,
+        knockoutSize: draw.knockout,
         groups: groupInfo,
         matches: totalMatches,
       });
     }
     // ---- else: MOBILE LEGENDS round-robin (unchanged below) ----
 
-    const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified' });
+    // Round-robin: only this division's teams (it used to take every verified team of the sport,
+    // fine for Mobile Legends' single Open division but it would mix Boys and Girls).
+    const teams = await Team.find({ sport: sport._id, season: season._id, status: 'verified', division });
 
-    // Knockout size drives everything: always 8 groups.
+    // Knockout size drives the advance count: knockout / groups from each group.
     // Top 8  -> advance 1 per group.  Top 16 -> advance 2 per group.
     // Set in League Setup BEFORE registration (Sep 2026) — registration's team limit
     // is built on it, so generation uses the saved value and no longer takes one from
@@ -341,15 +348,14 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
         });
       }
     }
-    // Need at least as many verified teams as the knockout size.
-    if (teams.length < knockoutSize) {
+    // Every group needs at least one more team than advance from it.
+    const NUM_GROUPS = draw.groups;
+    const advancePerGroup = draw.advancePerGroup; // e.g. Top 8 from 8 groups -> 1, from 4 -> 2
+    if (teams.length < draw.minTeams) {
       return res.status(400).json({
-        message: `A Top ${knockoutSize} knockout needs at least ${knockoutSize} verified teams; found ${teams.length}.`,
+        message: `A Top ${knockoutSize} knockout from ${NUM_GROUPS} groups needs at least ${draw.minTeams} verified teams (${advancePerGroup + 1} per group); found ${teams.length}. Pick fewer groups in League Setup, or verify more teams.`,
       });
     }
-
-        const NUM_GROUPS = sport.numGroups || 8;
-    const advancePerGroup = knockoutSize / NUM_GROUPS; // 8 -> 1, 16 -> 2
 
     // Shuffle then distribute as evenly as possible across the 8 groups
     // (handles any team count, incl. odd numbers like 43 → groups differ by ≤1).
@@ -363,6 +369,7 @@ router.post('/generate', authenticate, authorize('super_admin'), async (req, res
     const tournament = await Tournament.create({
       sport: sport._id,
       season: season._id,
+      division,
       format: 'round_robin',
       stage: 'group_stage',
       groups: groupNames,
@@ -1028,11 +1035,10 @@ router.get('/:id/de-qualification', async (req, res) => {
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
-// POST /api/tournaments/:id/de-bracket — physical sports.
-// Reads the 8 group qualifiers (2 per group, tagged by seed) and builds the
-// Top 8 single-elimination knockout with STANDARD seeding (group winners kept
-// apart from same-group runners-up) + a 3rd-place match. Reuses the same
-// single-elim structure as Mobile Legends, but seeded (not shuffled).
+// POST /api/tournaments/:id/de-bracket — double-elimination groups.
+// Reads the group qualifiers (2 per group, tagged by seed) and builds the single-elimination
+// knockout + a 3rd-place match with STANDARD seeding (lib/knockoutSeeding.js). Since Nov 2026 it
+// works for any number of groups (2 / 4 / 8 -> Top 4 / 8 / 16); it used to be fixed at 4 -> 8.
 router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
@@ -1065,10 +1071,15 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
       }
     }
 
-    // Standard 8-seed order: same-group teams apart, group winners spread out.
-    const order = ['A1', 'B2', 'C1', 'D2', 'B1', 'A2', 'D1', 'C2'];
+    // Standard seeding for however many groups this tournament has (tournament.groups is the
+    // draw's own list, A, B, C...; older tournaments fall back to the groups their matches use).
+    const groups = (tournament.groups?.length ? [...tournament.groups] : Object.keys(byGroup)).sort();
+    let order;
+    try { order = standardSeedOrder(groups); } catch (e) {
+      return res.status(400).json({ message: `This tournament has ${groups.length} groups; the knockout needs 2, 4 or 8.` });
+    }
     if (!ready || order.some((k) => !q[k])) {
-      return res.status(400).json({ message: 'All 4 groups must be fully played and produce 8 qualifiers first.' });
+      return res.status(400).json({ message: `All ${groups.length} groups must be fully played and produce ${order.length} qualifiers first.` });
     }
     const seeds = order.map((k) => q[k]); // seeded team ids, in bracket slot order
 
@@ -1079,7 +1090,7 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
     };
     const wire = (id, win, lose) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win, nextMatchLose: lose } });
 
-    const n = 8, numRounds = 3;                    // 8 → QF, SF, Final
+    const n = order.length, numRounds = Math.log2(n);   // 4 → SF, Final · 8 → QF, SF, Final · 16 → R16…
     const bestOfFor = (r) => (r === numRounds ? 5 : 3); // final BO5, rest BO3
 
     const roundMatches = {};
@@ -1105,7 +1116,7 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
     await tournament.save();
 
     const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['knockout', 'ko_final', 'ko_third'] } });
-    res.status(201).json({ message: 'Top 8 knockout generated (standard seeding + 3rd place).', matches: total });
+    res.status(201).json({ message: `Top ${n} knockout generated (standard seeding + 3rd place).`, matches: total, knockoutSize: n });
   } catch (err) {
     console.error('DE bracket error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

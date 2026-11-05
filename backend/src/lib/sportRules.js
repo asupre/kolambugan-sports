@@ -179,11 +179,11 @@ function rulesFor(sport) {
 // Top 8 = one team per barangay, Top 16 = up to two. Unset = Top 16, the old default.
 // Double-elimination sports always end in a Top 8 and aren't configured here (null).
 const KNOCKOUT_SIZES = [8, 16];
-// Round-robin draw: every esport (always — see the hook on the Sport model), plus any
-// other game the Super Admin set to round-robin. Also true for an esport saved before
-// that hook existed, so reads don't depend on the stored format being up to date.
+// The draw is the Super Admin's CHOICE per game (Nov 2026, professor's suggestion: "not just fixed
+// to double elim and round robin"; reverses the Oct 31 "fixed by type" rule). A new game starts on
+// its type's usual draw (esports round-robin, others double elimination) and can be switched.
 function isRoundRobinSport(sport) {
-  return sport?.tournamentFormat === 'round_robin' || sport?.category === 'esports';
+  return sport?.tournamentFormat === 'round_robin';
 }
 // ESPORTS ONLY choose Top 8 / Top 16 (Oct 2026, Super Admin rule: "those choices should only be
 // in the esports"). A non-esport that is set to a round-robin draw is always a Top 8 and always
@@ -191,7 +191,7 @@ function isRoundRobinSport(sport) {
 // sport switched to round-robin defaulted to Top 16 = TWO teams per barangay per division: how
 // Mukas registered a second Badminton Girls team.)
 function hasKnockoutChoice(sport) {
-  return sport?.category === 'esports';
+  return sport?.category === 'esports' && isRoundRobinSport(sport);
 }
 function knockoutSizeOf(sport) {
   if (!isRoundRobinSport(sport)) return null;
@@ -212,8 +212,42 @@ function teamsAllowedFor(sport) {
   return 1;
 }
 
+// Number of groups (Nov 2026, professor's suggestion: "number of teams should be changeable per
+// bracketing"). The Super Admin picks 2, 4 or 8 per game in League Setup; unset = the old fixed
+// count (double elimination 4, round-robin 8).
+//   double elimination: each group's double-elim mini-bracket sends 2 teams on, so the knockout
+//                       is 2 x groups: 2 groups = Top 4, 4 = Top 8, 8 = Top 16. At least 3 teams
+//                       per group.
+//   round-robin:        the knockout size stays as set (Top 8, or Top 8 / 16 for an esport);
+//                       knockout / groups advance from each group, and each group needs at
+//                       least one more team than advance from it (knockout + groups in all).
+const GROUP_OPTIONS = [2, 4, 8];
+// The group counts this game may choose. Round-robin is held to AT MOST 2 advancing per group:
+// its cutoff tiebreaker (a per-group playoff) settles a tie for 1 or 2 open spots, and a tie for
+// 3+ spots (possible with 4 or 8 advancing) has no clean playoff. So Top 8 = 4 or 8 groups, Top
+// 16 = 8 groups. Double elimination always sends exactly 2 per group, so 2 / 4 / 8 all work.
+function groupOptionsFor(sport) {
+  if (!isRoundRobinSport(sport)) return GROUP_OPTIONS;
+  const ko = knockoutSizeOf(sport);
+  return GROUP_OPTIONS.filter((g) => ko % g === 0 && ko / g <= 2);
+}
+function groupsOf(sport) {
+  if (groupOptionsFor(sport).includes(sport?.numGroups)) return sport.numGroups;
+  return isRoundRobinSport(sport) ? 8 : 4;
+}
+// Everything Generate needs to know about the draw.
+function drawOf(sport) {
+  const groups = groupsOf(sport);
+  if (isRoundRobinSport(sport)) {
+    const knockout = knockoutSizeOf(sport);
+    return { format: 'round_robin', groups, knockout, advancePerGroup: knockout / groups, minTeams: knockout + groups };
+  }
+  return { format: 'double_elimination', groups, knockout: groups * 2, advancePerGroup: 2, minTeams: groups * 3 };
+}
+
 module.exports = {
   SCORING_MODE, PERIOD_LABEL, PERIOD_OPTIONS, POINT_VALUES, STAT_CATALOG, SHEET_BY_CATEGORY,
   DEFAULT_SHEET, LEGACY_STAT_COLUMNS, ON_COURT, onCourtFor, rolesFor, sheetOptionsFor, rulesFor,
   KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, knockoutChoiceOf, hasKnockoutChoice, teamsAllowedFor,
+  GROUP_OPTIONS, groupOptionsFor, groupsOf, drawOf,
 };

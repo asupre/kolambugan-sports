@@ -103,17 +103,14 @@ const sportSchema = new mongoose.Schema(
   }
 );
 
-// Every esport runs the round-robin draw (Sep 2026, Super Admin): 8 groups, then a
-// Top 8 / Top 16 knockout whose size also sets how many teams a barangay may enter.
-// Enforced here so creating an esport or switching a game's type to esports can't
-// leave it on double-elimination.
-// The draw is FIXED BY TYPE (Oct 31 2026, Super Admin): esports = round-robin, sports and board
-// games = double elimination. Applied when a game is created or its type changes; a non-esport
-// saved as round-robin before this rule keeps it until the Super Admin switches it back (League
-// Setup offers that), so an existing bracket's draw never changes under it.
+// The draw is the Super Admin's CHOICE per game (Nov 2026, professor's suggestion). This used to
+// force it from the type (Sep 2026: esports always round-robin; Oct 31 2026: sports and board
+// games always double elimination). Now a new game only starts on its type's usual draw when none
+// was given; after that, League Setup decides (routes/reference.js PATCH /sports/:id).
 sportSchema.pre('validate', function () {
-  if (this.category === 'esports') this.tournamentFormat = 'round_robin';
-  else if (this.isNew || this.isModified('category')) this.tournamentFormat = 'double_elimination';
+  if (this.isNew && !this.tournamentFormat) {
+    this.tournamentFormat = this.category === 'esports' ? 'round_robin' : 'double_elimination';
+  }
 });
 
 const Sport = mongoose.model('Sport', sportSchema);

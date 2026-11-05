@@ -3798,3 +3798,13 @@ its filename and status, making "should I delete this and re-upload" a guess.
   from the player stats (points, rebounds, assists, steals, blocks, minus turnovers and half a
   point per foul; kills, assists and deaths for esports). The organizer can still choose
   someone else. Before, the organizer always chose the MVP by hand.
+
+## 2026-11-05 — Draw format and number of groups are configurable
+
+- Deviation from the thesis (and from the Oct 31 rule), on the adviser's suggestion: the Super
+  Admin chooses each game's draw format (double elimination or round-robin) and its number of
+  groups in League Setup, instead of them being fixed by the game's type. Double elimination: 2 /
+  4 / 8 groups lead to a Top 4 / 8 / 16 knockout. Round-robin: Top 8 from 4 or 8 groups, Top 16
+  from 8 groups (at most two advance per group, because of how cutoff ties are played off). The
+  knockout keeps standard seeding (group winners against other groups' runners-up; teams from
+  the same group can only meet in the final).

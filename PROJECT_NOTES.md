@@ -514,7 +514,40 @@ TWO formats, both ending in a single-elimination knockout.
   `teamsAllowedFor()` in `lib/sportRules.js` — unset = Top 16, the old default).
   Applies to any `round_robin` sport; every double-elim sport is 1 team per
   division. Why: Barangay Admins need to know how many teams to register.
-  - **THE DRAW FORMAT IS FIXED BY TYPE (Oct 31 2026, Super Admin; supersedes the step-2 Draw format
+  - **DRAW FORMAT + NUMBER OF GROUPS ARE THE SUPER ADMIN'S CHOICE (Nov 5 2026, the adviser /
+    professor: "number of team should be changeable per bracketing" and "league setup should not
+    just be fixed to double elim and round robin"). SUPERSEDES the two bullets below (Oct 31 "fixed by
+    type", Oct 3 "only esports choose").** Rules in `lib/sportRules.js`: `drawOf(sport)` →
+    { format, groups, knockout, advancePerGroup, minTeams }, `groupOptionsFor`, `groupsOf`.
+    - **Format:** any game, double elimination or round-robin (`isRoundRobinSport` = the stored
+      format only; the Sport model hook only fills a NEW game's format from its type). "Add a game"
+      has an editable Draw select; the editor's step 1 has Draw format + Number of groups cards
+      (applied at once, `PATCH /sports/:id` {tournamentFormat, numGroups}). Changing the TYPE no
+      longer changes the draw.
+    - **Groups:** double elimination 2 / 4 / 8 groups → Top 4 / 8 / 16 (2 per group, at least 3
+      teams per group). Round-robin is held to at most 2 advancing per group (its cutoff tiebreaker
+      only settles a tie for 1-2 open spots; 3+ spots hung the simulation): Top 8 from 4 or 8
+      groups, Top 16 from 8 groups; needs knockout + groups teams. Unset = 4 (DE) / 8 (RR), the old
+      fixed counts. Top 8 / Top 16 stays an ESPORT round-robin choice (it sets teams per barangay).
+    - **Safety:** draw / groups can't change once the game has a bracket this season (409); a change
+      that lowers the teams per barangay (an esport Top 16 → double elimination) is refused while a
+      barangay has 2 teams in a division.
+    - **Engine:** `/generate` uses `drawOf` for both formats; round-robin now filters by DIVISION and
+      stores it (it took every verified team of the sport, fine only for ML's single Open division).
+      `/de-bracket` works for any group count: seeding from `lib/knockoutSeeding.js`
+      `standardSeedOrder` (pairs A-B, C-D…; top half X1 v Y2, bottom half Y1 v X2; 4 groups gives
+      exactly the old A1-B2, C1-D2, B1-A2, D1-C2). `Tournament.knockoutSize` enum is now [4, 8, 16].
+    - **Tournaments page:** the round-robin vs double-elim screens follow the TOURNAMENT's format (it
+      used "is it an esport"); before Generate it shows the draw and a preview ("26 verified teams →
+      4 groups of 6–7 → Top 8") and disables Generate when there are too few teams.
+    - **Proof:** 15,000 random knockouts of `standardSeedOrder` (2 / 4 / 8 groups: every R1 game is a
+      winner v another group's runner-up, no same-group meeting before the final); 320 real
+      tournaments generated and auto-played to a champion on mongodb-memory-server through the real
+      routes (DE 2/4/8 groups, RR Top 8 from 4/8, Top 16 from 8, random team counts; balanced
+      groups, every team placed, knockout size right, one decided final + 3rd place, nothing
+      unplayed, too-few-teams refused); 12 League Setup checks. Rendered League Setup + the
+      Tournaments preview at 1366 / 390. The explanation for the defense is in this bullet.
+  - (Superseded by the bullet above.) **THE DRAW FORMAT IS FIXED BY TYPE (Oct 31 2026, Super Admin; supersedes the step-2 Draw format
     select in the next bullet).** Esports = round-robin, sports and board games = double
     elimination. The Sport model's `pre('validate')` hook sets it when a game is created or its type
     changes; `POST /api/sports` ignores any `tournamentFormat` sent; `PATCH /api/sports/:id` refuses

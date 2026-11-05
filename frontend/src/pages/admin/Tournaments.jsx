@@ -230,6 +230,12 @@ function MatchesView({ tournamentId }) {
 
 // datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time. toISOString() would
 // convert to UTC and shift the clock by 8 hours.
+// "6-7" / "4": how many teams each group gets when n teams are spread over g groups.
+function groupSizes(n, g) {
+  const lo = Math.floor(n / g), hi = Math.ceil(n / g);
+  return lo === hi ? String(lo) : `${lo}–${hi}`;
+}
+
 function asInput(d) {
   if (!d) return "";
   const x = new Date(d);
@@ -1343,9 +1349,9 @@ export default function Tournaments() {
   useEffect(() => { setDivision(""); setError(""); }, [sportId]);
 
   const selectedSport = sports.find((s) => String(s._id) === String(sportId));
-  // Physical sports always run four groups into a Top 8, so there's nothing to
-  // choose. Esports pick their knockout size.
-  const isEsports = selectedSport?.category === "esports";
+  // The draw is chosen per game in League Setup (Nov 2026): format, number of groups, knockout.
+  // The server sends what is in effect as `draw` (lib/sportRules.js drawOf).
+  const draw = selectedSport?.draw || null;
 
   const divisions = selectedSport?.divisions?.length ? selectedSport.divisions : ["open"];
   const activeDivision = divisions.includes(division) ? division : divisions[0];
@@ -1361,6 +1367,24 @@ export default function Tournaments() {
   // Generating needs an ONGOING season (the server refuses otherwise).
   const { season } = useSeason();
   const canGenerate = season?.status === "ongoing";
+
+  // Verified teams in this division this season, for the draw preview before Generate.
+  const [verifiedCount, setVerifiedCount] = useState(null);
+  useEffect(() => {
+    if (!selectedSport?._id || !season?._id) return;
+    let alive = true;
+    setVerifiedCount(null);
+    api(`/api/teams?sportId=${selectedSport._id}`)
+      .then((d) => {
+        if (!alive) return;
+        const list = (d.teams || []).filter((t) => String(t.season?._id || t.season) === String(season._id)
+          && t.status === "verified" && (t.division || "open") === activeDivision);
+        setVerifiedCount(list.length);
+      })
+      .catch(() => { if (alive) setVerifiedCount(null); });
+    return () => { alive = false; };
+  }, [selectedSport?._id, season?._id, activeDivision, tournaments.length]);
+  const tooFew = draw && verifiedCount != null && verifiedCount < draw.minTeams;
   const seasonLabel = SEASON_STAGES.find((st) => st.key === season?.status)?.label;
 
   async function generate() {
@@ -1477,21 +1501,33 @@ export default function Tournaments() {
                   <p className="text-muted-foreground text-sm mb-4">
                     No {divisions.length > 1 ? `${DIVISION_LABEL[activeDivision] || activeDivision} ` : ""}
                     tournament generated for {selectedSport.name} yet. Generate one from the
-                    verified teams. {isEsports
-                      ? "This sport uses a grouped round-robin."
-                      : "This sport uses four groups of double-elimination."}
+                    verified teams.
                   </p>
 
-                  {/* The knockout size is set in League Setup BEFORE registration (Sep 2026),
-                      because it decides how many teams each barangay may enter. */}
-                  {selectedSport.knockoutSize && (
-                    <div className="mb-4 space-y-1">
+                  {/* The draw comes from League Setup (Nov 2026): format, groups, knockout. */}
+                  {draw && (
+                    <div className="mb-4 rounded-xl border p-4 space-y-1.5">
                       <p className="text-sm">
-                        Knockout size: <span className="font-semibold">Top {selectedSport.knockoutSize}</span>
+                        <span className="font-semibold">
+                          {draw.format === "round_robin" ? "Round-robin groups" : "Double elimination in groups"}
+                        </span>
+                        {" · "}{draw.groups} groups{" · "}Top {draw.knockout} knockout
+                        {draw.format === "round_robin" && ` (${draw.advancePerGroup} from each group)`}
                       </p>
+                      {verifiedCount != null && (
+                        tooFew ? (
+                          <p className="text-sm text-amber-600 dark:text-amber-400">
+                            {verifiedCount} verified team{verifiedCount === 1 ? "" : "s"}. This draw needs at least {draw.minTeams}
+                            {" "}({draw.format === "round_robin" ? draw.advancePerGroup + 1 : 3} per group). Pick fewer groups in League Setup, or verify more teams.
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            {verifiedCount} verified teams → {draw.groups} groups of {groupSizes(verifiedCount, draw.groups)} → Top {draw.knockout}
+                          </p>
+                        )
+                      )}
                       <p className="text-muted-foreground text-xs">
-                        The system creates 8 groups and funnels down to the Top {selectedSport.knockoutSize}.
-                        Needs at least {selectedSport.knockoutSize} verified teams. Set in{" "}
+                        Change the draw format or the number of groups in{" "}
                         <Link to="/admin/config" className="underline underline-offset-2">League Setup</Link>.
                       </p>
                     </div>
@@ -1507,7 +1543,7 @@ export default function Tournaments() {
                     </Alert>
                   )}
 
-                  <Button onClick={generate} disabled={busy || !canGenerate}>
+                  <Button onClick={generate} disabled={busy || !canGenerate || tooFew}>
                     {busy ? "Generating…" : `Generate ${selectedSport.name} Tournament`}
                   </Button>
                 </div>
@@ -1516,7 +1552,7 @@ export default function Tournaments() {
                   key={currentTournament._id}
                   tournamentId={currentTournament._id}
                   stage={currentTournament.stage}
-                  isML={isEsports}
+                  isML={currentTournament.format === "round_robin"}
                   sportName={selectedSport.name}
                   ended={season?.status === "completed"}
                   onBracketGenerated={loadAll}

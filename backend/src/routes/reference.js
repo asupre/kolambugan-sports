@@ -15,7 +15,7 @@ const Document = require('../models/Document');
 const Match = require('../models/Match');
 const PlayerMatchStats = require('../models/PlayerMatchStats');
 const { rescreenSeason } = require('../services/prescreen');
-const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, knockoutChoiceOf, hasKnockoutChoice, teamsAllowedFor } = require('../lib/sportRules');
+const { rulesFor, sheetOptionsFor, STAT_CATALOG, KNOCKOUT_SIZES, isRoundRobinSport, knockoutSizeOf, knockoutChoiceOf, hasKnockoutChoice, teamsAllowedFor, GROUP_OPTIONS, groupOptionsFor, groupsOf, drawOf } = require('../lib/sportRules');
 
 // League Setup needs to know a sport's BUILT-IN scoring mode: which fields matter (point
 // buttons, periods, stats…) depends on it, and a blank "Scoring" means "use the default".
@@ -44,6 +44,10 @@ const withDefaults = (s) => ({
   // teams one barangay may register per division — the team-registration form shows it.
   knockoutSize: knockoutChoiceOf(s),
   teamsAllowed: teamsAllowedFor(s),
+  // The draw in effect (Nov 2026): format, groups, knockout size, advancing per group, and the
+  // fewest verified teams Generate accepts. groupOptions = the choices League Setup offers.
+  draw: drawOf(s),
+  groupOptions: groupOptionsFor(s),
 });
 
 // GET /api/sports: the games included this season. ?all=1 also returns excluded ones (League
@@ -390,9 +394,10 @@ router.post('/sports', authenticate, authorize('super_admin'), async (req, res) 
       return res.status(409).json({ message: `"${name}" already exists.` });
     }
     const category = ['esports', 'board'].includes(req.body.category) ? req.body.category : 'physical';
-    // The draw is fixed by type: esports round-robin, sports and board games double
-    // elimination (the Sport model enforces it too). Any tournamentFormat sent is ignored.
-    const tournamentFormat = category === 'esports' ? 'round_robin' : 'double_elimination';
+    // The draw is the Super Admin's choice (Nov 2026); without one, the type's usual draw.
+    const tournamentFormat = ['double_elimination', 'round_robin'].includes(req.body.tournamentFormat)
+      ? req.body.tournamentFormat
+      : category === 'esports' ? 'round_robin' : 'double_elimination';
 
     const scoring = scoringFromBody(req.body);
     if (scoring.error) return res.status(400).json({ message: scoring.error });
@@ -425,18 +430,8 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
       if (!['physical', 'esports', 'board'].includes(req.body.category)) {
         return res.status(400).json({ message: 'Type must be sports, esports or a board game.' });
       }
-      // The draw follows the type (Sport model hook): esports round-robin, anything else double
-      // elimination. That can't change under a bracket this season has already generated.
-      const willBeRoundRobin = req.body.category === sport.category
-        ? isRoundRobinSport(sport) : req.body.category === 'esports';
-      if (willBeRoundRobin !== isRoundRobinSport(sport)) {
-        const season = await getCurrentSeason();
-        if (season && await Tournament.exists({ sport: sport._id, season: season._id })) {
-          return res.status(409).json({
-            message: `${sport.name} already has a bracket this season, and changing its type would change its draw format. Delete the tournament first.`,
-          });
-        }
-      }
+      // The type no longer decides the draw (Nov 2026). It can still change how many teams a
+      // barangay may enter (only an esport has Top 16 = 2 teams), so that is checked below.
       sport.category = req.body.category;
     }
     // Custom columns: the client sends the full list of labels. A newly added column is ticked on
@@ -469,25 +464,41 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
         return res.status(400).json({ message: 'scoreSheet must be a list.' });
       }
     }
+    // Draw format + number of groups: the Super Admin's choice for ANY game (Nov 2026, professor's
+    // suggestion; reverses the Oct 31 "fixed by type" rule). Neither can change once this game
+    // has a bracket this season (a running bracket must not change shape under its teams).
+    const teamsBefore = teamsAllowedFor(sport);
+    const drawBefore = `${sport.tournamentFormat}|${groupsOf(sport)}`;
     if (req.body.tournamentFormat) {
       if (!['double_elimination', 'round_robin'].includes(req.body.tournamentFormat)) {
         return res.status(400).json({ message: 'Draw format must be double elimination or round-robin.' });
       }
-      if (sport.category === 'esports' && req.body.tournamentFormat !== 'round_robin') {
-        return res.status(400).json({ message: 'Esports always use round-robin groups and a Top 8 / Top 16 knockout.' });
+      sport.tournamentFormat = req.body.tournamentFormat;
+    }
+    if (req.body.numGroups !== undefined) {
+      if (req.body.numGroups === null || req.body.numGroups === '') sport.numGroups = null;
+      else if (groupOptionsFor(sport).includes(Number(req.body.numGroups))) sport.numGroups = Number(req.body.numGroups);
+      else return res.status(400).json({ message: `This draw can use ${groupOptionsFor(sport).join(', ')} groups.` });
+    }
+    if (`${sport.tournamentFormat}|${groupsOf(sport)}` !== drawBefore) {
+      const season = await getCurrentSeason();
+      if (season && await Tournament.exists({ sport: sport._id, season: season._id })) {
+        return res.status(409).json({ message: `${sport.name} already has a bracket this season, so its draw can't change. Delete the tournament first.` });
       }
-      // Sports and board games are always double elimination (Oct 31 2026). Switching a game
-      // saved as round-robin before that rule BACK to double elimination is still allowed.
-      if (sport.category !== 'esports' && req.body.tournamentFormat !== 'double_elimination') {
-        return res.status(400).json({ message: 'Sports and board games always use 4 groups, double elimination, then a Top 8.' });
-      }
-      if (req.body.tournamentFormat !== sport.tournamentFormat) {
-        const season = await getCurrentSeason();
-        if (season && await Tournament.exists({ sport: sport._id, season: season._id })) {
-          return res.status(409).json({ message: `${sport.name} already has a bracket this season, so its draw format can't change. Delete the tournament first.` });
+    }
+    // A change that lowers the teams a barangay may enter (an esport's Top 16 allows two) is
+    // refused while a barangay already has more than that in one division this season.
+    if (teamsAllowedFor(sport) < teamsBefore) {
+      const season = await getCurrentSeason();
+      if (season) {
+        const teams = await Team.find({ sport: sport._id, season: season._id }).select('barangay division').populate('barangay', 'name').lean();
+        const count = {};
+        teams.forEach((t) => { const k = `${t.barangay?._id}|${t.division || 'open'}`; count[k] = (count[k] || 0) + 1; });
+        const over = [...new Set(teams.filter((t) => count[`${t.barangay?._id}|${t.division || 'open'}`] > teamsAllowedFor(sport)).map((t) => t.barangay?.name))].sort();
+        if (over.length) {
+          return res.status(409).json({ message: `That allows ${teamsAllowedFor(sport)} team per barangay, but ${over.join(', ')} ${over.length === 1 ? 'has' : 'have'} more in one division. Remove the extra team(s) first.` });
         }
       }
-      sport.tournamentFormat = req.body.tournamentFormat;
     }
 
     const scoring = scoringFromBody(req.body);
@@ -500,7 +511,7 @@ router.patch('/sports/:id', authenticate, authorize('super_admin'), async (req, 
     });
     // (knockoutSize is NOT here: it goes through PATCH /sports/:id/config, which checks it
     // against the teams already registered.)
-    ['onCourt', 'teamsPerBarangay', 'numGroups'].forEach((k) => {
+    ['onCourt', 'teamsPerBarangay'].forEach((k) => {
       if (req.body[k] !== undefined) {
         sport[k] = req.body[k] === null || req.body[k] === '' ? null : Number(req.body[k]);
       }

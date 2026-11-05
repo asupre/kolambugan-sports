@@ -14,6 +14,7 @@ import { getStoredTheme, storeTheme } from "../lib/theme";
 import ThemeToggle from "./ThemeToggle";
 import CrossTermsDialog from "./CrossTermsDialog";
 import TermsNotifications from "./TermsNotifications";
+import BrgyNotifications from "./BrgyNotifications";
 import { SeasonBadge } from "./SeasonStatus";
 import { useSeason } from "../lib/season";
 import { useMediaQuery } from "../lib/useMediaQuery";
@@ -460,6 +461,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             {user?.role === "super_admin" && <TermsNotifications />}
+            {user?.role === "barangay_admin" && <BrgyNotifications />}
             <button
               onClick={() => setShowHelp(true)}
               aria-label="How this works"
@@ -501,6 +503,9 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
                     <>
                       {user?.role === "super_admin" && (
                         <TermsNotifications className="size-9 rounded-full bg-white/90 text-[#2E413B] shadow-sm hover:bg-white hover:text-[#2E413B]" />
+                      )}
+                      {user?.role === "barangay_admin" && (
+                        <BrgyNotifications className="size-9 rounded-full bg-white/90 text-[#2E413B] shadow-sm hover:bg-white hover:text-[#2E413B]" />
                       )}
                       <button onClick={() => setShowHelp(true)} aria-label="How this works" title="How this works"
                         className="flex size-9 items-center justify-center rounded-full bg-white/90 text-[#2E413B] shadow-sm transition hover:bg-white">

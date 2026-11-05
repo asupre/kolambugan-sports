@@ -3764,3 +3764,14 @@ its filename and status, making "should I delete this and re-upload" a guess.
   players from other barangays). Until they accept, their registration (teams, players,
   roster submission) is closed. Answers, declines especially, notify the Super Admin through
   a new notifications bell, which lists who accepted / declined and can ask again.
+
+## 2026-11-05 — Barangay Admin notifications
+
+- Not in the thesis document: Barangay Admins have a notifications bell. Every season change
+  (new season, registration open, verification, tournament started, completed, moved back)
+  posts an update there, with a link to the page it concerns.
+
+## 2026-11-05 — Barangay Admin dashboard charts
+
+- Not in the thesis document: the Barangay Admin Dashboard has four charts (players by status,
+  players by age, players per team, wins and losses by sport).

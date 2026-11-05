@@ -27,6 +27,7 @@ app.use('/api/accounts', require('./src/routes/accounts'));
 app.use('/api/organizer', require('./src/routes/organizer'));
 app.use('/api/demo', require('./src/routes/demo'));   // League Setup demo data (super admin)
 app.use('/api/terms', require('./src/routes/terms'));   // cross-barangay terms (barangay admin answers, super admin notified)
+app.use('/api/notifications', require('./src/routes/notifications'));   // barangay admin bell (season updates)
 app.use('/api/public', require('./src/routes/public'));
 app.use('/api/champions', championRoutes);
 app.use('/api/site-images', require('./src/routes/siteimage'));

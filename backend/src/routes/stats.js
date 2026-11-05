@@ -241,6 +241,7 @@ router.get('/brgy-dashboard', authenticate, authorize('barangay_admin'), async (
     const RANK = { draft: 1, review: 2, verified: 3 };
     const perTeam = new Map(); // teamId -> { count, attention }
     const athletes = new Map(); // identity -> best rank
+    const birthOf = new Map();  // identity -> birthdate (for the age chart)
     let attention = 0;
     for (const l of links) {
       const t = teamById.get(String(l.team));
@@ -249,6 +250,7 @@ router.get('/brgy-dashboard', authenticate, authorize('barangay_admin'), async (
       const state = stateOf(t);
       const key = `${norm(p.lastName)}|${norm(p.firstName)}|${p.birthdate ? new Date(p.birthdate).toDateString() : ''}`;
       athletes.set(key, Math.max(athletes.get(key) || 0, RANK[state]));
+      if (p.birthdate) birthOf.set(key, p.birthdate);
 
       const row = perTeam.get(String(t._id)) || { count: 0, attention: 0 };
       row.count++;
@@ -305,6 +307,27 @@ router.get('/brgy-dashboard', authenticate, authorize('barangay_admin'), async (
     const finished = matches.filter((m) => m.status === 'completed' || m.status === 'forfeited');
     const wins = finished.filter((m) => m.seriesWinner && myIds.has(String(m.seriesWinner))).length;
 
+    // Charts (Nov 2026): wins and losses per sport, and athletes by age (each counted once).
+    const bySport = new Map();
+    for (const m of finished) {
+      const name = (m.tournament && m.tournament.sport && m.tournament.sport.name) || 'Other';
+      const row = bySport.get(name) || { sport: name, wins: 0, losses: 0 };
+      if (m.seriesWinner && myIds.has(String(m.seriesWinner))) row.wins++; else row.losses++;
+      bySport.set(name, row);
+    }
+    const AGE_BANDS = [
+      { label: '15 and under', max: 15 }, { label: '16-18', max: 18 }, { label: '19-21', max: 21 },
+      { label: '22-25', max: 25 }, { label: '26-30', max: 30 }, { label: '31+', max: Infinity },
+    ];
+    const ages = AGE_BANDS.map((b) => ({ label: b.label, count: 0 }));
+    const now = new Date();
+    for (const bd of birthOf.values()) {
+      const d = new Date(bd);
+      let age = now.getFullYear() - d.getFullYear();
+      if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) age--;
+      ages[AGE_BANDS.findIndex((b) => age <= b.max)].count++;
+    }
+
     res.json({
       season: { name: season.name, status: season.status },
       players: { registered: athletes.size, verified, review, draft, attention },
@@ -326,6 +349,8 @@ router.get('/brgy-dashboard', authenticate, authorize('barangay_admin'), async (
         wins,
         losses: finished.length - wins,
       },
+      results: [...bySport.values()].sort((a, b) => a.sport.localeCompare(b.sport)),
+      ages,
     });
   } catch (err) {
     console.error('Barangay dashboard error:', err);

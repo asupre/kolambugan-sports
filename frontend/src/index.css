@@ -576,3 +576,23 @@
 :root.calm-fit aside .scroll-shadow-y { --scroll-shadow-bg: var(--sidebar); }
 /* The dashboard's own hover / bar-track tones, retuned from warm beige for the white page. */
 :root.calm-fit:not(.dark) .calm { --calm-card-hover: #F6F8F7; --calm-track: #EAEEEB; }
+
+/* Dashboard charts (components/BrgyCharts.jsx, Nov 2026). Validated with the dataviz palette
+   checker against the admin card surfaces: light #ffffff, dark #232622. Dark is its own set of
+   steps, not a flip. */
+.viz {
+  --viz-1: #2a78d6;      /* blue: verified / single-series bars */
+  --viz-2: #eb6834;      /* orange: under review */
+  --viz-3: #1baf7a;      /* aqua: drafts (under 3:1 on white, so values are always printed) */
+  --viz-win: #2a78d6;
+  --viz-loss: #e34948;
+  --viz-axis: #c3c2b7;
+}
+.dark .viz {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-win: #3987e5;
+  --viz-loss: #e66767;
+  --viz-axis: #4a4d48;
+}

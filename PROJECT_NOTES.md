@@ -1057,6 +1057,19 @@ so a bug in one route cannot expose the other.
   but no bracket), today's games. Data: `GET /api/stats/dashboard` (old fields kept;
   batched queries — keep it that way). Player figures are roster ENTRIES (what screening
   works in); barangay "cleared" = a verified team in every sport/division slot.
+- **Barangay Admin notifications bell (Nov 5 2026, Super Admin: "inform them of every update of
+  the season, like registration, verification").** Every season change writes a `Notification`
+  (`models/Notification.js`: role, barangay (null = all), season, stage, title, body, link) via
+  `notifySeasonStage()` in `backend/src/lib/notify.js` (edit the wording there), called from
+  `routes/season.js` on create season, advance, and back (title "Season moved back to X"). It never
+  throws, so a failed notification can't fail the season change. `GET /api/notifications`
+  (barangay_admin only, latest 30, own barangay + all) and `POST /api/notifications/seen`; unread =
+  newer than `User.notificationsSeenAt` (new field: FULL server restart), per account. Deleting a
+  season deletes its notifications. Frontend: `components/BrgyNotifications.jsx`, a bell in the top
+  bar and on the Dashboard banner (red count), a list with a "New" tag in the stage colour; tapping
+  one opens its page (/brgy, /brgy/documents, /brgy/matches…). `barangay` allows per-barangay news
+  later (e.g. a rejected player); nothing writes those yet. A season already running when this
+  shipped has no notification until its next change. Tested on mongodb-memory-server (9 checks).
 - **Barangay Admin + Organizer dashboards and the season indicator (Sep 2026)**:
   both roles land on a Dashboard tab (`/brgy/dashboard`, `/organizer/dashboard`;
   `/brgy` is still My Teams and `/organizer` still the scoring screen). Data comes
@@ -1068,6 +1081,23 @@ so a bug in one route cannot expose the other.
   the scoring screen disables with `seasonStrip={false}`) and as a five-step tracker
   with role-specific wording in `SeasonStatus.jsx` — edit `GUIDE` there when a
   stage's meaning changes. `useSeason`/`SEASON_STAGES` are in `lib/season.js`.
+- **Barangay Admin Dashboard CHARTS (Nov 5 2026, Super Admin request).** Four cards under the
+  player tiles on `/brgy/dashboard` (`BrgyHome.jsx`), from `components/BrgyCharts.jsx`, plain
+  HTML (NO chart library): **Players by status** (one segmented bar: verified / under review /
+  drafts, "71% verified" headline), **Players by age** (columns over age bands, each athlete once),
+  **Players per team** (ranked horizontal bars), **Wins and losses by sport** (diverging bars,
+  losses left, wins right, forfeits counted). `GET /api/stats/brgy-dashboard` gained `results`
+  (per sport wins / losses from completed + forfeited matches) and `ages` (bands 15 and under,
+  16-18, 19-21, 22-25, 26-30, 31+, by birthdate, same athlete identity as the player counts).
+  Colours are `--viz-*` tokens at the end of `index.css` (own dark steps), checked with the
+  dataviz palette validator against the card surfaces (#ffffff / #232622): blue / orange / aqua
+  pass all-pairs; aqua is under 3:1 on white, so every value is also printed as text. Each chart
+  has a hover tooltip and a screen-reader table (`SrTable`, wrapped in a div ON PURPOSE: a bare
+  `div > table` makes the Card think its content is a table and drop the box, see `BARE` in
+  `ui/card.jsx`). **Two-column grids of section cards need `[&>*]:!mt-0`**: the calm CSS gives a
+  card that follows a card `margin-top: 1.75rem`, which pushed the right-hand card down (the old
+  Your teams / Matches pair had this too, fixed). Rendered at 1366 light + dark and 390 dark
+  against a mock API; route tested on mongodb-memory-server.
 - **Dashboard stat tiles never clip their number (Sep 2026, `StatTile` in
   `components/DashboardBits.jsx`, shared by all three dashboards).** On a ~360px
   phone the 2-column grid left ~74px beside the icon; "893/1084" (no wrap point)

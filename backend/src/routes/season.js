@@ -13,6 +13,8 @@ const Champion = require('../models/Champion');
 const { deleteFile } = require('../config/gridfs');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason } = require('../middleware/season');
+const { notifySeasonStage } = require('../lib/notify');
+const Notification = require('../models/Notification');
 
 const router = express.Router();
 
@@ -87,6 +89,7 @@ router.post('/', authenticate, authorize('super_admin'), async (req, res) => {
       openedBy: req.user.id,
       openedAt: new Date(),
     });
+    await notifySeasonStage(season);   // tells every Barangay Admin (bell)
 
     res.status(201).json({ season });
   } catch (err) {
@@ -123,6 +126,7 @@ router.post('/:id/advance', authenticate, authorize('super_admin'), async (req, 
       season.closedAt = new Date();
     }
     await season.save();
+    await notifySeasonStage(season);
 
     res.json({ season });
   } catch (err) {
@@ -186,6 +190,7 @@ router.post('/:id/back', authenticate, authorize('super_admin'), async (req, res
     season.status = prev;
     if (prev === 'ongoing') season.closedAt = undefined;
     await season.save();
+    await notifySeasonStage(season, { back: true });
 
     res.json({ season });
   } catch (err) {
@@ -359,6 +364,7 @@ router.delete('/:id', authenticate, authorize('super_admin'), async (req, res) =
     await TeamPlayer.deleteMany({ team: { $in: teamIds } });
     await Team.deleteMany({ _id: { $in: teamIds } });
     await ReferenceList.deleteMany({ season: season._id });
+    await Notification.deleteMany({ season: season._id });
     await Champion.updateMany({ season: season._id }, { $set: { season: null } });
     await Season.deleteOne({ _id: season._id });
 

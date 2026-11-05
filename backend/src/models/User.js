@@ -68,6 +68,11 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    // Barangay Admin notifications bell (Nov 2026): notifications newer than this are unread.
+    notificationsSeenAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

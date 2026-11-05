@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import { Progress } from "../../components/ui/progress";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import { AgeChart, PlayerStatusChart, ResultsChart, TeamSizeChart } from "../../components/BrgyCharts";
 
 const TEAM_STATE = {
   draft: { label: "Draft", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
@@ -131,7 +132,39 @@ export default function BrgyHome() {
           </p>
         )}
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        {/* Charts (Nov 2026): how the barangay's players and teams stand, and how its games went. */}
+        <div className="grid gap-5 lg:grid-cols-2 [&>*]:!mt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle>Players by status</CardTitle>
+              <CardDescription>Where your players are in verification.</CardDescription>
+            </CardHeader>
+            <CardContent>{loading ? <Skeleton className="h-24 w-full" /> : <PlayerStatusChart players={p} />}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Players by age</CardTitle>
+              <CardDescription>Each player counted once.</CardDescription>
+            </CardHeader>
+            <CardContent>{loading ? <Skeleton className="h-44 w-full" /> : <AgeChart ages={data?.ages} />}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Players per team</CardTitle>
+              <CardDescription>Roster size of each of your teams.</CardDescription>
+            </CardHeader>
+            <CardContent>{loading ? <Skeleton className="h-32 w-full" /> : <TeamSizeChart teams={data?.teams} sportLine={sportLine} />}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Wins and losses by sport</CardTitle>
+              <CardDescription>Finished games this season, forfeits included.</CardDescription>
+            </CardHeader>
+            <CardContent>{loading ? <Skeleton className="h-32 w-full" /> : <ResultsChart results={data?.results} />}</CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2 [&>*]:!mt-0">
           {/* Teams */}
           <Card>
             <CardHeader>

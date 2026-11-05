@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
-import { CheckCircle2, ChevronLeft, ChevronRight, CircleCheck, CircleX, ClipboardList, Search, Sparkles, TriangleAlert, UploadCloud } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, CircleCheck, CircleX, ClipboardList, Download, Search, Sparkles, TriangleAlert, UploadCloud } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import InfoHint from "../../components/InfoHint";
@@ -15,6 +15,8 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
 import { useMediaQuery } from "../../lib/useMediaQuery";
 import { useSeason } from "../../lib/season";
+import { ageFrom } from "../../lib/age";
+import { SHARED_COLUMNS, SHEET_ACCEPT, downloadTemplate } from "../../lib/sheetTemplate";
 
 // Infinity = "All": one page, every row. The table is virtualized (see the
 // useVirtualizer call below), so this stays smooth on the full ~17k list.
@@ -465,8 +467,10 @@ export default function ReferenceList() {
           <CardHeader>
             <CardTitle>Upload a new list</CardTitle>
             <CardDescription>
-              <InfoHint summary="Upload a CSV of eligible residents. This replaces the current list for this season.">
-                <p>Columns can be named flexibly (first/middle/last name, birthdate, barangay).</p>
+              <InfoHint summary="Upload a CSV or Excel file of eligible residents. This replaces the current list for this season.">
+                <p>Use the same columns as the barangays' player import: {SHARED_COLUMNS.join(", ")}.
+                Download the template to start from. Column names don't have to match exactly, and Age can
+                be left blank (it is worked out from the birthdate).</p>
                 <p className="mt-1.5"><span className="font-medium text-foreground">Middle name and birthdate are
                 now required for a match</span>. A row missing either can never confirm a player as eligible,
                 so include them if you have them.</p>
@@ -492,7 +496,7 @@ export default function ReferenceList() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept={SHEET_ACCEPT}
               disabled={listLocked}
               onChange={(e) => setFile(e.target.files[0] || null)}
               className="block w-full text-sm text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/15 cursor-pointer"
@@ -530,9 +534,14 @@ export default function ReferenceList() {
               </Alert>
             )}
 
-            <Button onClick={handleUpload} disabled={!file || uploading || listLocked}>
-              <UploadCloud /> {uploading ? "Uploading…" : "Upload & Replace List"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleUpload} disabled={!file || uploading || listLocked}>
+                <UploadCloud /> {uploading ? "Uploading…" : "Upload & Replace List"}
+              </Button>
+              <Button variant="outline" onClick={() => downloadTemplate(SHARED_COLUMNS, "reference-list-template.csv")}>
+                <Download /> Download template
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -618,13 +627,14 @@ export default function ReferenceList() {
                     residents, auto layout was the source of the collapse lag. */}
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
-                    <col className="w-[7%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[16%]" />
+                    <col className="w-[6%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[15%]" />
                     <col className="w-[9%]" />
-                    <col className="w-[13%]" />
-                    <col className="w-[13%]" />
-                    <col className="w-[26%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[6%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[25%]" />
                   </colgroup>
                   <thead className="bg-muted text-muted-foreground text-left sticky top-0">
                     <tr>
@@ -633,6 +643,7 @@ export default function ReferenceList() {
                       <th className="px-3 py-2 font-medium">First name</th>
                       <th className="px-3 py-2 font-medium">Middle</th>
                       <th className="px-3 py-2 font-medium">Birthdate</th>
+                      <th className="px-3 py-2 font-medium">Age</th>
                       <th className="px-3 py-2 font-medium">Barangay</th>
                       <th className="px-3 py-2 font-medium">Matched player</th>
                     </tr>
@@ -640,7 +651,7 @@ export default function ReferenceList() {
                   <tbody>
                     {visibleRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                        <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
                           {exactName
                             ? "No one on the reference list has this exact name. This player isn't on the list."
                             : "No residents match your search."}
@@ -648,7 +659,7 @@ export default function ReferenceList() {
                       </tr>
                     ) : (
                       <>
-                      {padTop > 0 && <tr aria-hidden style={{ height: padTop }}><td colSpan={7} /></tr>}
+                      {padTop > 0 && <tr aria-hidden style={{ height: padTop }}><td colSpan={8} /></tr>}
                       {virtualRows.map((vr) => {
                         const r = visibleRecords[vr.index];
                         const info = analyzeRow(r);
@@ -666,6 +677,7 @@ export default function ReferenceList() {
                             <td className="px-3 py-2 text-muted-foreground truncate">
                               {r.birthdate ? new Date(r.birthdate).toLocaleDateString() : "—"}
                             </td>
+                            <td className="px-3 py-2 text-muted-foreground tabular-nums">{ageFrom(r.birthdate) ?? "—"}</td>
                             <td className="px-3 py-2 text-muted-foreground truncate">{r.barangay || "—"}</td>
                             <td className="px-3 py-2 space-y-1">
                               <MatchInfo info={info} />
@@ -673,7 +685,7 @@ export default function ReferenceList() {
                           </tr>
                         );
                       })}
-                      {padBottom > 0 && <tr aria-hidden style={{ height: padBottom }}><td colSpan={7} /></tr>}
+                      {padBottom > 0 && <tr aria-hidden style={{ height: padBottom }}><td colSpan={8} /></tr>}
                       </>
                     )}
                   </tbody>
@@ -711,7 +723,7 @@ export default function ReferenceList() {
                                     {r.lastName}, {r.firstName}{r.middleName ? ` ${r.middleName}` : ""}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {r.birthdate ? new Date(r.birthdate).toLocaleDateString() : "No birthdate"}
+                                    {r.birthdate ? `${new Date(r.birthdate).toLocaleDateString()} · Age ${ageFrom(r.birthdate)}` : "No birthdate"}
                                     {r.barangay ? ` · ${r.barangay}` : ""}
                                   </p>
                                   {info.rowTone && (

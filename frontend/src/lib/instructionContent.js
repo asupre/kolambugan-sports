@@ -125,7 +125,7 @@ const RAW_STEPS = {
         ["teams.png", "My Teams: your barangay logo and Register a team"],
         ["team-create.png", "Pick the sport and division, name the team, tap Create team"],
         ["team-created.png", "The new team is a draft. Tap Edit roster"],
-        ["team-modal-edit-roster.png", "Add your players one by one, or Import CSV"],
+        ["team-modal-edit-roster.png", "Add your players one by one, or Import CSV / Excel"],
       ],
     },
     {

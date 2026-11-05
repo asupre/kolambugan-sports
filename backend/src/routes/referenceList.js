@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const multer = require('multer');
-const { parse } = require('csv-parse/sync');
+const { readSheet } = require('../lib/sheetRows');
 const ReferenceList = require('../models/ReferenceList');
 const Team = require('../models/Team');
 const TeamPlayer = require('../models/TeamPlayer');
@@ -19,7 +19,8 @@ function canonicalKey(h) {
   if (['middlename', 'middle', 'mname', 'mi', 'middleinitial'].includes(k)) return 'middleName';
   if (['lastname', 'last', 'surname', 'familyname', 'lname'].includes(k)) return 'lastName';
   if (['birthdate', 'birthday', 'dob', 'dateofbirth'].includes(k)) return 'birthdate';
-  if (['barangay', 'brgy', 'barangayname'].includes(k)) return 'barangay';
+  if (['barangay', 'brgy', 'homebarangay', 'barangayname', 'barangayofresidence', 'brgyname'].includes(k)) return 'barangay';
+  // 'age' is accepted (the shared layout has it) but never stored: age always comes from the birthdate.
   return null;
 }
 
@@ -27,7 +28,7 @@ function canonicalKey(h) {
 router.post('/', authenticate, authorize('super_admin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'Please upload a CSV file (form field name: "file").' });
+      return res.status(400).json({ message: 'Please upload a CSV or Excel file (form field name: "file").' });
     }
     const season = await getCurrentSeason();
     if (!season) {
@@ -44,11 +45,11 @@ router.post('/', authenticate, authorize('super_admin'), upload.single('file'), 
 
     let rows;
     try {
-      rows = parse(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true, bom: true });
+      rows = await readSheet(req.file);   // CSV or Excel (.xlsx)
     } catch (e) {
-      return res.status(400).json({ message: 'Could not parse the CSV. Check the file format.' });
+      return res.status(400).json({ message: e.message });
     }
-    if (!rows.length) return res.status(400).json({ message: 'The CSV has no data rows.' });
+    if (!rows.length) return res.status(400).json({ message: 'The file has no data rows.' });
 
     const docs = [];
     const skipped = [];

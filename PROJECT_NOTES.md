@@ -74,6 +74,20 @@ score tallying, no public visibility, records lost every season.
   required field are skipped and reported back (row number + reason), not
   silently dropped. UI: an "Import CSV" button beside "Add a player" in the
   roster editor (`RosterEditor` in `BrgyDashboard.jsx`).
+- **One file layout for BOTH uploads, CSV or Excel (Nov 6 2026, a panelist: the Super Admin's
+  reference list format should pair with the Barangay Admin's player import).** Shared columns,
+  in order: **Last name, First name, Middle name, Birthdate, Age, Barangay**; the player import
+  adds **Jersey no.** (`SHARED_COLUMNS` in `backend/src/lib/sheetRows.js` and
+  `frontend/src/lib/sheetTemplate.js`, keep them in step). Age is accepted but never stored:
+  it is always worked out from the birthdate. Both routes read the file through
+  `readSheet()` (`lib/sheetRows.js`): CSV, or **.xlsx** (first sheet, via `exceljs`; Excel
+  date cells read as YYYY-MM-DD from their UTC parts); an old .xls is refused with "Save As
+  .xlsx". Header aliases are the same in both routes (middle initial, home barangay…). A
+  **Download template** button (Reference List) and a "download the template" link (roster
+  editor) give an empty CSV with exactly those headers (UTF-8 BOM, so "Sto. Niño" survives
+  Excel). The Reference List table and phone cards show an **Age** column. Tested on
+  mongodb-memory-server (7 checks: xlsx + csv reference upload, xls / broken xlsx refused,
+  xlsx player import with date cell, jersey, age-limit skip); rendered at 1366 / 390.
 - New players / 15 and under: require **parental consent + supporting documents**.
   (`MINOR_AGE` cutoff is inclusive — `age <= 15` — since Sep 2026; see the
   verification rule below.)

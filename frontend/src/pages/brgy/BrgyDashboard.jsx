@@ -32,6 +32,8 @@ import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
 import { CROSS_TERMS_EVENT } from "../../lib/crossTerms";
+import { ageFrom } from "../../lib/age";
+import { ROSTER_COLUMNS, SHEET_ACCEPT, downloadTemplate } from "../../lib/sheetTemplate";
 
 const ROSTER_LIMITS = {
   team:        { min: 10, max: 15 },
@@ -111,14 +113,6 @@ function RowSkeleton() {
   );
 }
 
-function ageFrom(birthdate) {
-  if (!birthdate) return null;
-  const d = new Date(birthdate), now = new Date();
-  let a = now.getFullYear() - d.getFullYear();
-  const m = now.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
-  return a;
-}
 
 // Correcting a player. Deliberately available AFTER submission too — a typo is
 // usually only noticed once screening flags it, which happens on submit.
@@ -841,10 +835,10 @@ function RosterEditor({ team, sports, onClose }) {
                       buttonVariants({ variant: "outline", size: "sm" }),
                       importing ? "cursor-not-allowed opacity-50" : "cursor-pointer"
                     )}>
-                      <Upload /> {importing ? "Importing…" : "Import CSV"}
+                      <Upload /> {importing ? "Importing…" : "Import CSV / Excel"}
                       <input
                         type="file"
-                        accept=".csv,text/csv"
+                        accept={SHEET_ACCEPT}
                         className="hidden"
                         disabled={importing}
                         onChange={(e) => { importCsv(e.target.files[0]); e.target.value = ""; }}
@@ -852,8 +846,12 @@ function RosterEditor({ team, sports, onClose }) {
                     </label>
                   </div>
                   <p className="text-muted-foreground text-xs mb-3">
-                    Already have a list? Upload a CSV with columns for first name, last name,
-                    birthdate, and optionally middle name and jersey number. Column
+                    Already have a list? Upload a CSV or Excel file with the same columns as the
+                    SK Federation's reference list: {ROSTER_COLUMNS.join(", ")} (
+                    <button type="button" className="underline underline-offset-2 hover:text-foreground"
+                      onClick={() => downloadTemplate(ROSTER_COLUMNS, "player-import-template.csv")}>
+                      download the template</button>). Last name, first name and birthdate are required;
+                    Age can be left blank, it is worked out from the birthdate. Column
                     names don't have to match exactly. Every imported player's address is set to
                     your barangay's name. Rows are added up to the roster's limit;
                     anything invalid or over the limit is skipped and reported.

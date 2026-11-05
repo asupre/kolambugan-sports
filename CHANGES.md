@@ -3808,3 +3808,10 @@ its filename and status, making "should I delete this and re-upload" a guess.
   from 8 groups (at most two advance per group, because of how cutoff ties are played off). The
   knockout keeps standard seeding (group winners against other groups' runners-up; teams from
   the same group can only meet in the final).
+
+## 2026-11-06 — Reference list and player import share one file layout (CSV or Excel)
+
+- Panelist suggestion: the Super Admin's reference list file now uses the same columns, in the
+  same order, as the Barangay Admin's player import: Last name, First name, Middle name,
+  Birthdate, Age, Barangay (the player import adds Jersey no.). Both accept .xlsx as well as
+  .csv, both pages offer a template, and the Reference List shows each resident's age.

@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { parse } = require('csv-parse/sync');
+const { readSheet } = require('../lib/sheetRows');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const TeamPlayer = require('../models/TeamPlayer');
@@ -573,7 +573,7 @@ router.post('/:id/players', authenticate, authorize('barangay_admin'),
 function canonicalPlayerKey(h) {
   const k = (h || '').toLowerCase().replace(/[^a-z]/g, '');
   if (['firstname', 'first', 'givenname', 'fname'].includes(k)) return 'firstName';
-  if (['middlename', 'middle', 'mname', 'mi'].includes(k)) return 'middleName';
+  if (['middlename', 'middle', 'mname', 'mi', 'middleinitial'].includes(k)) return 'middleName';
   if (['lastname', 'last', 'surname', 'familyname', 'lname'].includes(k)) return 'lastName';
   if (['birthdate', 'birthday', 'dob', 'dateofbirth'].includes(k)) return 'birthdate';
   if (['address', 'addr', 'homeaddress', 'completeaddress', 'residenceaddress', 'residence'].includes(k)) return 'address';
@@ -600,16 +600,16 @@ router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
       return res.status(409).json({ message: 'This roster is already submitted and can no longer be edited.' });
     }
     if (!req.file) {
-      return res.status(400).json({ message: 'Please upload a CSV file (form field name: "file").' });
+      return res.status(400).json({ message: 'Please upload a CSV or Excel file (form field name: "file").' });
     }
 
     let rows;
     try {
-      rows = parse(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true, bom: true });
-    } catch {
-      return res.status(400).json({ message: 'Could not parse the CSV. Check the file format.' });
+      rows = await readSheet(req.file);   // CSV or Excel (.xlsx), same reader as the reference list
+    } catch (e) {
+      return res.status(400).json({ message: e.message });
     }
-    if (!rows.length) return res.status(400).json({ message: 'The CSV has no data rows.' });
+    if (!rows.length) return res.status(400).json({ message: 'The file has no data rows.' });
 
     const limits = await getRosterLimits(team);
     const existingCount = await TeamPlayer.countDocuments({ team: team._id });

@@ -12,6 +12,8 @@ import { useScrollLock } from "../lib/scrollLock";
 import { useImageRev } from "../lib/profileImages";
 import { getStoredTheme, storeTheme } from "../lib/theme";
 import ThemeToggle from "./ThemeToggle";
+import CrossTermsDialog from "./CrossTermsDialog";
+import TermsNotifications from "./TermsNotifications";
 import { SeasonBadge } from "./SeasonStatus";
 import { useSeason } from "../lib/season";
 import { useMediaQuery } from "../lib/useMediaQuery";
@@ -115,6 +117,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
   const [loggingOut, setLoggingOut] = useState(false);
   const [showHelp, setShowHelp] = useState(false);   // on-demand reopen of the orientation modal
   const [showProfile, setShowProfile] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);  // barangay admin: the league terms pop-up is up
   const [sports, setSports] = useState([]);
   const [expanded, setExpanded] = useState({});      // which sport-submenus are open
   const [reviewPending, setReviewPending] = useState(0);
@@ -456,6 +459,7 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
             <h1 className={cn("text-foreground font-semibold", calm && "lg:hidden")}>{title}</h1>
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            {user?.role === "super_admin" && <TermsNotifications />}
             <button
               onClick={() => setShowHelp(true)}
               aria-label="How this works"
@@ -495,6 +499,9 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
                   line={season ? season.name : "Inter-Barangay Sports League"}
                   buttons={
                     <>
+                      {user?.role === "super_admin" && (
+                        <TermsNotifications className="size-9 rounded-full bg-white/90 text-[#2E413B] shadow-sm hover:bg-white hover:text-[#2E413B]" />
+                      )}
                       <button onClick={() => setShowHelp(true)} aria-label="How this works" title="How this works"
                         className="flex size-9 items-center justify-center rounded-full bg-white/90 text-[#2E413B] shadow-sm transition hover:bg-white">
                         <HelpCircle className="size-[18px]" />
@@ -535,7 +542,10 @@ export default function AdminLayout({ title, menu, children, enableDarkMode = fa
         </main>
       </div>
 
-      {showHelp && (
+      {/* League terms (every barangay admin): answered before anything else, so the
+          first-login guide waits until it's closed. */}
+      {user?.role === "barangay_admin" && <CrossTermsDialog onOpenChange={setTermsOpen} />}
+      {showHelp && !termsOpen && (
         <InstructionModal role={user?.role} initialStep={stepForPath(user?.role, location.pathname)} onClose={() => setShowHelp(false)} />
       )}
       <ProfilePanel

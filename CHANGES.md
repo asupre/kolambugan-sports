@@ -3756,3 +3756,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   account provisioning and tournament generation. Replaces deleting a game the league skips for
   a season and re-adding it later. Refused once the season has teams or a bracket for it.
 - Barangays can no longer be deleted (route + button removed).
+
+## 2026-11-05 — League terms and conditions
+
+- Not in the thesis document: every Barangay Admin must accept the league terms and
+  conditions (a two-page pop-up: the terms, then the barangays currently allowed to field
+  players from other barangays). Until they accept, their registration (teams, players,
+  roster submission) is closed. Answers, declines especially, notify the Super Admin through
+  a new notifications bell, which lists who accepted / declined and can ask again.

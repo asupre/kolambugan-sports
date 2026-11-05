@@ -241,6 +241,27 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
   Kolambugan residency with a Valid ID, Voter's Certification, or Birth
   Certificate. New players / those 15 or under also need PARENTAL CONSENT
   plus supporting documents.
+- **League TERMS AND CONDITIONS, every barangay (Nov 5 2026, Super Admin; first built for
+  cross-barangay barangays only, then "everyone will receive the same terms").** Every Barangay
+  Admin gets a pop-up (`components/CrossTermsDialog.jsx`, rendered by `AdminLayout` for
+  barangay_admin; no X, Escape or backdrop close) with TWO pages: 1 = the terms, Next; 2 = the
+  barangays currently ticked `allowsCrossBarangay` (`crossBarangays` from `GET /api/terms/mine`,
+  read live), whether the admin's own barangay is one of them, then Back / Decline / Accept
+  (Decline asks to confirm). Text: `frontend/src/lib/crossTerms.js` (edit the wording there).
+  Answer stored on the barangay: `Barangay.crossTerms {status accepted|declined|null, by, byName,
+  at, seen}` (new field: FULL server restart; the "cross" names are left over from the first
+  version). **Registration is closed until it is accepted**: `requireCrossTerms` in
+  `backend/src/lib/crossTerms.js` returns 403 `code: 'cross_terms'` on create team, add player,
+  CSV import and submit roster, for a barangay that declined OR hasn't answered yet. Remove
+  player, corrections, photos and documents are not blocked. My Teams shows a red notice and
+  disables Create team. **An answer is final** until the Super Admin presses "Ask again"
+  (`POST /api/terms/:id/reset`). Super Admin: a **bell** in the top bar (and on the Dashboard
+  banner), `components/TermsNotifications.jsx`, with a count of answers since it was last opened
+  (red when one is a decline); opening it lists Declined / Accepted / Waiting for an answer for
+  all barangays and marks them seen (`POST /api/terms/seen`). Routes: `backend/src/routes/terms.js`
+  (`/api/terms`). The first-login guide waits until the terms pop-up is closed. Changing the
+  ticked list later does NOT ask anyone again. Tested on mongodb-memory-server (17 checks); not
+  yet rendered in a browser.
 - **Uploading a NEW reference list also re-screens the whole season
   immediately** (fixed Sep 2026 — was a real bug: `POST
   /api/reference-list` used to just `deleteMany`+`insertMany` and stop,

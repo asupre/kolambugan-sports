@@ -18,6 +18,17 @@ const barangaySchema = new mongoose.Schema(
     },
         // Barangay crest, shown across the public site. Public by design.
     logo: { type: mongoose.Schema.Types.ObjectId, default: null },
+    // The cross-barangay terms (Nov 2026, Super Admin): a barangay that may field players from
+    // other barangays must accept them. Its admin answers once, in a pop-up after login; the
+    // answer is final until the Super Admin presses "Ask again" (POST /api/terms/:id/reset).
+    // seen = the Super Admin has opened the notifications since this answer came in.
+    crossTerms: {
+      status: { type: String, enum: ['accepted', 'declined', null], default: null },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      byName: { type: String, default: null },
+      at: { type: Date, default: null },
+      seen: { type: Boolean, default: false },
+    },
   },
 
   {

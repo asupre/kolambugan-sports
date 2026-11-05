@@ -31,6 +31,7 @@ import {
 import { Separator } from "../../components/ui/separator";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
+import { CROSS_TERMS_EVENT } from "../../lib/crossTerms";
 
 const ROSTER_LIMITS = {
   team:        { min: 10, max: 15 },
@@ -940,6 +941,10 @@ export default function BrgyDashboard() {
   const [division, setDivision] = useState("");
   const [teamName, setTeamName] = useState("");
   const [busy, setBusy] = useState(false);
+  // League terms (Nov 2026): every barangay may register only after accepting them
+  // (server: lib/crossTerms.js). null = not loaded yet.
+  const [terms, setTerms] = useState(null);
+  const termsClosed = !!terms && terms.status !== "accepted";
 
   // `quiet`: refresh the list in place (no skeleton). Closing the roster editor used to
   // reload with the full-page skeleton, so the page flashed and jumped back to the top
@@ -958,6 +963,13 @@ export default function BrgyDashboard() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const refresh = () => api("/api/terms/mine").then(setTerms).catch(() => {});
+    refresh();
+    window.addEventListener(CROSS_TERMS_EVENT, refresh);
+    return () => window.removeEventListener(CROSS_TERMS_EVENT, refresh);
+  }, []);
 
   const selectedSport = sports.find((s) => s._id === sportId);
   const divisions = selectedSport?.divisions?.length ? selectedSport.divisions : ["open"];
@@ -1056,6 +1068,17 @@ export default function BrgyDashboard() {
             </Alert>
           )}
 
+          {termsClosed && (
+            <Alert className="border-red-500/30 bg-red-500/5">
+              <Lock className="size-4 text-red-600 dark:text-red-400" />
+              <AlertDescription className="text-red-700 dark:text-red-400">
+                {terms.status === "declined"
+                  ? "Registration is closed for your barangay because the league terms and conditions were declined. Contact the SK Federation if you want to be asked again."
+                  : "Accept the league terms and conditions to register teams and players."}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <LogoCard />
 
           <Card className="border-l-4 border-l-green-500">
@@ -1141,7 +1164,7 @@ export default function BrgyDashboard() {
                   placeholder="e.g. Baybay Warriors" />
               </div>
 
-              <Button onClick={createTeam} disabled={busy || !sportId || !activeDivision || !teamName.trim() || slotsFull}>
+              <Button onClick={createTeam} disabled={busy || termsClosed || !sportId || !activeDivision || !teamName.trim() || slotsFull}>
                 {busy ? "Creating…" : "Create team"}
               </Button>
             </CardContent>

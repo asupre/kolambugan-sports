@@ -11,6 +11,7 @@ const Barangay = require('../models/Barangay');
 const { knockoutChoiceOf, teamsAllowedFor } = require('../lib/sportRules');
 const { authenticate, authorize } = require('../middleware/auth');
 const { requireSeasonState, getCurrentSeason } = require('../middleware/season');
+const { requireCrossTerms } = require('../lib/crossTerms');
 const { prescreenTeam,  prescreenPlayer, decidePlayer, norm, looseRegex } = require('../services/prescreen');
 const { uploadPhoto, uploadDoc, putFile, sendFile, deleteFile } = require('../config/gridfs');
 
@@ -280,7 +281,7 @@ async function loadOwnedTeam(req, res) {
 
 // POST /api/teams  — create this barangay's team for a sport (draft).
 router.post('/', authenticate, authorize('barangay_admin'),
-  requireSeasonState('registration_open'), async (req, res) => {
+  requireSeasonState('registration_open'), requireCrossTerms, async (req, res) => {
   try {
     const { teamName, sportId } = req.body;
     if (!teamName || !teamName.trim() || !sportId) {
@@ -492,7 +493,7 @@ router.delete('/:id', authenticate, authorize('super_admin', 'barangay_admin'), 
 
 // POST /api/teams/:id/players  — add one player to a draft roster.
 router.post('/:id/players', authenticate, authorize('barangay_admin'),
-  requireRosterWindow, async (req, res) => {
+  requireRosterWindow, requireCrossTerms, async (req, res) => {
   try {
     const team = await loadOwnedTeam(req, res);
     if (!team) return;
@@ -590,7 +591,7 @@ function canonicalPlayerKey(h) {
 // skipped and reported, not silently dropped, mirroring the reference-list
 // upload's skippedRows shape.
 router.post('/:id/players/import', authenticate, authorize('barangay_admin'),
-  requireRosterWindow, uploadCsv.single('file'), async (req, res) => {
+  requireRosterWindow, requireCrossTerms, uploadCsv.single('file'), async (req, res) => {
   try {
     const team = await loadOwnedTeam(req, res);
     if (!team) return;
@@ -901,7 +902,7 @@ router.delete('/:id/players/:playerId', authenticate, authorize('barangay_admin'
 
 // POST /api/teams/:id/submit  — lock the roster; enforce 10–15.
 router.post('/:id/submit', authenticate, authorize('barangay_admin'),
-  requireRosterWindow, async (req, res) => {
+  requireRosterWindow, requireCrossTerms, async (req, res) => {
   try {
     const team = await loadOwnedTeam(req, res);
     if (!team) return;

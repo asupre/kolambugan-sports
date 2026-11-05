@@ -42,6 +42,7 @@ function publicMatch(m, sportName, division, labels) {
     totalPeriods: m.bestOf || 1,
     status: m.status,
     schedule: m.schedule,
+    scheduleEnd: m.scheduleEnd || null,
     venue: m.venue || "",
     winner: m.seriesWinner ? String(m.seriesWinner) : null,
   };

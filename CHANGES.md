@@ -3775,3 +3775,9 @@ its filename and status, making "should I delete this and re-upload" a guess.
 
 - Not in the thesis document: the Barangay Admin Dashboard has four charts (players by status,
   players by age, players per team, wins and losses by sport).
+
+## 2026-11-05 — Match start and end times
+
+- Each match is scheduled with a start AND an end time. Two games of the same sport can no
+  longer overlap (before, only the exact same start minute was refused, so 6:00 and 6:01 were
+  both allowed). Back-to-back games are fine.

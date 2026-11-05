@@ -6,7 +6,7 @@ import { api } from "../../api";
 import { organizerMenu } from "../../components/menus";
 import { SeasonTracker } from "../../components/SeasonStatus";
 import { Empty, StatTile, VenueLine, WhenBlock } from "../../components/DashboardBits";
-import { WHEN_W, dayKey, divisionLabel, fmtDay, fmtTime, hasTime } from "../../lib/dashboardFormat";
+import { WHEN_W, dayKey, divisionLabel, fmtDay, hasTime, timeRange } from "../../lib/dashboardFormat";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -38,7 +38,7 @@ function MatchRow({ m, showScore, timeBadge, tone }) {
   const winB = showScore && m.winner && String(m.winner) === String(m.teamB?.id);
   return (
     <div className={cn("flex items-start gap-3 rounded-lg border px-3 py-2.5", tone)}>
-      {timeBadge || <WhenBlock schedule={m.schedule} />}
+      {timeBadge || <WhenBlock schedule={m.schedule} scheduleEnd={m.scheduleEnd} />}
       <div className="min-w-0 flex-1 space-y-0.5">
         <Side team={m.teamA} score={m.scoreA} showScore={showScore} winner={winA} />
         <Side team={m.teamB} score={m.scoreB} showScore={showScore} winner={winB} />
@@ -189,7 +189,7 @@ export default function OrganizerHome() {
                         timeBadge={
                           <div className={`${WHEN_W} shrink-0 text-sm font-semibold leading-tight`}>
                             {m.status === "ongoing" ? <Badge className="bg-red-500/15 text-red-600 dark:text-red-400">Live</Badge>
-                              : m.schedule && hasTime(m.schedule) ? fmtTime(m.schedule) : "Today"}
+                              : m.schedule && hasTime(m.schedule) ? timeRange(m.schedule, m.scheduleEnd) : "Today"}
                           </div>
                         }
                       />
@@ -221,7 +221,7 @@ export default function OrganizerHome() {
                           m={m}
                           timeBadge={
                             <div className={`${WHEN_W} shrink-0 text-sm font-semibold leading-tight`}>
-                              {hasTime(m.schedule) ? fmtTime(m.schedule) : <span className="text-xs font-normal text-muted-foreground">All day</span>}
+                              {hasTime(m.schedule) ? timeRange(m.schedule, m.scheduleEnd) : <span className="text-xs font-normal text-muted-foreground">All day</span>}
                             </div>
                           }
                         />

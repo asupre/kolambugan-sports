@@ -2,7 +2,7 @@ import { MapPin } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 import { Skeleton } from "./ui/skeleton";
 import { cn } from "../lib/utils";
-import { WHEN_W, fmtDay, fmtTime, hasTime } from "../lib/dashboardFormat";
+import { WHEN_W, fmtDay, hasTime, timeRange } from "../lib/dashboardFormat";
 
 // Bits shared by the Barangay Admin and Organizer dashboards.
 
@@ -56,15 +56,17 @@ export function StatTile({ label, value, sub, Icon, tone, loading }) {
   );
 }
 
-// The left block of a match row: the day and (if set) the time.
-export function WhenBlock({ schedule }) {
+// The left block of a match row: the day and (if set) the start and end time.
+export function WhenBlock({ schedule, scheduleEnd }) {
   if (!schedule) {
     return <div className={`${WHEN_W} shrink-0 text-xs text-muted-foreground leading-tight`}>Date to be announced</div>;
   }
   return (
     <div className={`${WHEN_W} shrink-0 leading-tight`}>
       <p className="text-sm font-semibold">{fmtDay(schedule).replace(",", "")}</p>
-      {hasTime(schedule) && <p className="text-xs text-muted-foreground">{fmtTime(schedule)}</p>}
+      {/* Start, then "to <end>" on its own line: the column is too narrow for a range on one line. */}
+      {hasTime(schedule) && <p className="text-xs text-muted-foreground">{timeRange(schedule)}</p>}
+      {hasTime(schedule) && scheduleEnd && <p className="text-xs text-muted-foreground">to {timeRange(scheduleEnd)}</p>}
     </div>
   );
 }

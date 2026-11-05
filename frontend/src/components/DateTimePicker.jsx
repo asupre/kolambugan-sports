@@ -85,7 +85,7 @@ function formatTime(t) {
 // phone opens its own scroll wheel. Starts blank ("--") while no time is set;
 // the first pick fills the rest in (minute :00, and PM for 12-6 since games
 // are mostly played in the afternoon).
-function TimeSelect({ time, disabled, onChange }) {
+export function TimeSelect({ time, disabled, onChange }) {
   const [h24, m] = time ? time.split(":").map(Number) : [null, null];
   const hour = h24 === null ? "" : h24 % 12 || 12;
   const ampm = h24 === null ? "" : h24 >= 12 ? "PM" : "AM";

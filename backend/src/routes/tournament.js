@@ -1113,40 +1113,56 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
 });
 
 // ---- Schedule clashes ------------------------------------------------------
-// One match per date + time per sport (Oct 2026, Super Admin rule): a sport has a
-// single organizer, so two of its matches can't be played at the same moment,
-// whatever their group, round or division. A date with NO time (stored as
-// midnight Manila) is "time not set yet" and never clashes.
+// A sport has a single organizer, so two of its matches can't be played at the same time,
+// whatever their group, round or division (Oct 2026). Since Nov 2026 each match has a START and
+// an END time, and two games clash when their times OVERLAP (6:00-8:00 and 7:30-9:00 clash;
+// 6:00-8:00 and 8:00-10:00 don't). It used to compare the exact start minute only, so 6:00 and
+// 6:01 were both allowed. A match dated before end times existed counts as one minute. A date
+// with NO time (stored as midnight Manila) is "time not set yet" and never clashes.
 const DAY_MS = 24 * 60 * 60 * 1000;
 const hasTimeSet = (d) => !!d && (d.getTime() + 8 * 60 * 60 * 1000) % DAY_MS !== 0;
 
 const DIVISION_NAME = { open: 'Open', boys: 'Boys', girls: 'Girls', under15: 'Under 15', under30: 'Under 30' };
-const WHEN_FMT = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
-});
+const DAY_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' });
+const TIME_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
+const MANILA_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });   // YYYY-MM-DD
+const MINUTE = 60 * 1000;
+const endOf = (m) => m.scheduleEnd || new Date(m.schedule.getTime() + MINUTE);
+const range = (start, end) => `${TIME_FMT.format(start)} to ${TIME_FMT.format(end)}`;
 
-// The other match of this sport (current tournament's season) already set for
-// `when`, or null. `excludeIds` = the match(es) being re-dated themselves.
-async function findScheduleClash(tournament, when, excludeIds) {
+// Another match of this sport (this tournament's season) whose time overlaps [start, end), or
+// null. `excludeIds` = the match(es) being re-dated themselves. Half-open, so a game may start
+// the minute the previous one ends.
+async function findScheduleClash(tournament, start, end, excludeIds) {
   const tournamentIds = await Tournament.find({ sport: tournament.sport, season: tournament.season }).distinct('_id');
-  return Match.findOne({ tournament: { $in: tournamentIds }, schedule: when, _id: { $nin: excludeIds } })
+  return Match.findOne({
+    tournament: { $in: tournamentIds },
+    _id: { $nin: excludeIds },
+    schedule: { $lt: end },
+    $or: [
+      { scheduleEnd: { $gt: start } },
+      // dated before end times existed: a single minute at its start
+      { scheduleEnd: null, schedule: { $gte: start } },
+    ],
+  })
     .populate('tournament', 'division')
     .populate('teamA', 'teamName')
     .populate('teamB', 'teamName');
 }
 
-function clashMessage(clash, when, sportName) {
+function clashMessage(clash, start, end, sportName) {
   const where = [
     sportName,
     DIVISION_NAME[clash.tournament?.division] || clash.tournament?.division,
     clash.group ? `Group ${clash.group}` : 'Knockout',
   ].filter(Boolean).join(' · ');
   const teams = `${clash.teamA?.teamName || 'TBD'} vs ${clash.teamB?.teamName || 'TBD'}`;
-  return `${WHEN_FMT.format(when)} is already taken by ${where} (${teams}). Only one ${sportName || 'match'} game can be set per date and time. Pick another time.`;
+  return `${DAY_FMT.format(start)}, ${range(start, end)} overlaps ${where} (${teams}), set for ${range(clash.schedule, endOf(clash))}. Only one ${sportName || 'match'} game can be played at a time. Pick a time after it ends or before it starts.`;
 }
 
 // PATCH /api/tournaments/matches/:matchId/schedule — super admin sets or clears
-// one match's date. body: { schedule: "2026-09-12" | null }
+// one match's date. body: { schedule: "2026-09-12T06:00" | "2026-09-12" | null,
+// scheduleEnd: "2026-09-12T08:00" (required with a time, same day, after the start) }
 router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const match = await Match.findById(req.params.matchId);
@@ -1156,25 +1172,34 @@ router.patch('/matches/:matchId/schedule', authenticate, authorize('super_admin'
     if (req.body.schedule !== undefined) {
       if (req.body.schedule === null || req.body.schedule === '') {
         match.schedule = null;
-           } else {
+        match.scheduleEnd = null;
+      } else {
         // Browser inputs carry no timezone — read them as Manila, not as the
         // server's own zone, which is UTC in production.
         const d = parseManila(req.body.schedule);
         if (!d) return res.status(400).json({ message: 'Invalid date.' });
+        let end = null;
         if (hasTimeSet(d)) {
+          end = req.body.scheduleEnd ? parseManila(req.body.scheduleEnd) : null;
+          if (!end) return res.status(400).json({ message: 'Pick when this game is expected to end.' });
+          if (end <= d) return res.status(400).json({ message: 'The end time must be after the start time.' });
+          if (MANILA_DAY.format(end) !== MANILA_DAY.format(d)) {
+            return res.status(400).json({ message: 'The game must end on the same day it starts.' });
+          }
           const tournament = await Tournament.findById(match.tournament).populate('sport', 'name');
           if (tournament) {
-            const clash = await findScheduleClash({ sport: tournament.sport._id, season: tournament.season }, d, [match._id]);
-            if (clash) return res.status(409).json({ message: clashMessage(clash, d, tournament.sport?.name) });
+            const clash = await findScheduleClash({ sport: tournament.sport._id, season: tournament.season }, d, end, [match._id]);
+            if (clash) return res.status(409).json({ message: clashMessage(clash, d, end, tournament.sport?.name) });
           }
         }
         match.schedule = d;
+        match.scheduleEnd = end;   // null for a date with no time
       }
     }
     if (req.body.venue !== undefined) match.venue = String(req.body.venue).trim();
 
     await match.save();
-    res.json({ message: 'Schedule updated.', matchId: match._id, schedule: match.schedule, venue: match.venue });
+    res.json({ message: 'Schedule updated.', matchId: match._id, schedule: match.schedule, scheduleEnd: match.scheduleEnd, venue: match.venue });
   } catch (err) {
     console.error('Set schedule error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -1202,21 +1227,13 @@ router.post('/:id/schedule-bulk', authenticate, authorize('super_admin'), async 
       return res.status(400).json({ message: 'Give at least one of: round, group, or bracket.' });
     }
 
-    // A time can hold only one match of the sport, so a time can be bulk-applied
-    // only to a single match; for more, set the date here and each time per match.
+    // Times need a start AND an end and can't overlap (Nov 2026), so they are set per match
+    // (PATCH /matches/:matchId/schedule). Here only a date with no time is accepted.
     if (hasTimeSet(d)) {
-      const targets = await Match.find(filter).distinct('_id');
-      if (targets.length > 1) {
-        return res.status(409).json({
-          message: `Only one game can be set per date and time, and this would put ${targets.length} matches at ${WHEN_FMT.format(d)}. Apply the date with "No time", then set each match's time on its own row.`,
-        });
-      }
-      await tournament.populate('sport', 'name');
-      const clash = await findScheduleClash({ sport: tournament.sport._id, season: tournament.season }, d, targets);
-      if (clash) return res.status(409).json({ message: clashMessage(clash, d, tournament.sport?.name) });
+      return res.status(400).json({ message: 'Only a date can be applied to many matches at once. Set the start and end time of each match on its own row.' });
     }
 
-        const set = { schedule: d };
+    const set = { schedule: d, scheduleEnd: null };
     if (req.body.venue !== undefined) set.venue = String(req.body.venue).trim();
     const result = await Match.updateMany(filter, { $set: set });
     res.json({ message: `Scheduled ${result.modifiedCount} match(es).`, updated: result.modifiedCount });

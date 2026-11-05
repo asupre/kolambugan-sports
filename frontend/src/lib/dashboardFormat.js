@@ -27,6 +27,23 @@ export const hasTime = (iso) => {
 export const fmtTime = (iso) =>
   new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: PH });
 
+// A match's time as a range (Nov 2026: matches have a start AND an end): "6:00 – 8:00 AM", or
+// "11:00 AM – 1:00 PM" across noon. Just the start when there's no end (dated before end times
+// existed); null when no time was picked. Use this wherever a match time is shown.
+const HM12 = new Intl.DateTimeFormat("en-US", { timeZone: PH, hour: "numeric", minute: "2-digit" });
+const hm12 = (iso) => {
+  const parts = HM12.formatToParts(new Date(iso));
+  const get = (t) => parts.find((p) => p.type === t)?.value || "";
+  return { time: `${get("hour")}:${get("minute")}`, period: get("dayPeriod").toUpperCase() };
+};
+export function timeRange(start, end) {
+  if (!start || !hasTime(start)) return null;
+  const a = hm12(start);
+  if (!end) return `${a.time} ${a.period}`;
+  const b = hm12(end);
+  return a.period === b.period ? `${a.time} – ${b.time} ${b.period}` : `${a.time} ${a.period} – ${b.time} ${b.period}`;
+}
+
 export const DIVISION_TEXT = { boys: "Boys", girls: "Girls", under15: "Under 15", under30: "Under 30" };
 export const divisionLabel = (d) => DIVISION_TEXT[d] || "";
 

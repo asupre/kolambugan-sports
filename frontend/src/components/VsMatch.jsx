@@ -88,6 +88,9 @@ function VsMatchRowImpl({ m, showDate = true }) {
   const bWon = done && m.winner && String(m.winner) === String(m.teamB?.id);
   const tone = (won, other) => (won ? "win" : other ? "lose" : null);
   const time = matchTime(m.schedule);
+  // End time (Nov 2026): a smaller "to 8:00 AM" under the big start time (a full range in the
+  // big Anton figure is too wide for the centre column on a phone).
+  const endTime = time && m.scheduleEnd ? matchTime(m.scheduleEnd) : null;
   const scoreTone = (won, lost) => (won ? "text-emerald-400" : lost ? "text-red-400" : "text-white");
   const date = m.schedule ? matchDateLabel(m.schedule) : null;
 
@@ -114,6 +117,9 @@ function VsMatchRowImpl({ m, showDate = true }) {
             style={{ fontFamily: "Anton, sans-serif" }}>
             {time || "TBA"}
           </div>
+        )}
+        {!live && !done && endTime && (
+          <div className="mt-1 text-[11px] sm:text-[13px] font-semibold tabular-nums text-slate-300">to {endTime}</div>
         )}
         <div className="mt-1.5 text-[10px] sm:text-[12px] font-semibold uppercase tracking-wide">
           {live ? (

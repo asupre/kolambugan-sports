@@ -8,7 +8,7 @@ import { Badge } from "../../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
-import { hasTime } from "../../lib/dashboardFormat";
+import { timeRange } from "../../lib/dashboardFormat";
 
 function MatchRowSkeleton() {
   return (
@@ -31,18 +31,12 @@ const DIVISION_LABEL = {
   under15: "Under 15", under30: "Under 30",
 };
 
-// Only show a time when one was actually chosen (see hasTime: date-only schedules are
-// midnight Manila/UTC and must not render as a made-up "12:00 AM").
-
+// Times come from timeRange() (start and end; nothing for a date with no time).
 const dateOf = (d) =>
   d ? new Date(d).toLocaleDateString(undefined, {
     timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric",
   }) : "Date to be confirmed";
 
-const timeOf = (d) =>
-  d && hasTime(d)
-    ? new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" })
-    : null;
 
 const context = (m) =>
   [m.sport, DIVISION_LABEL[m.division] || m.division, m.group ? `Group ${m.group}` : null, m.roundLabel]
@@ -78,7 +72,7 @@ function MatchRow({ m, myTeamIds }) {
             {won ? "Won" : "Lost"}
           </Badge>
         ) : (
-          <span className="text-xs text-muted-foreground shrink-0">{timeOf(m.schedule) || "Time TBD"}</span>
+          <span className="text-xs text-muted-foreground shrink-0">{timeRange(m.schedule, m.scheduleEnd) || "Time TBD"}</span>
         )}
       </div>
 

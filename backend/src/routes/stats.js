@@ -72,7 +72,7 @@ router.get('/dashboard', authenticate, authorize('super_admin'), async (req, res
     const [links, matches] = await Promise.all([
       TeamPlayer.find({ team: { $in: teamIds } }).select('team player').lean(),
       Match.find({ tournament: { $in: tournaments.map((t) => t._id) } })
-        .select('tournament status schedule teamA teamB venue').lean(),
+        .select('tournament status schedule scheduleEnd teamA teamB venue').lean(),
     ]);
     const players = await Player.find({ _id: { $in: links.map((l) => l.player) } })
       .select('eligibilityStatus').lean();
@@ -186,6 +186,7 @@ router.get('/dashboard', authenticate, authorize('super_admin'), async (req, res
           teamB: nameOf(m.teamB),
           players: countOf(m.teamA) + countOf(m.teamB),
           schedule: m.schedule,
+          scheduleEnd: m.scheduleEnd || null,
           venue: m.venue || '',
           status: m.status,
         })),
@@ -286,6 +287,7 @@ router.get('/brgy-dashboard', authenticate, authorize('barangay_admin'), async (
         id: m._id,
         status: m.status,
         schedule: m.schedule || null,
+        scheduleEnd: m.scheduleEnd || null,
         venue: m.venue || '',
         sport: m.tournament && m.tournament.sport ? m.tournament.sport.name : '',
         division: (m.tournament && m.tournament.division) || 'open',
@@ -394,6 +396,7 @@ router.get('/organizer-dashboard', authenticate, authorize('organizer', 'super_a
       id: m._id,
       status: m.status,
       schedule: m.schedule || null,
+      scheduleEnd: m.scheduleEnd || null,
       venue: m.venue || '',
       division: divisionByTournament.get(String(m.tournament)) || 'open',
       bracket: m.bracket,

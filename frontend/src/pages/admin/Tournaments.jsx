@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, Trash2, Trophy, Zap } from "lucide-react";
 import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
-import { DateTimePicker } from "../../components/DateTimePicker";
+import { DateTimePicker, TimeSelect } from "../../components/DateTimePicker";
 import { useErrorDialog } from "../../components/ErrorDialog";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { superAdminMenu } from "../../components/menus";
@@ -256,15 +256,33 @@ const venueForSport = (name) => VENUE_BY_SPORT[(name || "").trim().toLowerCase()
 // section: kept in the section, every keystroke re-rendered every row and its
 // date picker (measured 160-450ms per letter on a 150-match Mobile Legends
 // group stage, 4x CPU throttle).
+// "HH:mm" one hour after a "YYYY-MM-DDTHH:mm" start, capped at 11:59 PM (a game ends the same day).
+function hourAfter(start) {
+  const [h, mm] = start.slice(11, 16).split(":").map(Number);
+  const t = Math.min(h * 60 + mm + 60, 23 * 60 + 59);
+  return String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0");
+}
+
 const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave, defaultVenue, ended }) {
   const savedSchedule = asInput(m.schedule);
+  const savedEnd = m.scheduleEnd ? asInput(m.scheduleEnd).slice(11, 16) : "";
   const savedVenue = m.venue || "";
   const startVenue = savedVenue || defaultVenue;
   const [schedule, setSchedule] = useState(savedSchedule);
+  const [endTime, setEndTime] = useState(savedEnd);
   const [venue, setVenue] = useState(startVenue);
   const done = m.status === "completed" || m.status === "forfeited";
+  // Start + END time (Nov 2026): two games of a sport can't overlap. "T00:00" = a date with no time.
+  const hasTime = !!schedule && !schedule.endsWith("T00:00");
+  function changeStart(v) {
+    setSchedule(v);
+    const timed = !!v && !v.endsWith("T00:00");
+    if (!timed) setEndTime("");
+    else if (!endTime || endTime <= v.slice(11, 16)) setEndTime(hourAfter(v));   // suggest one hour
+  }
+  const endBad = hasTime && (!endTime || endTime <= schedule.slice(11, 16));
   // The sport's venue filled in on its own isn't an edit; it's saved with the date.
-  const dirty = schedule !== savedSchedule || venue !== startVenue;
+  const dirty = schedule !== savedSchedule || (hasTime && endTime !== savedEnd) || venue !== startVenue;
   // A venue typed in before the dropdown existed stays selectable.
   const options = savedVenue && !VENUES.includes(savedVenue) ? [...VENUES, savedVenue] : VENUES;
 
@@ -285,8 +303,14 @@ const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave, defaultVenue, e
             {m.status === "forfeited" ? "forfeited" : done ? "played" : "not played"}
           </span>
         ) : (
-          <div className="flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2">
-            <DateTimePicker value={schedule} onChange={setSchedule} className="sm:shrink-0" />
+          <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto xl:flex-nowrap">
+            <DateTimePicker value={schedule} onChange={changeStart} className="sm:shrink-0" />
+            {hasTime && (
+              <div className={cn("flex w-full items-center gap-2 sm:w-72", endBad && "[&_select]:border-red-500")} title="When the game is expected to end">
+                <span className="shrink-0 text-xs text-muted-foreground">Ends</span>
+                <TimeSelect time={endTime} onChange={setEndTime} />
+              </div>
+            )}
             <Select value={venue || NO_VENUE} onValueChange={(v) => setVenue(v === NO_VENUE ? "" : v)}>
               <SelectTrigger className="text-xs flex-1 min-w-0 sm:flex-none sm:w-44" aria-label="Venue">
                 <SelectValue placeholder="Venue" />
@@ -296,7 +320,8 @@ const ScheduleRow = memo(function ScheduleRow({ m, busy, onSave, defaultVenue, e
                 {options.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button size="sm" onClick={() => onSave(m, schedule, venue)} disabled={busy || !dirty} className="shrink-0">
+            <Button size="sm" onClick={() => onSave(m, schedule, venue, hasTime ? `${schedule.slice(0, 10)}T${endTime}` : null)}
+              disabled={busy || !dirty || endBad} title={endBad ? "The end time must be after the start time" : undefined} className="shrink-0">
               Save
             </Button>
           </div>
@@ -330,12 +355,12 @@ function ScheduleSection({ tournamentId, sportName, ended }) {
   // Saved explicitly rather than on every keystroke — typing a venue would
   // otherwise fire a request per character. The row owns its unsaved values
   // (see ScheduleRow) and hands them over here.
-  async function saveOne(m, schedule, venue) {
+  async function saveOne(m, schedule, venue, scheduleEnd) {
     setBusy(true);
     try {
       await api(`/api/tournaments/matches/${m._id}/schedule`, {
         method: "PATCH",
-        body: JSON.stringify({ schedule: schedule || null, venue }),
+        body: JSON.stringify({ schedule: schedule || null, scheduleEnd: scheduleEnd || null, venue }),
       });
       await load();
     } catch (e) { showError(e.message); }
@@ -376,8 +401,8 @@ function ScheduleSection({ tournamentId, sportName, ended }) {
       <p className="text-muted-foreground text-sm mb-4">
         Dates are guidance, not a lock. An organizer can still start an undated match,
         or one being played on a different day. Times are Philippine time.
-        Set each match's date, time and venue on its own row. Each date and time can
-        hold only one game of this sport (any group or division).
+        Set each match's date, start and end time, and venue on its own row. Two games of
+        this sport (any group or division) can't overlap; one may start when the other ends.
       </p>
 
       {loading ? (

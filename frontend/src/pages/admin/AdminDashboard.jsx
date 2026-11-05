@@ -5,7 +5,7 @@ import AdminLayout from "../../components/AdminLayout";
 import { api } from "../../api";
 import { superAdminMenu } from "../../components/menus";
 import { SEASON_STAGES } from "../../lib/season";
-import { divisionLabel } from "../../lib/dashboardFormat";
+import { divisionLabel, timeRange } from "../../lib/dashboardFormat";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
 
@@ -90,9 +90,6 @@ const DOT = {
   accent: "bg-[var(--calm-accent)]",
   faint: "bg-[var(--calm-faint)]",
 };
-
-const timeOf = (d) =>
-  new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
 
 // ── Small building blocks ────────────────────────────────────────────────────
 
@@ -346,7 +343,7 @@ export default function AdminDashboard() {
                           <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
                             <span className="size-1.5 rounded-full bg-current" /> Live
                           </span>
-                        ) : done ? <span className="text-[var(--calm-muted)]">Final</span> : timeOf(g.schedule)}
+                        ) : done ? <span className="text-[var(--calm-muted)]">Final</span> : timeRange(g.schedule, g.scheduleEnd)}
                       </span>
                       <div className="min-w-0">
                         <p className="truncate text-[15px] font-medium">

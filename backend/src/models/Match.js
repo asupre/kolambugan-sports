@@ -159,6 +159,13 @@ const matchSchema = new mongoose.Schema(
     schedule: {
       type: Date,          // when the match is set to be played
     },
+    // When the game is expected to END (Nov 2026, Super Admin): same day as `schedule`. Two games of
+    // one sport can't overlap (routes/tournament.js findScheduleClash). Null for a date with no time,
+    // and on matches dated before this field existed (those count as a single minute).
+    scheduleEnd: {
+      type: Date,
+      default: null,
+    },
      venue: {
       type: String,        // where it's played, e.g. "Kolambugan Covered Court"
       trim: true,

@@ -852,6 +852,26 @@ server refuses 2 / 4 for a games-won sport, `evenSeries()` in `routes/reference.
   `schedule-bulk` with a time is refused for more than one match (apply the date with "No time",
   then time each match on its own row). A date with no time (midnight Manila) never clashes.
   Exact-time equality only, no match duration. Clashes saved before this rule are not cleaned up.
+- **Matches have a START and an END time; same-sport games can't OVERLAP (Nov 5 2026, Super Admin
+  screenshot: 6:00 AM and 6:01 AM were both accepted). Supersedes the exact date + time rule above.**
+  `Match.scheduleEnd` (Date, same Manila day; FULL server restart). The schedule row
+  (`ScheduleRow` in `Tournaments.jsx`) shows an **Ends** time (`TimeSelect`, now exported from
+  `DateTimePicker.jsx`) once a start time is picked, pre-filled one hour later; Save is disabled
+  while the end isn't after the start. `PATCH /matches/:matchId/schedule` takes `scheduleEnd`
+  ("YYYY-MM-DDTHH:mm"): required with a time (400), after the start, same day; cleared for a date
+  with no time. `findScheduleClash(tournament, start, end, excludeIds)` = half-open overlap
+  (`schedule < end` and (`scheduleEnd > start` or, for a match dated before end times existed,
+  `schedule >= start`, i.e. one minute)), so 6-8 and 8-10 are fine. The 409 names both ranges.
+  `schedule-bulk` (unused) now accepts a date with no time only. Tested on mongodb-memory-server
+  (14 checks); rendered at 1366 and 390.
+  **Shown everywhere a match time is** (same day): one formatter, `timeRange(start, end)` in
+  `lib/dashboardFormat.js` ("6:00 – 8:00 AM", "11:00 AM – 1:30 PM"; just the start for a match
+  dated before end times; null with no time). Used by Barangay Matches, Organizer home + scoring
+  screen, Super Admin Dashboard today's games. Narrow spots stack it instead: the public VS rows
+  (big start time, small "to 8:00 AM" under it, `VsMatch.jsx`) and the dashboards' `WhenBlock`
+  (start, then "to …"). The per-page `timeOf` helpers were removed. The API sends `scheduleEnd`
+  from `publicMatch()` (public.js), the three stats dashboards (stats.js) and the organizer feed
+  (whole match). Any NEW place that shows a match time: use `timeRange` and send `scheduleEnd`.
 - **A date picked without a time is "no time set"** — stored as midnight MANILA
   (`parseManila`). `hasTime()` in `lib/dashboardFormat.js` treats ONLY midnight Manila as no
   time. **Never treat midnight UTC as "no time"** (fixed Sep 28 2026): it used to, for older

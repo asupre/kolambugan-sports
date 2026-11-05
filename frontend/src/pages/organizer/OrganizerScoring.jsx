@@ -26,7 +26,7 @@ import {
 } from "../../components/ui/select";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
-import { hasTime } from "../../lib/dashboardFormat";
+import { timeRange } from "../../lib/dashboardFormat";
 
 const DIVISION_LABEL = {
   open: "Open", boys: "Boys", girls: "Girls",
@@ -86,13 +86,7 @@ function describeMatch(m, all = []) {
   };
 }
 
-// A schedule picked as a DATE only has no time of day, and must not show one — see
-// hasTime() (the one shared rule; this used to keep its own copy).
-const timeOf = (d) =>
-  d && hasTime(d)
-    ? new Date(d).toLocaleTimeString([], { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" })
-    : null;
-
+// Times come from timeRange() (start and end; nothing for a date with no time, see hasTime()).
 const dateOf = (d) =>
   d ? new Date(d).toLocaleDateString(undefined, {
     timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric",
@@ -1175,7 +1169,7 @@ function ScoringView({ matchId, onBack }) {
   const pointValues = data.pointValues || [1];
   const desc = describeMatch(m);
   const periodWord = (data.periodLabel || "period");
-  const when = [m.schedule ? dateOf(m.schedule) : null, timeOf(m.schedule), m.venue].filter(Boolean).join(" · ");
+  const when = [m.schedule ? dateOf(m.schedule) : null, timeRange(m.schedule, m.scheduleEnd), m.venue].filter(Boolean).join(" · ");
   // Sports with a post-match form: a box score (points…) and/or roles for esports.
   const hasStatsForm = (data.statFields?.length || 0) > 0 || (data.roles?.length || 0) > 0;
   // Live player stats need numeric sheet columns; without them there is only one job.
@@ -1704,7 +1698,7 @@ export default function OrganizerScoring() {
     // A completed season is view-only: nothing opens for scoring.
     const ready = m.teamA && m.teamB && !feed?.seasonEnded;
     const d = describeMatch(m, allMatches);
-    const time = timeOf(m.schedule);
+    const time = timeRange(m.schedule, m.scheduleEnd);
     const isLive = m.status === "ongoing";
     const isDone = m.status === "completed" || m.status === "forfeited";
 

@@ -32,7 +32,7 @@ function MatchRow({ m, live }) {
           <Badge className="bg-red-500/15 text-red-600 dark:text-red-400">Live</Badge>
         </div>
       ) : (
-        <WhenBlock schedule={m.schedule} />
+        <WhenBlock schedule={m.schedule} scheduleEnd={m.scheduleEnd} />
       )}
       <div className="min-w-0 flex-1">
         <p className="text-sm break-words">

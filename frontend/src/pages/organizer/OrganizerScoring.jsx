@@ -879,6 +879,8 @@ function ScoringView({ matchId, onBack }) {
   const [periodsChoice, setPeriodsChoice] = useState(null);
   // Timed sports (basketball): minutes per quarter, picked at Start (null = the sport's default).
   const [minutesChoice, setMinutesChoice] = useState(null);
+  // Whether the game clock is ticking right now (reported by GameClockCard): points only then.
+  const [clockLive, setClockLive] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
   // Starting lineup modal (opens from Start) and the substitution modal ({ side, presetOut }).
   const [lineupOpen, setLineupOpen] = useState(false);
@@ -1178,9 +1180,11 @@ function ScoringView({ matchId, onBack }) {
   const periodText = (short) => periodName({ n: curPeriod, regulation, label: data.periodLabel || "period", timed: !!timed, short, prefix: data.periodLabel === "quarter" ? "Q" : undefined });
   const allPeriodsDone = periodsOver && !tied;
   const minutes = minutesChoice ?? timed?.defaultMinutes ?? null;
-  // Timed sports: no points until the clock has run in this period (server: clock_not_started).
-  // Once started, points still go in while it is paused (free throws) and at 0:00.
-  const clockNotStarted = !!timed && !!data.clockNow && !periodsOver && !data.clockNow.started && !data.clockNow.running;
+  // Timed sports: points only while the clock is running (server: clock_not_started /
+  // clock_paused / clock_out). Not before it starts, not while paused, not at 0:00.
+  const clockLocked = !!timed && !!data.clockNow && !periodsOver && !clockLive;
+  const clockLockText = !data.clockNow?.started ? "Start the clock first"
+    : (data.clockNow?.remaining ?? 0) <= 0 ? "Time is up. End this period." : "The clock is paused";
   // Games-won sports play a series of m.bestOf games (picked at start, like a sport's sets) and
   // end as soon as one side has won the majority of it.
   const seriesLength = m.bestOf || 1;
@@ -1500,9 +1504,9 @@ function ScoringView({ matchId, onBack }) {
 
       {live && timed && data.clockNow && !periodsOver && (
         <GameClockCard clock={data.clockNow} period={periodText(false)} overtime={inOvertime}
-          canControl={isScorer} busy={busy} onAction={clockAction}
-          note={clockNotStarted && isScorer
-            ? `Start the clock to begin this ${periodWord}. The score buttons unlock once it runs.`
+          canControl={isScorer} busy={busy} onAction={clockAction} onLiveChange={setClockLive}
+          note={clockLocked && isScorer
+            ? `Points can only be added while the clock is running.`
             : inOvertime ? `${timed.overtimeMinutes}-minute overtime: the scores were level after ${periodWord} ${regulation}.` : null} />
       )}
 
@@ -1563,8 +1567,8 @@ function ScoringView({ matchId, onBack }) {
                     </div>
                     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${pointValues.length}, minmax(0, 1fr))` }}>
                       {pointValues.map((v) => (
-                        <button key={v} onClick={() => scoreTap(s, v, false)} disabled={busy || periodsOver || clockNotStarted}
-                          title={clockNotStarted ? "Start the clock first" : periodsOver ? (tied ? "Start overtime first" : "Every period is over. End the match.") : undefined}
+                        <button key={v} onClick={() => scoreTap(s, v, false)} disabled={busy || periodsOver || clockLocked}
+                          title={clockLocked ? clockLockText : periodsOver ? (tied ? "Start overtime first" : "Every period is over. End the match.") : undefined}
                           className="h-16 rounded-xl bg-green-600 text-xl font-bold text-white transition active:scale-95 hover:bg-green-700 disabled:opacity-40 disabled:active:scale-100">
                           +{v}
                         </button>

@@ -8,7 +8,7 @@ import { Card } from "./ui/card";
 import { cn } from "../lib/utils";
 import { fmtClock, useClockSeconds, useSnapshotTime } from "../lib/gameClock";
 
-export default function GameClockCard({ clock, period, overtime, canControl, busy, onAction, note }) {
+export default function GameClockCard({ clock, period, overtime, canControl, busy, onAction, note, onLiveChange }) {
   const at = useSnapshotTime(clock);
   const left = useClockSeconds(clock, at);
   const [editing, setEditing] = useState(false);
@@ -16,6 +16,10 @@ export default function GameClockCard({ clock, period, overtime, canControl, bus
   const [ss, setSs] = useState(0);
   const running = !!clock?.running && left > 0;
   const out = left !== null && left <= 0;
+  // Tell the scoring screen whether the clock is ticking right now: points only go in then
+  // (not before it starts, not paused, not at 0:00).
+  useEffect(() => { onLiveChange?.(running); }, [running, onLiveChange]);
+  useEffect(() => () => onLiveChange?.(false), [onLiveChange]);
   const maxMin = Math.floor((clock?.periodSeconds || 0) / 60);
 
   // Time's up: the score keeper's device stops the clock on the server (once per period).

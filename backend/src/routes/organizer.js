@@ -457,11 +457,18 @@ router.post('/matches/:matchId/score', async (req, res) => {
     // summing to the final score.
     const periodsTotal = totalPeriods(match);
     const tied = (match.liveScoreA || 0) === (match.liveScoreB || 0);
-    // Timed sports: no points until the clock has been started in this period (Nov 2026, Super
-    // Admin). Once it has run, points are allowed while it is paused (free throws are shot with
-    // the clock stopped) and at 0:00.
-    if (match.clock && match.games.length < periodsTotal && !match.clock.started && !match.clock.running) {
-      return res.status(409).json({ code: 'clock_not_started', message: 'Start the clock first. Points can be added once this period is under way.' });
+    // Timed sports: points only while the clock is RUNNING (Nov 2026, Super Admin: not before it
+    // starts, not while paused, not once time has run out). Undo is not affected.
+    if (match.clock && match.games.length < periodsTotal) {
+      if (!match.clock.running) {
+        return res.status(409).json({
+          code: match.clock.started ? 'clock_paused' : 'clock_not_started',
+          message: match.clock.started ? 'The clock is paused. Start it again to add points.' : 'Start the clock first. Points can be added once it is running.',
+        });
+      }
+      if (clockRemaining(match.clock) <= 0) {
+        return res.status(409).json({ code: 'clock_out', message: "Time is up for this period. End it to go on." });
+      }
     }
     if (match.games.length >= periodsTotal) {
       return res.status(409).json({

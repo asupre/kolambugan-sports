@@ -1076,6 +1076,16 @@ so a bug in one route cannot expose the other.
   notification for its current stage, it posts one (with a unique sparse `key` "<season>:<stage>",
   so two admins opening the bell at once create it once). The bell also re-checks every 60s while
   the tab is visible (it used to load only with the page).
+- **Both notification bells are a regular DROPDOWN (Nov 5 2026, Super Admin: "it should still
+  perform like a regular notification unless we click one of its content then a modal will pop
+  up").** Shared `components/NotificationBell.jsx` (`NotificationBell` = bell + count + a Radix
+  Popover under it, `NotificationItem`, `NotificationEmpty`, `notifWhen`). Opening the dropdown
+  marks things read; tapping one item closes it and opens a Dialog with the details. Barangay
+  admin (`BrgyNotifications.jsx`): the full message, stage pill, date and "Open <page>". Super
+  Admin (`TermsNotifications.jsx`): the dropdown lists the barangays' answers newest first, an
+  item opens that barangay's answer with **Ask again**; the footer "See all barangays" opens the
+  grouped Declined / Accepted / Waiting list (whose rows open the same detail). Both re-check
+  every 60s while the tab is visible. Rendered at 1366 and 390 against a mock API.
 - **Barangay Admin + Organizer dashboards and the season indicator (Sep 2026)**:
   both roles land on a Dashboard tab (`/brgy/dashboard`, `/organizer/dashboard`;
   `/brgy` is still My Teams and `/organizer` still the scoring screen). Data comes

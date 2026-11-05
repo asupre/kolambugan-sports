@@ -1,18 +1,16 @@
 // Barangay Admin notifications bell (Nov 2026): season updates (new season, registration open,
 // verification, tournament started, completed, moved back), written by the server whenever the
-// Super Admin changes the season (backend/src/lib/notify.js). The count is what's new since the
-// bell was last opened; opening it marks everything read (POST /api/notifications/seen).
-// Tapping a notification goes to the page it's about.
+// Super Admin changes the season (backend/src/lib/notify.js). The bell opens a regular dropdown
+// (NotificationBell); opening it marks everything read (POST /api/notifications/seen). Tapping a
+// notification opens a pop-up with the whole message and a button to the page it's about.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, CalendarClock, ChevronRight } from "lucide-react";
+import { ArrowRight, CalendarClock, Megaphone } from "lucide-react";
 import { api } from "../api";
+import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
+import { NotificationBell, NotificationEmpty, NotificationItem, notifWhen } from "./NotificationBell";
 import { cn } from "../lib/utils";
-
-const when = (d) => new Date(d).toLocaleString("en-PH", {
-  timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
-});
 
 // Same colours as the season stage pill.
 const STAGE_TONE = {
@@ -22,12 +20,19 @@ const STAGE_TONE = {
   ongoing: "bg-green-500/15 text-green-700 dark:text-green-400",
   completed: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
 };
+const STAGE_LABEL = {
+  setup: "Setup", registration_open: "Registration", verification: "Verification", ongoing: "Ongoing", completed: "Completed",
+};
+const LINK_LABEL = {
+  "/brgy": "Open My Teams", "/brgy/documents": "Open Verification Status", "/brgy/matches": "Open Matches", "/brgy/dashboard": "Open Dashboard",
+};
 
 export default function BrgyNotifications({ className }) {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState([]);   // as they were when opened (keeps the "New" marks)
+  const [rows, setRows] = useState([]);       // as they were when opened (keeps the "new" dots)
+  const [detail, setDetail] = useState(null); // the notification shown in the pop-up
 
   async function load() {
     try { const d = await api("/api/notifications"); setData(d); return d; } catch { return null; }
@@ -39,8 +44,10 @@ export default function BrgyNotifications({ className }) {
     return () => clearInterval(timer);
   }, []);
 
-  async function openPanel() {
-    setOpen(true);
+  async function onOpenChange(next) {
+    setOpen(next);
+    if (!next) return;
+    setRows(data?.notifications || []);
     const d = (await load()) || data;
     setRows(d?.notifications || []);
     if (d?.unread) {
@@ -48,62 +55,64 @@ export default function BrgyNotifications({ className }) {
     }
   }
 
-  function go(n) {
+  function showDetail(n) {
     setOpen(false);
+    setDetail(n);
+  }
+
+  function go(n) {
+    setDetail(null);
     if (n.link) navigate(n.link);
   }
 
-  const count = data?.unread || 0;
+  const icon = (n) => (
+    <span className={cn("flex size-8 items-center justify-center rounded-full", STAGE_TONE[n.stage] || "bg-primary/15 text-primary")}>
+      <Megaphone className="size-4" />
+    </span>
+  );
+
   return (
     <>
-      <button onClick={openPanel} aria-label={count ? `Notifications, ${count} new` : "Notifications"} title="Notifications"
-        className={cn("relative flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent hover:text-accent-foreground", className)}>
-        <Bell className="size-4" />
-        {count > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold leading-none text-white">
-            {count > 9 ? "9+" : count}
-          </span>
+      <NotificationBell open={open} onOpenChange={onOpenChange} count={data?.unread || 0} urgent title="Notifications" className={className}>
+        {!rows.length ? (
+          <NotificationEmpty icon={<CalendarClock className="size-6" />}>
+            No updates yet. You'll be notified here when the season moves on.
+          </NotificationEmpty>
+        ) : (
+          rows.map((n) => (
+            <NotificationItem key={n._id} unread={n.unread} icon={icon(n)} title={n.title} text={n.body}
+              at={notifWhen(n.at)} onClick={() => showDetail(n)} />
+          ))
         )}
-      </button>
+      </NotificationBell>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-          <div className="border-b px-4 py-4 pr-12">
-            <DialogTitle className="text-[17px]">Notifications</DialogTitle>
-            <DialogDescription className="mt-1 text-[13px]">
-              Season updates from the SK Federation: registration, verification, games and more.
-            </DialogDescription>
-          </div>
-          <div className="scrollbar-thin overflow-y-auto overscroll-contain">
-            {!rows.length ? (
-              <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-sm text-muted-foreground">
-                <CalendarClock className="size-6" />
-                No updates yet. You'll be notified here when the season moves on.
-              </div>
-            ) : (
-              <ul className="divide-y">
-                {rows.map((n) => (
-                  <li key={n._id}>
-                    <button onClick={() => go(n)}
-                      className={cn("flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-accent/60", n.unread && "bg-primary/5")}>
-                      <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.unread ? "bg-red-600" : "bg-transparent")} />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="text-[15px] font-medium">{n.title}</span>
-                          {n.unread && (
-                            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", STAGE_TONE[n.stage] || "bg-primary/15 text-primary")}>New</span>
-                          )}
-                        </span>
-                        {n.body && <span className="mt-0.5 block text-[14px] text-muted-foreground">{n.body}</span>}
-                        <span className="mt-1 block text-[12px] text-muted-foreground">{when(n.at)}</span>
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent className="sm:max-w-md">
+          {detail && (
+            <>
+              <div className="flex items-start gap-3 pr-8">
+                {icon(detail)}
+                <div className="min-w-0">
+                  <DialogTitle className="text-[17px] leading-snug">{detail.title}</DialogTitle>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                    {detail.stage && (
+                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", STAGE_TONE[detail.stage])}>
+                        {STAGE_LABEL[detail.stage]}
                       </span>
-                      {n.link && <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground" />}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                    )}
+                    {notifWhen(detail.at)}
+                  </p>
+                </div>
+              </div>
+              <DialogDescription className="text-[14px] leading-relaxed text-foreground">{detail.body}</DialogDescription>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => setDetail(null)}>Close</Button>
+                {detail.link && (
+                  <Button onClick={() => go(detail)}>{LINK_LABEL[detail.link] || "Open"} <ArrowRight className="size-4" /></Button>
+                )}
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

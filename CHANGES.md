@@ -3815,3 +3815,11 @@ its filename and status, making "should I delete this and re-upload" a guess.
   same order, as the Barangay Admin's player import: Last name, First name, Middle name,
   Birthdate, Age, Barangay (the player import adds Jersey no.). Both accept .xlsx as well as
   .csv, both pages offer a template, and the Reference List shows each resident's age.
+
+## 2026-11-09 — Knockout drawn by lots
+
+- Panelist's suggestion: the knockout (Top 4 / 8 / 16) is no longer paired by the system. The
+  barangays draw their opponents in person and the Super Admin places each qualifier in its slot.
+  The thesis described standard seeding (A1-B2, C1-D2, B1-A2, D1-C2) for the physical sports and a
+  random draw for Mobile Legends; both are replaced. Two teams from the same group may meet in the
+  first knockout round if the draw says so (the system warns, it doesn't block).

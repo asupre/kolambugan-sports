@@ -504,6 +504,27 @@ accounts are provisioned (`sk_federation`, `lydo_head`).
 
 TWO formats, both ending in a single-elimination knockout.
 
+- **THE KNOCKOUT IS DRAWN BY LOTS, PLACED BY THE SUPER ADMIN (Nov 9 2026, a panelist: "teams should
+  pull out the names of their opponent so it is fair"). SUPERSEDES the automatic knockout pairing
+  below (double elim's standard seeding A1-B2, C1-D2…, and the round-robin random shuffle).** The
+  barangays draw in person; on Tournaments, "Enter the knockout draw" opens `DrawDialog`
+  (`Tournaments.jsx`): one card per first-round match (Semifinal / Quarterfinal / Round of 16 ·
+  Match N), two dropdowns of the qualifiers ("Group A · 1st"), each team usable once, Save only when
+  all are placed, then a confirmation (the pairings can't be changed except by deleting the
+  tournament). Slot order = bracket order: winners of Match 1 and 2 meet next, then 3 and 4…
+  **Manual only** (Super Admin choice): there is no automatic option on the page.
+  **Same-group first-round matches are ALLOWED, with a warning** (amber card "Both from Group A" +
+  a note above Save); not blocked. Server: `POST /:id/de-bracket` and `POST /:id/bracket` both take
+  `{ slots: [teamId…] }` (required) and `checkDraw()` refuses a missing / duplicate / extra /
+  non-qualifying team (400); `buildSingleElim()` builds both (labels differ: winners/final/third vs
+  knockout/ko_final/ko_third). `/bracket` now checks the slots against the server's own
+  qualifiers (`rrQualification()`, shared with `GET /:id/qualification`, which now also returns
+  `qualifiedIds`); it used to trust the `teamIds` the page sent. `lib/knockoutSeeding.js` is no
+  longer used by the routes. Auto-play (testing aid) sends a random placement. Tested on
+  mongodb-memory-server (42 checks: DE Top 8 / Top 16, round-robin Top 8 / Top 16; every refusal,
+  round 1 follows the drawn order exactly, second draw 409, played to champion + 3rd). Frontend
+  builds; the dialog is NOT yet rendered in a browser.
+
 ### Mobile Legends: GROUP ROUND-ROBIN → SCALING SINGLE-ELIM + 3RD PLACE
 **BUILT AND TESTED end-to-end, including a full 52-team funnel.**
 - Phase 1 — Group stage: the Super Admin picks a KNOCKOUT SIZE (Top 8 or
@@ -2536,7 +2557,7 @@ respondents); deployment Sep–Oct; FINAL DEFENSE OCTOBER 2026.)
   said "no group stage, one straight double-elim bracket" while the meeting
   notes said "split into groups, win 3 → Big 8." The meeting notes were right.
   Final: 4 groups → double-elim per group → 2 qualifiers each → Top 8.
-- **Top 8 uses standard seeding, not a random draw**, so two teams from the
+- (Superseded Nov 9 2026: the knockout is now drawn by lots, see Tournament format.) **Top 8 uses standard seeding, not a random draw**, so two teams from the
   same group cannot rematch in round 1 and the four group winners don't
   eliminate each other early. Defense line: "group winners are seeded against
   other groups' runners-up."

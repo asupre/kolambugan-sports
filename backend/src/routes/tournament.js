@@ -5,7 +5,6 @@ const Team = require('../models/Team');
 const Sport = require('../models/Sport');
 const Barangay = require('../models/Barangay');
 const { knockoutSizeOf, isRoundRobinSport, rulesFor, drawOf } = require('../lib/sportRules');
-const { standardSeedOrder } = require('../lib/knockoutSeeding');
 const { authenticate, authorize } = require('../middleware/auth');
 const { getCurrentSeason, seasonEnded } = require('../middleware/season');
 const { parseManila } = require('../config/time');
@@ -727,86 +726,86 @@ function groupGamesComplete(gMatches) {
   return rr.length > 0 && rr.every((m) => isFinished(m));
 }
 
+// Per group of a ROUND-ROBIN tournament: who has qualified and any tie at the cutoff.
+// Shared by GET /:id/qualification and POST /:id/bracket (which checks the drawn
+// placement against exactly these qualifiers, Nov 2026). `qualifiedIds` = team ids.
+async function rrQualification(tournament) {
+  const advance = tournament.advancePerGroup || 2;
+
+  const matches = await Match.find({ tournament: tournament._id });
+  const idset = new Set();
+  matches.forEach((m) => { if (m.teamA) idset.add(String(m.teamA)); if (m.teamB) idset.add(String(m.teamB)); });
+  const teams = await Team.find({ _id: { $in: [...idset] } }).select('teamName');
+  const nameById = {}; teams.forEach((t) => { nameById[String(t._id)] = t.teamName; });
+
+  const byGroup = {};
+  matches.forEach((m) => {
+    if (!m.group) return; // knockout matches have no group
+    (byGroup[m.group] = byGroup[m.group] || []).push(m);
+  });
+
+  const out = {};
+  for (const [g, gMatches] of Object.entries(byGroup)) {
+    const complete = groupGamesComplete(gMatches);
+    const table = rankGroup(gMatches.filter((m) => !m.isTiebreaker), nameById);
+
+    const tb = gMatches.filter((m) => m.isTiebreaker);
+    const tbResolved = tb.length > 0 && tb.every((m) => isFinished(m));
+
+    let qualifiedIds = [];
+    let contestedNames = [];   // teams fighting in the tiebreaker (for display)
+
+    if (complete) {
+      if (table.length <= advance) {
+        qualifiedIds = table.map((t) => t.teamId);           // fewer teams than spots
+      } else {
+        const lastIn = table[advance - 1];
+        const tied = table.filter((t) => t.wins === lastIn.wins && t.gameWinDiff === lastIn.gameWinDiff);
+        const clearIn = table.filter((t) =>
+          t.wins > lastIn.wins || (t.wins === lastIn.wins && t.gameWinDiff > lastIn.gameWinDiff)
+        );
+        const spotsLeft = advance - clearIn.length;
+
+        if (tied.length < 2 || tied.length <= spotsLeft) {
+          qualifiedIds = table.slice(0, advance).map((t) => t.teamId); // no real contest
+        } else {
+          contestedNames = tied.map((t) => t.teamName);
+          if (tbResolved) {
+            const finalTb = tb.reduce((hi, m) => (!hi || m.round > hi.round ? m : hi), null);
+            let winnerIds = [];
+            if (spotsLeft === 1) {
+              // One spot: the bracket champion takes it.
+              if (finalTb && finalTb.seriesWinner) winnerIds = [String(finalTb.seriesWinner)];
+            } else {
+              // Two spots: BOTH finalists advance (reaching the final = qualifying).
+              winnerIds = [finalTb && finalTb.teamA, finalTb && finalTb.teamB].filter(Boolean).map(String);
+            }
+            qualifiedIds = [...clearIn.map((t) => t.teamId), ...winnerIds];
+          }
+        }
+      }
+    }
+
+    out[g] = {
+      complete,
+      standings: table,
+      qualified: qualifiedIds.map((id) => nameById[id] || '?'),
+      qualifiedIds,
+      tiedAtCutoff: qualifiedIds.length ? [] : contestedNames,
+      needsTiebreaker: contestedNames.length > 0 && tb.length === 0,
+      tiebreakerGenerated: tb.length > 0,
+      tiebreakerResolved: tbResolved,
+    };
+  }
+  return { advancePerGroup: advance, groups: out };
+}
+
 // GET /api/tournaments/:id/qualification — per group: who's qualified, and any tie at the cutoff.
 router.get('/:id/qualification', async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
-    const advance = tournament.advancePerGroup || 2;
-
-    const matches = await Match.find({ tournament: tournament._id });
-    const idset = new Set();
-    matches.forEach((m) => { if (m.teamA) idset.add(String(m.teamA)); if (m.teamB) idset.add(String(m.teamB)); });
-    const teams = await Team.find({ _id: { $in: [...idset] } }).select('teamName');
-    const nameById = {}; teams.forEach((t) => { nameById[String(t._id)] = t.teamName; });
-
-    const byGroup = {};
-    matches.forEach((m) => { const g = m.group || '-'; (byGroup[g] = byGroup[g] || []).push(m); });
-
-    // Stable pseudo-random seed from a team id (for the drawing-of-lots fallback).
-    const seedOf = (id) => {
-      const s = String(id); let h = 0;
-      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 1000000007;
-      return h;
-    };
-
-    const out = {};
-    for (const [g, gMatches] of Object.entries(byGroup)) {
-      const complete = groupGamesComplete(gMatches);
-      const table = rankGroup(gMatches.filter((m) => !m.isTiebreaker), nameById);
-
-      const tb = gMatches.filter((m) => m.isTiebreaker);
-      const tbResolved = tb.length > 0 && tb.every((m) => isFinished(m));
-
-      let qualified = [];
-      let contestedNames = [];   // teams fighting in the tiebreaker (for display)
-
-      if (complete) {
-        if (table.length <= advance) {
-          qualified = table.map((t) => t.teamName);           // fewer teams than spots
-        } else {
-          const lastIn = table[advance - 1];
-          const tied = table.filter((t) => t.wins === lastIn.wins && t.gameWinDiff === lastIn.gameWinDiff);
-          const clearIn = table.filter((t) =>
-            t.wins > lastIn.wins || (t.wins === lastIn.wins && t.gameWinDiff > lastIn.gameWinDiff)
-          );
-          const spotsLeft = advance - clearIn.length;
-
-          if (tied.length < 2 || tied.length <= spotsLeft) {
-            qualified = table.slice(0, advance).map((t) => t.teamName); // no real contest
-          } else {
-            contestedNames = tied.map((t) => t.teamName);
-            if (tbResolved) {
-              const finalTb = tb.reduce((hi, m) => (!hi || m.round > hi.round ? m : hi), null);
-              let winnerIds = [];
-              if (spotsLeft === 1) {
-                // One spot: the bracket champion takes it.
-                if (finalTb && finalTb.seriesWinner) winnerIds = [String(finalTb.seriesWinner)];
-              } else {
-                // Two spots: BOTH finalists advance (reaching the final = qualifying).
-                winnerIds = [finalTb && finalTb.teamA, finalTb && finalTb.teamB].filter(Boolean).map(String);
-              }
-              qualified = [
-                ...clearIn.map((t) => t.teamName),
-                ...winnerIds.map((id) => nameById[id] || '?'),
-              ];
-            }
-          }
-        }
-      }
-
-      out[g] = {
-        complete,
-        standings: table,
-        qualified,
-        tiedAtCutoff: qualified.length ? [] : contestedNames,
-        needsTiebreaker: contestedNames.length > 0 && tb.length === 0,
-        tiebreakerGenerated: tb.length > 0,
-        tiebreakerResolved: tbResolved,
-      };
-    }
-
-    res.json({ advancePerGroup: advance, groups: out });
+    res.json(await rrQualification(tournament));
   } catch (err) {
     console.error('Qualification error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -868,102 +867,97 @@ router.post('/:id/tiebreakers', authenticate, authorize('super_admin'), async (r
   }
 });
 
-// Fisher–Yates shuffle for the random draw.
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+// ---- Knockout DRAW (Nov 2026, panelist: "teams should pull out the names of their opponent") --
+// The knockout is never paired by the system any more. The barangays draw lots in person, and
+// the Super Admin places each qualifier in its slot. `slots` = team ids in BRACKET ORDER:
+// slots[0] v slots[1] is match 1, slots[2] v slots[3] match 2, and so on; the winners of
+// matches 1 and 2 meet next, etc. The server only checks the placement is complete: every
+// qualifier exactly once, nobody else. Two teams from the same group MAY meet in round 1 (the
+// draw decides; the page warns before confirming).
+function checkDraw(slots, qualifierIds) {
+  if (!Array.isArray(slots) || !slots.length) {
+    return 'Place every qualifier in the bracket first (enter the result of the draw).';
   }
-  return a;
+  const want = new Set(qualifierIds.map(String));
+  const n = want.size;
+  if (n < 4 || (n & (n - 1)) !== 0) {
+    return `The knockout needs a power-of-two number of qualifiers (4, 8 or 16); this tournament has ${n}.`;
+  }
+  if (slots.length !== n) return `The bracket has ${n} slots; ${slots.length} were filled.`;
+  const seen = new Set();
+  for (const raw of slots) {
+    const id = String(raw || '');
+    if (!id) return 'Every slot needs a team.';
+    if (!want.has(id)) return 'A team placed in the bracket did not qualify from the group stage.';
+    if (seen.has(id)) return 'A team was placed in the bracket twice.';
+    seen.add(id);
+  }
+  return null;
 }
 
-// POST /api/tournaments/:id/bracket
-// ML = single-elimination (scales to any power-of-two N) + 3rd-place match.
-// Physical sports = double-elimination.
+// Single elimination + 3rd place from `seeds` (bracket order). Same structure for both draw
+// formats; only the bracket labels differ (round-robin: winners/final/third; double-elim groups:
+// knockout/ko_final/ko_third). Final BO5, the rest BO3.
+async function buildSingleElim(tournamentId, seeds, labels) {
+  const mk = async (bracket, round, bestOf, teamA = null, teamB = null) => {
+    const m = await Match.create({ tournament: tournamentId, bracket, round, teamA, teamB, bestOf, status: 'scheduled' });
+    return m._id;
+  };
+  const wire = (id, win, lose) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win, nextMatchLose: lose } });
+
+  const n = seeds.length, numRounds = Math.log2(n);
+  const bestOfFor = (r) => (r === numRounds ? 5 : 3);
+  const roundMatches = {};
+  for (let r = 1; r <= numRounds; r++) {
+    const cnt = n / Math.pow(2, r);
+    const bracket = r === numRounds ? labels.final : labels.round;
+    roundMatches[r] = [];
+    for (let i = 0; i < cnt; i++) {
+      if (r === 1) roundMatches[r].push(await mk(labels.round, r, bestOfFor(r), seeds[i * 2], seeds[i * 2 + 1]));
+      else roundMatches[r].push(await mk(bracket, r, bestOfFor(r)));
+    }
+  }
+  const third = await mk(labels.third, numRounds, 3);
+  for (let r = 1; r < numRounds; r++) {
+    const isSemi = r === numRounds - 1;
+    for (let i = 0; i < roundMatches[r].length; i++) {
+      await wire(roundMatches[r][i], roundMatches[r + 1][Math.floor(i / 2)], isSemi ? third : null);
+    }
+  }
+}
+
+// POST /api/tournaments/:id/bracket — ROUND-ROBIN draw format. Body { slots: [teamId…] }:
+// the drawn placement of the group qualifiers (checked against rrQualification()).
 router.post('/:id/bracket', authenticate, authorize('super_admin'), async (req, res) => {
   try {
-        const tournament = await Tournament.findById(req.params.id).populate('sport', 'name tournamentFormat category');
+    const tournament = await Tournament.findById(req.params.id).populate('sport', 'name tournamentFormat category');
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
     if (await refuseEnded(res, tournament)) return;
-
-    const existing = await Match.findOne({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } });
-    if (existing) return res.status(409).json({ message: 'A bracket already exists for this tournament.' });
-
-    const teamIds = Array.isArray(req.body.teamIds) ? req.body.teamIds : [];
-    const n = teamIds.length;
-    // Knockout needs a power of two (4, 8, 16, 32) so every round halves cleanly — no byes.
-    const isPowerOfTwo = n >= 4 && (n & (n - 1)) === 0;
-    if (!isPowerOfTwo) {
+    const rr = tournament.format ? tournament.format === 'round_robin' : isRoundRobinSport(tournament.sport);
+    if (!rr) {
       return res.status(400).json({
-        message: `The knockout needs a power-of-two team count (4, 8, 16, or 32); received ${n}. Adjust your group settings so a clean number advances.`,
+        message: 'This tournament uses double-elimination groups. Draw its knockout from the group qualifiers instead.',
       });
     }
 
-        // By format, not by name — a new esport with a round-robin draw needs the
-    // same single-elimination knockout that Mobile Legends gets.
-    const isML = isRoundRobinSport(tournament.sport);
+    const existing = await Match.findOne({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final', 'third'] }, group: { $in: [null, ''] } });
+    if (existing) return res.status(409).json({ message: 'A knockout bracket already exists for this tournament.' });
 
-    const shuffle = (arr) => {
-      const a = [...arr];
-      for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-      return a;
-    };
-    const seeds = shuffle(teamIds);
-
-    const mk = async (bracket, round, bestOf, teamA = null, teamB = null) => {
-      const m = await Match.create({ tournament: tournament._id, bracket, round, teamA, teamB, bestOf, status: 'scheduled' });
-      return m._id;
-    };
-    const wire = (id, win, lose) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win, nextMatchLose: lose } });
-
-    if (isML) {
-      // SINGLE ELIMINATION + 3RD PLACE — scales to any power-of-two N (8/16/32).
-      const numRounds = Math.log2(n);                          // 16 teams → 4 rounds
-      const bestOfFor = (round) => (round === numRounds ? 5 : 3); // final BO5, rest BO3
-
-      const roundMatches = {};
-      for (let r = 1; r <= numRounds; r++) {
-        const matchesInRound = n / Math.pow(2, r);
-        const bracket = r === numRounds ? 'final' : 'winners';
-        roundMatches[r] = [];
-        for (let i = 0; i < matchesInRound; i++) {
-          if (r === 1) {
-            roundMatches[r].push(await mk('winners', r, bestOfFor(r), seeds[i * 2], seeds[i * 2 + 1]));
-          } else {
-            roundMatches[r].push(await mk(bracket, r, bestOfFor(r)));
-          }
-        }
-      }
-
-      // 3rd-place match (BO3) for the two semifinal losers.
-      const third = await mk('third', numRounds, 3);
-
-      // Wire winners advancement; semifinal losers → 3rd-place, earlier losers eliminated.
-      for (let r = 1; r < numRounds; r++) {
-        const thisRound = roundMatches[r];
-        const nextRound = roundMatches[r + 1];
-        const isSemifinal = r === numRounds - 1;
-        for (let i = 0; i < thisRound.length; i++) {
-          const winnerTo = nextRound[Math.floor(i / 2)];
-          const loserTo = isSemifinal ? third : null;
-          await wire(thisRound[i], winnerTo, loserTo);
-        }
-      }
-        } else {
-      // Physical sports build their knockout from group qualifiers via
-      // /de-bracket, which seeds A1–B2 properly. The hardcoded 8-team
-      // double-elim that lived here silently ignored any team past the eighth.
-      return res.status(400).json({
-        message: 'This sport uses group double-elimination. Generate its knockout from the group qualifiers instead.',
-      });
+    const { groups } = await rrQualification(tournament);
+    const list = Object.values(groups);
+    if (!list.length || list.some((g) => !g.complete || !g.qualifiedIds.length)) {
+      return res.status(400).json({ message: 'Every group must be fully played (and any tie settled) before the knockout draw.' });
     }
+    const qualifierIds = list.flatMap((g) => g.qualifiedIds);
+    const bad = checkDraw(req.body.slots, qualifierIds);
+    if (bad) return res.status(400).json({ message: bad });
 
+    await buildSingleElim(tournament._id, req.body.slots.map(String), { round: 'winners', final: 'final', third: 'third' });
     tournament.stage = 'elimination';
     await tournament.save();
 
-    const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['winners', 'losers', 'final', 'third'] } });
-    res.status(201).json({ message: 'Bracket generated.', matches: total, format: isML ? 'single_elimination' : 'double_elimination' });
+    const n = qualifierIds.length;
+    res.status(201).json({ message: `Top ${n} knockout drawn.`, knockoutSize: n });
   } catch (err) {
     console.error('Bracket generation error:', err);
     res.status(500).json({ message: 'Something went wrong.' });
@@ -1035,21 +1029,19 @@ router.get('/:id/de-qualification', async (req, res) => {
     res.status(500).json({ message: 'Something went wrong.' });
   }
 });
-// POST /api/tournaments/:id/de-bracket — double-elimination groups.
-// Reads the group qualifiers (2 per group, tagged by seed) and builds the single-elimination
-// knockout + a 3rd-place match with STANDARD seeding (lib/knockoutSeeding.js). Since Nov 2026 it
-// works for any number of groups (2 / 4 / 8 -> Top 4 / 8 / 16); it used to be fixed at 4 -> 8.
+// POST /api/tournaments/:id/de-bracket — double-elimination groups. Body { slots: [teamId…] }:
+// the drawn placement of the 2 qualifiers per group (2 / 4 / 8 groups -> Top 4 / 8 / 16). Until
+// Nov 2026 this seeded A1-B2, C1-D2… itself (lib/knockoutSeeding.js, no longer used here).
 router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Tournament not found.' });
     if (await refuseEnded(res, tournament)) return;
 
-    // Don't double-build the finals.
     const existing = await Match.findOne({ tournament: tournament._id, bracket: 'ko_final' });
     if (existing) return res.status(409).json({ message: 'A knockout bracket already exists for this tournament.' });
 
-    // Pull the 2 qualifiers per group, tagged seed 1 (upper) / seed 2 (lower).
+    // The 2 qualifiers per group: upper-bracket winner and lower-bracket winner.
     const matches = await Match.find({ tournament: tournament._id });
     const byGroup = {};
     matches.forEach((m) => {
@@ -1058,65 +1050,31 @@ router.post('/:id/de-bracket', authenticate, authorize('super_admin'), async (re
       (byGroup[g] = byGroup[g] || []).push(m);
     });
 
-    const q = {}; // e.g. q['A1'] = teamId
-    let ready = true;
-    for (const [g, gm] of Object.entries(byGroup)) {
+    const qualifierIds = [];
+    let ready = Object.keys(byGroup).length > 0;
+    for (const gm of Object.values(byGroup)) {
       if (!gm.every((m) => isFinished(m))) { ready = false; break; }
       const upperFinal = gm.find((m) => m.bracket === 'winners' && !m.nextMatchWin);
       const lowerFinal = gm.find((m) => m.bracket === 'losers' && !m.nextMatchWin);
-      if (upperFinal && upperFinal.seriesWinner) q[`${g}1`] = String(upperFinal.seriesWinner);
-      if (lowerFinal && lowerFinal.seriesWinner) q[`${g}2`] = String(lowerFinal.seriesWinner);
+      if (upperFinal && upperFinal.seriesWinner) qualifierIds.push(String(upperFinal.seriesWinner));
+      if (lowerFinal && lowerFinal.seriesWinner) qualifierIds.push(String(lowerFinal.seriesWinner));
       else if (!lowerFinal && upperFinal && isFinished(upperFinal)) {
-        q[`${g}2`] = String(upperFinal.seriesWinner) === String(upperFinal.teamA) ? String(upperFinal.teamB) : String(upperFinal.teamA);
+        qualifierIds.push(String(upperFinal.seriesWinner) === String(upperFinal.teamA) ? String(upperFinal.teamB) : String(upperFinal.teamA));
       }
     }
-
-    // Standard seeding for however many groups this tournament has (tournament.groups is the
-    // draw's own list, A, B, C...; older tournaments fall back to the groups their matches use).
-    const groups = (tournament.groups?.length ? [...tournament.groups] : Object.keys(byGroup)).sort();
-    let order;
-    try { order = standardSeedOrder(groups); } catch (e) {
-      return res.status(400).json({ message: `This tournament has ${groups.length} groups; the knockout needs 2, 4 or 8.` });
+    const groupCount = Object.keys(byGroup).length;
+    if (!ready || qualifierIds.length !== groupCount * 2) {
+      return res.status(400).json({ message: `All ${groupCount} groups must be fully played and produce ${groupCount * 2} qualifiers first.` });
     }
-    if (!ready || order.some((k) => !q[k])) {
-      return res.status(400).json({ message: `All ${groups.length} groups must be fully played and produce ${order.length} qualifiers first.` });
-    }
-    const seeds = order.map((k) => q[k]); // seeded team ids, in bracket slot order
+    const bad = checkDraw(req.body.slots, qualifierIds);
+    if (bad) return res.status(400).json({ message: bad });
 
-    // --- build single-elim Top 8 + 3rd place (same structure as ML) ---
-    const mk = async (bracket, round, bestOf, teamA = null, teamB = null) => {
-      const m = await Match.create({ tournament: tournament._id, bracket, round, teamA, teamB, bestOf, status: 'scheduled' });
-      return m._id;
-    };
-    const wire = (id, win, lose) => Match.updateOne({ _id: id }, { $set: { nextMatchWin: win, nextMatchLose: lose } });
-
-    const n = order.length, numRounds = Math.log2(n);   // 4 → SF, Final · 8 → QF, SF, Final · 16 → R16…
-    const bestOfFor = (r) => (r === numRounds ? 5 : 3); // final BO5, rest BO3
-
-    const roundMatches = {};
-    for (let r = 1; r <= numRounds; r++) {
-      const cnt = n / Math.pow(2, r);
-      const bracket = r === numRounds ? 'ko_final' : 'knockout';
-      roundMatches[r] = [];
-      for (let i = 0; i < cnt; i++) {
-        if (r === 1) roundMatches[r].push(await mk('knockout', r, bestOfFor(r), seeds[i * 2], seeds[i * 2 + 1]));
-        else roundMatches[r].push(await mk(bracket, r, bestOfFor(r)));
-      }
-    }
-    const third = await mk('ko_third', numRounds, 3);
-
-    for (let r = 1; r < numRounds; r++) {
-      const isSemi = r === numRounds - 1;
-      for (let i = 0; i < roundMatches[r].length; i++) {
-        await wire(roundMatches[r][i], roundMatches[r + 1][Math.floor(i / 2)], isSemi ? third : null);
-      }
-    }
-
+    await buildSingleElim(tournament._id, req.body.slots.map(String), { round: 'knockout', final: 'ko_final', third: 'ko_third' });
     tournament.stage = 'elimination';
     await tournament.save();
 
-    const total = await Match.countDocuments({ tournament: tournament._id, bracket: { $in: ['knockout', 'ko_final', 'ko_third'] } });
-    res.status(201).json({ message: `Top ${n} knockout generated (standard seeding + 3rd place).`, matches: total, knockoutSize: n });
+    const n = qualifierIds.length;
+    res.status(201).json({ message: `Top ${n} knockout drawn (+ 3rd place).`, knockoutSize: n });
   } catch (err) {
     console.error('DE bracket error:', err);
     res.status(500).json({ message: 'Something went wrong.' });

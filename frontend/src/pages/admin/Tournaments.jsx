@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Progress } from "../../components/ui/progress";
 import {
   Select,
@@ -458,6 +459,136 @@ function ScheduleSection({ tournamentId, sportName, ended }) {
   );
 }
 
+// The knockout DRAW (Nov 2026, panelist: "teams should pull out the names of their opponent").
+// The barangays draw lots in person; the Super Admin places each qualifier in the slot the draw
+// gave it. Slot order = bracket order: Match 1 and Match 2 winners meet next, and so on. Two
+// teams from the same group may meet in round 1 (the draw decides), but it's flagged here.
+function roundOneName(n, i) {
+  if (n === 4) return `Semifinal ${i + 1}`;
+  if (n === 8) return `Quarterfinal ${i + 1}`;
+  return `Round of ${n} · Match ${i + 1}`;
+}
+
+function DrawDialog({ qualifiers, busy, onClose, onSave }) {
+  const n = qualifiers.length;
+  const [slots, setSlots] = useState(() => Array(n).fill(""));
+  const [error, setError] = useState("");
+  const confirm = useConfirm();
+  const byId = Object.fromEntries(qualifiers.map((q) => [q.id, q]));
+  const perGroup = qualifiers.reduce((c, q) => ({ ...c, [q.group]: (c[q.group] || 0) + 1 }), {});
+  const label = (q) => (perGroup[q.group] > 1
+    ? `Group ${q.group} · ${q.tag.slice(q.group.length) === "1" ? "1st" : "2nd"}`
+    : `Group ${q.group}`);
+
+  const used = new Set(slots.filter(Boolean));
+  const unplaced = qualifiers.filter((q) => !used.has(q.id));
+  const pairs = Array.from({ length: n / 2 }, (_, i) => [slots[i * 2], slots[i * 2 + 1]]);
+  const rematches = pairs
+    .map(([a, b], i) => (a && b && byId[a].group === byId[b].group ? { i, group: byId[a].group } : null))
+    .filter(Boolean);
+  const set = (i, id) => { setError(""); setSlots((s) => s.map((v, k) => (k === i ? id : v))); };
+
+  async function save() {
+    const ok = await confirm(
+      "Save this draw? The knockout bracket is built from it and the pairings can't be changed afterwards " +
+      "(only by deleting the tournament).",
+      { confirmLabel: "Save the draw" }
+    );
+    if (!ok) return;
+    try {
+      await onSave(slots);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  const slot = (i) => (
+    <div key={i} className="flex items-center gap-1.5 min-w-0">
+      <Select value={slots[i] || ""} onValueChange={(v) => set(i, v)}>
+        <SelectTrigger className="flex-1 min-w-0" aria-label={`Slot ${i + 1}`}>
+          <SelectValue placeholder="Pick the drawn team" />
+        </SelectTrigger>
+        <SelectContent position="popper">
+          {qualifiers.map((q) => (
+            <SelectItem key={q.id} value={q.id} disabled={used.has(q.id) && slots[i] !== q.id}>
+              <span className="truncate">{q.name}</span>
+              <span className="text-muted-foreground text-xs">{label(q)}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {slots[i] && (
+        <Button type="button" size="sm" variant="ghost" onClick={() => set(i, "")} aria-label="Clear this slot">
+          ✕
+        </Button>
+      )}
+    </div>
+  );
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[92dvh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Knockout draw · Top {n}</DialogTitle>
+          <DialogDescription>
+            Place each team where the barangays' draw put it. The winners of Match 1 and Match 2 meet in the
+            next round, then Match 3 and 4, and so on.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto scrollbar-thin -mx-1 px-1 space-y-3">
+          {pairs.map((_, i) => {
+            const clash = rematches.find((r) => r.i === i);
+            return (
+              <div key={i} className={cn("rounded-lg border p-3", clash && "border-amber-500/60 bg-amber-500/5")}>
+                <div className="flex items-baseline justify-between gap-2 mb-2">
+                  <span className="text-sm font-semibold">{roundOneName(n, i)}</span>
+                  {clash && (
+                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                      Both from Group {clash.group}
+                    </span>
+                  )}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                  {slot(i * 2)}
+                  <span className="text-muted-foreground text-xs font-semibold text-center">VS</span>
+                  {slot(i * 2 + 1)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="space-y-2 pt-2 text-sm">
+          {unplaced.length > 0 ? (
+            <p className="text-muted-foreground">
+              Still to place ({unplaced.length}): {unplaced.map((q) => q.name).join(", ")}
+            </p>
+          ) : (
+            <p className="text-green-600 dark:text-green-400">Every team is placed.</p>
+          )}
+          {rematches.length > 0 && (
+            <p className="text-amber-600 dark:text-amber-400">
+              {rematches.length === 1 ? "One first-round match is" : `${rematches.length} first-round matches are`} between
+              teams from the same group. That's allowed if the draw came out that way; check it before saving.
+            </p>
+          )}
+          {error && (
+            <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={save} disabled={busy || unplaced.length > 0}>
+            {busy ? "Saving…" : "Save the draw"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGenerated, ended }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [qualification, setQualification] = useState(null);  // ML tiebreaker UI
@@ -476,21 +607,26 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
     const groups = [...new Set((d.matches || []).filter((m) => m.group).map((m) => m.group))];
     const qual = d.qualification || {};
     const seeds = d.qualifiers || {};
+    const nameOf = {};
+    (d.matches || []).forEach((m) => [m.teamA, m.teamB].forEach((t) => { if (t) nameOf[String(t.id)] = t.name; }));
+    const tagOf = (id, g, i) => ({ id: String(id), name: nameOf[String(id)] || "?", group: g, tag: `${g}${i}` });
 
     if (isML) {
       const contested = groups.filter((g) => (qual[g]?.contested || []).length > 0);
       const ids = groups.flatMap((g) => qual[g]?.clear || []);
       const advance = d.tournament?.advancePerGroup || 1;
+      const qualifiers = groups.flatMap((g) => (qual[g]?.clear || []).map((id, i) => tagOf(id, g, i + 1)));
       return {
-        groups, contested, ids,
+        groups, contested, ids, qualifiers,
         ready: contested.length === 0 && ids.length === groups.length * advance,
         expected: groups.length * advance,
       };
     }
     const short = groups.filter((g) => (seeds[g] || []).length < 2);
     const ids = groups.flatMap((g) => (seeds[g] || []).map((s) => s.teamId));
+    const qualifiers = groups.flatMap((g) => (seeds[g] || []).map((s) => tagOf(s.teamId, g, s.seed)));
     return {
-      groups, contested: [], ids, short,
+      groups, contested: [], ids, short, qualifiers,
       ready: short.length === 0 && groups.length > 0,
       expected: groups.length * 2,
     };
@@ -533,11 +669,9 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
         }
         if (!rd.ready) { if (r.played === 0) break; continue; }
 
-        if (isML) {
-          await api(`/api/tournaments/${tournamentId}/bracket`, { method: "POST", body: JSON.stringify({ teamIds: rd.ids }) });
-        } else {
-          await api(`/api/tournaments/${tournamentId}/de-bracket`, { method: "POST" });
-        }
+        // Testing only: a random placement stands in for the barangays' draw.
+        const slots = [...rd.ids].sort(() => Math.random() - 0.5);
+        await api(`/api/tournaments/${tournamentId}/${isML ? "bracket" : "de-bracket"}`, { method: "POST", body: JSON.stringify({ slots }) });
         koDrawn = true;
       }
       await confirm(`Auto-play finished: ${played} match${played === 1 ? "" : "es"} played.`, { alertOnly: true });
@@ -568,31 +702,19 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
   const anyNeedsTiebreaker = groupList.some(([, g]) => g.needsTiebreaker);
   const groupsComplete = groupList.length > 0 && groupList.every(([, g]) => g.complete);
 
-  async function generateBracket() {
+  // The knockout is DRAWN by the barangays in person (Nov 2026, panelist's suggestion); the Super
+  // Admin places each qualifier where the draw put it (DrawDialog). The server checks the placement.
+  const [drawOpen, setDrawOpen] = useState(false);
+  async function saveDraw(slots) {
     setBusy(true);
     setError("");
     try {
-      if (!isML) {
-        // The de-bracket route reads the group qualifiers itself, so there's
-        // nothing to send — and nothing for the frontend to get wrong.
-        await api(`/api/tournaments/${tournamentId}/de-bracket`, { method: "POST" });
-      } else {
-        if (!readiness?.ready) {
-          setError(
-            readiness?.contested?.length
-              ? `Group ${readiness.contested.join(", ")} still has a tie for the last spot. Play the tiebreaker playoff first.`
-              : "Not every group has produced its qualifiers yet."
-          );
-          return;
-        }
-        await api(`/api/tournaments/${tournamentId}/bracket`, {
-          method: "POST",
-          body: JSON.stringify({ teamIds: readiness.ids }),
-        });
-      }
+      await api(`/api/tournaments/${tournamentId}/${isML ? "bracket" : "de-bracket"}`, {
+        method: "POST",
+        body: JSON.stringify({ slots }),
+      });
+      setDrawOpen(false);
       onBracketGenerated && onBracketGenerated();
-    } catch (e) {
-      setError(e.message);
     } finally {
       setBusy(false);
     }
@@ -659,12 +781,17 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
                 <>
                   <h3 className="font-semibold mb-1">Group stage complete</h3>
                   <p className="text-muted-foreground text-sm mb-3">
-                    {readiness.ids.length} teams qualified.
+                    {readiness.ids.length} teams qualified. Hold the draw with the barangays, then place each
+                    team where the draw put it.
                   </p>
                   <ErrorBox />
-                  <Button onClick={generateBracket} disabled={busy}>
-                    {busy ? "Generating…" : `Generate Knockout Bracket (${readiness.ids.length} teams)`}
+                  <Button onClick={() => setDrawOpen(true)} disabled={busy}>
+                    Enter the knockout draw ({readiness.ids.length} teams)
                   </Button>
+                  {drawOpen && (
+                    <DrawDialog qualifiers={readiness.qualifiers || []} busy={busy}
+                      onClose={() => setDrawOpen(false)} onSave={saveDraw} />
+                  )}
                 </>
               ) : (
                 <>

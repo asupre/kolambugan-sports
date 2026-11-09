@@ -2890,6 +2890,14 @@ now-unused `Zap` icon import and a `showError` declaration that had no other
 caller in that component).
 `dev-setup.ps1` was checked — it exists locally (gitignored) and was never
 committed, so nothing to do there.
+**Auto-play plays ONE STAGE per click (Nov 9 2026, Super Admin; supersedes "to the champion" below).**
+The button is "Auto-play this stage" (group stage) / "Auto-play the knockout". One click plays every
+ready match of the current stage until nothing is left, then STOPS: it no longer draws tiebreaker
+playoffs or the knockout. Those stay on their own buttons (Generate Tiebreaker Playoff, Enter the
+knockout draw); click Auto-play again afterwards to play them. Frontend only (`autoplayAll` in
+`Tournaments.jsx`); the server route already stopped when nothing was ready. Tested on
+mongodb-memory-server: DE 4 / 8 groups and round-robin Top 8 / 16, one call finishes every group,
+a second call plays 0, no knockout or tiebreaker created.
 **Tournaments → "Auto-play to the champion" (Oct 31 2026, KEPT ON PURPOSE, testing aid):** so the
 Super Admin doesn't have to score every game as each organizer. `POST /api/tournaments/:id/autoplay`
 (super_admin) gives every READY match (both teams, `scheduled`) a random result shaped like the

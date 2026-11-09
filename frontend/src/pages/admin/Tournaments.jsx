@@ -640,39 +640,29 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
     }
   }
 
-  // Testing aid: plays every ready match with a random result, then draws the
-  // tiebreakers / knockout when they're due, and keeps going to the champion.
-  // Uses the same routes as the buttons below, one step at a time.
+  // Testing aid (revised Nov 9 2026): plays the CURRENT stage only, every ready match with a
+  // random result, until nothing in it is left to play. It never draws the next step: tiebreaker
+  // playoffs and the knockout draw stay on their own buttons, as in a real season. Click again
+  // after drawing the next step to play that one.
   async function autoplayAll() {
+    const what = stage === "elimination" ? "knockout" : isML ? "group stage" : "group brackets";
     const ok = await confirm(
-      "Fill every unplayed match in this tournament with a random result, all the way to the champion? " +
-      "This is for testing. Results show on the public site and can't be undone (delete the tournament to start over).",
+      `Fill every unplayed match in the ${what} with a random result? It stops there; the next step ` +
+      "(tiebreaker playoff or knockout draw) is still yours to do. This is for testing. Results show " +
+      "on the public site and can't be undone (delete the tournament to start over).",
       { confirmLabel: "Auto-play" }
     );
     if (!ok) return;
     setBusy(true);
     setError("");
     let played = 0;
-    let koDrawn = stage === "elimination" || stage === "completed";
     try {
-      for (let step = 0; step < 8; step++) {
+      // The server keeps going round by round until nothing is ready; the loop only guards
+      // against a stage whose next round becomes ready after a slow write.
+      for (let step = 0; step < 4; step++) {
         const r = await api(`/api/tournaments/${tournamentId}/autoplay`, { method: "POST" });
         played += r.played;
-        if (r.stage === "completed") break;
-        if (koDrawn) { if (r.played === 0) break; continue; }
-
-        const rd = await fetchReadiness();
-        if (isML && !rd.ready) {
-          const q = await api(`/api/tournaments/${tournamentId}/qualification`);
-          const needsTie = Object.values(q.groups || {}).some((g) => g.needsTiebreaker);
-          if (needsTie) { await api(`/api/tournaments/${tournamentId}/tiebreakers`, { method: "POST" }); continue; }
-        }
-        if (!rd.ready) { if (r.played === 0) break; continue; }
-
-        // Testing only: a random placement stands in for the barangays' draw.
-        const slots = [...rd.ids].sort(() => Math.random() - 0.5);
-        await api(`/api/tournaments/${tournamentId}/${isML ? "bracket" : "de-bracket"}`, { method: "POST", body: JSON.stringify({ slots }) });
-        koDrawn = true;
+        if (r.played === 0 || r.stage === "completed") break;
       }
       await confirm(`Auto-play finished: ${played} match${played === 1 ? "" : "es"} played.`, { alertOnly: true });
     } catch (e) {
@@ -745,7 +735,7 @@ function TournamentDetail({ tournamentId, sportName, stage, isML, onBracketGener
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           <span className="text-muted-foreground text-xs">Testing: skip the organizers</span>
           <Button size="sm" variant="outline" onClick={autoplayAll} disabled={busy}>
-            <Zap /> {busy ? "Playing…" : "Auto-play to the champion"}
+            <Zap /> {busy ? "Playing…" : stage === "elimination" ? "Auto-play the knockout" : "Auto-play this stage"}
           </Button>
         </div>
       )}

@@ -2710,7 +2710,13 @@ Repo: one git repo, two folders. `backend/` (Express + MongoDB Atlas;
   4 groups → played out → 8 qualifiers → knockout → champion + 3rd place).
 - Distinct bracket labels for group vs knockout (see Tournament format).
 - Per-sport division/format config seeded (`seedSportConfig.js`).
-- **Delete + cleanup (Sep 2026):** `DELETE /api/tournaments/:id` (removes a
+- **The "Delete tournament" button is GONE (Nov 12 2026, Super Admin: a generated bracket must
+  not be deletable).** Removed from the tournament header in `Tournaments.jsx` (with its
+  `deleteTournament()`); the page only shows the stage badge. The `DELETE /api/tournaments/:id`
+  route is KEPT: the orphaned-tournament cards below still use it. Side effects: "delete the
+  tournament to start over" (Auto-play) and "delete the brackets first" (Season: back from
+  Ongoing to Verification) no longer have a button.
+- (The button part is superseded, see above.) **Delete + cleanup (Sep 2026):** `DELETE /api/tournaments/:id` (removes a
   tournament + its matches + PlayerMatchStats) is now wired to a "Delete
   tournament" button in `Tournaments.jsx` — its confirmation counts completed
   matches first and warns explicitly if real scores would be discarded, since

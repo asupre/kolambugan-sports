@@ -1427,8 +1427,6 @@ function TeamsSection({ sportId, division, onChanged }) {
 }
 
 export default function Tournaments() {
-  const showError = useErrorDialog();
-  const confirm = useConfirm();
   const { sportId } = useParams();
   const navigate = useNavigate();
   const [sports, setSports] = useState([]);
@@ -1519,39 +1517,6 @@ export default function Tournaments() {
     }
   }
 
-  async function deleteTournament() {
-    if (!currentTournament) return;
-
-    // DELETE /api/tournaments/:id has no guard against an ongoing tournament
-    // with real, played matches — so the confirmation shows the actual stakes
-    // instead of a generic warning nobody reads before clicking through.
-    let completedCount = 0;
-    try {
-      const d = await api(`/api/tournaments/${currentTournament._id}/matches`);
-      completedCount = (d.matches || []).filter((m) => ["completed", "forfeited"].includes(m.status)).length;
-    } catch { /* best-effort — fall back to the generic message below */ }
-
-    const ok = await confirm(
-      completedCount > 0
-        ? `Delete this ${selectedSport.name} tournament? ${completedCount} match(es) have ALREADY BEEN ` +
-          `PLAYED with real scores. Those results, every player stat, and the whole bracket are discarded ` +
-          `permanently. Teams themselves are not deleted.`
-        : `Delete this ${selectedSport.name} tournament? Every match, score, and player stat in it is ` +
-          `discarded permanently. Teams themselves are not deleted. They're free to enter a new tournament.`,
-      { danger: true, confirmLabel: completedCount > 0 ? `Delete ${completedCount} played match(es)` : "Delete" }
-    );
-    if (!ok) return;
-    setBusy(true);
-    try {
-      await api(`/api/tournaments/${currentTournament._id}`, { method: "DELETE" });
-      await loadAll();
-    } catch (e) {
-      showError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <AdminLayout title={selectedSport?.name || "Tournaments"} menu={superAdminMenu} enableDarkMode
       subtitle="Brackets, standings and the match schedule for this sport.">
@@ -1590,20 +1555,9 @@ export default function Tournaments() {
                   )}
                 </h2>
                 {currentTournament && (
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-primary/15 text-primary">
-                      {currentTournament.format === "round_robin" ? "Group stage" : "Elimination"} · {currentTournament.stage}
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/10"
-                      onClick={deleteTournament}
-                      disabled={busy}
-                    >
-                      <Trash2 /> Delete tournament
-                    </Button>
-                  </div>
+                  <Badge className="bg-primary/15 text-primary">
+                    {currentTournament.format === "round_robin" ? "Group stage" : "Elimination"} · {currentTournament.stage}
+                  </Badge>
                 )}
               </div>
 
